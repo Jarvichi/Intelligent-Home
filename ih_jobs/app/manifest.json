@@ -1,0 +1,39 @@
+{
+ "name": "ih_jobs",
+ "version": "0.2.0",
+ "kind": "addon",
+ "description": "Hourly Home Assistant jobs: backup storage sensors and the Met Office forecast. Dry-run by default; each job goes live only when told to (live_jobs) after any older loop is switched off.",
+ "owner": "local add-on ih_jobs",
+ "start": "Supervisor add-on local_ih_jobs (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8792/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8792,
+ "schedules": [
+  {
+   "job": "backupstore",
+   "kind": "interval",
+   "every_s": 3600,
+   "window_s": 600,
+   "catchup": true
+  },
+  {
+   "job": "metoffice",
+   "kind": "interval",
+   "every_s": 3600,
+   "window_s": 600,
+   "catchup": true
+  }
+ ],
+ "declares_secrets": [
+  "met_office_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

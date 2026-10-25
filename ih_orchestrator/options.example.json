@@ -1,0 +1,11 @@
+{
+  "ingest_token": "",
+  "enable_broker": false,
+  "enable_scheduler": false,
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih",
+  "mqtt_password": "",
+  "default_timezone": "UTC",
+  "module_keys": [{"module": "my_module", "key": ""}]
+}

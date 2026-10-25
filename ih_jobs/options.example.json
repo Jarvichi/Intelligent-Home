@@ -1,0 +1,19 @@
+{
+  "mode": "dry",
+  "live_jobs": [],
+  "old_loops_disabled": false,
+  "met_office_key": "",
+  "drive_used_entity": "sensor.drive_used",
+  "drive_total_entity": "sensor.drive_total",
+  "timezone": "Europe/London",
+  "zone_entity": "zone.home",
+  "fallback_weather_entity": "weather.forecast_home",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": "",
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_jobs",
+  "mqtt_password": "",
+  "enable_scheduler": false,
+  "signing_key": ""
+}

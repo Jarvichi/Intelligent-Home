@@ -1,0 +1,52 @@
+name: "Intelligent Home Jobs"
+version: "0.2.0"
+slug: ih_jobs
+description: "Hourly Home Assistant jobs as a module: backup storage sensors and the Met Office forecast. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+homeassistant_api: true
+ports:
+  8792/tcp: 8792
+ports_description:
+  8792/tcp: "Health and status (/healthz, /status)"
+options:
+  mode: "dry"
+  live_jobs: []
+  old_loops_disabled: false
+  met_office_key: ""
+  drive_used_entity: ""
+  drive_total_entity: ""
+  timezone: "Europe/London"
+  zone_entity: "zone.home"
+  fallback_weather_entity: "weather.forecast_home"
+  ingest_url: "http://172.30.32.1:8790"
+  ingest_token: ""
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: "ih_jobs"
+  mqtt_password: ""
+  enable_scheduler: false
+  signing_key: ""
+schema:
+  mode: list(dry|live)
+  live_jobs:
+    - list(backupstore|metoffice)
+  old_loops_disabled: bool
+  met_office_key: password
+  drive_used_entity: str?
+  drive_total_entity: str?
+  timezone: str
+  zone_entity: str
+  fallback_weather_entity: str
+  ingest_url: str
+  ingest_token: password
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str
+  mqtt_password: password
+  enable_scheduler: bool
+  signing_key: password

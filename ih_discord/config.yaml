@@ -1,0 +1,106 @@
+name: "Intelligent Home Discord"
+version: "0.5.0"
+slug: ih_discord
+description: "Discord shopping-list and house-status commands as a module. All house details are options. DRY-RUN by default; shopping and house can go live per feature (live_features) after any older service is switched off. Optional scheduler job (selfcheck) over MQTT. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+homeassistant_api: true
+ports:
+  8791/tcp: 8791
+ports_description:
+  8791/tcp: "Health and status (/healthz, /status)"
+options:
+  discord_token: ""
+  dry_run: true
+  live_features: []
+  old_service_disabled: false
+  bot_name: "Discord module"
+  channels:
+    house: ""
+    shopping: "shopping"
+    brain_inbox: ""
+  allowed_user_ids: []
+  shopping_list_entity: "todo.shopping_list"
+  meal_plan_script: ""
+  shop_names: ""
+  aisles: []
+  aisle_order: []
+  command_event: "ih_discord_command"
+  presence: []
+  house_entities:
+    alarm: ""
+    boiler: ""
+    thermostat: ""
+    bin_next: ""
+    bin_days: ""
+    free_power_events: ""
+    free_power_banked: ""
+  status_device:
+    label: ""
+    battery: ""
+    seen: ""
+  aliases: []
+  ingest_url: "http://172.30.32.1:8790"
+  ingest_token: ""
+  brain_webhook_id: ""
+  brain_url: "http://homeassistant:8123"
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: "ih_discord"
+  mqtt_password: ""
+  enable_scheduler: false
+  signing_key: ""
+schema:
+  discord_token: password
+  dry_run: bool
+  live_features:
+    - list(shopping|house)
+  old_service_disabled: bool
+  bot_name: str
+  channels:
+    house: str?
+    shopping: str?
+    brain_inbox: str?
+  allowed_user_ids:
+    - str
+  shopping_list_entity: str?
+  meal_plan_script: str?
+  shop_names: str?
+  aisles:
+    - name: str
+      words: str
+  aisle_order:
+    - str
+  command_event: str?
+  presence:
+    - name: str
+      entity: str
+  house_entities:
+    alarm: str?
+    boiler: str?
+    thermostat: str?
+    bin_next: str?
+    bin_days: str?
+    free_power_events: str?
+    free_power_banked: str?
+  status_device:
+    label: str?
+    battery: str?
+    seen: str?
+  aliases:
+    - command: list(status|bins|free)
+      words: str
+  ingest_url: str
+  ingest_token: password
+  brain_webhook_id: password
+  brain_url: str?
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str
+  mqtt_password: password
+  enable_scheduler: bool
+  signing_key: password

@@ -1,0 +1,33 @@
+{
+ "name": "ih_discord",
+ "version": "0.5.0",
+ "kind": "addon",
+ "description": "Discord shopping and house commands. Dry-run by default; shopping and house go live only when told to (live_features) after any older service is switched off.",
+ "owner": "local add-on ih_discord",
+ "start": "Supervisor add-on local_ih_discord (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8791/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8791,
+ "schedules": [
+  {
+   "job": "selfcheck",
+   "kind": "interval",
+   "every_s": 300,
+   "window_s": 120,
+   "catchup": false
+  }
+ ],
+ "declares_secrets": [
+  "discord_bot_token",
+  "brain_webhook_id"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}
