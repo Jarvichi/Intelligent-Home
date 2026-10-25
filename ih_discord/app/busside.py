@@ -21,8 +21,9 @@ OWNER_OPS = ('edit', 'delete', 'get_message', 'watch', 'unwatch')
 
 
 class Grant:
-    def __init__(self, name, key, channels, ops, rate, public):
+    def __init__(self, name, key, channels, ops, rate, public, shadow=False):
         self.name, self.key, self.channels, self.ops, self.rate, self.public = name, key, set(channels), set(ops), rate, set(public)
+        self.shadow = bool(shadow)   # S2: gets COPIES of what the live claimants get; every op it sends is forced dry here
 
 
 def parse_modules(raw, reserved=()):
@@ -40,7 +41,7 @@ def parse_modules(raw, reserved=()):
         except (TypeError, ValueError):
             rate = 30
         out[name] = Grant(name, str(m.get('signing_key') or '').strip(), [str(c).strip() for c in (m.get('channels') or []) if B.KEY_RE.match(str(c).strip())],
-                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()])
+                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True)
     return out
 
 
@@ -178,7 +179,7 @@ class BusTransport:
                 denied.append(ck[:60]); self.log('bus: claim not granted for module %s' % module); continue
             pub = [w for w in (c.get('public') or []) if isinstance(w, str) and w.strip().lower() in g.public]   # public only where the options allow it
             try:
-                self.router.add_claim(module, ck, c.get('match') or [{'any': True}], pub, self._deliverer(module))
+                self.router.add_claim(module, ck, c.get('match') or [{'any': True}], pub, self._deliverer(module), shadow=g.shadow)
                 granted.append(ck)
             except Exception as e:
                 denied.append(ck[:60]); self.log('bus: claim refused for module %s (%s)' % (module, type(e).__name__))
@@ -343,8 +344,11 @@ class BusTransport:
             if not o or o['module'] != module:
                 return self._fail('not_owner')
         live, why = self.is_live(module)
+        shadow = bool(getattr(g, 'shadow', False))
+        if shadow:
+            live, why = False, 'shadow module'
         is_write = op not in ('get_message', 'unwatch', 'expect')
-        if d.get('dry') is True or (is_write and not live):
+        if d.get('dry') is True or shadow or (is_write and not live):
             self.stats['dry_ops'] += 1
             self.log('[DRY] bus op %s from %s (%s)' % (op, module, 'module is in dry-run' if d.get('dry') is True else why))
             self.seq += 1
@@ -524,6 +528,6 @@ class BusTransport:
             mods[n] = {'state': state, 'last_heartbeat_s': None if hb is None else int(now - hb), 'version': m['version'],
                        'claims_granted': list(m['granted']), 'claims_denied': list(m['denied']), 'ops': sorted(g.ops),
                        'rejected': dict(self.rejected_by.get(n, {})), 'pending': len([1 for (mm, _) in self.pending if mm == n]),
-                       'mode': 'live' if live else 'dry', 'why': why}
+                       'mode': 'shadow' if g.shadow else 'live' if live else 'dry', 'why': 'shadow module' if g.shadow else why}
         return {'started': self.started, 'rejected': dict(self.rejected), 'modules': mods, 'stats': dict(self.stats),
                 'owned_messages': len(self.own), 'watches': len(self.watches)}

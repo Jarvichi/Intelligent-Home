@@ -1,5 +1,5 @@
 name: "Intelligent Home Discord"
-version: "0.6.0"
+version: "0.6.1"
 slug: ih_discord
 description: "Discord shopping-list and house-status commands as a module. All house details are options. DRY-RUN by default; shopping and house can go live per feature (live_features) after any older service is switched off. Optional scheduler job (selfcheck) over MQTT. 0.6.0: optional router (one poller, persisted cursor, journal) and a signed MQTT bus for feature modules, both OFF by default. Maps no folders."
 arch:
@@ -130,3 +130,4 @@ schema:
       rate_per_min: int(1,600)
       public_words:
         - str
+      shadow: bool?

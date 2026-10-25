@@ -100,6 +100,22 @@
       ],
       "rate_per_min": 30,
       "public_words": []
+    },
+    {
+      "name": "ih_house",
+      "signing_key": "",
+      "channels": [
+        "house"
+      ],
+      "ops": [
+        "post",
+        "typing"
+      ],
+      "rate_per_min": 30,
+      "public_words": [
+        "whoami"
+      ],
+      "shadow": true
     }
   ]
 }

@@ -25,7 +25,7 @@ try:   # optional house-specific plugin (private notes server): absent in the ge
 except ImportError:
     BrainClient = None
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 SOURCE = 'ih_discord'
 LIVE_CAPABLE = ('shopping', 'house')   # plugins are never part of the cut-over
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every feature goes dry within one tick

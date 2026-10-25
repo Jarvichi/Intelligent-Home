@@ -1,0 +1,22 @@
+{
+ "name": "ih_house",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "House status commands for Discord as a bus module of ih_discord (who is home, alarm, bins, heating, one device). Shadow mode by default: logs what it would post, posts nothing.",
+ "owner": "local add-on ih_house",
+ "start": "Supervisor add-on 32c8114c_ih_house (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8793/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8793,
+ "schedules": [],
+ "declares_secrets": [],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

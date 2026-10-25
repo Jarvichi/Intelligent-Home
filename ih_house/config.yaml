@@ -1,0 +1,84 @@
+name: "Intelligent Home House"
+version: "0.1.0"
+slug: ih_house
+description: "House status commands (who is home, alarm, bins, heating, status of one device) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All house details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+homeassistant_api: true
+ports:
+  8793/tcp: 8793
+ports_description:
+  8793/tcp: "Health and status (/healthz, /status)"
+options:
+  module_name: "ih_house"
+  signing_key: ""
+  shadow: true
+  channel_key: "house"
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: "ih_house"
+  mqtt_password: ""
+  ingest_url: "http://172.30.32.1:8790"
+  ingest_token: ""
+  command_event: "ih_discord_command"
+  shopping_list_entity: "todo.shopping_list"
+  meal_plan_script: ""
+  shop_names: ""
+  aisles: []
+  aisle_order: []
+  presence: []
+  house_entities:
+    alarm: ""
+    boiler: ""
+    thermostat: ""
+    bin_next: ""
+    bin_days: ""
+    free_power_events: ""
+    free_power_banked: ""
+  status_device:
+    label: ""
+    battery: ""
+    seen: ""
+  aliases: []
+schema:
+  module_name: str
+  signing_key: password
+  shadow: bool
+  channel_key: str
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str
+  mqtt_password: password
+  ingest_url: str
+  ingest_token: password
+  command_event: str?
+  shopping_list_entity: str?
+  meal_plan_script: str?
+  shop_names: str?
+  aisles:
+    - name: str
+      words: str
+  aisle_order:
+    - str
+  presence:
+    - name: str
+      entity: str
+  house_entities:
+    alarm: str?
+    boiler: str?
+    thermostat: str?
+    bin_next: str?
+    bin_days: str?
+    free_power_events: str?
+    free_power_banked: str?
+  status_device:
+    label: str?
+    battery: str?
+    seen: str?
+  aliases:
+    - command: list(status|bins|free)
+      words: str

@@ -27,8 +27,9 @@ def _norm(text):
 
 class Claim:
     """One module's claim on one channel key. match entries: {"any":true} | {"exact":[words]} | {"prefix":"x"} | {"regex":"..."}."""
-    def __init__(self, module, channel_key, match, public, deliver, inprocess=False):
+    def __init__(self, module, channel_key, match, public, deliver, inprocess=False, shadow=False):
         self.module, self.channel_key, self.deliver, self.inprocess = module, channel_key, deliver, inprocess
+        self.shadow = bool(shadow)   # a shadow claim gets COPIES of messages and never counts as the catch-all
         self.is_any, self.exact, self.prefixes, self.regexes = False, set(), [], []
         for m in match or [{'any': True}]:
             if not isinstance(m, dict):
@@ -90,15 +91,15 @@ class Router:
         self.lock = threading.RLock()
 
     # ---- claims ----
-    def add_claim(self, module, channel_key, match, public, deliver, inprocess=False):
-        c = Claim(module, channel_key, match, public, deliver, inprocess)
+    def add_claim(self, module, channel_key, match, public, deliver, inprocess=False, shadow=False):
+        c = Claim(module, channel_key, match, public, deliver, inprocess, shadow)
         with self.lock:
             others = [x for x in self.claims[channel_key] if x.module != module]
-            if c.is_any and any(x.is_any for x in others):
+            if c.is_any and not c.shadow and any(x.is_any and not x.shadow for x in others):
                 self.stats['claims_refused'] += 1
                 raise ClaimError('channel %s already has a catch-all' % channel_key)
             for x in others:
-                if c.specific and x.specific and (c.exact & x.exact or set(c.prefixes) & set(x.prefixes)):
+                if c.specific and x.specific and not c.shadow and not x.shadow and (c.exact & x.exact or set(c.prefixes) & set(x.prefixes)):
                     w = 'overlapping specific claims on %s: %s and %s' % (channel_key, module, x.module)
                     if w not in self.warnings:
                         self.warnings.append(w); self.log('router: ' + w)
@@ -136,25 +137,27 @@ class Router:
                     self.expects.pop((key, uid), None)
                     cands = target
             if cands is None:
-                cands = [c for c in cl if c.specific and c.matches(text)]
+                cands = [c for c in cl if not c.shadow and c.specific and c.matches(text)]
                 if not cands:
-                    cands = [c for c in cl if c.is_any][:1]
+                    cands = [c for c in cl if not c.shadow and c.is_any][:1]
+                cands += [c for c in cl if c.shadow and (c.is_any or c.matches(text))]   # shadow copies
         return [c for c in cands if allowed or c.is_public(text)]
 
     def route(self, entry, raw):
         """Deliver one journaled message. Returns the list of module names it went to."""
         allowed = str(entry.get('author_id')) in self.allowed()
-        to = []
+        to, live_to = [], 0
         for c in self.select(entry):
             try:
                 if c.deliver(entry, raw, allowed) is not False:
                     to.append(c.module)
+                    live_to += 0 if c.shadow else 1
             except Exception as e:
                 self.stats['deliver_errors'] += 1
                 self.log('router: delivery to %s failed (%s)' % (c.module, type(e).__name__))
         if to:
             self.stats['delivered'] += len(to)
-        else:
+        if not live_to:
             self.stats['unclaimed'] += 1
         return to
 
