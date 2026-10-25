@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Switch the ih_jobs module between dry and live, keeping all other options (secrets are never printed).
-usage: set_live.py live [job ...] | dry   (needs SUPERVISOR_TOKEN; then restart: `ha addons restart local_ih_jobs`)
+usage: set_live.py live [job ...] | dry   (needs SUPERVISOR_TOKEN; then restart: `ha addons restart 32c8114c_ih_jobs`)
 live = mode live, live_jobs = the jobs named (default backupstore metoffice), old_loops_disabled true.   dry = mode dry, live_jobs [], old_loops_disabled false.
 Only run live AFTER the old loops are stopped."""
 import json, os, sys, urllib.request
-B, H = 'http://supervisor/addons/local_ih_jobs', {'Authorization': 'Bearer ' + os.environ.get('SUPERVISOR_TOKEN', ''), 'Content-Type': 'application/json'}
+B, H = 'http://supervisor/addons/32c8114c_ih_jobs', {'Authorization': 'Bearer ' + os.environ.get('SUPERVISOR_TOKEN', ''), 'Content-Type': 'application/json'}
 JOBS = ('backupstore', 'metoffice')
 def call(path, body=None):
     r = urllib.request.Request(B + path, data=json.dumps(body).encode() if body is not None else None, headers=H, method='POST' if body is not None else 'GET')

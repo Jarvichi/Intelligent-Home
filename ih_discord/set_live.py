@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Switch the ih_discord module between dry and live for shopping+house, keeping all other options (tokens are never printed).
-usage: set_live.py live | dry      (needs SUPERVISOR_TOKEN in the environment; then restart the add-on: `ha addons restart local_ih_discord`)
+usage: set_live.py live | dry      (needs SUPERVISOR_TOKEN in the environment; then restart the add-on: `ha addons restart 32c8114c_ih_discord`)
 live = dry_run false, live_features [shopping, house], old_service_disabled true.   dry = dry_run true, live_features [], old_service_disabled false."""
 import json, os, sys, urllib.request
-B, H = 'http://supervisor/addons/local_ih_discord', {'Authorization': 'Bearer ' + os.environ.get('SUPERVISOR_TOKEN', ''), 'Content-Type': 'application/json'}
+B, H = 'http://supervisor/addons/32c8114c_ih_discord', {'Authorization': 'Bearer ' + os.environ.get('SUPERVISOR_TOKEN', ''), 'Content-Type': 'application/json'}
 def call(path, body=None):
     r = urllib.request.Request(B + path, data=json.dumps(body).encode() if body is not None else None, headers=H, method='POST' if body is not None else 'GET')
     return json.loads(urllib.request.urlopen(r, timeout=20).read())

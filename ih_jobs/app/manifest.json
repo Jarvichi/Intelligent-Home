@@ -4,7 +4,7 @@
  "kind": "addon",
  "description": "Hourly Home Assistant jobs: backup storage sensors and the Met Office forecast. Dry-run by default; each job goes live only when told to (live_jobs) after any older loop is switched off.",
  "owner": "local add-on ih_jobs",
- "start": "Supervisor add-on local_ih_jobs (boot manual)",
+ "start": "Supervisor add-on 32c8114c_ih_jobs (boot manual)",
  "health": [
   {
    "type": "http",
