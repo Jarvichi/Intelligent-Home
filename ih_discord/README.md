@@ -42,14 +42,30 @@ All values below are examples (fake). See `options.example.json`.
 | `ingest_token` | Token for the status page (secret) | |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | Scheduler bus (default host is the standard Mosquitto add-on) | `core-mosquitto`, `1883` |
 | `enable_scheduler`, `signing_key` | Scheduled self-check (off by default; needs a signing key) | `false` |
+| `router_enabled` | 0.6.0: ONE poller per channel with a saved cursor and a journal replaces the features' own polling and the old "2 minutes before now" start window. Off = the old behaviour, unchanged | `false` |
+| `max_age_s` | Router: messages older than this are skipped after downtime (minimum 60) | `600` |
+| `extra_channels` | Router: more channel keys for bus modules: `key`, `id` (a number) | `[{"key":"scratch","id":"789012"}]` |
+| `enable_bus` | 0.6.0: open the signed MQTT bus for the modules below (needs `router_enabled`, a module key and the mqtt options) | `false` |
+| `modules` | Bus modules and what they are GRANTED: `name`, `signing_key` (secret, one per module), `channels` (channel keys), `ops`, `rate_per_min`, `public_words` | see below |
+| `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_echo"]` |
+| `offline_notice` | Post one "module is offline" line (once per channel per 10 minutes) when a message for a silent module arrives | `false` |
 | `brain_webhook_id`, `brain_url` | Plugin only (see below) | |
+
+## Router and bus (0.6.0, both off by default)
+The add-on is also a **transport**: it holds the one Discord bot token, reads each channel once, and lets separate feature add-ons ("modules") receive messages and post, react, edit and delete through signed MQTT messages. Modules never get the token or a channel number, only channel **keys**.
+- **Router.** With `router_enabled` the add-on keeps a cursor per channel (`/data/cursor.json`) and a journal (`/data/journal.jsonl`, 24 hours). A restart resumes from the cursor: nothing is answered twice. The first run starts at the newest message. Messages older than `max_age_s` are skipped. The built-in shopping and house features become claimants of their channel, so their behaviour does not change. Create `/data/CURSOR_TO_NOW` before a start to jump every cursor to the newest message (used when handing a channel over).
+- **Claims.** A module claims a channel key with `exact` words, a `prefix`, a `regex` or `any`. All modules with a matching specific claim get the message. If none match, the single catch-all gets it. A second catch-all on one channel is refused. Only users in `allowed_user_ids` reach a module, except for its `public_words`.
+- **Grants.** What a module may do is set here, in `modules`, not by the module. A claim or op outside the grant gets `denied_channel` / `denied_op`. Default ops: post, reply, react, unreact, edit, delete, typing, watch, unwatch. A module can edit, delete or watch only messages it created.
+- **Signing.** Every bus message carries `v`, `ts` and an HMAC-SHA256 signature made with that module's own key over the whole message. Wrong key, changed content, another module's topic, older than 120 s, or a repeated `op_id` are refused and counted (`/status`, never the content). Keys are never logged. The topics, fields and the client for module authors are in `bus_client.py`.
+- **Dry-run.** A bus module writes to Discord only when `dry_run` is off AND it is in `live_modules` AND neither `/data/STOP_LIVE` nor `/data/STOP_LIVE_<module>` exists. `/status` shows the router, every module's last heartbeat and the rejected counts.
+- **Test module.** `tests/ih_echo.py` is a fake module that echoes; the tests run it over an in-memory bus (`bus_client.FakeBus`).
 
 ## House-specific plugins (NOT part of the generic/public build)
 - `features/braininbox.py` and `brain_client.py`: a private notes-server inbox. They are listed in `../public_exclude.txt`; if the files are absent the add-on simply runs shopping + house.
 - "catch-up" (running a command on the host) is not available inside the add-on at all (`catchup_cmd` is only used by the stand-alone service).
 
 ## Sources
-`core.py`, `settings.py`, `features/*.py`, `manifest.json` and `schedule_client.py` are COPIES made by `sync_from_service.sh`. Edit the source, not the copy.
+`core.py`, `settings.py`, `features/*.py`, `manifest.json`, `schedule_client.py` and `bus_client.py` are COPIES made by `sync_from_service.sh`. Edit the source, not the copy.
 
 ## Privacy
 Run `python3 ../privacy_scan.py` before sharing this folder: it fails on house-specific terms, private addresses, long ids, emails, phone numbers and secret values.

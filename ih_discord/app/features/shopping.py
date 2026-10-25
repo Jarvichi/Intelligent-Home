@@ -2,7 +2,7 @@
 Trigger: new messages from allowed users in the shopping channel (setting channel_shopping, polled every 4 s) + reactions on the bot's own messages.
 HA calls: todo.get_items / todo.add_item / todo.update_item on the setting shopping_list_entity; optionally the script meal_plan_script {quiet: true}.
 Optional files (all settings, relative to root, empty = unused): aisle_order_file, meal_items_file; receipt photos are written to receipts_dir/<msg>/<n>.jpg."""
-import json, os, re, sys, time
+import collections, json, os, re, sys, time
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -158,6 +158,8 @@ class Feature:
         self.pend = None
         self.tries = 0
         self.handled = set()   # (message id, content) already struck: stops dry-run repeating itself
+        self.routed = False    # True: the transport's router reads Discord and puts messages in self.inbox (tick() does not poll)
+        self.inbox = collections.deque()
         # start from 2 minutes before the service started (Discord ids carry the time), as the integration does
         self.start_id = str(((int(ctx.now() * 1000) - 120000) - 1420070400000) << 22)
 
@@ -317,18 +319,22 @@ class Feature:
                 time.sleep(30 if self.tries <= 10 else 300)
                 return
             print('shopping channel found')
-        st, msgs = d.req('GET', f"/channels/{self.schan}/messages?limit=20" + (f"&after={self.last}" if self.last else ''))
-        if st != 200:
-            if st in (403, 404):
-                self.schan = self.last = None
-            time.sleep(60)
-            return
-        if self.last is None:
-            msgs = [m for m in msgs if int(m['id']) > int(self.start_id)]
-            self.last = self.start_id
-        for m in sorted(msgs, key=lambda x: int(x['id'])):
-            self.last = m['id']
-            self.handle_message(m)
+        if self.routed:   # the router already read the channel once: handle what it delivered, in order
+            while self.inbox:
+                self.handle_message(self.inbox.popleft())
+        else:
+            st, msgs = d.req('GET', f"/channels/{self.schan}/messages?limit=20" + (f"&after={self.last}" if self.last else ''))
+            if st != 200:
+                if st in (403, 404):
+                    self.schan = self.last = None
+                time.sleep(60)
+                return
+            if self.last is None:
+                msgs = [m for m in msgs if int(m['id']) > int(self.start_id)]
+                self.last = self.start_id
+            for m in sorted(msgs, key=lambda x: int(x['id'])):
+                self.last = m['id']
+                self.handle_message(m)
         if self.pend:
             ans = self.check_scope()
             if ans is not None:

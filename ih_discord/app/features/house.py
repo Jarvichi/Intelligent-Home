@@ -4,7 +4,7 @@ Trigger: new message in the house channel (setting channel_house, or the JSON fi
 HA: GET /states (lock, light, climate and the entities named in the settings house_entities / status_device), GET history of the
 presence switches in the setting presence (read only; they are never changed), fires the event command_event {text, author},
 light.turn_off for 'lights off' only. Nothing here touches doors or the alarm. Entities that are not set are simply not offered."""
-import json, os, re, sys, time
+import collections, json, os, re, sys, time
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -209,6 +209,8 @@ class Feature:
         self.cfg = ST.of(ctx)
         self.root = self.cfg['root'] if root is None else root
         self.chan, self.last = None, None
+        self.routed = False    # True: the transport's router reads Discord and puts messages in self.inbox (tick() does not poll)
+        self.inbox = collections.deque()
         self.tz_done = False
         self.people = tuple(n.lower() for n in self.cfg['presence'])
         self.shop = S.Feature(ctx, self.root)   # 'shop' / 'got' typed in the house channel use the same logic as the shopping channel
@@ -315,6 +317,10 @@ class Feature:
             self.chan, self.last = new, None
         if not self.chan:
             time.sleep(60); return   # no house channel set: nothing to do
+        if self.routed:
+            while self.inbox:
+                self.handle_message(self.inbox.popleft())
+            return
         st, msgs = self.c.discord.req('GET', f"/channels/{self.chan}/messages?limit=20" + (f"&after={self.last}" if self.last else ''))
         if st != 200:
             time.sleep(60); return

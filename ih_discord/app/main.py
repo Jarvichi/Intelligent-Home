@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""ih_discord 0.5.0: Discord shopping + house commands as an add-on module. GENERIC: every deployment detail (channels, entities, people,
+"""ih_discord 0.6.0: Discord shopping + house commands as an add-on module, and the TRANSPORT for signed bus modules (S1 of the split). GENERIC: every deployment detail (channels, entities, people,
 aisles, shop names) comes from the add-on options (load_options -> settings.py), none from code. DRY-RUN by default: reads Discord and Home Assistant,
 logs what it WOULD post or change. LIVE per feature (shopping, house only) when dry_run=false AND the feature is in live_features AND
 old_service_disabled=true AND /data/STOP_LIVE does not exist. The optional plugin braininbox (house-specific, not in the public repo) is always dry.
-stdlib only. core.py, settings.py and features/ are COPIES (see sync_from_service.sh).
+stdlib only. core.py, settings.py, features/ and bus_client.py are COPIES (see sync_from_service.sh).
+0.6.0: option router_enabled (default false = exactly the old behaviour): ONE poller per channel with a persisted cursor + journal (router.py,
+journal.py) hands each message to claimants (the in-process features shopping/house, and bus modules); option enable_bus (default false) opens the
+signed MQTT bus for modules listed in `modules` (busside.py). Both off = nothing changes.
 Serves /healthz and /status (no secrets). Pushes its manifest and status to the Intelligent Home add-on (POST /ingest)."""
 import json, os, sys, threading, time, traceback, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,12 +16,16 @@ sys.path.insert(0, HERE)
 import core
 import settings as ST
 import schedule_client
+import bus_client
+import router as R
+import journal as J
+import busside
 try:   # optional house-specific plugin (private notes server): absent in the generic/public build
     from brain_client import BrainClient
 except ImportError:
     BrainClient = None
 
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 SOURCE = 'ih_discord'
 LIVE_CAPABLE = ('shopping', 'house')   # plugins are never part of the cut-over
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every feature goes dry within one tick
@@ -30,6 +37,9 @@ DATA = os.environ.get('IHD_DATA', '/data')
 PORT = int(os.environ.get('IHD_PORT', '8791'))
 PUSH_EVERY = 30
 SELFCHECK_JOB = 'selfcheck'
+CURSOR_TO_NOW = 'CURSOR_TO_NOW'   # create /data/CURSOR_TO_NOW: at the next start every cursor jumps to the newest message (cut-overs)
+ROUTER_EVERY = 4
+RESERVED_MODULES = ('shopping', 'house', 'braininbox', 'router', 'transport')   # in-process claimant names: a bus module may not use them
 
 
 class Ring(logging.Handler):
@@ -101,7 +111,14 @@ def load_options(path=None):
             'live_features': [str(x).strip() for x in (o.get('live_features') or []) if str(x).strip() in LIVE_CAPABLE],
             'old_service_disabled': bool(o.get('old_service_disabled', False)),
             'enable_scheduler': bool(o.get('enable_scheduler', False)),
-            'signing_key': str(o.get('signing_key') or '').strip()}
+            'signing_key': str(o.get('signing_key') or '').strip(),
+            'router_enabled': bool(o.get('router_enabled', False)), 'enable_bus': bool(o.get('enable_bus', False)),
+            'offline_notice': bool(o.get('offline_notice', False)),
+            'max_age_s': max(60, int(o.get('max_age_s') or 600)),
+            'module_grants': busside.parse_modules(o.get('modules'), RESERVED_MODULES),
+            'extra_channels': {_text(c.get('key')): _text(c.get('id')) for c in (o.get('extra_channels') or [])
+                               if bus_client.KEY_RE.match(_text(c.get('key'))) and _text(c.get('id')) and _text(c.get('key')) not in ('house', 'shopping')},
+            'live_modules': [str(x).strip() for x in (o.get('live_modules') or []) if str(x).strip()]}
 
 
 class MappedDiscord(core.Discord):
@@ -135,6 +152,8 @@ class Module:
         self.last_selfcheck = None
         self.sched = None   # ScheduleClient when the scheduler is on
         self.sched_reason = ''
+        self.router = self.journal = self.cursors = self.bus_t = None   # S1: set by build_router / start_bus
+        self.bus_reason = ''
         if self.discord is None and opts['token']:
             self.discord = MappedDiscord(opts['token'], True, {})
         if self.ha is None:
@@ -190,7 +209,65 @@ class Module:
             if n == 'braininbox':
                 f.store = self.brain
             self.feats[n] = f
+        if self.opts.get('router_enabled'):
+            self.build_router()
         return True
+
+    def bus_live(self, name):
+        """(is_live, reason) for a bus module's Discord writes. Needs dry_run off, the module in live_modules and no kill switch file."""
+        o = self.opts
+        if o.get('dry_run', True):
+            return False, 'dry_run option is on'
+        if name not in (o.get('live_modules') or []):
+            return False, 'not in live_modules'
+        for f in (STOP_FILE, STOP_FILE + '_' + name):
+            if os.path.exists(os.path.join(self.data, f)):
+                return False, 'kill switch file %s exists' % f
+        return True, 'live'
+
+    def notice_live(self):
+        return not self.opts.get('dry_run', True) and not os.path.exists(os.path.join(self.data, STOP_FILE))
+
+    def build_router(self):
+        """The single poller + journal + cursor. The in-process features become claimants and stop polling themselves."""
+        import copy
+        self.tdiscord = copy.copy(self.discord)   # the transport's own Discord object: its writes are gated by bus_live / notice_live, not by a feature flag
+        self.tdiscord.dry = False
+        self.journal = J.Journal(os.path.join(self.data, 'journal.jsonl'))
+        self.cursors = J.Cursors(os.path.join(self.data, 'cursor.json'))
+        flag = os.path.join(self.data, CURSOR_TO_NOW)
+        if os.path.exists(flag):
+            self.cursors.reset()
+            try: os.remove(flag)
+            except OSError: pass
+            core.log('router: cursor_to_now: every channel starts at its newest message')
+        chans = {'house': self.opts.get('house', ''), 'shopping': self.opts.get('shopping', '')}
+        chans.update(self.opts.get('extra_channels') or {})
+        self.router = R.Router({k: v for k, v in chans.items() if v}, lambda: set(self.opts['allowed']), self.journal, self.cursors, self.tdiscord,
+                               max_age_s=self.opts.get('max_age_s', 600), log=core.log)
+        for n in ('shopping', 'house'):
+            f = self.feats[n]
+            f.routed = True
+            if chans.get(n):
+                self.router.add_claim(n, n, [{'any': True}], ['whoami'] if n == 'house' else [], R.FeatureClaimant(n, f).deliver, inprocess=True)
+
+    def run_router(self):
+        try:
+            self.router.recover()
+        except Exception as e:
+            core.log('router: recovery failed (%s)' % type(e).__name__)
+        while True:
+            try:
+                self.router.poll_once()
+                if self.bus_t:
+                    self.bus_t.tick()
+                self.beats['router'] = time.time()
+            except Exception:
+                self.errors['router'] += 1
+                self.err_last['router'] = traceback.format_exc(limit=3).strip().splitlines()[-1][:200]
+                core.log('router error:', self.err_last['router'])
+                time.sleep(30)
+            time.sleep(ROUTER_EVERY)
 
     def run_feature(self, name):
         f = self.feats[name]
@@ -210,6 +287,8 @@ class Module:
             return False
         for n in self.feats:
             t = threading.Thread(target=self.run_feature, args=(n,), daemon=True, name=n); t.start(); self.threads.append(t)
+        if self.router is not None:
+            t = threading.Thread(target=self.run_router, daemon=True, name='router'); t.start(); self.threads.append(t)
         return True
 
     def healthy(self):
@@ -236,6 +315,14 @@ class Module:
                 problems.append(n + ' never ticked')
             elif age is not None and age > limit:
                 problems.append('%s last tick %ds ago' % (n, age))
+        if self.router is not None:
+            age = now - self.beats['router'] if 'router' in self.beats else None
+            ages['router'] = None if age is None else int(age)
+            limit = 3 * ROUTER_EVERY + 60
+            if not any(t.name == 'router' and t.is_alive() for t in self.threads):
+                problems.append('router thread dead')
+            elif (age is None and now - self.started > limit) or (age is not None and age > limit):
+                problems.append('router last tick %s' % ('never' if age is None else '%ds ago' % age))
         ok = not problems
         self.last_selfcheck = {'at': int(now), 'ok': ok, 'problems': problems, 'last_tick_s': ages}
         return ok
@@ -256,6 +343,34 @@ class Module:
         self.sched.on(SELFCHECK_JOB, lambda payload: self.selfcheck(), window_s=120)  # window_s = manifest window
         return self.sched.start() is not False
 
+    def start_bus(self, bus=None):
+        """Open the signed bus for the modules in `modules`. OFF unless enable_bus (and router_enabled, a module key and mqtt options)."""
+        o = self.opts
+        if not o.get('enable_bus'):
+            return False
+        if self.router is None:
+            self.bus_reason = 'router_enabled is off'
+            return False
+        grants = o.get('module_grants') or {}
+        if not any(bus_client.good_key(g.key) for g in grants.values()):
+            self.bus_reason = 'no module with a signing key'
+            return False
+        if bus is None:
+            if not o.get('mqtt_password'):
+                self.bus_reason = 'no mqtt password'
+                return False
+            bus = bus_client.PahoBus(o['mqtt_host'], o['mqtt_port'], o['mqtt_user'], o['mqtt_password'], SOURCE + '_bus', log=lambda m: core.log('bus:', m),
+                                     will=('ih/discord/hb/transport', json.dumps({'v': 1, 'state': 'down'})))
+        chans = {k: v for k, v in dict({'house': o.get('house', ''), 'shopping': o.get('shopping', '')}, **(o.get('extra_channels') or {})).items() if v}
+        self.bus_t = busside.BusTransport(bus, self.router, self.tdiscord, grants, chans, self.data, journal=self.journal, log=core.log,
+                                          is_live=self.bus_live, offline_notice=bool(o.get('offline_notice')), notice_live=self.notice_live,
+                                          max_age_s=o.get('max_age_s', 600), threaded=True)
+        ok = self.bus_t.start()
+        if not ok:
+            self.bus_reason = 'bus did not start'
+            self.bus_t = None
+        return ok
+
     def status(self):
         now = time.time()
         return {'name': SOURCE, 'version': VERSION, 'bot_name': self.opts['bot_name'], 'mode': 'live' if any(self.mode(n) == 'live' for n in FEATURES) else 'dry-run',
@@ -271,6 +386,11 @@ class Module:
                 'scheduler': {'enabled': bool(self.opts.get('enable_scheduler')), 'active': self.sched is not None,
                               'reason': self.sched_reason if self.sched is None and self.opts.get('enable_scheduler') else '',
                               'rejected': self.sched.rejected if self.sched else 0},
+                'router': dict({'enabled': bool(self.opts.get('router_enabled')), 'active': self.router is not None},
+                               **(self.router.status() if self.router else {})),
+                'bus': dict({'enabled': bool(self.opts.get('enable_bus')), 'active': self.bus_t is not None, 'offline_notice': bool(self.opts.get('offline_notice')),
+                             'reason': self.bus_reason if self.bus_t is None and self.opts.get('enable_bus') else ''},
+                            **(self.bus_t.status() if self.bus_t else {})),
                 'last_selfcheck': self.last_selfcheck,
                 'would_post_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 
@@ -327,6 +447,11 @@ def main():
         mod.start_scheduler()
     except Exception as e:
         lg.info('scheduler not started (%s)', type(e).__name__)
+    try:
+        if started and mod.start_bus():
+            lg.info('bus: open for %d module(s)', len(opts.get('module_grants') or {}))
+    except Exception as e:
+        lg.info('bus not started (%s)', type(e).__name__)
     lg.info('ih_discord %s starting: %s%s', VERSION, ', '.join('%s=%s' % (n, mod.mode(n)) for n in FEATURES) if started else 'not started',
             '' if started else ' | ' + str(mod.error))
     if any(mod.mode(n) == 'live' for n in FEATURES):
