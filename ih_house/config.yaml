@@ -1,4 +1,4 @@
-name: "Intelligent Home House"
+name: "Intelligent Home - Discord - House"
 version: "0.1.0"
 slug: ih_house
 description: "House status commands (who is home, alarm, bins, heating, status of one device) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All house details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders."

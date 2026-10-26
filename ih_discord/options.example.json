@@ -2,6 +2,7 @@
   "discord_token": "",
   "dry_run": true,
   "live_features": [],
+  "retired_features": [],
   "old_service_disabled": false,
   "bot_name": "Discord module",
   "channels": {

@@ -7,6 +7,7 @@ Small, generic Home Assistant add-ons. Each one does one job and keeps working i
 | `ih_orchestrator` | Health and status page for the other modules, plus an optional signed job scheduler that talks to an MQTT broker you run yourself. |
 | `ih_discord` | Discord commands as a module: shopping list and house status. Dry-run by default. |
 | `ih_jobs` | Scheduled housekeeping jobs (backup store, weather fetch) as a module. Dry-run by default. |
+| `ih_games` | Turns game activity (PlayStation trophies first) into friendly chat events. Plug-in providers, one orchestrator that rations messages. Dry-run by default. |
 | `ih_house` | House status commands (who is home, alarm, bins, heating) as a bus module of `ih_discord`. Shadow mode by default: it posts nothing. |
 
 ## Add the repository in Home Assistant

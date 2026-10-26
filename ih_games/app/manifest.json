@@ -1,0 +1,37 @@
+{
+ "name": "ih_games",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Turns game activity into friendly chat: reads game facts (PlayStation trophies first), decides what is worth saying and fires a Home Assistant event for the chat bots. Dry-run by default; max one message a day per player, quiet at night.",
+ "owner": "local add-on ih_games",
+ "start": "Supervisor add-on 32c8114c_ih_games (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8793/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8793,
+ "schedules": [
+  {
+   "job": "providers",
+   "kind": "interval",
+   "every_s": 120,
+   "window_s": 60,
+   "catchup": false
+  },
+  {
+   "job": "orchestrate",
+   "kind": "interval",
+   "every_s": 300,
+   "window_s": 120,
+   "catchup": false
+  }
+ ],
+ "declares_secrets": [],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

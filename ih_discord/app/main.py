@@ -25,7 +25,7 @@ try:   # optional house-specific plugin (private notes server): absent in the ge
 except ImportError:
     BrainClient = None
 
-VERSION = '0.6.1'
+VERSION = '0.6.2'
 SOURCE = 'ih_discord'
 LIVE_CAPABLE = ('shopping', 'house')   # plugins are never part of the cut-over
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every feature goes dry within one tick
@@ -109,6 +109,7 @@ def load_options(path=None):
             'mqtt_host': str(o.get('mqtt_host') or 'core-mosquitto').strip(), 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': str(o.get('mqtt_user') or 'ih_discord').strip(), 'mqtt_password': str(o.get('mqtt_password') or ''),
             'live_features': [str(x).strip() for x in (o.get('live_features') or []) if str(x).strip() in LIVE_CAPABLE],
+            'retired_features': [str(x).strip() for x in (o.get('retired_features') or []) if str(x).strip() in LIVE_CAPABLE],
             'old_service_disabled': bool(o.get('old_service_disabled', False)),
             'enable_scheduler': bool(o.get('enable_scheduler', False)),
             'signing_key': str(o.get('signing_key') or '').strip(),
@@ -182,11 +183,21 @@ class Module:
     def apply_modes(self):
         """Set every feature's Discord/HA/ctx dry flag from live_mode(). Called at build and before each tick, so STOP_LIVE acts fast."""
         for n, (d, h, c) in self.fctx.items():
+            if self.retired(n):
+                self.mode_why[n] = 'retired: handled by a bus module (retired_features)'
+                d.dry = h.dry = c.dry = True
+                continue
             live, why = self.live_mode(n)
             d.dry = h.dry = c.dry = not live
             self.mode_why[n] = why
 
+    def retired(self, name):
+        """True when the transport option retired_features names this feature: a bus module has taken over its channel."""
+        return name in (self.opts.get('retired_features') or []) and name in LIVE_CAPABLE
+
     def mode(self, name):
+        if self.retired(name):
+            return 'retired'
         return 'live' if name in self.fctx and not self.fctx[name][2].dry else 'dry'
 
     def build(self):
@@ -248,6 +259,9 @@ class Module:
         for n in ('shopping', 'house'):
             f = self.feats[n]
             f.routed = True
+            if self.retired(n):
+                core.log('router: %s is retired: no in-process claimant' % n)
+                continue
             if chans.get(n):
                 self.router.add_claim(n, n, [{'any': True}], ['whoami'] if n == 'house' else [], R.FeatureClaimant(n, f).deliver, inprocess=True)
 
@@ -272,6 +286,10 @@ class Module:
     def run_feature(self, name):
         f = self.feats[name]
         while True:
+            if self.retired(name):   # retired: never polls, never answers
+                self.beats[name] = time.time()
+                time.sleep(f.interval)
+                continue
             try:
                 self.apply_modes()
                 f.tick(); self.beats[name] = time.time()
@@ -304,6 +322,9 @@ class Module:
             problems.append('no feature threads' + (': ' + self.error if self.error else ''))
         for n in FEATURES:
             if n not in self.feats:
+                continue
+            if self.retired(n):
+                ages[n] = None
                 continue
             alive = any(t.name == n and t.is_alive() for t in self.threads)
             limit = 3 * float(getattr(self.feats[n], 'interval', 60)) + 60
@@ -375,7 +396,7 @@ class Module:
         now = time.time()
         return {'name': SOURCE, 'version': VERSION, 'bot_name': self.opts['bot_name'], 'mode': 'live' if any(self.mode(n) == 'live' for n in FEATURES) else 'dry-run',
                 'dry_run_option': self.opts['dry_run'], 'live_supported': True,
-                'live_features_option': list(self.opts.get('live_features') or []), 'old_service_disabled': bool(self.opts.get('old_service_disabled')),
+                'live_features_option': list(self.opts.get('live_features') or []), 'retired_features_option': list(self.opts.get('retired_features') or []), 'old_service_disabled': bool(self.opts.get('old_service_disabled')),
                 'kill_switch': os.path.exists(os.path.join(self.data, STOP_FILE)),
                 'feature_mode': {n: {'mode': self.mode(n), 'why': getattr(self, 'mode_why', {}).get(n, '')} for n in FEATURES}, 'uptime_s': int(now - self.started),
                 'token_present': bool(self.opts['token']), 'ingest_configured': bool(self.opts['ingest_token']), 'brain_webhook_set': bool(self.brain and self.brain.configured()),

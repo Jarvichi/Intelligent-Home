@@ -1,4 +1,4 @@
-name: "Intelligent Home Jobs"
+name: "Intelligent Home - Jobs"
 version: "0.2.0"
 slug: ih_jobs
 description: "Hourly Home Assistant jobs as a module: backup storage sensors and the Met Office forecast. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."

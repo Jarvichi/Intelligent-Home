@@ -22,6 +22,7 @@ All values below are examples (fake). See `options.example.json`.
 | `discord_token` | Bot token (secret) | (your token) |
 | `dry_run` | Log only, never post or change | `true` |
 | `live_features` | Features that may act when dry_run is off | `["shopping","house"]` |
+| `retired_features` | Features whose in-process handler is switched off because a bus module took over the channel (`house`: the module needs `public_words:["whoami"]` in `modules`). Shown as `retired` in `/status`; the self-check ignores them. Default `[]` | `["house"]` |
 | `old_service_disabled` | You switched any older bot off | `false` |
 | `bot_name` | Name shown in `/status` | `"Discord module"` |
 | `channels.shopping` | Shopping channel: a name or a channel number | `"groceries"` |
