@@ -10,7 +10,7 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -183,6 +183,21 @@ class Module:
         t.start()
         return t
 
+    def feeds(self):
+        """Per feed file: when it was last written and how many events it holds (no content)."""
+        out = {}
+        d = os.path.join(self.data, "feeds")
+        try:
+            for fn in sorted(os.listdir(d)):
+                try:
+                    f = json.load(open(os.path.join(d, fn)))
+                    out[fn[:-5]] = {"updated": f.get("updated"), "events": len(f.get("events", []))}
+                except (OSError, ValueError):
+                    out[fn[:-5]] = {"updated": None, "events": 0}
+        except OSError:
+            pass
+        return out
+
     def messages_sent(self):
         try:
             return sum(1 for l in open(os.path.join(self.data, "messages.jsonl")) if '"sent": true' in l)
@@ -202,6 +217,7 @@ class Module:
             "uptime_s": int(now - self.started),
             "healthy": self.healthy(),
             "messages_sent": self.messages_sent(),
+            "feeds": self.feeds(),
             "scheduler": {"enabled": bool(self.opts.get("enable_scheduler")), "active": self.sched is not None,
                           "reason": self.sched_reason if self.sched is None and self.opts.get("enable_scheduler") else "",
                           "rejected": self.sched.rejected if self.sched else 0},
