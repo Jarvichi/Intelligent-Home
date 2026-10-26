@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.1.3"
+version: "0.1.4"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:

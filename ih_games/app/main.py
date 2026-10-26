@@ -10,7 +10,7 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -159,6 +159,25 @@ class Module:
         t = self.opts.get("outbox_token", "")
         return bool(t) and hmac.compare_digest(str(header or ""), "Bearer " + t)
 
+    def start_fallback_timer(self, tick=5):
+        """No signed scheduler (needs MQTT login + key, not set up): run the jobs on our own clock at the manifest intervals.
+        Off automatically when the scheduler is active."""
+        every = {"providers": 120, "orchestrate": 300}
+        last = {n: time.time() for n in JOBS}
+
+        def loop():
+            while True:
+                time.sleep(tick)
+                if self.sched is not None:
+                    continue
+                for n in JOBS:
+                    if time.time() - last[n] >= every[n]:
+                        last[n] = time.time()
+                        self.run_job(n, "timer")
+        t = threading.Thread(target=loop, daemon=True, name="fallback-timer")
+        t.start()
+        return t
+
     def messages_sent(self):
         try:
             return sum(1 for l in open(os.path.join(self.data, "messages.jsonl")) if '"sent": true' in l)
@@ -268,6 +287,7 @@ def main():
         lg.info(f"scheduler not started ({type(e).__name__})")
     
     mod.start_run_all()
+    mod.start_fallback_timer()
     lg.info(f"ih_games {VERSION} starting: mode={mod.mode()}")
     manifest = json.load(open(os.path.join(HERE, "manifest.json")))
 
