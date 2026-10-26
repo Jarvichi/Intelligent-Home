@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -11,9 +11,9 @@ boot: manual
 init: false
 homeassistant_api: true
 ports:
-  8793/tcp: 8793
+  8794/tcp: 8794
 ports_description:
-  8793/tcp: "Health and status (/healthz, /status)"
+  8794/tcp: "Health and status (/healthz, /status)"
 options:
   mode: "dry"
   players:

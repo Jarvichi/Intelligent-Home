@@ -10,14 +10,14 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
 STOP_FILE = "STOP_LIVE"
 OPTIONS = os.environ.get("IHG_OPTIONS", "/data/options.json")
 DATA = os.environ.get("IHG_DATA", "/data")
-PORT = int(os.environ.get("IHG_PORT", "8793"))
+PORT = int(os.environ.get("IHG_PORT", "8794"))
 PUSH_EVERY = 30
 WINDOWS = {"providers": 60, "orchestrate": 120}   # = manifest window_s
 START_DELAY_S = 60
