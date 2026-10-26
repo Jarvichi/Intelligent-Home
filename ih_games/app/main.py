@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """ih_games: game activity facts feeds and orchestrator add-on."""
-import json, os, sys, threading, time, traceback, logging, collections, urllib.request
+import hmac, json, os, sys, threading, time, traceback, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -10,7 +10,7 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -45,7 +45,8 @@ def load_options(path=None):
         "mqtt_user": str(o.get("mqtt_user") or "ih_games").strip(),
         "mqtt_password": str(o.get("mqtt_password") or ""),
         "enable_scheduler": bool(o.get("enable_scheduler", False)),
-        "signing_key": str(o.get("signing_key") or "").strip()
+        "signing_key": str(o.get("signing_key") or "").strip(),
+        "outbox_token": str(o.get("outbox_token") or "").strip()
     }
 
 class Module:
@@ -125,6 +126,39 @@ class Module:
             self.sched.on(n, lambda payload, n=n: self.run_job(n, "scheduler"), window_s=WINDOWS[n])
         return self.sched.start() is not False
 
+    def outbox_pending(self, limit=20):
+        """Unacknowledged messages, oldest first. The sender on the host delivers them and then acks."""
+        acked = self._acked()
+        out = []
+        try:
+            for line in open(os.path.join(self.data, "outbox.jsonl")):
+                try:
+                    m = json.loads(line)
+                except ValueError:
+                    continue
+                if m.get("id") not in acked:
+                    out.append(m)
+        except OSError:
+            pass
+        return out[:limit]
+
+    def _acked(self):
+        try:
+            return set(json.load(open(os.path.join(self.data, "outbox_acked.json"))))
+        except (OSError, ValueError):
+            return set()
+
+    def ack(self, mid):
+        acked = self._acked()
+        acked.add(mid)
+        tmp = os.path.join(self.data, "outbox_acked.json.tmp")
+        json.dump(sorted(acked)[-1000:], open(tmp, "w"))
+        os.replace(tmp, os.path.join(self.data, "outbox_acked.json"))
+
+    def authorised(self, header):
+        t = self.opts.get("outbox_token", "")
+        return bool(t) and hmac.compare_digest(str(header or ""), "Bearer " + t)
+
     def messages_sent(self):
         try:
             return sum(1 for l in open(os.path.join(self.data, "messages.jsonl")) if '"sent": true' in l)
@@ -180,11 +214,38 @@ def make_handler(mod):
                 code, body = 200, b"ok"
             elif p == "/status":
                 code, body = 200, json.dumps(mod.status()).encode()
+            elif p == "/outbox":
+                if not mod.opts.get("outbox_token"):
+                    code, body = 503, b"outbox off"
+                elif not mod.authorised(self.headers.get("Authorization")):
+                    code, body = 401, b"no"
+                else:
+                    code, body = 200, json.dumps(mod.outbox_pending()).encode()
             else:
                 self.send_error(404)
                 return
             self.send_response(code)
             self.send_header("Content-Type", "application/json" if p == "/status" else "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if self.path.split("?")[0] != "/ack":
+                self.send_error(404)
+                return
+            if not mod.opts.get("outbox_token"):
+                code, body = 503, b"outbox off"
+            elif not mod.authorised(self.headers.get("Authorization")):
+                code, body = 401, b"no"
+            else:
+                try:
+                    n = min(int(self.headers.get("Content-Length") or 0), 4096)
+                    mod.ack(str(json.loads(self.rfile.read(n))["id"]))
+                    code, body = 200, b"ok"
+                except Exception:
+                    code, body = 400, b"bad"
+            self.send_response(code)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

@@ -1,6 +1,6 @@
 {
  "name": "ih_games",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Turns game activity into friendly chat: reads game facts (PlayStation trophies first), decides what is worth saying and fires a Home Assistant event for the chat bots. Dry-run by default; max one message a day per player, quiet at night.",
  "owner": "local add-on ih_games",

@@ -28,7 +28,8 @@
   "mqtt_user": "ih_games",
   "mqtt_password": "",
   "enable_scheduler": false,
-  "signing_key": ""
+  "signing_key": "",
+  "outbox_token": ""
 }
 
 

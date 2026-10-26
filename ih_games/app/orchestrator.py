@@ -165,5 +165,8 @@ def run(ctx, now=None):
 
         with open(msg_log_path, "a") as f:
             f.write(json.dumps(log_entry) + "\n")
+        if sent_ok and not ctx.dry:   # outbox: a sender on the host collects these (GET /outbox, POST /ack) and delivers them
+            with open(os.path.join(data_dir, "outbox.jsonl"), "a") as f:
+                f.write(json.dumps(dict(msg_payload, id=f"{pkey}-{valid_events[-1]['time']}", time=now_iso)) + "\n")
 
 

@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -38,6 +38,7 @@ options:
   mqtt_password: ""
   enable_scheduler: false
   signing_key: ""
+  outbox_token: ""
 schema:
   mode: list(dry|live)
   players:
@@ -58,5 +59,6 @@ schema:
   mqtt_password: password
   enable_scheduler: bool
   signing_key: password
+  outbox_token: password
 
 
