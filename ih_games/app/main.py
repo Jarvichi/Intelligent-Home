@@ -8,9 +8,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import schedule_client, orchestrator
 from jobs import common
-from providers import psn_trophies
+from providers import psn_trophies, xbox_gamerscore
 
-VERSION = "0.1.4"
+VERSION = "0.2.0"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -23,7 +23,8 @@ WINDOWS = {"providers": 60, "orchestrate": 120}   # = manifest window_s
 START_DELAY_S = 60
 
 PROVIDERS = {
-    "psn_trophies": psn_trophies
+    "psn_trophies": psn_trophies,
+    "xbox_gamerscore": xbox_gamerscore,
 }
 
 def load_options(path=None):

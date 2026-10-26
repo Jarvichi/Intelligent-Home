@@ -25,7 +25,9 @@ def _atomic_write(filepath, data):
 
 def run(ctx, player):
     pkey = player["key"]
-    prefix = player.get("trophy_prefix", pkey)
+    prefix = player.get("trophy_prefix")
+    if not prefix:
+        return   # this player has no PlayStation account
     
     state_file = os.path.join(ctx.data_dir, f"state_{NAME}_{pkey}.json")
     feed_file = os.path.join(ctx.data_dir, "feeds", f"{NAME}_{pkey}.json")

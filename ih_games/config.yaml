@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.1.4"
+version: "0.2.0"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -20,6 +20,7 @@ options:
     - key: "player_a"
       display_name: "Player A"
       trophy_prefix: "player_a"
+      xbox_prefix: "player_a"
       speaker: "bot_alpha"
     - key: "player_b"
       display_name: "Player B"
@@ -44,7 +45,10 @@ schema:
   players:
     - key: str
       display_name: str
-      trophy_prefix: str
+      trophy_prefix: str?
+      xbox_prefix: str?
+      xbox_gamerscore_entity: str?
+      xbox_now_playing_entity: str?
       speaker: str
   providers_enabled:
     - str

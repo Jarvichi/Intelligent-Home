@@ -6,6 +6,7 @@
       "key": "player_a",
       "display_name": "Player A",
       "trophy_prefix": "player_a",
+      "xbox_prefix": "player_a",
       "speaker": "bot_alpha"
     },
     {
