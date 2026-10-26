@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.2.0"
+version: "0.3.1"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -40,6 +40,8 @@ options:
   enable_scheduler: false
   signing_key: ""
   outbox_token: ""
+  bungie_api_key: ""
+  destiny_poll_s: 900
 schema:
   mode: list(dry|live)
   players:
@@ -49,6 +51,15 @@ schema:
       xbox_prefix: str?
       xbox_gamerscore_entity: str?
       xbox_now_playing_entity: str?
+      steam_prefix: str?
+      steam_now_playing_entity: str?
+      steam_level_entity: str?
+      destiny_type: int?
+      destiny_id: str?
+      quiet_start: str?
+      quiet_end: str?
+      max_per_day: int?
+      voice: str?
       speaker: str
   providers_enabled:
     - str
@@ -64,5 +75,7 @@ schema:
   enable_scheduler: bool
   signing_key: password
   outbox_token: password
+  bungie_api_key: password
+  destiny_poll_s: int(60,86400)
 
 

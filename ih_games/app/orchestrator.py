@@ -15,6 +15,13 @@ TEMPLATES = {
     ]
 }
 
+PLAYFUL = [
+    "Spotted you on {game}. {events_summary}. Go on then, how did it go?",
+    "Right, {game}: {events_summary}. Not bad. Enjoying it?",
+    "{game} again, eh? {events_summary}. Tell me about it.",
+]
+
+
 def _dt(t):
     try:
         return datetime.datetime.fromisoformat(t)
@@ -111,7 +118,8 @@ def run(ctx, now=None):
             continue
 
         has_big = any(e.get("big") for e in valid_events)
-        
+        in_quiet = _is_quiet(now_dt, p.get("quiet_start") or q_start, p.get("quiet_end") or q_end)   # per-player override
+
         # Check constraints
         if in_quiet:
             continue
@@ -119,7 +127,7 @@ def run(ctx, now=None):
         if is_playing and not has_big:
             continue
 
-        if len(msgs_today) >= (2 if has_big else 1):
+        if len(msgs_today) >= int(p.get("max_per_day", 1)) + (1 if has_big else 0):
             continue
 
         if last_time and (now_dt - last_time) < datetime.timedelta(hours=3):
@@ -132,7 +140,7 @@ def run(ctx, now=None):
 
         rnd = random.Random(f"{pkey}_{valid_events[0]['time']}")
         kind = rnd.choice(["congrats", "ask"])
-        tmpl = rnd.choice(TEMPLATES[kind])
+        tmpl = rnd.choice(PLAYFUL if p.get("voice") == "playful" else TEMPLATES[kind])
         msg_text = tmpl.format(game=game, events_summary=summary_str)
 
         msg_payload = {

@@ -15,7 +15,8 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 |---|---|---|---|
 | `mode` | `dry` \| `live` | `dry` | Execution mode |
 | `players` | list | `[]` | Configured players list |
-| `providers_enabled` | list | `["psn_trophies"]` | Enabled providers: `psn_trophies`, `xbox_gamerscore` |
+| `providers_enabled` | list | `["psn_trophies"]` | Enabled providers: `psn_trophies`, `xbox_gamerscore`, `steam_presence`, `destiny` |
+| player `steam_prefix`, `destiny_type`, `destiny_id` | | | Steam sensors prefix; Destiny membership (public Bungie ids). `bungie_api_key` (secret) and `destiny_poll_s` are add-on options. Per-player overrides: `quiet_start`, `quiet_end`, `max_per_day`, `voice` (`playful` = cheekier wording). |
 | player `xbox_prefix` | str | | HA Xbox sensors `sensor.<prefix>_gamerscore`; optional `xbox_gamerscore_entity`, `xbox_now_playing_entity` override the names |
 | `quiet_start` | str | `"22:00"` | Quiet hours start (no messages) |
 | `quiet_end` | str | `"08:00"` | Quiet hours end |

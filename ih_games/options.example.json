@@ -30,7 +30,9 @@
   "mqtt_password": "",
   "enable_scheduler": false,
   "signing_key": "",
-  "outbox_token": ""
+  "outbox_token": "",
+  "bungie_api_key": "",
+  "destiny_poll_s": 900
 }
 
 

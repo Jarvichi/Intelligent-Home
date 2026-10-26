@@ -8,9 +8,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import schedule_client, orchestrator
 from jobs import common
-from providers import psn_trophies, xbox_gamerscore
+from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.2.0"
+VERSION = "0.3.1"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -25,6 +25,8 @@ START_DELAY_S = 60
 PROVIDERS = {
     "psn_trophies": psn_trophies,
     "xbox_gamerscore": xbox_gamerscore,
+    "destiny": destiny,
+    "steam_presence": steam_presence,
 }
 
 def load_options(path=None):
@@ -47,7 +49,9 @@ def load_options(path=None):
         "mqtt_password": str(o.get("mqtt_password") or ""),
         "enable_scheduler": bool(o.get("enable_scheduler", False)),
         "signing_key": str(o.get("signing_key") or "").strip(),
-        "outbox_token": str(o.get("outbox_token") or "").strip()
+        "outbox_token": str(o.get("outbox_token") or "").strip(),
+        "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
+        "destiny_poll_s": int(o.get("destiny_poll_s") or 900)
     }
 
 class Module:

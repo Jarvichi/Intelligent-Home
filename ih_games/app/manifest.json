@@ -1,8 +1,8 @@
 {
  "name": "ih_games",
- "version": "0.2.0",
+ "version": "0.3.1",
  "kind": "addon",
- "description": "Turns game activity into friendly chat: reads game facts (PlayStation trophies first), decides what is worth saying and fires a Home Assistant event for the chat bots. Dry-run by default; max one message a day per player, quiet at night.",
+ "description": "Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) into friendly chat: decides what is worth saying and queues messages for the chat bots. Dry-run by default; limits per player per day, quiet at night.",
  "owner": "local add-on ih_games",
  "start": "Supervisor add-on 32c8114c_ih_games (boot manual)",
  "health": [
@@ -32,6 +32,8 @@
    "catchup": false
   }
  ],
- "declares_secrets": [],
+ "declares_secrets": [
+  "bungie_api_key"
+ ],
  "restore": "Stop the add-on. Uninstall to remove."
 }
