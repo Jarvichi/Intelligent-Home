@@ -1,0 +1,22 @@
+{
+  "module_name": "ih_discord_shopping",
+  "signing_key": "",
+  "shadow": true,
+  "channel_key": "shopping",
+  "house_channel_key": "house",
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_discord_shopping",
+  "mqtt_password": "",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": "",
+  "command_event": "ih_discord_command",
+  "shopping_list_entity": "todo.shopping_list",
+  "meal_plan_script": "",
+  "shop_names": "corner shop|acme",
+  "aisles": [
+    {"name": "Fruit", "words": "apple|pear|banana"},
+    {"name": "Tins", "words": "beans|soup|tuna"}
+  ],
+  "aisle_order": ["Fruit", "Tins"]
+}

@@ -1,0 +1,22 @@
+{
+ "name": "ih_discord_shopping",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing.",
+ "owner": "local add-on ih_discord_shopping",
+ "start": "Supervisor add-on 32c8114c_ih_discord_shopping (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8794/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8794,
+ "schedules": [],
+ "declares_secrets": [],
+ "restore": "Stop the add-on. Uninstall to remove."
+}
