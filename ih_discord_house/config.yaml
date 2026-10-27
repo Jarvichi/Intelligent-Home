@@ -1,6 +1,6 @@
 name: "Intelligent Home - Discord - House"
-version: "0.1.0"
-slug: ih_house
+version: "0.2.0"
+slug: ih_discord_house
 description: "House status commands (who is home, alarm, bins, heating, status of one device) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All house details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders."
 arch:
   - aarch64
@@ -14,13 +14,13 @@ ports:
 ports_description:
   8793/tcp: "Health and status (/healthz, /status)"
 options:
-  module_name: "ih_house"
+  module_name: "ih_discord_house"
   signing_key: ""
   shadow: true
   channel_key: "house"
   mqtt_host: "core-mosquitto"
   mqtt_port: 1883
-  mqtt_user: "ih_house"
+  mqtt_user: "ih_discord_house"
   mqtt_password: ""
   ingest_url: "http://172.30.32.1:8790"
   ingest_token: ""

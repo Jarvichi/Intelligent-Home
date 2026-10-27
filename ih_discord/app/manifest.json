@@ -2,7 +2,7 @@
  "name": "ih_discord",
  "version": "0.7.0",
  "kind": "addon",
- "description": "Discord transport: one bot token, one poller per channel, signed MQTT bus for feature modules (ih_house, ih_discord_shopping). No commands of its own. Modules write for real only when dry_run is off and they are in live_modules.",
+ "description": "Discord transport: one bot token, one poller per channel, signed MQTT bus for feature modules (ih_discord_house, ih_discord_shopping). No commands of its own. Modules write for real only when dry_run is off and they are in live_modules.",
  "owner": "local add-on ih_discord",
  "start": "Supervisor add-on 32c8114c_ih_discord (boot manual)",
  "health": [

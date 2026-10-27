@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_house 0.1.0: the HOUSE commands (status, lights, bins, who is home, ...) as a signed bus MODULE of the ih_discord transport (S2 of the split).
+"""ih_discord_house 0.2.0: the HOUSE commands (status, lights, bins, who is home, ...) as a signed bus MODULE of the ih_discord transport (S2 of the split).
 GENERIC: every house detail comes from the add-on options (settings.py), none from code. It never holds a Discord token or a channel number:
 it receives `in` events for its channel KEY over the MQTT bus and answers with `out` post ops (bus_client.ModuleClient). It reads Home Assistant with
 its own SUPERVISOR_TOKEN. The answer logic is the shared features/house.py in ROUTED mode (copied by sync_from_service.sh, never edited here).
@@ -17,14 +17,14 @@ import settings as ST
 import bus_client
 import importlib
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHH_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHH_PORT', '8793'))
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'
 PUSH_EVERY = 60
 STOP_FILE = 'STOP_LIVE'
-DEFAULT_MODULE = 'ih_house'
+DEFAULT_MODULE = 'ih_discord_house'
 
 
 def _text(v):
@@ -261,7 +261,7 @@ def main():
         started = mod.start()
     except Exception as e:
         mod.error = 'start failed (%s)' % type(e).__name__
-    lg.info('ih_house %s starting: %s, %s', VERSION, 'SHADOW (nothing is posted)' if opts['shadow'] else 'LIVE-CAPABLE (the transport decides)',
+    lg.info('ih_discord_house %s starting: %s, %s', VERSION, 'SHADOW (nothing is posted)' if opts['shadow'] else 'LIVE-CAPABLE (the transport decides)',
             'bus started' if started else 'bus not started: %s' % (mod.bus_reason or mod.error))
     manifest = json.load(open(os.path.join(HERE, 'manifest.json')))
 

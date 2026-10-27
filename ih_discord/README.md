@@ -1,11 +1,11 @@
 # Intelligent Home Discord (ih_discord) - the transport
 
-A small Home Assistant add-on that is the **Discord link** of Intelligent Home. It holds the one bot token, reads each channel once, and lets separate **feature add-ons** (modules, for example `ih_house` and `ih_discord_shopping`) receive messages and post, react, edit and delete through signed MQTT messages. It has **no commands of its own** (since 0.7.0).
+A small Home Assistant add-on that is the **Discord link** of Intelligent Home. It holds the one bot token, reads each channel once, and lets separate **feature add-ons** (modules, for example `ih_discord_house` and `ih_discord_shopping`) receive messages and post, react, edit and delete through signed MQTT messages. It has **no commands of its own** (since 0.7.0).
 
 Nothing about your home is in the code. It maps no folders, stores no secrets in code, and starts in **dry-run**: modules get result code `dry` and nothing is posted until you go live.
 
 ## 0.7.0: features moved out
-Until 0.6.x this add-on also ran the shopping-list and house-status commands in-process. They now live in their own add-ons (`ih_discord_shopping`, `ih_house`). The old options of those features (`live_features`, `retired_features`, `old_service_disabled`, `shopping_list_entity`, `meal_plan_script`, `shop_names`, `aisles`, `aisle_order`, `command_event`, `presence`, `house_entities`, `status_device`, `aliases`, `brain_webhook_id`, `brain_url`, `channels.brain_inbox`) and the switches `router_enabled` / `enable_bus` are still **accepted** so saved options keep validating after the update, but they are **ignored** (shown in `/status` as `deprecated_options_ignored`). The router and the bus are always on. Move those settings to the module add-ons. The brain-inbox plugin was removed.
+Until 0.6.x this add-on also ran the shopping-list and house-status commands in-process. They now live in their own add-ons (`ih_discord_shopping`, `ih_discord_house`). The old options of those features (`live_features`, `retired_features`, `old_service_disabled`, `shopping_list_entity`, `meal_plan_script`, `shop_names`, `aisles`, `aisle_order`, `command_event`, `presence`, `house_entities`, `status_device`, `aliases`, `brain_webhook_id`, `brain_url`, `channels.brain_inbox`) and the switches `router_enabled` / `enable_bus` are still **accepted** so saved options keep validating after the update, but they are **ignored** (shown in `/status` as `deprecated_options_ignored`). The router and the bus are always on. Move those settings to the module add-ons. The brain-inbox plugin was removed.
 
 ## Install (local add-on)
 Copy this folder to your local add-ons share, reload the add-on store, install, fill in the options, start. The add-on never installs or restarts anything by itself.
@@ -28,7 +28,7 @@ A module's Discord writes are real only when ALL of these are true: `dry_run` is
 | `max_age_s` | Router: messages older than this are skipped after downtime (minimum 60) | `600` |
 | `extra_channels` | Router: more channel keys for bus modules: `key`, `id` (a number) | `[{"key":"scratch","id":"789012"}]` |
 | `modules` | Bus modules and what they are GRANTED: `name`, `signing_key` (secret, one per module), `channels` (channel keys), `ops`, `rate_per_min`, `public_words` | see below |
-| `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_house","ih_discord_shopping"]` |
+| `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_discord_house","ih_discord_shopping"]` |
 | `offline_notice` | Post one "module is offline" line (once per channel per 10 minutes) when a message for a silent module arrives | `false` |
 
 ## Router and bus (always on since 0.7.0)
@@ -38,7 +38,7 @@ Modules never get the token or a channel number, only channel **keys**. The chan
 - **Grants.** What a module may do is set here, in `modules`, not by the module. A claim or op outside the grant gets `denied_channel` / `denied_op`. Default ops: post, reply, react, unreact, edit, delete, typing, watch, unwatch. A module can edit, delete or watch only messages it created.
 - **Signing.** Every bus message carries `v`, `ts` and an HMAC-SHA256 signature made with that module's own key over the whole message. Wrong key, changed content, another module's topic, older than 120 s, or a repeated `op_id` are refused and counted (`/status`, never the content). Keys are never logged. The topics, fields and the client for module authors are in `bus_client.py`.
 - **Dry-run.** A bus module writes to Discord only when `dry_run` is off AND it is in `live_modules` AND neither `/data/STOP_LIVE` nor `/data/STOP_LIVE_<module>` exists. `/status` shows the router, every module's last heartbeat and the rejected counts.
-- **Shadow module (S2).** A `modules` row with `"shadow": true` gets COPIES of what the live claimant gets, may claim the same channel key as the live catch-all module, and every op it sends is forced dry (result code `dry`). Use it to try a new module beside the live one and compare answers. Example row for the house module: `{"name":"ih_house","signing_key":"<secret>","channels":["house"],"ops":["post","typing"],"rate_per_min":30,"public_words":["whoami"],"shadow":true}`. The channel key `house` is the key of `channels.house`. Cut-over: remove `shadow` (or set it false), add the module to `live_modules`, stop the old module first.
+- **Shadow module (S2).** A `modules` row with `"shadow": true` gets COPIES of what the live claimant gets, may claim the same channel key as the live catch-all module, and every op it sends is forced dry (result code `dry`). Use it to try a new module beside the live one and compare answers. Example row for the house module: `{"name":"ih_discord_house","signing_key":"<secret>","channels":["house"],"ops":["post","typing"],"rate_per_min":30,"public_words":["whoami"],"shadow":true}`. The channel key `house` is the key of `channels.house`. Cut-over: remove `shadow` (or set it false), add the module to `live_modules`, stop the old module first.
 - **Test module.** `tests/ih_echo.py` is a fake module that echoes; the tests run it over an in-memory bus (`bus_client.FakeBus`).
 
 ## Sources

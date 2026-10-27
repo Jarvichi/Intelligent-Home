@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ih_discord 0.7.0: the Discord TRANSPORT of Intelligent Home. A pure Discord link: it holds the one bot token, reads each channel once (router.py, journal.py,
-persisted cursor) and lets separate feature add-ons ("modules", e.g. ih_house, ih_discord_shopping) receive messages and post/react/edit/delete through a
+persisted cursor) and lets separate feature add-ons ("modules", e.g. ih_discord_house, ih_discord_shopping) receive messages and post/react/edit/delete through a
 signed MQTT bus (busside.py, bus_client.py). It has NO commands of its own. GENERIC: every deployment detail comes from the add-on options.
 0.7.0 (S4): the in-process shopping and house features and the brain-inbox plugin were REMOVED. Their old options (live_features, retired_features,
 old_service_disabled, shopping_list_entity, meal_plan_script, shop_names, aisles, aisle_order, command_event, presence, house_entities, status_device, aliases,

@@ -1,4 +1,4 @@
-# Intelligent Home House (`ih_house`)
+# Intelligent Home House (`ih_discord_house`)
 
 House status commands for Discord, as a **module** of the `ih_discord` transport. It answers short typed commands in one channel:
 who is home, alarm state, doors, lights, heating, bin days, one device's battery, and `help`.
@@ -25,11 +25,11 @@ To go live: switch the older feature off first, set `shadow` to false here, and 
 
 | Option | Meaning | Default |
 |---|---|---|
-| `module_name` | Name on the bus. Must match the transport row | `ih_house` |
+| `module_name` | Name on the bus. Must match the transport row | `ih_discord_house` |
 | `signing_key` | Secret shared with the transport row for this module | empty (inactive) |
 | `shadow` | Log only, post nothing | `true` |
 | `channel_key` | Channel KEY (not a number) the module claims as catch-all | `house` |
-| `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | The broker | `core-mosquitto`, `1883`, `ih_house`, empty |
+| `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | The broker | `core-mosquitto`, `1883`, `ih_discord_house`, empty |
 | `ingest_url`, `ingest_token` | Orchestrator status push (optional) | empty token = no push |
 | `command_event` | Home Assistant event fired for each accepted command | `ih_discord_command` |
 | `presence` | `[{name, entity}]` people and their presence entities | none |
