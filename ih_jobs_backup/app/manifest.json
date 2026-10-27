@@ -1,0 +1,24 @@
+{
+ "name": "ih_jobs_backup",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Child of Intelligent Home - Jobs: backup storage sensors. Dry-run by default.",
+ "owner": "local add-on ih_jobs_backup",
+ "start": "Supervisor add-on 32c8114c_ih_jobs_backup (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8798/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8798,
+ "schedules": [],
+ "declares_secrets": [
+  "register_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

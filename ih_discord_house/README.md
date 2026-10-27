@@ -19,7 +19,7 @@ To go live: switch the older feature off first, set `shadow` to false here, and 
 1. Install `ih_discord` (transport) with `router_enabled`, `enable_bus` and a `modules` row for this module (see its README; the example row uses a fake key).
 2. Create an MQTT user for this module and put the same signing key in both places (here: `signing_key`; in the transport: the module row).
 3. Fill in the options below. `options.example.json` has fake values.
-4. Start the add-on. Check `http://<host>:8793/status`: `bus.connected` true, `bus.last_heartbeat_s` small.
+4. Start the add-on. Check `http://<host>:8796/status`: `bus.connected` true, `bus.last_heartbeat_s` small.
 
 ## Options
 

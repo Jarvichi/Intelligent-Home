@@ -1,0 +1,41 @@
+name: "Intelligent Home - Jobs - Backup"
+version: "0.1.0"
+slug: ih_jobs_backup
+description: "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself (the default here). To start with Home Assistant, set boot: auto (Supervisor option "Start on boot").
+# watchdog: add  watchdog: http://[HOST]:[PORT:8798]/healthz  once boot is auto; the Supervisor then restarts the add-on if /healthz stops answering.
+boot: manual
+init: false
+homeassistant_api: true
+ports:
+  8798/tcp: 8798
+ports_description:
+  8798/tcp: "Health, status and signed run requests (/healthz, /status, /run)"
+options:
+  mode: "dry"
+  old_loops_disabled: false
+  parent_url: "http://172.30.32.1:8792"
+  callback_url: ""
+  register_key: ""
+  own_timer_min: 0
+  drive_used_entity: ""
+  drive_total_entity: ""
+  disk_used_entity: ""
+  disk_total_entity: ""
+  host_info: true
+schema:
+  mode: list(dry|live)
+  old_loops_disabled: bool
+  parent_url: str
+  callback_url: str?
+  register_key: password
+  own_timer_min: int(0,1440)
+  drive_used_entity: str?
+  drive_total_entity: str?
+  disk_used_entity: str?
+  disk_total_entity: str?
+  host_info: bool

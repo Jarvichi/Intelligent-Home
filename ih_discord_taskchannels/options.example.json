@@ -1,0 +1,16 @@
+{
+  "module_name": "ih_discord_taskchannels",
+  "signing_key": "",
+  "shadow": true,
+  "command_channel_key": "tasks",
+  "wip_category": "wip",
+  "done_category": "done",
+  "template": "",
+  "cleanup_days": 30,
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_discord_taskchannels",
+  "mqtt_password": "",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": ""
+}

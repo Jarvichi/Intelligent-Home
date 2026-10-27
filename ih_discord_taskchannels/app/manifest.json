@@ -1,0 +1,22 @@
+{
+ "name": "ih_discord_taskchannels",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Task channels for Discord as a bus module of ih_discord (one private channel per task, Work in Progress and Done categories, goal as topic, daily cleanup of old done channels). Shadow mode by default: creates nothing.",
+ "owner": "local add-on ih_discord_taskchannels",
+ "start": "Supervisor add-on 32c8114c_ih_discord_taskchannels (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8797/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8797,
+ "schedules": [],
+ "declares_secrets": [],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

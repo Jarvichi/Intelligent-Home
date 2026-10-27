@@ -10,9 +10,9 @@ boot: manual
 init: false
 homeassistant_api: true
 ports:
-  8793/tcp: 8793
+  8796/tcp: 8796
 ports_description:
-  8793/tcp: "Health and status (/healthz, /status)"
+  8796/tcp: "Health and status (/healthz, /status)"
 options:
   module_name: "ih_discord_house"
   signing_key: ""

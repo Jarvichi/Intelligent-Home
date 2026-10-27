@@ -20,7 +20,7 @@ import importlib
 VERSION = '0.2.0'
 DATA = os.environ.get('IHH_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
-PORT = int(os.environ.get('IHH_PORT', '8793'))
+PORT = int(os.environ.get('IHH_PORT', '8796'))
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'
 PUSH_EVERY = 60
 STOP_FILE = 'STOP_LIVE'

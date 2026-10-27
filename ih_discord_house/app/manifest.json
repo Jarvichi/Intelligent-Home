@@ -8,14 +8,14 @@
  "health": [
   {
    "type": "http",
-   "url": "http://172.30.32.1:8793/healthz",
+   "url": "http://172.30.32.1:8796/healthz",
    "timeout": 3,
    "ok_status": [
     200
    ]
   }
  ],
- "port": 8793,
+ "port": 8796,
  "schedules": [],
  "declares_secrets": [],
  "restore": "Stop the add-on. Uninstall to remove."

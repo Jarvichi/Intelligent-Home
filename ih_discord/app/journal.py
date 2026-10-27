@@ -38,6 +38,16 @@ class Cursors:
                 json.dump(self.d, f)
             os.replace(tmp, self.path)
 
+    def drop(self, key):
+        """Forget one channel key (a channel deleted by an admin op)."""
+        with self.lock:
+            if self.d.pop(key, None) is None:
+                return
+            tmp = self.path + '.tmp'
+            with open(tmp, 'w') as f:
+                json.dump(self.d, f)
+            os.replace(tmp, self.path)
+
     def reset(self):
         with self.lock:
             self.d = {}
@@ -87,6 +97,21 @@ class Journal:
         except OSError:
             pass
         return out
+
+    def drop_channel(self, channel_key):
+        """Remove the journal entries of one channel key (and their done marks). -> number of message entries removed."""
+        with self.lock:
+            rows = self.read()
+            ids = {r['id'] for r in rows if 'id' in r and r.get('channel_key') == channel_key}
+            keep = [r for r in rows if not (('id' in r and r['id'] in ids) or ('done' in r and r['done'] in ids))]
+            if len(keep) == len(rows):
+                return 0
+            tmp = self.path + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
+                for r in keep:
+                    f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + '\n')
+            os.replace(tmp, self.path)
+            return len(ids)
 
     def rotate(self):
         with self.lock:

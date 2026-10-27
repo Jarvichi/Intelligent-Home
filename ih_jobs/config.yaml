@@ -1,11 +1,13 @@
 name: "Intelligent Home - Jobs"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_jobs
-description: "Hourly Home Assistant jobs as a module: backup storage sensors and the Met Office forecast. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."
+description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."
 arch:
   - aarch64
   - amd64
 startup: application
+# boot: manual = start it yourself (kept from 0.2.x). Set boot: auto + watchdog in the Supervisor UI only after the dry-run is checked.
+# watchdog: http://[HOST]:[PORT:8792]/healthz  (Supervisor restarts the add-on if /healthz stops answering; add this line when boot goes auto)
 boot: manual
 init: false
 homeassistant_api: true
@@ -31,6 +33,11 @@ options:
   mqtt_password: ""
   enable_scheduler: false
   signing_key: ""
+  register_key: ""
+  run_builtin_jobs: true
+  disk_total_entity: ""
+  disk_used_entity: ""
+  host_info: true
 schema:
   mode: list(dry|live)
   live_jobs:
@@ -50,3 +57,8 @@ schema:
   mqtt_password: password
   enable_scheduler: bool
   signing_key: password
+  register_key: password
+  run_builtin_jobs: bool
+  disk_total_entity: str?
+  disk_used_entity: str?
+  host_info: bool

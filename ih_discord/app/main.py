@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""ih_discord 0.7.0: the Discord TRANSPORT of Intelligent Home. A pure Discord link: it holds the one bot token, reads each channel once (router.py, journal.py,
+"""ih_discord 0.8.0: the Discord TRANSPORT of Intelligent Home. A pure Discord link: it holds the one bot token, reads each channel once (router.py, journal.py,
 persisted cursor) and lets separate feature add-ons ("modules", e.g. ih_discord_house, ih_discord_shopping) receive messages and post/react/edit/delete through a
 signed MQTT bus (busside.py, bus_client.py). It has NO commands of its own. GENERIC: every deployment detail comes from the add-on options.
 0.7.0 (S4): the in-process shopping and house features and the brain-inbox plugin were REMOVED. Their old options (live_features, retired_features,
 old_service_disabled, shopping_list_entity, meal_plan_script, shop_names, aisles, aisle_order, command_event, presence, house_entities, status_device, aliases,
 brain_*) are still ACCEPTED so saved options validate, but are ignored. The router and the bus are always on.
+0.8.0 (S6): channel ADMINISTRATION ops for modules (create_category, create_channel, move_channel, set_topic, delete_channel, list_channels), see admin.py.
+All off by default; new OPTIONAL keys: `categories` ("key=id,key=id"), `permission_templates` ("name=user_id+user_id,..."), and per module row
+can_create_channels, allowed_parent_categories, name_pattern, max_channels, max_creates_per_hour, permission_template, can_delete, category_ops.
+Kill switches /data/STOP_ADMIN, /data/STOP_ADMIN_<module>; /data/ADMIN_LOCK_<module> after 3 limit hits in an hour.
 A module writes to Discord only when dry_run is off AND it is in live_modules AND /data/STOP_LIVE (or STOP_LIVE_<module>) does not exist.
 stdlib only (+ paho-mqtt for the bus). core.py and settings.py are COPIES (see sync_from_service.sh).
 Serves /healthz and /status (no secrets). Pushes its manifest and status to the Intelligent Home add-on (POST /ingest)."""
@@ -19,8 +23,9 @@ import bus_client
 import router as R
 import journal as J
 import busside
+import admin
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
@@ -86,6 +91,8 @@ def load_options(path=None):
             'extra_channels': {_text(c.get('key')): _text(c.get('id')) for c in (o.get('extra_channels') or [])
                                if bus_client.KEY_RE.match(_text(c.get('key'))) and _text(c.get('id')) and _text(c.get('key')) not in ('house', 'shopping')},
             'live_modules': [str(x).strip() for x in (o.get('live_modules') or []) if str(x).strip()],
+            'categories': admin.parse_categories(o.get('categories')),                 # S6: category key -> category id (optional)
+            'permission_templates': admin.parse_templates(o.get('permission_templates')),   # S6: named templates (optional)
             'deprecated_set': sorted(k for k in DEPRECATED_OPTIONS if o.get(k) not in (None, '', [], {}, False))}
 
 
@@ -239,7 +246,8 @@ class Module:
                                      will=('ih/discord/hb/transport', json.dumps({'v': 1, 'state': 'down'})))
         self.bus_t = busside.BusTransport(bus, self.router, self.tdiscord, grants, self.channels(), self.data, journal=self.journal, log=core.log,
                                           is_live=self.bus_live, offline_notice=bool(o.get('offline_notice')), notice_live=self.notice_live,
-                                          max_age_s=o.get('max_age_s', 600), threaded=True)
+                                          max_age_s=o.get('max_age_s', 600), threaded=True,
+                                          categories=o.get('categories'), templates=o.get('permission_templates'))
         ok = self.bus_t.start()
         if not ok:
             self.bus_reason = 'bus did not start'

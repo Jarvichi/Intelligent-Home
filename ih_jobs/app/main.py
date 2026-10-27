@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""ih_jobs 0.2.0: GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
+"""ih_jobs 0.3.0: PARENT "Intelligent Home - Jobs". GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
 DRY by default: the fetch logic runs for real (read-only) but HA states are only logged as '[DRY] would set <entity> = <state>'.
 A job is LIVE only when mode=live AND the job is in live_jobs AND old_loops_disabled=true AND /data/STOP_LIVE does not exist.
 Runs: when the scheduler sends a signed message (MQTT, interval 3600 s), and once 90 s after start (REST sensors vanish at an HA restart).
 stdlib only (+ paho-mqtt, websockets in the image). schedule_client.py and manifest.json are COPIES (see sync_from_service.sh).
-Serves /healthz and /status (no secrets). Pushes its manifest and status to the Intelligent Home add-on (POST /ingest)."""
+Serves /healthz and /status (no secrets). Pushes its manifest and status to the Intelligent Home add-on (POST /ingest).
+CHILDREN (0.3.0): each job can also run as its own add-on ("Intelligent Home - Jobs - Backup" / "- Met Office"). A child posts a signed registration to
+POST /register (jobs_link.py, shared key option register_key). GET /children lists them; POST /trigger (signed) runs a child's job now. When the scheduler
+fires a job and a child for it is registered and fresh, the parent forwards the run to the child instead of running its own copy. Option
+run_builtin_jobs (default true = same behaviour as 0.2.x) can be turned off once the children are live."""
 import json, os, sys, threading, time, traceback, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import schedule_client
+import jobs_link
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -25,6 +30,9 @@ PORT = int(os.environ.get('IHJ_PORT', '8792'))
 PUSH_EVERY = 30
 START_DELAY_S = 90
 WINDOW_S = 600
+CHILD_FRESH_S = 120     # a child that registered within this many seconds counts as up
+MAX_CHILDREN = 20
+FORWARD_TIMEOUT_S = 120
 
 
 class Ring(logging.Handler):
@@ -60,7 +68,10 @@ def load_options(path=None):
             'mqtt_host': str(o.get('mqtt_host') or 'core-mosquitto').strip(), 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': str(o.get('mqtt_user') or 'ih_jobs').strip(), 'mqtt_password': str(o.get('mqtt_password') or ''),
             'enable_scheduler': bool(o.get('enable_scheduler', False)),
-            'signing_key': str(o.get('signing_key') or '').strip()}
+            'signing_key': str(o.get('signing_key') or '').strip(),
+            'disk_used_entity': str(o.get('disk_used_entity') or '').strip(), 'disk_total_entity': str(o.get('disk_total_entity') or '').strip(),
+            'host_info': bool(o.get('host_info', True)),
+            'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True))}
 
 
 class Module:
@@ -75,6 +86,10 @@ class Module:
         self.err_last, self.last_mode, self.last_trigger = {}, {}, {}
         self.sched, self.sched_reason = None, ''
         self.thread = None
+        self.children = {}          # job -> dict(name, slug, version, url, mode, healthy, status, seen)
+        self.children_lock = threading.Lock()
+        self.child_rejected = 0
+        self.forward_results = {}   # job -> (time, ok)
 
     def live_mode(self, name):
         """(is_live, reason). Live only with every gate open. Anything else is dry."""
@@ -115,12 +130,75 @@ class Module:
                 self.log('%s error: %s' % (name, self.err_last[name]))
                 return False
 
+    # ---- children (jobs_link.py) ----
+    def register_child(self, body, signature, now=None):
+        """Handle a signed POST /register. -> (http code, reason). Stores nothing unless the signature, freshness, name and job are valid."""
+        obj, why = jobs_link.unpack(self.opts.get('register_key', ''), body, signature, now=now)
+        if obj is None:
+            self.child_rejected += 1
+            return 401, why
+        job, name, url = str(obj.get('job') or ''), str(obj.get('name') or ''), str(obj.get('url') or '').rstrip('/')
+        if job not in JOBS or not name.startswith(SOURCE + '_') or len(name) > 40 or not url.startswith('http://') or len(url) > 120:
+            self.child_rejected += 1
+            return 400, 'bad registration'
+        with self.children_lock:
+            if job not in self.children and len(self.children) >= MAX_CHILDREN:
+                return 400, 'too many children'
+            self.children[job] = {'name': name, 'slug': str(obj.get('slug') or '')[:60], 'version': str(obj.get('version') or '')[:20],
+                                  'title': str(obj.get('title') or '')[:60], 'url': url, 'mode': 'live' if obj.get('mode') == 'live' else 'dry',
+                                  'healthy': bool(obj.get('healthy')), 'status': obj.get('status') if isinstance(obj.get('status'), dict) else {},
+                                  'seen': time.time() if now is None else now}
+        return 200, 'ok'
+
+    def child_fresh(self, job, now=None):
+        c = self.children.get(job)
+        return bool(c) and ((time.time() if now is None else now) - c['seen']) <= CHILD_FRESH_S
+
+    def children_view(self, now=None):
+        now = time.time() if now is None else now
+        with self.children_lock:
+            return {j: {'name': c['name'], 'title': c['title'], 'slug': c['slug'], 'version': c['version'], 'mode': c['mode'], 'healthy': c['healthy'],
+                        'up': (now - c['seen']) <= CHILD_FRESH_S, 'seen_s_ago': int(now - c['seen']), 'status': c['status'],
+                        'last_forward': None if j not in self.forward_results else {'s_ago': int(now - self.forward_results[j][0]), 'ok': self.forward_results[j][1]}}
+                    for j, c in self.children.items()}
+
+    def forward(self, job, opener=None):
+        """Ask the registered child to run its job now (signed POST <child url>/run). -> True/False. Never raises."""
+        c = self.children.get(job)
+        key = self.opts.get('register_key', '')
+        if not c or not key:
+            return False
+        ok = False
+        try:
+            body, headers = jobs_link.pack(key, {'job': job})
+            req = urllib.request.Request(c['url'] + '/run', data=body, method='POST', headers=headers)
+            with (opener or self._opener or urllib.request.urlopen)(req, timeout=FORWARD_TIMEOUT_S) as x:
+                ok = x.status == 200 and json.load(x).get('ok') is True
+        except Exception as e:
+            self.log('forward %s failed (%s)' % (job, type(e).__name__))
+        self.forward_results[job] = (time.time(), ok)
+        return ok
+
+    def dispatch(self, name, trigger='manual'):
+        """Run job `name`: through its registered child when one is up, else the built-in copy (when run_builtin_jobs). Start-up runs skip a live child (it runs itself)."""
+        if name not in JOBS:
+            return False
+        if self.child_fresh(name):
+            if trigger == 'startup':
+                return True
+            if self.forward(name):
+                return True
+            self.log('%s: child run failed, ' % name + ('using the built-in copy' if self.opts.get('run_builtin_jobs', True) else 'built-in jobs are off'))
+        if not self.opts.get('run_builtin_jobs', True):
+            return False
+        return self.run_job(name, trigger)
+
     def start_run_all(self, delay=START_DELAY_S, sleep=time.sleep):
         """Run every job once after `delay` s (the sensors vanish at an HA restart)."""
         def go():
             sleep(delay)
             for n in JOBS:
-                self.run_job(n, 'startup')
+                self.dispatch(n, 'startup')
         self.thread = threading.Thread(target=go, daemon=True, name='startup'); self.thread.start()
         return self.thread
 
@@ -139,7 +217,7 @@ class Module:
             bus = schedule_client.PahoBus(o['mqtt_host'], o['mqtt_port'], o['mqtt_user'], o['mqtt_password'], SOURCE, log=lambda m: self.log('schedule: ' + m))
         self.sched = schedule_client.ScheduleClient(SOURCE, bus, log=self.log, signing_key=o['signing_key'])
         for n in JOBS:
-            self.sched.on(n, lambda payload, n=n: self.run_job(n, 'scheduler'), window_s=WINDOW_S)   # window_s = manifest window
+            self.sched.on(n, lambda payload, n=n: self.dispatch(n, 'scheduler'), window_s=WINDOW_S)   # window_s = manifest window
         return self.sched.start() is not False
 
     def healthy(self):
@@ -160,6 +238,9 @@ class Module:
                 'scheduler': {'enabled': bool(self.opts.get('enable_scheduler')), 'active': self.sched is not None,
                               'reason': self.sched_reason if self.sched is None and self.opts.get('enable_scheduler') else '',
                               'rejected': self.sched.rejected if self.sched else 0},
+                'run_builtin_jobs': bool(self.opts.get('run_builtin_jobs', True)), 'link_enabled': bool(self.opts.get('register_key')),
+                'children': {j: {k: v for k, v in c.items() if k in ('name', 'title', 'version', 'mode', 'up', 'healthy', 'seen_s_ago')} for j, c in self.children_view().items()},
+                'children_refused': self.child_rejected,
                 'would_set_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 
 
@@ -172,7 +253,7 @@ def push(mod, manifest, now=None, opener=None, log=print):
     st = mod.status()
     body = json.dumps({'source': SOURCE, 'manifests': [manifest],
                        'status': [{'name': SOURCE, 'probed_at': now,
-                                   'checks': [{'type': 'http', 'ok': st['healthy'], 'detail': '%s, %d would-set' % (st['mode'], st['would_set_total'])}]}]}).encode()
+                                   'checks': [{'type': 'http', 'ok': st['healthy'], 'detail': '%s, %d would-set, %d children' % (st['mode'], st['would_set_total'], len(st['children']))}]}]}).encode()
     try:
         r = urllib.request.Request(o['ingest_url'] + '/ingest', data=body, method='POST',
                                    headers={'Authorization': 'Bearer ' + o['ingest_token'], 'Content-Type': 'application/json'})
@@ -191,9 +272,30 @@ def make_handler(mod):
                 code, body, ct = (200 if mod.healthy() else 503), (b'ok' if mod.healthy() else b'not ok'), 'text/plain'
             elif p == '/status':
                 code, body, ct = 200, json.dumps(mod.status()).encode(), 'application/json'
+            elif p == '/children':
+                code, body, ct = 200, json.dumps(mod.children_view()).encode(), 'application/json'
             else:
                 self.send_error(404); return
             self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
+
+        def do_POST(self):
+            p = self.path.split('?')[0]
+            n = int(self.headers.get('Content-Length') or 0)
+            if p not in ('/register', '/trigger') or n > 16384:
+                self.send_error(404 if p not in ('/register', '/trigger') else 413); return
+            raw = self.rfile.read(n); sig = self.headers.get(jobs_link.HEADER)
+            if p == '/register':
+                code, why = mod.register_child(raw, sig)
+                out = {'ok': code == 200, 'why': why}
+            else:
+                obj, why = jobs_link.unpack(mod.opts.get('register_key', ''), raw, sig)
+                if obj is None or obj.get('job') not in JOBS:
+                    code, out = (401 if obj is None else 400), {'ok': False, 'why': why if obj is None else 'unknown job'}
+                else:
+                    ok = mod.dispatch(obj['job'], 'trigger'); code, out = 200, {'ok': ok, 'job': obj['job']}
+            body = json.dumps(out).encode()
+            self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
 
         def log_message(self, *a):

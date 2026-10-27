@@ -7,6 +7,7 @@ Writes to Discord happen only when is_live(module) says so (dry-run, live_module
 import json, os, re, time, threading, collections
 from urllib.parse import quote
 import bus_client as B
+import admin as A
 
 DEFAULT_OPS = ('post', 'reply', 'react', 'unreact', 'edit', 'delete', 'typing', 'watch', 'unwatch')
 MAX_TEXT = 1900
@@ -21,8 +22,9 @@ OWNER_OPS = ('edit', 'delete', 'get_message', 'watch', 'unwatch')
 
 
 class Grant:
-    def __init__(self, name, key, channels, ops, rate, public, shadow=False):
+    def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None):
         self.name, self.key, self.channels, self.ops, self.rate, self.public = name, key, set(channels), set(ops), rate, set(public)
+        self.admin = admin or A.AdminCfg()   # S6: channel-admin rights, ALL OFF unless the module row sets them
         self.shadow = bool(shadow)   # S2: gets COPIES of what the live claimants get; every op it sends is forced dry here
 
 
@@ -41,7 +43,7 @@ def parse_modules(raw, reserved=()):
         except (TypeError, ValueError):
             rate = 30
         out[name] = Grant(name, str(m.get('signing_key') or '').strip(), [str(c).strip() for c in (m.get('channels') or []) if B.KEY_RE.match(str(c).strip())],
-                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True)
+                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True, admin=A.parse_cfg(m))
     return out
 
 
@@ -66,7 +68,7 @@ def _save(path, obj):
 
 class BusTransport:
     def __init__(self, bus, router, discord, grants, channels, data, journal=None, clock=time.time, log=print, is_live=None,
-                 offline_notice=False, notice_live=None, max_age_s=600, threaded=False):
+                 offline_notice=False, notice_live=None, max_age_s=600, threaded=False, categories=None, templates=None):
         self.bus, self.router, self.discord, self.grants, self.channels, self.data = bus, router, discord, grants, dict(channels), data
         self.journal, self.clock, self.log, self.max_age_s, self.threaded = journal, clock, log, max_age_s, threaded
         self.is_live = is_live or (lambda m: (False, 'no gate given'))
@@ -91,6 +93,8 @@ class BusTransport:
         self.q, self.cv = collections.deque(), threading.Condition()
         self.started = False
         self.audit_path = os.path.join(data, 'audit.jsonl')
+        self.admin = A.Admin(self, categories, templates)   # S6 channel administration (all rights off unless granted)
+        self.admin.attach()
 
     # ---- start ----
     def start(self):
@@ -307,7 +311,7 @@ class BusTransport:
             self.log('bus: op failed inside the transport (%s)' % type(e).__name__)
             res = self._fail('discord_error', 'internal error')
         res['op_id'] = oid
-        self._audit(module, str(op)[:20], str(d.get('channel_key', ''))[:60], res.get('discord_id'), res.get('code'))
+        self._audit(module, str(op)[:20], str(d.get('channel_key') or res.get('channel_key') or '')[:60], res.get('discord_id'), res.get('code'))
         self.results[oid] = {'t': self.clock(), 'res': res}
         self._trim_results()
         self._pub('res', module, B.topic_res(module), res)
@@ -327,6 +331,8 @@ class BusTransport:
 
     def _execute(self, module, g, d):
         op = d.get('op')
+        if op in B.ADMIN_OPS:
+            return self.admin.run(module, g, d)   # S6: its own grants, quotas, kill switches and dry gate
         if op not in B.OPS:
             return self._fail('bad_request', 'unknown op')
         if op not in g.ops:
@@ -484,6 +490,8 @@ class BusTransport:
             elif p['sent'] is None and now - p['t'] > self.max_age_s:
                 self.pending.pop((m, pid), None); self.stats['expired_held'] += 1
         self.poll_watches()
+        try: self.admin.tick()
+        except Exception as e: self.log('admin: reconcile failed (%s)' % type(e).__name__)
         if now - self.last_hb_pub >= B.HEARTBEAT_S:
             self.last_hb_pub = now
             try: self.bus.publish('ih/discord/hb/transport', json.dumps({'v': 1, 'ts': int(now), 'state': 'up'}), retain=True)   # unsigned: a status light only
@@ -528,6 +536,7 @@ class BusTransport:
             mods[n] = {'state': state, 'last_heartbeat_s': None if hb is None else int(now - hb), 'version': m['version'],
                        'claims_granted': list(m['granted']), 'claims_denied': list(m['denied']), 'ops': sorted(g.ops),
                        'rejected': dict(self.rejected_by.get(n, {})), 'pending': len([1 for (mm, _) in self.pending if mm == n]),
-                       'mode': 'shadow' if g.shadow else 'live' if live else 'dry', 'why': 'shadow module' if g.shadow else why}
+                       'mode': 'shadow' if g.shadow else 'live' if live else 'dry', 'why': 'shadow module' if g.shadow else why,
+                       'admin': g.admin.any}
         return {'started': self.started, 'rejected': dict(self.rejected), 'modules': mods, 'stats': dict(self.stats),
-                'owned_messages': len(self.own), 'watches': len(self.watches)}
+                'owned_messages': len(self.own), 'watches': len(self.watches), 'admin': self.admin.status()}

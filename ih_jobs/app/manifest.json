@@ -1,8 +1,8 @@
 {
  "name": "ih_jobs",
- "version": "0.2.0",
+ "version": "0.3.0",
  "kind": "addon",
- "description": "Hourly Home Assistant jobs: backup storage sensors and the Met Office forecast. Dry-run by default; each job goes live only when told to (live_jobs) after any older loop is switched off.",
+ "description": "Parent of the Jobs family; lists and triggers the child job add-ons. Hourly Home Assistant jobs: backup storage sensors and the Met Office forecast. Dry-run by default; each job goes live only when told to (live_jobs) after any older loop is switched off.",
  "owner": "local add-on ih_jobs",
  "start": "Supervisor add-on 32c8114c_ih_jobs (boot manual)",
  "health": [
@@ -33,7 +33,8 @@
   }
  ],
  "declares_secrets": [
-  "met_office_key"
+  "met_office_key",
+  "register_key"
  ],
  "restore": "Stop the add-on. Uninstall to remove."
 }

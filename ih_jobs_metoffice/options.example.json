@@ -1,0 +1,12 @@
+{
+  "mode": "dry",
+  "old_loops_disabled": false,
+  "parent_url": "http://172.30.32.1:8792",
+  "callback_url": "",
+  "register_key": "",
+  "own_timer_min": 0,
+  "met_office_key": "",
+  "timezone": "Europe/London",
+  "zone_entity": "zone.home",
+  "fallback_weather_entity": "weather.forecast_home"
+}

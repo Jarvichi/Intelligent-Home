@@ -15,5 +15,10 @@
   "mqtt_user": "ih_jobs",
   "mqtt_password": "",
   "enable_scheduler": false,
-  "signing_key": ""
+  "signing_key": "",
+  "register_key": "",
+  "run_builtin_jobs": true,
+  "disk_total_entity": "",
+  "disk_used_entity": "",
+  "host_info": true
 }

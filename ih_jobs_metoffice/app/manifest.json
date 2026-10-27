@@ -1,0 +1,25 @@
+{
+ "name": "ih_jobs_metoffice",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Child of Intelligent Home - Jobs: Met Office forecast sensors. Dry-run by default.",
+ "owner": "local add-on ih_jobs_metoffice",
+ "start": "Supervisor add-on 32c8114c_ih_jobs_metoffice (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8799/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8799,
+ "schedules": [],
+ "declares_secrets": [
+  "met_office_key",
+  "register_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

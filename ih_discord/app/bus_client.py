@@ -26,6 +26,7 @@ REPLAY_TTL_S = 3600
 NAME_RE = re.compile(r'^[A-Za-z0-9_-]{1,40}$')
 KEY_RE = re.compile(r'^[A-Za-z0-9_.-]{1,60}$')   # a channel key (module-created keys look like "module.suffix")
 OPS = ('post', 'reply', 'react', 'unreact', 'edit', 'delete', 'delete_tagged', 'get_message', 'typing', 'watch', 'unwatch', 'expect')
+ADMIN_OPS = ('create_category', 'create_channel', 'move_channel', 'set_topic', 'delete_channel', 'list_channels')   # S6: channel administration (design section 8); granted by flags, not by the `ops` list
 CODES = ('ok', 'denied_channel', 'denied_op', 'rate_limited', 'not_owner', 'discord_error', 'unsupported_version', 'bad_sig', 'dry', 'bad_request')
 
 
@@ -336,6 +337,14 @@ class ModuleClient:
         self.bus.subscribe(topic_in(self.module, channel_key), self._on_in)
         return self
 
+    def on_events(self, channel_key, handler):
+        """Receive `in` events for a key WITHOUT claiming it (S6: the transport sends `channel_gone` on the key '_admin')."""
+        if not KEY_RE.match(channel_key):
+            raise ValueError('bad channel key')
+        self.handlers[channel_key] = handler
+        self.bus.subscribe(topic_in(self.module, channel_key), self._on_in)
+        return self
+
     def start(self):
         if not self.active:
             self.log('bus: inactive (no usable signing key)')
@@ -490,6 +499,23 @@ class ModuleClient:
 
     def unwatch(self, channel_key, msg_id, **kw): return self._op('unwatch', {'channel_key': channel_key, 'msg_id': msg_id}, **kw)
     def expect(self, channel_key, user_id, ttl_s=120, **kw): return self._op('expect', {'channel_key': channel_key, 'user_id': user_id, 'ttl_s': int(ttl_s)}, **kw)
+
+    # -- channel administration (S6; the transport checks the module's grants, quotas and kill switches) --
+    def create_category(self, name, **kw): return self._op('create_category', {'name': name}, **kw)
+
+    def create_channel(self, name, category, key, topic=None, template=None, **kw):
+        a = {'name': name, 'category': category, 'key': key}
+        if topic: a['topic'] = topic
+        if template: a['template'] = template
+        return self._op('create_channel', a, **kw)
+
+    def move_channel(self, channel_key, category, **kw): return self._op('move_channel', {'channel_key': channel_key, 'category': category}, **kw)
+    def set_topic(self, channel_key, topic, **kw): return self._op('set_topic', {'channel_key': channel_key, 'topic': topic}, **kw)
+    def delete_channel(self, channel_key, **kw): return self._op('delete_channel', {'channel_key': channel_key}, **kw)
+
+    def list_channels(self, category=None, **kw):
+        a = {'category': category} if category else {}
+        return self._op('list_channels', a, **kw)
 
     def status(self):
         """Counts only: never keys, signatures or message content."""

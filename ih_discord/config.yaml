@@ -1,7 +1,7 @@
 name: "Intelligent Home - Discord"
-version: "0.7.0"
+version: "0.8.0"
 slug: ih_discord
-description: "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. DRY-RUN by default: a module writes to Discord only when dry_run is off and it is in live_modules. Maps no folders."
+description: "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. Since 0.8.0 it can also administer channels for a module that is granted this (all off by default). DRY-RUN by default: a module writes to Discord only when dry_run is off and it is in live_modules. Maps no folders."
 arch:
   - aarch64
   - amd64
@@ -64,6 +64,8 @@ options:
   max_age_s: 600
   live_modules: []
   extra_channels: []
+  categories: ""
+  permission_templates: ""
   modules: []
 schema:
   discord_token: password
@@ -126,6 +128,8 @@ schema:
   extra_channels:
     - key: str
       id: str
+  categories: str?
+  permission_templates: str?
   modules:
     - name: str
       signing_key: password
@@ -137,3 +141,11 @@ schema:
       public_words:
         - str
       shadow: bool?
+      can_create_channels: bool?
+      allowed_parent_categories: str?
+      name_pattern: str?
+      max_channels: int(1,50)?
+      max_creates_per_hour: int(1,30)?
+      permission_template: str?
+      can_delete: bool?
+      category_ops: bool?

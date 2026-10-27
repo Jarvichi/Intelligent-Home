@@ -21,6 +21,8 @@
   "offline_notice": false,
   "max_age_s": 600,
   "live_modules": [],
+  "categories": "wip=111,done=222",
+  "permission_templates": "private_owner_and_bot=1111",
   "extra_channels": [
     {
       "key": "scratch",

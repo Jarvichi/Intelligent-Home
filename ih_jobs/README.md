@@ -7,6 +7,15 @@ A small Home Assistant add-on that runs two hourly jobs and writes the results a
 
 Nothing about your home is in the code: location comes from your Home Assistant home zone, everything else from the add-on **options**. It maps no folders and starts in **dry-run** (logs "would set ...", changes nothing).
 
+## Parent and children (0.3.0)
+This add-on is the **parent**, "Intelligent Home - Jobs". Each job can also run as its own child add-on: **Intelligent Home - Jobs - Backup** (`ih_jobs_backup`, port 8798) and **Intelligent Home - Jobs - Met Office** (`ih_jobs_metoffice`, port 8799). Children are separate processes.
+- Set the same `register_key` here and in each child. Each child posts a signed registration every 30 s (`POST /register`, HMAC-SHA256 of the body, 5-minute freshness window). Empty key = link off, every registration refused.
+- `GET /children` lists the children and their last status. `POST /trigger` (signed, body `{"job": "metoffice"}`) runs a job now.
+- When the scheduler fires a job and its child is registered and fresh (seen in the last 2 minutes), the parent forwards the run to the child. Otherwise it runs its own built-in copy.
+- `run_builtin_jobs` (default on, same as 0.2.x): turn it off once the children are live, so only the children act.
+- New backupstore options `disk_total_entity`, `disk_used_entity`, `host_info`: see the child README (the disk size no longer makes the job fail).
+- Boot: `boot: manual`. To auto-start set "Start on boot" and add `watchdog: http://[HOST]:[PORT:8792]/healthz` to `config.yaml` after the dry-run looks right.
+
 ## Going live
 A job acts only when `mode` is `live`, the job is in `live_jobs`, `old_loops_disabled` is on (you stopped any older script doing the same), and `/data/STOP_LIVE` does not exist (kill switch). `set_live.py live|dry` flips the options in one step (needs `SUPERVISOR_TOKEN`).
 Jobs run when the scheduler sends a signed message (every hour) and once 90 seconds after start.
