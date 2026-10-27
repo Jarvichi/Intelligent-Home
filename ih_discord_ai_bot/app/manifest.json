@@ -1,6 +1,6 @@
 {
  "name": "ih_discord_ai_bot",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Discord AI bot: answers messages from allow-listed users on chosen channel keys (bus module of ih_discord) by asking the AI layer API and posting the reply. Shadow mode by default: logs what it would post, posts nothing.",
  "owner": "local add-on ih_discord_ai_bot",

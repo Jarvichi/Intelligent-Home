@@ -3,6 +3,7 @@
   "signing_key": "",
   "shadow": true,
   "channel_keys": ["ask"],
+  "channels_list": "",
   "trigger_prefix": "",
   "allowed_user_ids": ["1234"],
   "ai_layer_url": "http://ai-layer.example:8801",

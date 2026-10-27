@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_discord_ai_bot 0.1.0: answers Discord messages with the AI layer, as a signed bus MODULE of the ih_discord transport.
+"""ih_discord_ai_bot 0.1.1: answers Discord messages with the AI layer, as a signed bus MODULE of the ih_discord transport.
 The AI layer knows nothing about Discord. This module takes a message from a granted channel key, sends its text to the AI layer HTTP API
 (POST /request, bearer api_token) and posts the answer back with a `post` op (reply to the message). It holds no Discord token, no channel number
 and no AI key. Every detail (channel keys, allowed user ids, URL, token) comes from the add-on options, none from code.
@@ -16,7 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
+MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHB_PORT', '8803'))
@@ -66,6 +67,15 @@ def load_options(path=None):
     for k in (o.get('channel_keys') if isinstance(o.get('channel_keys'), list) else []):
         k = _text(k) if isinstance(k, str) else ''
         if bus_client.KEY_RE.match(k) and k not in keys:
+            keys.append(k)
+    raw = o.get('channels_list')
+    listed = []
+    for k in (raw.split(',') if isinstance(raw, str) else []):   # keys only (the transport routes by key, not raw Discord ids)
+        k = _text(k).lower()
+        if k and len(k) <= 64 and bus_client.KEY_RE.match(k) and k not in listed:
+            listed.append(k)
+    for k in listed[:MAX_LIST_ITEMS]:
+        if k not in keys:
             keys.append(k)
     users = []
     for u in (o.get('allowed_user_ids') if isinstance(o.get('allowed_user_ids'), list) else []):

@@ -41,6 +41,7 @@ messages that start with it and strips it before asking.
 | `signing_key` | Secret shared with the transport row | empty (inactive) |
 | `shadow` | Ask the AI layer but post nothing | `true` |
 | `channel_keys` | Channel KEYS to listen on. Empty = claims nothing | empty list |
+| `channels_list` | Optional comma-separated channel KEYS (e.g. `ask, shopping`), merged with `channel_keys`. Trimmed, lowercased, deduplicated, max 20 items of 64 chars. Keys only: the transport routes by key, so raw Discord channel ids are not resolved | empty |
 | `trigger_prefix` | If set, only messages starting with it are answered (specific claim) | empty (catch-all) |
 | `allowed_user_ids` | Discord user ids that get answers. Empty = nobody | empty list |
 | `ai_layer_url` | AI layer address (the shipping config sets it) | empty (error reply) |
