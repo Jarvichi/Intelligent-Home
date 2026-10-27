@@ -5,7 +5,7 @@ import hashlib, json, os, threading, time, urllib.parse, urllib.request
 import jobs_link
 import showtimes_parse as sp
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 CAPABILITIES = ['showtimes', 'web_search']
 SERP_URL = 'https://serpapi.com/search.json'
 STOP_FILE = 'STOP'
@@ -120,8 +120,7 @@ class Agent:
 
     def build_answer(self, cap, data, ctx):
         if cap == 'showtimes':
-            cinema = str(ctx.get('cinema') or self.opts['default_cinema'] or '') or None
-            txt = sp.format_showtimes(sp.parse_showtimes(data, cinema))
+            txt = sp.format_showtimes(sp.parse_showtimes(data, str(ctx.get('film') or '') or None))
             return txt or 'No showtimes found in the SerpApi response (the layout may differ from what the parser expects).'
         return sp.format_organic(sp.parse_organic(data)) or 'No results found.'
 

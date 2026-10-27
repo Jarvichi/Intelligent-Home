@@ -1,34 +1,33 @@
 """Parsers for SerpApi Google results. Kept apart so they can be fixed without touching anything else.
-UNVERIFIED LAYOUT: the field names below ('showtimes' -> 'theaters' -> 'showing' -> 'time', and 'organic_results' title/snippet/link) come from an
-older prototype and from memory, NOT from a checked live response. The tests use SAMPLE JSON written by hand. When a real response is seen,
-adjust parse_showtimes and its tests. Every function tolerates missing fields and returns [] rather than raising."""
+Layout CHECKED against one real response (27 Oct 2026, query "showtimes <cinema>", gl=uk): 'showtimes' is a list of days
+{day, movies: [{name, link, showing: [{time: [..], type}]}]}; the cinema is the one the query names (knowledge_graph title), not a field of each row.
+organic_results (title/snippet/link) are not yet checked against a real response. Every function tolerates missing fields and returns [] rather than raising."""
 
 
-def parse_showtimes(data, cinema=None):
-    """-> list of dicts {day, date, theater, type, times} for theaters whose name contains `cinema` (case-insensitive; None = all)."""
+def parse_showtimes(data, film=None):
+    """-> list of dicts {day, movie, type, times} for every film whose name contains `film` (case-insensitive; None = all films)."""
     out = []
     if not isinstance(data, dict):
         return out
     for d in data.get('showtimes') or []:
         if not isinstance(d, dict):
             continue
-        for t in d.get('theaters') or []:
-            if not isinstance(t, dict):
+        for m in d.get('movies') or []:
+            if not isinstance(m, dict):
                 continue
-            name = str(t.get('name') or '')
-            if cinema and cinema.lower() not in name.lower():
+            name = str(m.get('name') or '')
+            if film and film.lower() not in name.lower():
                 continue
-            for s in t.get('showing') or []:
+            for s in m.get('showing') or []:
                 if isinstance(s, dict):
-                    out.append({'day': d.get('day'), 'date': d.get('date'), 'theater': name, 'type': s.get('type'),
-                                'times': [str(x) for x in (s.get('time') or [])]})
+                    out.append({'day': d.get('day'), 'movie': name, 'type': s.get('type'), 'times': [str(x) for x in (s.get('time') or [])]})
     return out
 
 
 def format_showtimes(rows, limit=12):
     if not rows:
         return None
-    lines = ['%s %s, %s%s: %s' % (r['day'] or '', r['date'] or '', r['theater'], ' (%s)' % r['type'] if r['type'] else '', ', '.join(r['times']) or 'no times')
+    lines = ['%s: %s%s: %s' % (r['day'] or '', r['movie'], ' (%s)' % r['type'] if r['type'] and r['type'] != 'Standard' else '', ', '.join(r['times']) or 'no times')
              for r in rows[:limit]]
     return '\n'.join(l.strip() for l in lines)
 

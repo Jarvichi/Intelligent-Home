@@ -15,8 +15,8 @@ An agent for **Intelligent Home - AI Layer** (`ih_ai_layer`). It registers with 
 
 For showtimes the request `context` may hold `cinema` and `film`.
 
-## IMPORTANT: the parser is a guess
-The real SerpApi response layout for UK cinema showtimes was **not checked**. `app/showtimes_parse.py` assumes `showtimes -> theaters -> showing -> time` (from an older prototype) and `organic_results` with `title`, `snippet`, `link`. The tests use **sample JSON written by hand**, not a real response. If the layout differs, the answer says "No showtimes found ... layout may differ". Fix the parser (one file) after one real response has been looked at.
+## Parser (layout checked once, 27 Oct 2026)
+Showtimes layout was checked against one real response: `showtimes -> [day, movies -> [name, showing -> [time, type]]]`. The cinema is the one the search names (default_cinema or context `cinema`); context `film` filters films. `organic_results` is still unchecked.
 
 ## Safety
 Kill switch: file `/data/STOP`. `/status` shows use today versus cap, cache hits and whether the key is set (not the key). No request text is logged. Request text is sent to SerpApi (search words only).
