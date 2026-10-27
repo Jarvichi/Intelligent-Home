@@ -17,6 +17,7 @@ Small, generic Home Assistant add-ons. Each one does one job and keeps working i
 | `ih_orchestration_inbox` | Durable inbox for messages on chosen channel keys, as a bus module of `ih_discord`: stores each message in a local queue, reacts with an eye emoji so the sender knows it arrived, never replies, and serves the queue over a token-protected local API. Shadow mode by default: queue written, no reactions. |
 | `ih_ai_layer` | Routes an AI request (text plus optional capability) to a registered AI agent add-on and returns the answer; remembers which agent answers best. Not connected to Discord or any chat. Shadow mode by default. |
 | `ih_ai_layer_serpapi` | Agent of `ih_ai_layer`: cinema showtimes and web search through SerpApi, with a small daily cap and a cache. Needs your own SerpApi key. |
+| `ih_ai_layer_gemini` | Agent of `ih_ai_layer`: general questions and summaries through Google Gemini, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own Gemini key. |
 
 ## Add the repository in Home Assistant
 

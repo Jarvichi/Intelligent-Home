@@ -1,0 +1,24 @@
+{
+ "name": "ih_ai_layer_gemini",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Agent of Intelligent Home - AI Layer: general questions and summaries via Google Gemini (text scrubbed first).",
+ "owner": "local add-on ih_ai_layer_gemini",
+ "start": "Supervisor add-on 32c8114c_ih_ai_layer_gemini (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8804/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8804,
+ "schedules": [],
+ "declares_secrets": [
+  "register_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}
