@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_discord_taskchannels 0.1.0: one private Discord channel per task, as a signed bus MODULE of the ih_discord transport (S6 of the split).
+"""ih_discord_taskchannels 0.1.1: one private Discord channel per task, as a signed bus MODULE of the ih_discord transport (S6 of the split).
 GENERIC: every detail (category keys, template name, retention days, channel keys) comes from the add-on options, none from code.
 It never holds a Discord token or a channel number. It receives `in` events for ONE channel key (default `tasks`, a catch-all claim) and creates, moves,
 re-topics and deletes channels through the transport's ADMIN ops (create_channel, move_channel, set_topic, delete_channel, list_channels). The transport
@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 DATA = os.environ.get('IHT_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHT_PORT', '8797'))
@@ -235,6 +235,11 @@ class Module:
         return None   # not a command: stay quiet
 
     def find(self, ref):
+        m = re.fullmatch(r'<#(\d+)>|(\d{15,25})', ref.strip())
+        if m:
+            cid = m.group(1) or m.group(2)
+            hits = [k for k, t in self.tasks.items() if str(t.get('id')) == cid]
+            return hits[0] if len(hits) == 1 else None
         s = slug(ref, 60)
         if s in self.tasks:
             return s

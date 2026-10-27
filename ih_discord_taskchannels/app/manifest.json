@@ -1,6 +1,6 @@
 {
  "name": "ih_discord_taskchannels",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Task channels for Discord as a bus module of ih_discord (one private channel per task, Work in Progress and Done categories, goal as topic, daily cleanup of old done channels). Shadow mode by default: creates nothing.",
  "owner": "local add-on ih_discord_taskchannels",
