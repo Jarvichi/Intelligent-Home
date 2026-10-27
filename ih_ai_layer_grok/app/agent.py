@@ -1,0 +1,171 @@
+"""Grok agent core: answers signed /ask requests for 'general_qa' and 'summarize'. stdlib only.
+Sends text to an OUTSIDE service, so the text is scrubbed first and the request context is never sent.
+The Grok key (option xai_key) is only put in the Authorization (Bearer) header and is never logged, returned or put in /status.
+Request and reply text are never logged. Daily cap is counted per local date in /data/usage.json BEFORE the call is made."""
+import json, os, re, threading, time, urllib.request
+import jobs_link
+
+VERSION = '0.1.0'
+CAPABILITIES = ['general_qa', 'summarize']
+API_URL = 'https://api.x.ai/v1/chat/completions'
+STOP_FILE = 'STOP'
+MAX_IN = 8000
+SYSTEM = {'general_qa': 'You are a general assistant. Answer the question clearly and briefly in plain text. You know nothing about the asker, their home or their location; do not ask for personal details.',
+          'summarize': 'You are a general assistant. Summarize the text you are given clearly and briefly in plain text. Do not add facts that are not in the text.'}
+
+_EMAIL = re.compile(r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+')
+_URL = re.compile(r'(https?://[^\s?#]+)[?#]\S*')
+_MAC = re.compile(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b')
+_IPV4 = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+_PHONE = re.compile(r'(?<![\w])\+?\d[\d ()\-.]{7,}\d(?![\w])')
+_DIGITS = re.compile(r'\d{6,}')
+_TOKEN = re.compile(r'\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b')
+
+
+def scrub(text):
+    """Remove private-looking data before text leaves the house. Order matters (specific first)."""
+    t = _EMAIL.sub('[email]', text)
+    t = _URL.sub(r'\1', t)
+    t = _MAC.sub('[mac]', t)
+    t = _IPV4.sub('[ip]', t)
+    t = _PHONE.sub('[number]', t)
+    t = _DIGITS.sub('[number]', t)
+    t = _TOKEN.sub('[token]', t)
+    return t
+
+
+def load_options(path):
+    try:
+        with open(path) as f:
+            o = json.load(f)
+    except (OSError, ValueError):
+        o = {}
+
+    def num(k, d, lo, hi):
+        try:
+            return max(lo, min(hi, int(o.get(k, d))))
+        except (TypeError, ValueError):
+            return d
+    model = str(o.get('model') or 'grok-4').strip()
+    if not re.fullmatch(r'[A-Za-z0-9._:/-]{1,60}', model):
+        model = 'grok-4'
+    sh = o.get('shadow', True)
+    return {'xai_key': str(o.get('xai_key') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
+            'parent_url': str(o.get('parent_url') or 'http://172.30.32.1:8801').strip().rstrip('/'),
+            'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'), 'model': model,
+            'daily_cap': num('daily_cap', 50, 0, 1000), 'timeout_s': num('timeout_s', 30, 5, 120),
+            'shadow': sh if isinstance(sh, bool) else str(sh).lower() not in ('false', '0', 'no'),
+            'max_chars': num('max_chars', 1900, 100, 4000)}
+
+
+class Agent:
+    def __init__(self, opts, data='/data', log=None, opener=None, clock=time.time, today=lambda: time.strftime('%Y-%m-%d')):
+        self.opts, self.data = opts, data
+        self.log = log or (lambda m: None)
+        self.opener, self.clock, self.today = opener or urllib.request.urlopen, clock, today
+        self.lock = threading.Lock()
+        self.started = clock()
+        self.served = self.live_calls = self.refused = 0
+        self.registered_at, self.register_error = None, ''
+
+    def _p(self, n):
+        return os.path.join(self.data, n)
+
+    def _read(self, n):
+        try:
+            with open(self._p(n)) as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _write(self, n, d):
+        try:
+            with open(self._p(n) + '.tmp', 'w') as f:
+                json.dump(d, f)
+            os.replace(self._p(n) + '.tmp', self._p(n))
+        except OSError:
+            self.log('write %s failed' % n)
+
+    def used_today(self):
+        return int(self._read('usage.json').get(self.today(), 0))
+
+    def _count(self):
+        self._write('usage.json', {self.today(): self.used_today() + 1})      # old days are dropped
+
+    def stopped(self):
+        return os.path.exists(self._p(STOP_FILE))
+
+    def ask(self, obj):
+        """obj: {text, capability, context, request_id}. -> dict {ok, answer, request_id, ...}. Never raises; never logs text."""
+        rid, cap, text = obj.get('request_id'), obj.get('capability'), str(obj.get('text') or '').strip()
+
+        def res(ok, answer, **kw):
+            self.log('ask id=%s cap=%s ok=%s %s' % (rid, cap, ok, kw.get('why', '')))
+            return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': 'ih_ai_layer_grok'}, **kw)
+        self.served += 1
+        if cap not in CAPABILITIES or not text:
+            return res(False, 'This agent only does general_qa and summarize.', why='bad_request')
+        if self.stopped():
+            return res(False, 'Grok agent is stopped (kill switch).', why='stopped')
+        if not self.opts['xai_key']:
+            return res(False, 'Grok is not configured (no xai_key option).', why='not_configured')
+        if self.opts['shadow']:
+            return res(True, "[dry] shadow mode: would ask Grok for '%s'. Nothing was sent." % cap, why='shadow', mode='dry')
+        with self.lock:
+            if self.used_today() >= self.opts['daily_cap']:
+                self.refused += 1
+                return res(False, 'Grok daily limit reached (%d per day). Try tomorrow.' % self.opts['daily_cap'], why='cap')
+            self._count()
+        try:
+            answer = self.generate(cap, scrub(text[:MAX_IN]))
+        except Exception as e:
+            self.log('grok failed: %s' % type(e).__name__)      # type only: never the message
+            return res(False, 'Grok did not answer.', why='upstream_error')
+        self.live_calls += 1
+        if not answer:
+            return res(False, 'Grok returned no text.', why='empty')
+        return res(True, answer[:self.opts['max_chars']], cached=False)
+
+    def generate(self, cap, text):
+        """The ONLY outside call. Key goes in the Authorization header here and nowhere else. -> reply text (may be empty)."""
+        body = json.dumps({'model': self.opts['model'], 'max_tokens': 1024,
+                           'messages': [{'role': 'system', 'content': SYSTEM[cap]}, {'role': 'user', 'content': text}]}).encode()
+        req = urllib.request.Request(API_URL, data=body, method='POST',
+                                     headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.opts['xai_key']})
+        with self.opener(req, timeout=self.opts['timeout_s']) as x:
+            data = json.loads(x.read(2000000))
+        try:
+            c = data['choices'][0]['message']['content']
+            return c.strip() if isinstance(c, str) else ''
+        except (KeyError, IndexError, TypeError, AttributeError):
+            return ''
+
+    def status(self):
+        now = self.clock()
+        return {'name': 'ih_ai_layer_grok', 'version': VERSION, 'capabilities': CAPABILITIES, 'configured': bool(self.opts['xai_key']),
+                'model': self.opts['model'], 'shadow': self.opts['shadow'], 'kill_switch': self.stopped(), 'uptime_s': int(now - self.started),
+                'used_today': self.used_today(), 'daily_cap': self.opts['daily_cap'], 'served': self.served, 'live_calls': self.live_calls,
+                'refused_by_cap': self.refused,
+                'parent': {'link_enabled': bool(self.opts['register_key']), 'registered_s_ago': None if self.registered_at is None else int(now - self.registered_at),
+                           'last_error': self.register_error}}
+
+    def register(self, opener=None, now=None):
+        """Signed POST to the parent /register. Never raises, never sends the Grok key. -> bool."""
+        o = self.opts
+        if not o['register_key']:
+            self.register_error = 'no register_key'
+            return False
+        try:
+            body, headers = jobs_link.pack(o['register_key'], {'name': 'ih_ai_layer_grok', 'version': VERSION, 'capabilities': CAPABILITIES,
+                                                               'url': o['callback_url'] or 'http://172.30.32.1:8808', 'healthy': True}, now=now)
+            req = urllib.request.Request(o['parent_url'] + '/register', data=body, method='POST', headers=headers)
+            with (opener or self.opener)(req, timeout=5) as x:
+                good = x.status == 200
+            self.register_error = '' if good else 'parent refused'
+            if good:
+                self.registered_at = self.clock()
+            return good
+        except Exception as e:
+            self.register_error = type(e).__name__
+            return False

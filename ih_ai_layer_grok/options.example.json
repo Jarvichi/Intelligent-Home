@@ -1,0 +1,11 @@
+{
+  "xai_key": "",
+  "register_key": "",
+  "parent_url": "http://172.30.32.1:8801",
+  "callback_url": "",
+  "model": "grok-4",
+  "daily_cap": 50,
+  "timeout_s": 30,
+  "shadow": true,
+  "max_chars": 1900
+}

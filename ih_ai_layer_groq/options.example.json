@@ -1,0 +1,11 @@
+{
+  "groq_key": "",
+  "register_key": "",
+  "parent_url": "http://172.30.32.1:8801",
+  "callback_url": "",
+  "model": "llama-3.3-70b-versatile",
+  "daily_cap": 50,
+  "timeout_s": 30,
+  "shadow": true,
+  "max_chars": 1900
+}
