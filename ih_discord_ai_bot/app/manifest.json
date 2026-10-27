@@ -1,0 +1,22 @@
+{
+ "name": "ih_discord_ai_bot",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Discord AI bot: answers messages from allow-listed users on chosen channel keys (bus module of ih_discord) by asking the AI layer API and posting the reply. Shadow mode by default: logs what it would post, posts nothing.",
+ "owner": "local add-on ih_discord_ai_bot",
+ "start": "Supervisor add-on 32c8114c_ih_discord_ai_bot (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8803/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8803,
+ "schedules": [],
+ "declares_secrets": [],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

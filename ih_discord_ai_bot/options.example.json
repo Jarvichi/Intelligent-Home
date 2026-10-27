@@ -1,0 +1,20 @@
+{
+  "module_name": "ih_discord_ai_bot",
+  "signing_key": "",
+  "shadow": true,
+  "channel_keys": ["ask"],
+  "trigger_prefix": "",
+  "allowed_user_ids": ["1234"],
+  "ai_layer_url": "http://ai-layer.example:8801",
+  "api_token": "",
+  "capability": "",
+  "rate_per_min": 6,
+  "max_age_s": 300,
+  "ai_timeout_s": 60,
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_discord_ai_bot",
+  "mqtt_password": "",
+  "ingest_url": "http://orchestrator.example:8790",
+  "ingest_token": ""
+}
