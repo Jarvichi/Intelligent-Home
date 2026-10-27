@@ -1,8 +1,8 @@
 {
  "name": "ih_discord",
- "version": "0.6.2",
+ "version": "0.7.0",
  "kind": "addon",
- "description": "Discord shopping and house commands. Dry-run by default; shopping and house go live only when told to (live_features) after any older service is switched off.",
+ "description": "Discord transport: one bot token, one poller per channel, signed MQTT bus for feature modules (ih_house, ih_discord_shopping). No commands of its own. Modules write for real only when dry_run is off and they are in live_modules.",
  "owner": "local add-on ih_discord",
  "start": "Supervisor add-on 32c8114c_ih_discord (boot manual)",
  "health": [
@@ -26,8 +26,7 @@
   }
  ],
  "declares_secrets": [
-  "discord_bot_token",
-  "brain_webhook_id"
+  "discord_bot_token"
  ],
  "restore": "Stop the add-on. Uninstall to remove."
 }

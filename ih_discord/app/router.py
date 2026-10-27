@@ -4,7 +4,7 @@ ONE poller per channel key reads each Discord message once and hands it to CLAIM
   2. if none matched, the single CATCH-ALL ("any") claimant gets it. A second catch-all on one channel is refused (ClaimError);
   3. the transport allow-list decides who may command: other users reach a claimant only through its `public` words;
   4. typed answers (`expect`) go to the module that asked, ahead of the claim rules.
-Claimants are objects with deliver(entry, raw, allowed): the in-process features (FeatureClaimant) and bus modules (busside.BusTransport).
+Claimants are objects with deliver(entry, raw, allowed): bus modules (busside.BusTransport).
 Reactions are not routed here: only the module that owns a watched message receives them (busside).
 Delivery order per message: journal write -> cursor moves -> route -> journal "done". A crash in between is repaired by recover().
 Start: no cursor = start at the NEWEST message (nothing old is answered). Messages older than max_age_s are skipped (and journaled as skipped)."""
@@ -27,8 +27,8 @@ def _norm(text):
 
 class Claim:
     """One module's claim on one channel key. match entries: {"any":true} | {"exact":[words]} | {"prefix":"x"} | {"regex":"..."}."""
-    def __init__(self, module, channel_key, match, public, deliver, inprocess=False, shadow=False):
-        self.module, self.channel_key, self.deliver, self.inprocess = module, channel_key, deliver, inprocess
+    def __init__(self, module, channel_key, match, public, deliver, shadow=False):
+        self.module, self.channel_key, self.deliver = module, channel_key, deliver
         self.shadow = bool(shadow)   # a shadow claim gets COPIES of messages and never counts as the catch-all
         self.is_any, self.exact, self.prefixes, self.regexes = False, set(), [], []
         for m in match or [{'any': True}]:
@@ -65,17 +65,6 @@ class Claim:
         return 'any' if self.is_any and not self.specific else 'specific' if not self.is_any else 'any+specific'
 
 
-class FeatureClaimant:
-    """An in-process feature (shopping, house) as a claimant: delivery = put the raw message in the feature's inbox,
-    which its own thread drains in tick(). So the feature still handles messages one at a time, as before."""
-    def __init__(self, name, feature):
-        self.name, self.feature = name, feature
-
-    def deliver(self, entry, raw, allowed):
-        self.feature.inbox.append(raw)
-        return True
-
-
 class Router:
     def __init__(self, channels, allowed, journal, cursors, discord, clock=time.time, max_age_s=600, log=print):
         self.channels = dict(channels)       # channel key -> channel name or number (from options; never exposed)
@@ -91,8 +80,8 @@ class Router:
         self.lock = threading.RLock()
 
     # ---- claims ----
-    def add_claim(self, module, channel_key, match, public, deliver, inprocess=False, shadow=False):
-        c = Claim(module, channel_key, match, public, deliver, inprocess, shadow)
+    def add_claim(self, module, channel_key, match, public, deliver, shadow=False):
+        c = Claim(module, channel_key, match, public, deliver, shadow)
         with self.lock:
             others = [x for x in self.claims[channel_key] if x.module != module]
             if c.is_any and not c.shadow and any(x.is_any and not x.shadow for x in others):
@@ -103,7 +92,7 @@ class Router:
                     w = 'overlapping specific claims on %s: %s and %s' % (channel_key, module, x.module)
                     if w not in self.warnings:
                         self.warnings.append(w); self.log('router: ' + w)
-            self.claims[channel_key] = [x for x in self.claims[channel_key] if x.module != module or x.inprocess != inprocess] + [c]
+            self.claims[channel_key] = [x for x in self.claims[channel_key] if x.module != module] + [c]
         return c
 
     def remove_module(self, module):
@@ -113,7 +102,7 @@ class Router:
 
     def claim_summary(self):
         with self.lock:
-            return {k: [{'module': c.module, 'kind': c.kind(), 'inprocess': c.inprocess} for c in v] for k, v in self.claims.items() if v}
+            return {k: [{'module': c.module, 'kind': c.kind()} for c in v] for k, v in self.claims.items() if v}
 
     # ---- expectations (typed answers) ----
     def expect(self, channel_key, user_id, module, ttl_s):

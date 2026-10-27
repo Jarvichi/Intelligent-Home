@@ -29,7 +29,7 @@ The transport sends the reaction events for watched messages to this module only
    Example (fake key): `{"name":"ih_discord_shopping","signing_key":"<secret>","channels":["shopping","house"],"ops":["post","react","edit","delete","delete_tagged","watch","unwatch"],"rate_per_min":60,"shadow":true}`
 2. Create an MQTT user for this module and put the same signing key in both places (here: `signing_key`; in the transport: the module row).
 3. Fill in the options below. `options.example.json` has fake values.
-4. Start the add-on. Check `http://<host>:8794/status`: `bus.connected` true, `bus.last_heartbeat_s` small.
+4. Start the add-on. Check `http://<host>:8795/status`: `bus.connected` true, `bus.last_heartbeat_s` small.
 
 ## Options
 

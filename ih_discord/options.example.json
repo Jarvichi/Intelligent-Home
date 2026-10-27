@@ -1,79 +1,23 @@
 {
   "discord_token": "",
   "dry_run": true,
-  "live_features": [],
-  "retired_features": [],
-  "old_service_disabled": false,
   "bot_name": "Discord module",
   "channels": {
     "house": "123456",
-    "shopping": "groceries",
-    "brain_inbox": ""
+    "shopping": "groceries"
   },
   "allowed_user_ids": [
     "1111",
     "2222"
   ],
-  "shopping_list_entity": "todo.shopping_list",
-  "meal_plan_script": "",
-  "shop_names": "corner shop|acme",
-  "aisles": [
-    {
-      "name": "Fruit",
-      "words": "apple|pear|banana"
-    },
-    {
-      "name": "Tins",
-      "words": "beans|soup|tuna"
-    }
-  ],
-  "aisle_order": [
-    "Fruit",
-    "Tins"
-  ],
-  "command_event": "ih_discord_command",
-  "presence": [
-    {
-      "name": "Alex",
-      "entity": "switch.alex_home"
-    },
-    {
-      "name": "Sam",
-      "entity": "switch.sam_home"
-    }
-  ],
-  "house_entities": {
-    "alarm": "alarm_control_panel.home",
-    "boiler": "binary_sensor.boiler",
-    "thermostat": "climate.hall",
-    "bin_next": "sensor.next_bin",
-    "bin_days": "sensor.days_to_bin",
-    "free_power_events": "",
-    "free_power_banked": ""
-  },
-  "status_device": {
-    "label": "Tablet",
-    "battery": "sensor.tablet_battery",
-    "seen": "sensor.tablet_seen"
-  },
-  "aliases": [
-    {
-      "command": "status",
-      "words": "tablet|boiler"
-    }
-  ],
   "ingest_url": "http://172.30.32.1:8790",
   "ingest_token": "",
-  "brain_webhook_id": "",
-  "brain_url": "http://homeassistant:8123",
   "mqtt_host": "core-mosquitto",
   "mqtt_port": 1883,
   "mqtt_user": "ih_discord",
   "mqtt_password": "",
   "enable_scheduler": false,
   "signing_key": "",
-  "router_enabled": false,
-  "enable_bus": false,
   "offline_notice": false,
   "max_age_s": 600,
   "live_modules": [],
@@ -115,8 +59,21 @@
       "rate_per_min": 30,
       "public_words": [
         "whoami"
+      ]
+    },
+    {
+      "name": "ih_discord_shopping",
+      "signing_key": "",
+      "channels": [
+        "shopping"
       ],
-      "shadow": true
+      "ops": [
+        "post",
+        "react",
+        "typing"
+      ],
+      "rate_per_min": 30,
+      "public_words": []
     }
   ]
 }

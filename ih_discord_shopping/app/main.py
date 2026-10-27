@@ -23,7 +23,7 @@ from features import shopping as S
 VERSION = '0.1.0'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
-PORT = int(os.environ.get('IHS_PORT', '8794'))
+PORT = int(os.environ.get('IHS_PORT', '8795'))
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'
 PUSH_EVERY = 60
 STOP_FILE = 'STOP_LIVE'

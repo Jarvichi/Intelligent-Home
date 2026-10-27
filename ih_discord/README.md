@@ -1,73 +1,48 @@
-# Intelligent Home Discord (ih_discord)
+# Intelligent Home Discord (ih_discord) - the transport
 
-A small Home Assistant add-on that answers chat commands in Discord:
+A small Home Assistant add-on that is the **Discord link** of Intelligent Home. It holds the one bot token, reads each channel once, and lets separate **feature add-ons** (modules, for example `ih_house` and `ih_discord_shopping`) receive messages and post, react, edit and delete through signed MQTT messages. It has **no commands of its own** (since 0.7.0).
 
-- a **shopping channel**: type items to add them to a Home Assistant to-do list, `shop` posts the list as a tick-list by aisle, `got milk, bread` ticks things off;
-- a **house channel** (optional): `status`, `lights`, `lights off`, `temps`, and, if you set the entities, `bins`, `free`, and "when did <person> go out" answers from a presence switch.
+Nothing about your home is in the code. It maps no folders, stores no secrets in code, and starts in **dry-run**: modules get result code `dry` and nothing is posted until you go live.
 
-Nothing about your home is in the code. Every channel, entity, person, shop name and aisle comes from the add-on **options** (below). An option left empty means that feature is not offered.
-It maps no folders, stores no secrets in code, and starts in **dry-run**: it reads Discord and Home Assistant but only logs what it WOULD post or change.
+## 0.7.0: features moved out
+Until 0.6.x this add-on also ran the shopping-list and house-status commands in-process. They now live in their own add-ons (`ih_discord_shopping`, `ih_house`). The old options of those features (`live_features`, `retired_features`, `old_service_disabled`, `shopping_list_entity`, `meal_plan_script`, `shop_names`, `aisles`, `aisle_order`, `command_event`, `presence`, `house_entities`, `status_device`, `aliases`, `brain_webhook_id`, `brain_url`, `channels.brain_inbox`) and the switches `router_enabled` / `enable_bus` are still **accepted** so saved options keep validating after the update, but they are **ignored** (shown in `/status` as `deprecated_options_ignored`). The router and the bus are always on. Move those settings to the module add-ons. The brain-inbox plugin was removed.
 
 ## Install (local add-on)
 Copy this folder to your local add-ons share, reload the add-on store, install, fill in the options, start. The add-on never installs or restarts anything by itself.
 
 ## Going live
-Dry-run is the default. A feature acts for real only when ALL of these are true: `dry_run` is off, the feature is in `live_features`, `old_service_disabled` is on (you confirm that any older bot is switched off, so two bots do not answer), and the file `/data/STOP_LIVE` does not exist (a kill switch: create it and everything is dry again within seconds). `set_live.py` flips these options in one step (needs `SUPERVISOR_TOKEN`).
-
-## Options
-All values below are examples (fake). See `options.example.json`.
+A module's Discord writes are real only when ALL of these are true: `dry_run` is off, the module is in `live_modules`, and neither `/data/STOP_LIVE` nor `/data/STOP_LIVE_<module>` exists (kill switch: create it and writes are dry again within seconds). `set_live.py live|dry` flips `dry_run` (needs `SUPERVISOR_TOKEN`).
 
 | Option | Meaning | Example |
 |---|---|---|
 | `discord_token` | Bot token (secret) | (your token) |
 | `dry_run` | Log only, never post or change | `true` |
-| `live_features` | Features that may act when dry_run is off | `["shopping","house"]` |
-| `retired_features` | Features whose in-process handler is switched off because a bus module took over the channel (`house`: the module needs `public_words:["whoami"]` in `modules`). Shown as `retired` in `/status`; the self-check ignores them. Default `[]` | `["house"]` |
-| `old_service_disabled` | You switched any older bot off | `false` |
 | `bot_name` | Name shown in `/status` | `"Discord module"` |
 | `channels.shopping` | Shopping channel: a name or a channel number | `"groceries"` |
 | `channels.house` | House channel (empty = house commands off) | `"123456"` |
-| `channels.brain_inbox` | Notes-inbox channel (optional plugin only) | `""` |
 | `allowed_user_ids` | Discord user ids allowed to give commands | `["1111"]` |
-| `shopping_list_entity` | Home Assistant to-do list | `"todo.shopping_list"` |
-| `meal_plan_script` | Script run before the list is built (empty = none) | `"my_meal_plan"` |
-| `shop_names` | Extra shop names for "I'm at ...", `a\|b` | `"corner shop\|acme"` |
-| `aisles` | Your aisles: `name` and `words` (a\|b\|c). Empty = built-in generic list | `[{"name":"Fruit","words":"apple\|pear"}]` |
-| `aisle_order` | Order the aisles are listed in (empty = as given) | `["Fruit","Tins"]` |
-| `command_event` | HA event fired for each accepted house command | `"ih_discord_command"` |
-| `presence` | People for who-is-home answers: `name`, `entity` (a switch or binary sensor that is `on` when home) | `[{"name":"Alex","entity":"switch.alex_home"}]` |
-| `house_entities` | Optional: `alarm`, `boiler`, `thermostat`, `bin_next`, `bin_days`, `free_power_events`, `free_power_banked` | `{"alarm":"alarm_control_panel.home"}` |
-| `status_device` | Optional extra line in `status`: `label`, `battery`, `seen` | `{"label":"Tablet","battery":"sensor.tab_battery","seen":"sensor.tab_seen"}` |
-| `aliases` | Extra words for `status`, `bins` or `free` | `[{"command":"status","words":"tablet\|boiler"}]` |
 | `ingest_url` | Status page add-on address (default = the Supervisor gateway `172.30.32.1`, port 8790) | `"http://172.30.32.1:8790"` |
 | `ingest_token` | Token for the status page (secret) | |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | Scheduler bus (default host is the standard Mosquitto add-on) | `core-mosquitto`, `1883` |
 | `enable_scheduler`, `signing_key` | Scheduled self-check (off by default; needs a signing key) | `false` |
-| `router_enabled` | 0.6.0: ONE poller per channel with a saved cursor and a journal replaces the features' own polling and the old "2 minutes before now" start window. Off = the old behaviour, unchanged | `false` |
 | `max_age_s` | Router: messages older than this are skipped after downtime (minimum 60) | `600` |
 | `extra_channels` | Router: more channel keys for bus modules: `key`, `id` (a number) | `[{"key":"scratch","id":"789012"}]` |
-| `enable_bus` | 0.6.0: open the signed MQTT bus for the modules below (needs `router_enabled`, a module key and the mqtt options) | `false` |
 | `modules` | Bus modules and what they are GRANTED: `name`, `signing_key` (secret, one per module), `channels` (channel keys), `ops`, `rate_per_min`, `public_words` | see below |
-| `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_echo"]` |
+| `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_house","ih_discord_shopping"]` |
 | `offline_notice` | Post one "module is offline" line (once per channel per 10 minutes) when a message for a silent module arrives | `false` |
-| `brain_webhook_id`, `brain_url` | Plugin only (see below) | |
 
-## Router and bus (0.6.0, both off by default)
-The add-on is also a **transport**: it holds the one Discord bot token, reads each channel once, and lets separate feature add-ons ("modules") receive messages and post, react, edit and delete through signed MQTT messages. Modules never get the token or a channel number, only channel **keys**.
-- **Router.** With `router_enabled` the add-on keeps a cursor per channel (`/data/cursor.json`) and a journal (`/data/journal.jsonl`, 24 hours). A restart resumes from the cursor: nothing is answered twice. The first run starts at the newest message. Messages older than `max_age_s` are skipped. The built-in shopping and house features become claimants of their channel, so their behaviour does not change. Create `/data/CURSOR_TO_NOW` before a start to jump every cursor to the newest message (used when handing a channel over).
+## Router and bus (always on since 0.7.0)
+Modules never get the token or a channel number, only channel **keys**. The channel keys are `house` (`channels.house`), `shopping` (`channels.shopping`) and the `key`s in `extra_channels`.
+- **Router.** The add-on keeps a cursor per channel (`/data/cursor.json`) and a journal (`/data/journal.jsonl`, 24 hours). A restart resumes from the cursor: nothing is answered twice. The first run starts at the newest message. Messages older than `max_age_s` are skipped. Create `/data/CURSOR_TO_NOW` before a start to jump every cursor to the newest message (used when handing a channel over).
 - **Claims.** A module claims a channel key with `exact` words, a `prefix`, a `regex` or `any`. All modules with a matching specific claim get the message. If none match, the single catch-all gets it. A second catch-all on one channel is refused. Only users in `allowed_user_ids` reach a module, except for its `public_words`.
 - **Grants.** What a module may do is set here, in `modules`, not by the module. A claim or op outside the grant gets `denied_channel` / `denied_op`. Default ops: post, reply, react, unreact, edit, delete, typing, watch, unwatch. A module can edit, delete or watch only messages it created.
 - **Signing.** Every bus message carries `v`, `ts` and an HMAC-SHA256 signature made with that module's own key over the whole message. Wrong key, changed content, another module's topic, older than 120 s, or a repeated `op_id` are refused and counted (`/status`, never the content). Keys are never logged. The topics, fields and the client for module authors are in `bus_client.py`.
 - **Dry-run.** A bus module writes to Discord only when `dry_run` is off AND it is in `live_modules` AND neither `/data/STOP_LIVE` nor `/data/STOP_LIVE_<module>` exists. `/status` shows the router, every module's last heartbeat and the rejected counts.
-- **Shadow module (S2).** A `modules` row with `"shadow": true` gets COPIES of what the live claimant gets, may claim the same channel key even when an in-process feature is the catch-all, and every op it sends is forced dry (result code `dry`). Use it to run a new feature add-on beside the old one and compare answers. Example row for the house module: `{"name":"ih_house","signing_key":"<secret>","channels":["house"],"ops":["post","typing"],"rate_per_min":30,"public_words":["whoami"],"shadow":true}`. The channel key `house` is the key of `channels.house`. Cut-over: remove `shadow` (or set it false), add the module to `live_modules`, switch the old feature off first.
+- **Shadow module (S2).** A `modules` row with `"shadow": true` gets COPIES of what the live claimant gets, may claim the same channel key as the live catch-all module, and every op it sends is forced dry (result code `dry`). Use it to try a new module beside the live one and compare answers. Example row for the house module: `{"name":"ih_house","signing_key":"<secret>","channels":["house"],"ops":["post","typing"],"rate_per_min":30,"public_words":["whoami"],"shadow":true}`. The channel key `house` is the key of `channels.house`. Cut-over: remove `shadow` (or set it false), add the module to `live_modules`, stop the old module first.
 - **Test module.** `tests/ih_echo.py` is a fake module that echoes; the tests run it over an in-memory bus (`bus_client.FakeBus`).
 
-## House-specific plugins (NOT part of the generic/public build)
-- `features/braininbox.py` and `brain_client.py`: a private notes-server inbox. They are listed in `../public_exclude.txt`; if the files are absent the add-on simply runs shopping + house.
-- "catch-up" (running a command on the host) is not available inside the add-on at all (`catchup_cmd` is only used by the stand-alone service).
-
 ## Sources
-`core.py`, `settings.py`, `features/*.py`, `manifest.json`, `schedule_client.py` and `bus_client.py` are COPIES made by `sync_from_service.sh`. Edit the source, not the copy.
+`core.py`, `settings.py`, `manifest.json`, `schedule_client.py` and `bus_client.py` are COPIES made by `sync_from_service.sh`. Edit the source, not the copy. The feature code (`features/*.py`) is no longer part of this add-on: its single source stays in the commands service folder and is copied by the module add-ons' own `sync_from_service.sh`.
 
 ## Privacy
 Run `python3 ../privacy_scan.py` before sharing this folder: it fails on house-specific terms, private addresses, long ids, emails, phone numbers and secret values.

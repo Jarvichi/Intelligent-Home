@@ -10,9 +10,9 @@ boot: manual
 init: false
 homeassistant_api: true
 ports:
-  8794/tcp: 8794
+  8795/tcp: 8795
 ports_description:
-  8794/tcp: "Health and status (/healthz, /status)"
+  8795/tcp: "Health and status (/healthz, /status)"
 options:
   module_name: "ih_discord_shopping"
   signing_key: ""
