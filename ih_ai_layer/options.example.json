@@ -1,0 +1,8 @@
+{
+  "api_token": "",
+  "register_key": "",
+  "shadow": true,
+  "agent_timeout_s": 20,
+  "rate_per_min": 30,
+  "max_tries": 2
+}

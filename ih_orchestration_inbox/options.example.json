@@ -1,0 +1,15 @@
+{
+  "module_name": "ih_orchestration_inbox",
+  "signing_key": "",
+  "shadow": true,
+  "channel_keys": [],
+  "ack_emoji": "👀",
+  "retention_days": 7,
+  "api_token": "",
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_orchestration_inbox",
+  "mqtt_password": "",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": ""
+}
