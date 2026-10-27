@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - SerpApi Agent"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_ai_layer_serpapi
 description: "Agent of Intelligent Home - AI Layer. Answers cinema showtimes and web search questions through SerpApi (your own key, small daily cap, cached). Registers with the parent. No Home Assistant access. Maps no folders."
 arch:

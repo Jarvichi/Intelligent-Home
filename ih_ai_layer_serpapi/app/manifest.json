@@ -1,6 +1,6 @@
 {
  "name": "ih_ai_layer_serpapi",
- "version": "0.1.1",
+ "version": "0.1.2",
  "kind": "addon",
  "description": "Agent of Intelligent Home - AI Layer: showtimes and web search via SerpApi.",
  "owner": "local add-on ih_ai_layer_serpapi",

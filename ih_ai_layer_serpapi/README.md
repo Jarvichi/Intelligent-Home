@@ -22,4 +22,4 @@ Showtimes layout was checked against one real response: `showtimes -> [day, movi
 Kill switch: file `/data/STOP`. `/status` shows use today versus cap, cache hits and whether the key is set (not the key). No request text is logged. Request text is sent to SerpApi (search words only).
 
 ## After install
-The owner sets boot to auto, watchdog on, auto update on. Starts with boot manual. Version 0.1.0: code and tests only; not installed, not build-tested.
+The owner sets boot to auto, watchdog on, auto update on. Starts with boot manual. Version 0.1.2: showtimes parser checked against one real response.

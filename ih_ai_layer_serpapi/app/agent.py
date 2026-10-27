@@ -5,7 +5,7 @@ import hashlib, json, os, threading, time, urllib.parse, urllib.request
 import jobs_link
 import showtimes_parse as sp
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 CAPABILITIES = ['showtimes', 'web_search']
 SERP_URL = 'https://serpapi.com/search.json'
 STOP_FILE = 'STOP'
@@ -105,9 +105,10 @@ class Agent:
             return res(False, 'SerpApi did not answer.', why='upstream_error')
         self.live_calls += 1
         answer = self.build_answer(cap, data, ctx)
-        cache = {k: v for k, v in cache.items() if self.clock() - v['t'] <= self.opts['cache_hours'] * 3600}
-        cache[ck] = {'t': self.clock(), 'answer': answer}
-        self._write('cache.json', cache)
+        if not answer.startswith(('No showtimes found', 'No results found')):      # never cache an empty answer (a parser fix must not be hidden by it)
+            cache = {k: v for k, v in cache.items() if self.clock() - v['t'] <= self.opts['cache_hours'] * 3600}
+            cache[ck] = {'t': self.clock(), 'answer': answer}
+            self._write('cache.json', cache)
         return res(True, answer, cached=False)
 
     def build_query(self, cap, text, ctx):
