@@ -149,7 +149,7 @@
   "description": "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders.",
   "kind": "addon",
   "requires": [],
-  "version": "0.2.0"
+  "version": "0.2.1"
  },
  {
   "name": "Intelligent Home - Brain",

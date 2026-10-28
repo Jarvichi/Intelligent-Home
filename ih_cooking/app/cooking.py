@@ -2,8 +2,9 @@
 import glob, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
+from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -181,10 +182,9 @@ class Store:
 
     # --- HA (read only GETs)
     def ha(self, path):
-        req = urllib.request.Request(self.opts['ha_url'] + path, headers={'Authorization': 'Bearer ' + self.opts['ha_token']})
         self.calls += 1
-        with self.opener(req, timeout=15) as r:
-            return json.loads(r.read().decode())
+        base = self.opts['ha_url'] + '/api/'
+        return HA(token=self.opts['ha_token'], opener=self.opener, rest_base=base).get(path[5:] if path.startswith('/api/') else path, timeout=15)
 
     def calendars(self, start, end, cfg):
         ents = [p['calendar'] for p in cfg['people'] if p.get('calendar')] + list(cfg['shared_calendars'])

@@ -6,6 +6,7 @@ stdlib only. Everything that touches the house goes through four small objects s
 DRY by default: in dry mode every write (HA service, HA state, Discord, voice, oven) is only logged as 'would ...'.
 LIVE needs cook_mode=live AND the guard (see Engine.guard): it refuses while another controller's heartbeat is fresh."""
 import datetime, json, os, re, threading, time, urllib.request, urllib.error
+from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
 LIVE_PHRASE = 'I-AM-THE-ONLY-COOK-CONTROLLER'
 RK = 'ro' + 'b_'          # recipe keys written by the older host scripts (<RK>minutes, <RK>note, <RK>nudges)
@@ -110,12 +111,11 @@ def build_plan(r, name, serve, today=None, child='Child'):
 class HAClient:
     def __init__(self, url, token, opener=None):
         self.url, self.token, self.opener = url.rstrip('/'), token, opener or urllib.request.urlopen
+        self._ha = HA(token=token, opener=self.opener, rest_base=self.url + '/api/')
 
     def call(self, path, data=None):
-        req = urllib.request.Request(self.url + '/api' + path, data=json.dumps(data).encode() if data is not None else None,
-                                     headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, method='POST' if data is not None else 'GET')
-        with self.opener(req, timeout=30) as x:
-            return json.loads(x.read() or b'null')
+        """GET when data is None, POST (JSON body) otherwise; 30 s timeout; raises urllib errors like before."""
+        return self._ha.get(path) if data is None else self._ha.post(path, data)
 
 
 class DiscordClient:
