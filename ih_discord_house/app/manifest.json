@@ -1,6 +1,6 @@
 {
  "name": "ih_discord_house",
- "version": "0.2.1",
+ "version": "0.2.2",
  "kind": "addon",
  "description": "House status commands for Discord as a bus module of ih_discord (who is home, alarm, bins, heating, one device). Shadow mode by default: logs what it would post, posts nothing.",
  "owner": "local add-on ih_discord_house",

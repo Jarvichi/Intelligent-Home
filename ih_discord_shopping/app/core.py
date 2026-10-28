@@ -4,6 +4,11 @@ Dry-run: reads are real, every write (Discord POST/PUT/DELETE/PATCH, HA service 
 import json, os, re, sys, time, threading, traceback, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import settings as ST
+try:
+    from ihlib.ha import HA as _IHA   # shared library: shipped as app/ihlib in the add-ons
+except ImportError:   # stand-alone service: use the source copy in the ih folder
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'ih'))
+    from ihlib.ha import HA as _IHA
 
 SETTINGS = ST.load()   # stand-alone service: settings.local.json next to this file; the add-on passes its own to Ctx
 HA_ROOT = SETTINGS['root']
@@ -143,10 +148,7 @@ class HA:
             raise RuntimeError('SUPERVISOR_TOKEN is not set in this environment')
 
     def _req(self, method, path, body=None):
-        r = urllib.request.Request(self.base + path, method=method, data=json.dumps(body).encode() if body is not None else None,
-                                   headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
-        with urllib.request.urlopen(r, timeout=60) as x:
-            return json.loads(x.read() or b'null')
+        return _IHA(self.token, rest_base=self.base + '/')._rest(method, path, body, 60)
 
     def state(self, entity):
         try:

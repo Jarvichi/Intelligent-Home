@@ -15,7 +15,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.8.2"
+  "version": "0.8.3"
  },
  {
   "name": "Intelligent Home - Jobs",
@@ -67,7 +67,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.2.1"
+  "version": "0.2.2"
  },
  {
   "name": "Intelligent Home - Discord - Shopping",
@@ -78,7 +78,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.1"
+  "version": "0.1.2"
  },
  {
   "name": "Intelligent Home Games",
