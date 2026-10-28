@@ -79,3 +79,82 @@ Jobs run when the scheduler sends a signed message (every hour) and once 90 seco
 Drop a file in `app/plugins/` exposing `NAME`, `SCHEDULE` (`{"kind":"daily","at":"19:30"}` or `{"kind":"every","minutes":30}`), `DEFAULTS`, `run(ctx)`. Turn it on with the option `plugins`: a list of `{name, live, settings}`; `settings` is a JSON text with that plugin's house values. Dry by default (`live: false`: logs what it would do). `/data/STOP_LIVE` or `/data/STOP_<name>` forces dry. State lives in `/data/<name>/`. `/status` shows mode, last run, last error and next run per plugin. Shared helpers: `app/ihlib` (a copy: edit `ihlib/` and run `sync_ihlib.sh`).
 
 First plugin `physio_reminder`: settings `user_id`, `presence_entity`, `exercises` (list), `at`, `pick`, `openers`, `closers`, `token_option`; bot token in option `discord_token`.
+
+Plugin `birthday_reminder`: settings `user_id`, `at` (default 18:00), `leads` (default [7, 3]), `birthdays` (list of `{name, date: "YYYY-MM-DD" or "MM-DD", group}`), `group_labels`, `token_option`. One DM groups all birthdays of that day; age is shown when the year is known.
+
+##### Car plugins (0.5.0)
+
+`car_log` (every 10 minutes):
+
+```
+car_log: every 10 minutes, log electric-car charge sessions with their cost. Each rise of the battery percentage since the last run is costed at the
+CURRENT electricity rate, so a session that crosses a cheap-rate boundary is priced right. A session ends when the car is unplugged, the battery has not risen
+for `stall_min` minutes, or the charge target is reached. Wall energy = battery energy / efficiency (an estimate: there is no charger meter).
+Every house value comes from settings (JSON in plugins[].settings):
+  soc_entity       battery percentage sensor
+  plug_entity      plug sensor; plugged when its state (any case) equals plug_value
+  plug_value       the plug_entity state meaning 'cable locked in' (default CHARGING_CABLE_LOCKED)
+  plug2_entity     optional second plug sensor; when it has a real state, it wins: plugged when its state equals plug2_value
+  plug2_value      default CONNECTED
+  target_entity    optional charge-target percentage sensor (session ends on reaching it)
+  rate_entity      current electricity rate sensor (money per kWh)
+  battery_kwh      usable battery size (default 39.0)
+  efficiency       default 0.88
+  stall_min        default 60
+  offpeak_rate     a rate below this counts as off-peak (default 0.20)
+  minutes          run every N minutes (default 10)
+  publish_entity   optional: write a summary (month and week cost, last sessions) to this entity id via the HA state API (live only)
+State (plugin state 'charges'): {"sessions": [...], "cur": null or {...}, "last_soc": number}. Same shape as the old script's json, so it can be copied in.
+Dry: reads the sensors and logs what it would record; saves nothing.
+```
+
+`car_tyres` (every 10 minutes):
+
+```
+car_tyres: warn one person by Discord DM when a car tyre is low, with a picture. Runs every 10 minutes but acts only inside a daytime window.
+A tyre is LOW when its pressure is below `low_fraction` of its own target pressure. Only COLD tyres count: the odometer must not have changed for
+`parked_hours`. Cooldown `cooldown_days` between warnings, unless a low tyre dropped `drop_psi` or more since the last warning.
+Every house value comes from settings (JSON in plugins[].settings):
+  user_id               Discord user id to DM
+  token_option          add-on option holding the bot token (default discord_token)
+  pressure_entity       entity id of ONE tyre's pressure sensor with the position replaced by {pos}, e.g. sensor.car_tire_pressure_{pos}
+  target_entity         same for the target pressure, e.g. sensor.car_tire_pressure_target_{pos}   (both sensors in kPa)
+  positions             {"front_left": "front left", ...}: key = {pos} in the entity ids, value = words used in the message
+  odometer_entity       sensor that changes while the car is driven
+  picture_url           optional URL of a picture (PNG) showing which tyres are low; fetched fresh at send time. NOTE: the old script re-rendered it first.
+  recipient_name, car_name, signoff   words used in the message ("Hi <recipient_name>. The <car_name>'s tyres ...", "- <signoff>")
+  window_start, window_end   hours of the day when it may send (default 8 and 20)
+  low_fraction (0.9), parked_hours (2), cooldown_days (3), drop_psi (2)
+  ignore_gates          true = ignore window, parked check and cooldown (use with a manual dry run to see the text now)
+State (plugin state 'tyres'): {"last_sent", "next_ok", "last_psi": {pos: psi}, "hold_until"}. Same shape as the old script's json.
+Dry: logs the message it would send; no DM, no picture fetch, no state change.
+```
+
+`car_charge` (every 10 minutes):
+
+```
+car_charge: one evening heads-up by Discord DM about the electric car: it looks at tomorrow's events (with a place) in ONE calendar, works out the
+driving distance from home, and says whether tonight's charge covers it. Sends at most one card + one message per evening, inside a send window.
+Only the place text of an event goes to the free OpenStreetMap geocoder (Nominatim, cached) and coordinates to the OSRM router; event titles never leave the add-on
+except in the DM itself. Runs every 10 minutes; sends once per day.
+Every house value comes from settings (JSON in plugins[].settings):
+  user_id, token_option      Discord user id to DM; add-on option holding the bot token (default discord_token)
+  calendar_entity            the ONE calendar entity to read
+  home_zone                  zone entity whose latitude/longitude is home (default zone.home)
+  soc_entity, range_entity, charge_state_entity, plug_entity, target_entity     car sensors (battery %, range, charging state, plug lock state, charge target %)
+  ttf_entity                 time-to-full sensor (minutes) for the card
+  status_entity              optional text status sensor for the card (falls back to charge_state_entity text)
+  plug_value                 plug_entity state meaning cable locked in (default CHARGING_CABLE_LOCKED)
+  picture_url                optional URL of a car picture for the card thumbnail
+  recipient_name, car_name, signoff   words used in messages ("Evening <recipient_name>!", "The <car_name>'s on ...", "- <signoff>", card title "<recipient_name>'s <car_name>")
+  send_at "19:30", latest "21:30"   send window (HH:MM)
+  min_miles 5, margin 10, factor 1.2, low_soc 25, mi_per_pct 1.4
+  skip_regex                 locations matching this are ignored (online meetings, 'home', links ...)
+  user_agent                 sent to the geocoder (it asks for one that identifies the app)
+  ignore_gates               true = ignore the send window and the 'already sent today' check (manual dry run to see the text now)
+State: 'state' = {"sent": {day: "sent"|"none"}, "events": {event key: day}}; 'cache' = geocode and route cache. Same shape as the old script's json files.
+The last charge line on the card is read from the car_log plugin's state (if that plugin has run).
+Dry: reads everything, logs the message and card it would send; sends nothing and saves nothing (the cache stays in memory).
+```
+
+Seeding state from an older loop: stop the old loop, then copy its state files into `/data/<plugin>/` (`car_log/charges.json`, `car_tyres/tyres.json`, `car_charge/state.json`, `car_charge/cache.json`). Shapes are unchanged.
