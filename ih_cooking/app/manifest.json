@@ -21,5 +21,6 @@
   "api_token",
   "ha_token"
  ],
- "restore": "Stop the add-on. Uninstall to remove."
+ "restore": "Stop the add-on. Uninstall to remove.",
+ "requires": []
 }

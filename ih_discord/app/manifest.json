@@ -28,5 +28,8 @@
  "declares_secrets": [
   "discord_bot_token"
  ],
- "restore": "Stop the add-on. Uninstall to remove."
+ "restore": "Stop the add-on. Uninstall to remove.",
+ "requires": [
+  "mqtt"
+ ]
 }

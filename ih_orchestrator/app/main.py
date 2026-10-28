@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner
+import healthlib, scheduler, provisioner, manager
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -22,6 +22,8 @@ PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
 PORT = int(os.environ.get("IH_PORT", "8790"))
+MANAGER_PORT = int(os.environ.get("IH_MANAGER_PORT", "8791"))   # ingress only (manager.py refuses every client but the Supervisor gateway)
+CATALOGUE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogue.json")
 PROBE_MAX_AGE = 180  # host probe results older than this count as unknown
 SNAPSHOT_MAX_AGE = 180  # a pushed snapshot older than this is stale
 MAX_BODY = 1024 * 1024
@@ -249,6 +251,28 @@ def init_provisioner(o):
         print("provisioner failed to start:", type(e).__name__, flush=True)
 
 
+def seen_map(now=None):
+    """{manifest name: {state, age_s}}: health state plus the age of the push (host or module source) that carried it."""
+    now = time.time() if now is None else now
+    with LOCK:
+        pushed = {m["name"]: STATE["received_at"] for m in STATE["manifests"]}
+        for e in (STATE.get("extra") or {}).values():
+            for m in e["manifests"]:
+                pushed.setdefault(m["name"], e.get("received_at"))
+    states = {r["name"]: r["state"] for r in snapshot(now=now)["services"]}
+    return {n: {"state": states.get(n, "UNKNOWN"), "age_s": None if t is None else int(now - t)} for n, t in pushed.items()}
+
+
+def init_manager():
+    """Start the ingress-only manager page server on its own port. Never raises."""
+    try:
+        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, log=lambda m: print(m, flush=True))
+        threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
+        return mgr
+    except Exception as e:
+        print("manager failed to start:", type(e).__name__, flush=True)
+
+
 def load_options(path=None):
     global TOKEN, ENABLE_BROKER, LOG_PAYLOADS
     try:
@@ -425,5 +449,6 @@ if __name__ == "__main__":
         init_broker()
     init_scheduler(load_options.last)
     init_provisioner(load_options.last)
+    init_manager()
     print("Intelligent Home status on port", PORT, "| ingest", "on" if TOKEN else "OFF (no ingest_token)", "| broker", "on" if BROKER else "off", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

@@ -21,5 +21,8 @@
   "met_office_key",
   "register_key"
  ],
- "restore": "Stop the add-on. Uninstall to remove."
+ "restore": "Stop the add-on. Uninstall to remove.",
+ "requires": [
+  "ih_jobs"
+ ]
 }

@@ -35,5 +35,9 @@
  "declares_secrets": [
   "bungie_api_key"
  ],
- "restore": "Stop the add-on. Uninstall to remove."
+ "restore": "Stop the add-on. Uninstall to remove.",
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ]
 }

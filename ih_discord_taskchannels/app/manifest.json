@@ -18,5 +18,9 @@
  "port": 8797,
  "schedules": [],
  "declares_secrets": [],
- "restore": "Stop the add-on. Uninstall to remove."
+ "restore": "Stop the add-on. Uninstall to remove.",
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ]
 }

@@ -1,0 +1,244 @@
+[
+ {
+  "name": "Intelligent Home",
+  "slug": "ih_orchestrator",
+  "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.6.0"
+ },
+ {
+  "name": "Intelligent Home - Discord",
+  "slug": "ih_discord",
+  "description": "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. Since 0.8.0 it can also administer channels for a module that is",
+  "kind": "addon",
+  "requires": [
+   "mqtt"
+  ],
+  "version": "0.8.1"
+ },
+ {
+  "name": "Intelligent Home - Jobs",
+  "slug": "ih_jobs",
+  "description": "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per",
+  "kind": "addon",
+  "requires": [
+   "mqtt"
+  ],
+  "version": "0.4.0"
+ },
+ {
+  "name": "Intelligent Home - Jobs - Backup",
+  "slug": "ih_jobs_backup",
+  "description": "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent.",
+  "kind": "addon",
+  "requires": [
+   "ih_jobs"
+  ],
+  "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home - Jobs - Met Office",
+  "slug": "ih_jobs_metoffice",
+  "description": "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent.",
+  "kind": "addon",
+  "requires": [
+   "ih_jobs"
+  ],
+  "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home - Jobs - AI Trust Test",
+  "slug": "ih_jobs_trust",
+  "description": "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent.",
+  "kind": "addon",
+  "requires": [
+   "ih_jobs",
+   "ih_ai_layer"
+  ],
+  "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home - Discord - House",
+  "slug": "ih_discord_house",
+  "description": "House status commands (who is home, alarm, bins, heating, status of one device) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All house details are options. SHADOW mode by default: it answers nothing, it only logs what it w",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.2.1"
+ },
+ {
+  "name": "Intelligent Home - Discord - Shopping",
+  "slug": "ih_discord_shopping",
+  "description": "Shopping list commands (add items, shop checklist by aisle with tick reactions, got ...) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All details are options. SHADOW mode by default: it answers nothing, it only logs what i",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home Games",
+  "slug": "ih_games",
+  "description": "Game activity facts feeds and chat message orchestrator. DRY-RUN by default.",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.3.3"
+ },
+ {
+  "name": "Intelligent Home - Discord - Task channels",
+  "slug": "ih_discord_taskchannels",
+  "description": "One private Discord channel per task, as a module of the ih_discord transport: commands new / done / reopen / list in a commands channel, goal as channel topic, Work in Progress and Done categories, daily cleanup of old done channels. It asks the transport (signed MQTT bus) to administer channels an",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.1.2"
+ },
+ {
+  "name": "Intelligent Home - Orchestration - Inbox",
+  "slug": "ih_orchestration_inbox",
+  "description": "Durable inbox for messages on chosen Discord channel keys, as a module of the ih_discord transport. It claims the channel keys you list, stores each message in a queue (7 days), reacts with an eye emoji so the sender knows it arrived, and never answers in the channel. Claude and workers read the que",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home - Discord - AI Bot",
+  "slug": "ih_discord_ai_bot",
+  "description": "Answers messages on chosen Discord channel keys with the Intelligent Home AI layer, as a module of the ih_discord transport. It sends the text of an allow-listed user's message to the AI layer over its local API and posts the reply back through the transport. It holds no Discord token and no AI key.",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "ih_ai_layer",
+   "mqtt"
+  ],
+  "version": "0.1.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer",
+  "slug": "ih_ai_layer",
+  "description": "Routes an AI request (text + optional capability) to a registered AI agent add-on and returns the answer. Remembers which agent answers best per capability. NOT connected to Discord or any chat. Agents join with a signed registration (register_key). SHADOW mode by default: agents are not called. No ",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.2.1"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - SerpApi Agent",
+  "slug": "ih_ai_layer_serpapi",
+  "description": "Agent of Intelligent Home - AI Layer. Answers cinema showtimes and web search questions through SerpApi (your own key, small daily cap, cached). Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.1.4"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Gemini",
+  "slug": "ih_ai_layer_gemini",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Google Gemini (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.2.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Groq",
+  "slug": "ih_ai_layer_groq",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Groq (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.2.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - OpenRouter",
+  "slug": "ih_ai_layer_openrouter",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through OpenRouter (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.2.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Claude",
+  "slug": "ih_ai_layer_claude",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Anthropic Claude (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.2.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Claude CLI Agent",
+  "slug": "ih_ai_layer_claude_cli",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text by running the Claude Code CLI (print mode, all tools off) with a login that the owner creates inside this add-on. No API key. Weekly usage gate and daily cap. Text is scrubbed of personal data first. No Home Assista",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.1.0"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Grok",
+  "slug": "ih_ai_layer_grok",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through xAI Grok (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.2.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - OpenAI",
+  "slug": "ih_ai_layer_openai",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through OpenAI (Responses API, your own key, daily cap; spend cap 0 = no paid calls). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.1.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Mistral",
+  "slug": "ih_ai_layer_mistral",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through a Mistral agent (Agents conversations endpoint, your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.1.2"
+ },
+ {
+  "name": "Intelligent Home - AI Layer - Pollinations",
+  "slug": "ih_ai_layer_pollinations",
+  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Pollinations (no key needed, daily cap; prompts are PUBLIC, generic jobs only). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folde",
+  "kind": "addon",
+  "requires": [
+   "ih_ai_layer"
+  ],
+  "version": "0.1.2"
+ },
+ {
+  "name": "Intelligent Home - Cooking",
+  "slug": "ih_cooking",
+  "description": "Data owner for recipes and the meal plan, plus the weekly meal-vs-calendar check (who is not home for each planned meal). Read-only in v0.1: no oven control, no writes to Home Assistant, no Discord. Maps no folders.",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.1.1"
+ }
+]
