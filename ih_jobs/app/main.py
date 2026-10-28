@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""ih_jobs 0.3.1: PARENT "Intelligent Home - Jobs". GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
+"""ih_jobs 0.4.0: PARENT "Intelligent Home - Jobs". GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
 DRY by default: the fetch logic runs for real (read-only) but HA states are only logged as '[DRY] would set <entity> = <state>'.
+PLUGINS (0.4.0): app/plugins/*.py are discovered by pluginhost.py; option plugins [{name, live, settings (JSON text)}] turns them on; each has its own dry/live, state in /data/<name>/ and a line in /status.
 A job is LIVE only when mode=live AND the job is in live_jobs AND old_loops_disabled=true AND /data/STOP_LIVE does not exist.
 Runs: when the scheduler sends a signed message (MQTT, interval 3600 s), and once 90 s after start (REST sensors vanish at an HA restart).
 stdlib only (+ paho-mqtt, websockets in the image). schedule_client.py and manifest.json are COPIES (see sync_from_service.sh).
@@ -16,9 +17,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import schedule_client
 import jobs_link
+import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.3.1'
+VERSION = '0.4.0'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -84,7 +86,8 @@ def load_options(path=None):
             'disk_used_entity': str(o.get('disk_used_entity') or '').strip(), 'disk_total_entity': str(o.get('disk_total_entity') or '').strip(),
             'host_info': bool(o.get('host_info', True)),
             'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True)),
-            'log_payloads': o.get('log_payloads') is True}
+            'log_payloads': o.get('log_payloads') is True,
+            'discord_token': str(o.get('discord_token') or '').strip(), 'plugins': pluginhost.parse_plugins_option(o.get('plugins'))}
 
 
 class Module:
@@ -103,6 +106,7 @@ class Module:
         self.children_lock = threading.Lock()
         self.child_rejected = 0
         self.forward_results = {}   # job -> (time, ok)
+        self.plugins = None         # pluginhost.Host (set by main())
 
     def live_mode(self, name):
         """(is_live, reason). Live only with every gate open. Anything else is dry."""
@@ -279,6 +283,7 @@ class Module:
                 'run_builtin_jobs': bool(self.opts.get('run_builtin_jobs', True)), 'link_enabled': bool(self.opts.get('register_key')),
                 'children': {j: {k: v for k, v in c.items() if k in ('name', 'title', 'version', 'mode', 'up', 'healthy', 'seen_s_ago')} for j, c in self.children_view().items()},
                 'children_refused': self.child_rejected,
+                'plugins': self.plugins.status() if self.plugins else {},
                 'would_set_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 
 
@@ -351,6 +356,8 @@ def main():
     except Exception as e:
         lg.info('scheduler not started (%s)', type(e).__name__)
     mod.start_run_all()
+    mod.plugins = pluginhost.Host(mod.opts, data=DATA, log=lg.info)
+    mod.plugins.start()
     lg.info('ih_jobs %s starting: %s; first run in %d s', VERSION, ', '.join('%s=%s' % (n, mod.mode(n)) for n in JOBS), START_DELAY_S)
     if any(mod.mode(n) == 'live' for n in JOBS):
         lg.info('LIVE: really setting HA states for %s. Kill switch: create %s/%s', [n for n in JOBS if mod.mode(n) == 'live'], DATA, STOP_FILE)

@@ -8,5 +8,9 @@
   "mqtt_user": "ih",
   "mqtt_password": "",
   "default_timezone": "UTC",
+  "provision": false,
+  "provision_overwrite": false,
+  "provision_interval_min": 10,
+  "shared": [{"name": "some_option", "value": ""}],
   "module_keys": [{"module": "my_module", "key": ""}]
 }

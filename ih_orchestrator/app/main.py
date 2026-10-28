@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler
+import healthlib, scheduler, provisioner
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -18,6 +18,7 @@ ENABLE_BROKER = False
 SCHED = None
 SCHED_REASON = "not started"
 TOKEN = ""
+PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
 PORT = int(os.environ.get("IH_PORT", "8790"))
@@ -128,6 +129,7 @@ def snapshot(manifests=None, status=None, now=None):
     m, s = merge_extra(m, s, extra)
     snap = build_snapshot(m, s, r, now)
     snap["schedule"] = SCHED.status(now) if SCHED else scheduler.off_status(m, SCHED_REASON, now)
+    snap["settings"] = PROV.get_status() if PROV else None   # names only, never values
     return snap
 
 
@@ -234,6 +236,19 @@ def init_scheduler(o):
         SCHED, SCHED_REASON = None, "scheduler failed to start: %s" % type(e).__name__
 
 
+def init_provisioner(o):
+    """Start the settings hub timer thread when option provision is true. Never raises."""
+    global PROV
+    if o.get("provision") is not True:
+        PROV = None; return
+    try:
+        PROV = provisioner.Provisioner(DATA, log=lambda m: print(m, flush=True), options=lambda: getattr(load_options, "last", {}))
+        threading.Thread(target=provisioner.loop, args=(PROV, lambda: getattr(load_options, "last", {}).get("provision_interval_min", 10)), daemon=True).start()
+    except Exception as e:
+        PROV = None
+        print("provisioner failed to start:", type(e).__name__, flush=True)
+
+
 def load_options(path=None):
     global TOKEN, ENABLE_BROKER, LOG_PAYLOADS
     try:
@@ -268,7 +283,8 @@ def page(snap):
             "<meta http-equiv=refresh content=30><title>Intelligent Home</title>"
             "<style>body{font:15px system-ui;margin:12px}td,th{padding:4px 8px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.d{font-size:13px;opacity:.7;font-weight:normal}</style>"
             "<h2>Intelligent Home: %d OK, %d FAIL, %d unknown</h2><table><tr><th>Service<th>State<th>Kind<th>Detail</tr>%s</table>"
-            "%s<p>Status only. %s</p>" % (c["OK"], c["FAIL"], c["UNKNOWN"], rows, schedule_html(snap.get("schedule")),
+            "%s%s<p>Status only. %s</p>" % (c["OK"], c["FAIL"], c["UNKNOWN"], rows, schedule_html(snap.get("schedule")),
+                                 provisioner.settings_html(snap.get("settings"), html.escape),
                                  "STALE: no push for %s s." % snap["age_s"] if snap["stale"] and snap["age_s"] is not None
                                  else "STALE: nothing pushed yet." if snap["stale"] else "Pushed %d s ago." % snap["age_s"]))
 
@@ -301,6 +317,14 @@ class H(BaseHTTPRequestHandler):
             body, ct = json.dumps(snapshot()).encode(), "application/json"
         elif p == "/sensor":
             body, ct = json.dumps(sensor(snapshot())).encode(), "application/json"
+        elif p == "/provision/status":
+            if not TOKEN:
+                return self._json(503, {"error": "disabled (no ingest_token)"})
+            if not token_ok(self.headers.get("Authorization")):
+                return self._json(401, {"error": "unauthorized"})
+            if not PROV:
+                return self._json(503, {"error": "provision off"})
+            return self._json(200, PROV.get_status())
         elif p == "/audit" and BROKER:
             body, ct = "\n".join(BROKER.audit_tail(100)).encode(), "text/plain"
         elif p == "/digest" and BROKER:
@@ -326,6 +350,17 @@ class H(BaseHTTPRequestHandler):
             if n < 0 or n > MAX_BODY:
                 return self._json(413, {"error": "too large"})
             return self._json(*ingest(self.rfile.read(n)))
+        if p in ("/provision", "/provision/import"):
+            if not TOKEN:
+                return self._json(503, {"error": "disabled (no ingest_token)"})
+            if not token_ok(self.headers.get("Authorization")):
+                return self._json(401, {"error": "unauthorized"})
+            if not PROV:
+                return self._json(503, {"error": "provision off"})
+            try:
+                return self._json(200, PROV.do_import() if p.endswith("import") else PROV.run())
+            except Exception as e:
+                return self._json(502, {"error": str(e) if isinstance(e, provisioner.SupError) else type(e).__name__})
         if p == "/pause":
             if not TOKEN:
                 return self._json(503, {"error": "disabled (no ingest_token)"})
@@ -389,5 +424,6 @@ if __name__ == "__main__":
     if ENABLE_BROKER:
         init_broker()
     init_scheduler(load_options.last)
+    init_provisioner(load_options.last)
     print("Intelligent Home status on port", PORT, "| ingest", "on" if TOKEN else "OFF (no ingest_token)", "| broker", "on" if BROKER else "off", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

@@ -21,5 +21,7 @@
   "run_builtin_jobs": true,
   "disk_total_entity": "",
   "disk_used_entity": "",
-  "host_info": true
+  "host_info": true,
+  "discord_token": "",
+  "plugins": []
 }
