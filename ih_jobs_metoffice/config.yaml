@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Met Office"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_jobs_metoffice
 description: "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent."
 arch:

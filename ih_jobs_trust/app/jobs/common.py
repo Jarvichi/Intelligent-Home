@@ -1,7 +1,8 @@
 """Shared helpers for the ih_jobs jobs. stdlib only. HA REST goes through the Supervisor proxy with the add-on's own SUPERVISOR_TOKEN."""
-import json, os, urllib.request
+import os, urllib.request
+from ihlib.ha import HA, REST_BASE
 
-HA_BASE = 'http://supervisor/core/api/'
+HA_BASE = REST_BASE
 SUP_BASE = 'http://supervisor/'
 
 
@@ -23,10 +24,8 @@ class Ctx:
         return self._opener(req, timeout=timeout)
 
     def _call(self, base, path, data=None, timeout=30):
-        req = urllib.request.Request(base + path, headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'},
-                                     data=None if data is None else json.dumps(data).encode(), method='GET' if data is None else 'POST')
-        with self._opener(req, timeout=timeout) as r:
-            return json.load(r)
+        c = HA(token=self.token, opener=self._opener, rest_base=base)
+        return c.get(path, timeout) if data is None else c.post(path, data, timeout)
 
     def ha(self, path, data=None):
         """Read (data None) or POST to HA Core REST. Use set_state() for writing sensors."""

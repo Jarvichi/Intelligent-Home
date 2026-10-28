@@ -1,4 +1,4 @@
-"""Plugin platform for ih_jobs 0.8.0: auto-discovery of plugins/*.py, per-plugin dry/live, state under /data/<plugin>/, a simple built-in timer.
+"""Plugin platform for ih_jobs 0.8.1: auto-discovery of plugins/*.py, per-plugin dry/live, state under /data/<plugin>/, a simple built-in timer.
 Schedule kinds: daily {at}, every {minutes}, service {seconds}: the host runs the plugin's run(ctx) in its OWN supervised thread every `seconds` (fresh ctx each time, so mode, kill switches and the clock are re-read; a crash never stops the loop).
 A plugin runs only when it is listed in the option `plugins`. It is LIVE only when plugins[].live is true AND /data/STOP_LIVE and /data/STOP_<name> do not exist.
 Nothing here ever prints option values."""

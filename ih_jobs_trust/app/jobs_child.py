@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jobs_link
 from jobs import common
+from ihlib import log as ihlog
 
 DEFAULT_PARENT = 'http://172.30.32.1:8792'    # the parent add-on on the Supervisor gateway
 STOP_FILE = 'STOP_LIVE'
@@ -75,7 +76,8 @@ class Child:
         """spec: dict(job, source, slug, title, version, port, runner)."""
         self.spec, self.opts, self.data = spec, opts, data
         self.ring = ring or Ring()
-        self.log = log or (lambda m: logging.getLogger(spec['source']).info(m))
+        raw = log or (lambda m: logging.getLogger(spec['source']).info(m))
+        self.log = lambda m: raw(ihlog.scrub(m, ihlog.secret_values(self.opts)))   # secret option values never reach a log line
         self._token, self._opener = token, opener
         self.started = time.time()
         self.lock = threading.Lock()
