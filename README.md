@@ -9,6 +9,7 @@ Small, generic Home Assistant add-ons. Each one does one job and keeps working i
 | `ih_jobs` | Parent of the Jobs family: scheduled housekeeping jobs (backup store, weather fetch), plus a list of the child job add-ons that register with it. Dry-run by default. |
 | `ih_jobs_backup` | Child of `ih_jobs`: backup storage sensors as its own add-on. Registers with the parent. Dry-run by default. |
 | `ih_jobs_metoffice` | Child of `ih_jobs`: Met Office forecast sensors as its own add-on. Registers with the parent. Dry-run by default. |
+| `ih_jobs_trust` | Child of `ih_jobs`: monthly test of the outside AIs through the AI layer (fixed questions, scored), then a review to-do. Registers with the parent. Dry-run by default. |
 | `ih_games` | Turns game activity (PlayStation trophies first) into friendly chat events. Plug-in providers, one orchestrator that rations messages. Dry-run by default. |
 | `ih_discord_house` | House status commands (who is home, alarm, bins, heating) as a bus module of `ih_discord`. Shadow mode by default: it posts nothing. |
 | `ih_discord_shopping` | Shopping list commands (add items, `shop` checklist by aisle with tick reactions, `got ...`) as a bus module of `ih_discord`. Shadow mode by default: it posts nothing. |
@@ -18,10 +19,14 @@ Small, generic Home Assistant add-ons. Each one does one job and keeps working i
 | `ih_ai_layer` | Routes an AI request (text plus optional capability) to a registered AI agent add-on and returns the answer; remembers which agent answers best. Not connected to Discord or any chat. Shadow mode by default. |
 | `ih_ai_layer_serpapi` | Agent of `ih_ai_layer`: cinema showtimes and web search through SerpApi, with a small daily cap and a cache. Needs your own SerpApi key. |
 | `ih_ai_layer_gemini` | Agent of `ih_ai_layer`: general questions and summaries through Google Gemini, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own Gemini key. |
+| `ih_cooking` | Data owner for recipes and the meal plan, plus the weekly meal-vs-calendar check (who is not home for each planned meal). Read-only in v0.1. Needs a Home Assistant token for calendars. |
 | `ih_ai_layer_groq` | Agent of `ih_ai_layer`: general questions and summaries through Groq, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own Groq key. |
 | `ih_ai_layer_openrouter` | Agent of `ih_ai_layer`: general questions and summaries through OpenRouter, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own OpenRouter key. |
 | `ih_ai_layer_claude` | Agent of `ih_ai_layer`: general questions and summaries through Anthropic Claude, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own Anthropic Claude key. |
 | `ih_ai_layer_grok` | Agent of `ih_ai_layer`: general questions and summaries through xAI Grok, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own xAI Grok key. |
+| `ih_ai_layer_openai` | Agent of `ih_ai_layer`: general questions and summaries through OpenAI, with a daily cap and a spend cap. Text is scrubbed of personal data before it is sent. Needs your own OpenAI key. |
+| `ih_ai_layer_mistral` | Agent of `ih_ai_layer`: general questions and summaries through a Mistral agent, with a daily cap. Text is scrubbed of personal data before it is sent. Needs your own Mistral key and agent id. Easy generic jobs only. |
+| `ih_ai_layer_pollinations` | Agent of `ih_ai_layer`: general questions and summaries through Pollinations, with a daily cap. Text is scrubbed of personal data before it is sent. No key needed. Prompts are public: generic jobs only. |
 
 ## Add the repository in Home Assistant
 

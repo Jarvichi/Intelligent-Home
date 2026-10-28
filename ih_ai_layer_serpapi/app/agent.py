@@ -5,10 +5,14 @@ import hashlib, json, os, threading, time, urllib.parse, urllib.request
 import jobs_link
 import showtimes_parse as sp
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 CAPABILITIES = ['showtimes', 'web_search']
 SERP_URL = 'https://serpapi.com/search.json'
 STOP_FILE = 'STOP'
+
+
+def _flag(v):
+    return v if isinstance(v, bool) else str(v).lower() in ('true', '1', 'yes')
 
 
 def load_options(path):
@@ -26,6 +30,7 @@ def load_options(path):
     return {'serpapi_key': str(o.get('serpapi_key') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
             'parent_url': str(o.get('parent_url') or 'http://172.30.32.1:8801').strip().rstrip('/'),
             'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'),
+            'spend_cap': num('spend_cap', 0, 0, 1000), 'free_tier': _flag(o.get('free_tier', False)),
             'daily_cap': num('daily_cap', 5, 0, 250), 'cache_hours': num('cache_hours', 6, 0, 168),
             'default_cinema': str(o.get('default_cinema') or '').strip()[:80]}
 
@@ -67,6 +72,22 @@ class Agent:
         u = {self.today(): self.used_today() + 1}      # old days are dropped
         self._write('usage.json', u)
 
+    def paid_today(self):
+        return int(self._read('paid.json').get(self.today(), 0))
+
+    def is_free(self):
+        """A call is paid unless the owner marked the plan free (option free_tier) or the model name ends in ':free'. Unknown = paid."""
+        return bool(self.opts.get('free_tier')) or str(self.opts.get('model', '')).endswith(':free')
+
+    def spend_ok(self):
+        """Call under self.lock. Free calls always pass. Paid calls need spend_cap > 0 and fewer paid calls today than spend_cap; passing counts the call."""
+        if self.is_free():
+            return True
+        if self.paid_today() >= self.opts.get('spend_cap', 0):
+            return False
+        self._write('paid.json', {self.today(): self.paid_today() + 1})
+        return True
+
     def stopped(self):
         return os.path.exists(self._p(STOP_FILE))
 
@@ -82,6 +103,8 @@ class Agent:
         self.served += 1
         if cap not in CAPABILITIES or not text:
             return res(False, 'This agent only does showtimes and web_search.', why='bad_request')
+        if obj.get('model'):
+            return res(False, 'This agent has no selectable models.', why='model_not_available', error='model_not_available')
         if self.stopped():
             return res(False, 'SerpApi agent is stopped (kill switch).', why='stopped')
         if not self.opts['serpapi_key']:
@@ -97,6 +120,9 @@ class Agent:
             if self.used_today() >= self.opts['daily_cap']:
                 self.refused += 1
                 return res(False, 'SerpApi daily limit reached (%d per day). Try tomorrow.' % self.opts['daily_cap'], why='cap')
+            if not self.spend_ok():
+                self.refused += 1
+                return res(False, 'Paid calls are not allowed (spend_cap %d paid calls per day, 0 = free only).' % self.opts.get('spend_cap', 0), why='spend_cap', error='spend_cap')
             self._count()
         try:
             data = self.search(q)
@@ -135,7 +161,7 @@ class Agent:
     def status(self):
         now = self.clock()
         return {'name': 'ih_ai_layer_serpapi', 'version': VERSION, 'capabilities': CAPABILITIES, 'configured': bool(self.opts['serpapi_key']),
-                'kill_switch': self.stopped(), 'uptime_s': int(now - self.started), 'used_today': self.used_today(), 'daily_cap': self.opts['daily_cap'],
+                'kill_switch': self.stopped(), 'uptime_s': int(now - self.started), 'used_today': self.used_today(), 'daily_cap': self.opts['daily_cap'], 'spend_cap': self.opts.get('spend_cap', 0), 'free': self.is_free(), 'paid_today': self.paid_today(),
                 'served': self.served, 'live_calls': self.live_calls, 'cache_hits': self.cache_hits, 'refused_by_cap': self.refused,
                 'parent': {'link_enabled': bool(self.opts['register_key']), 'registered_s_ago': None if self.registered_at is None else int(now - self.registered_at),
                            'last_error': self.register_error}}

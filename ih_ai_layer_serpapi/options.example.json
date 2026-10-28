@@ -3,6 +3,8 @@
   "register_key": "",
   "parent_url": "http://172.30.32.1:8801",
   "callback_url": "",
+  "spend_cap": 0,
+  "free_tier": false,
   "daily_cap": 5,
   "cache_hours": 6,
   "default_cinema": ""

@@ -4,6 +4,8 @@
   "parent_url": "http://172.30.32.1:8801",
   "callback_url": "",
   "model": "gemini-2.5-flash",
+  "spend_cap": 0,
+  "free_tier": false,
   "daily_cap": 50,
   "timeout_s": 30,
   "shadow": true,

@@ -1,0 +1,25 @@
+{
+ "name": "ih_jobs_trust",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Child of Intelligent Home - Jobs: monthly trust test of the outside AIs via the AI layer, adds a review to-do. Dry-run (shadow) by default.",
+ "owner": "local add-on ih_jobs_trust",
+ "start": "Supervisor add-on 32c8114c_ih_jobs_trust (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8810/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8810,
+ "schedules": [],
+ "declares_secrets": [
+  "ai_layer_token",
+  "register_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

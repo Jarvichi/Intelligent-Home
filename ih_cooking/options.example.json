@@ -1,0 +1,8 @@
+{
+  "api_token": "",
+  "ha_url": "http://supervisor/core",
+  "ha_token": "",
+  "plan_entity_prefix": "",
+  "rate_per_min": 60,
+  "clash_config": "{\"timezone\": \"Europe/London\", \"people\": [{\"name\": \"Person A\", \"calendar\": \"calendar.person_a\", \"pattern\": \"\\\\bperson a\\\\b\"}, {\"name\": \"Person B\", \"calendar\": \"calendar.person_b\", \"pattern\": \"\\\\bperson b\\\\b\"}], \"shared_calendars\": [\"calendar.shared\"]}"
+}

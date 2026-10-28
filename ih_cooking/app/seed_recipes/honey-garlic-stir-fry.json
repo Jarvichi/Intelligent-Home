@@ -1,0 +1,64 @@
+{
+ "name": "Honey garlic soy stir-fry with cashews",
+ "title": "Honey garlic stir-fry",
+ "oven": null,
+ "steps": [
+  {
+   "before": 15,
+   "text": "Make the sauce: garlic, soy, sesame oil, lemon juice, honey, 100ml water, cornflour. Blend.",
+   "short": "Make the sauce"
+  },
+  {
+   "before": 12,
+   "text": "Chop the veg/meat; grate the ginger; crush the cashews. Kettle on.",
+   "short": "Chop veg, ginger, cashews"
+  },
+  {
+   "before": 9,
+   "text": "Hot water over the noodles for 4 min, then into cold water (keep the hot water).",
+   "short": "Noodles soak 4 min"
+  },
+  {
+   "before": 6,
+   "text": "Hot wok, splash of oil; ginger, then the veg (and meat), keep it moving; add cashews.",
+   "short": "Stir-fry veg + cashews"
+  },
+  {
+   "before": 2,
+   "text": "Push veg aside, sauce into the empty side until it thickens, stir through.",
+   "short": "Sauce in, thicken"
+  },
+  {
+   "before": 1,
+   "text": "Noodles in, stir through; splash of noodle water to loosen.",
+   "short": "Noodles in"
+  },
+  {
+   "before": 0,
+   "text": "Serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Chop the veg",
+  "Grate the ginger"
+ ],
+ "shopping": [
+  "Garlic",
+  "Soy sauce",
+  "Sesame oil",
+  "Lemon",
+  "Honey",
+  "Cornflour",
+  "Ready-cooked noodles",
+  "Stir-fry veg (and/or chicken)",
+  "Root ginger",
+  "Cashews"
+ ],
+ "equipment": [
+  "a wok",
+  "a blender or jug",
+  "a kettle",
+  "a bowl of cold water"
+ ]
+}

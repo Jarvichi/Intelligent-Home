@@ -12,6 +12,8 @@ This agent sends text to an OUTSIDE service. Before sending, a scrubber removes 
 | `register_key` | Same value as the parent's `register_key`. Empty = link off, nothing is accepted. |
 | `parent_url` / `callback_url` | Parent (default gateway, port 8801) / how the parent reaches this agent (empty = gateway, port 8808). |
 | `model` | Grok model (default `grok-4`). |
+| `spend_cap` | Max PAID calls a day. Default 0 = free only: paid calls are refused with error `spend_cap`. Counted before the call. |
+| `free_tier` | true = your plan costs nothing per call, so calls are free (spend_cap not needed). Default false. The agent cannot see real billing, so it treats every call as paid unless this is true (or the model name ends in `:free`). Stops by itself when the upstream credits run out (upstream error). |
 | `daily_cap` | Max Grok calls a day (default 50). Counted before the call. 0 = never call. |
 | `timeout_s` | Timeout of the Grok call (default 30). |
 | `shadow` | true (default) = answers "[dry] ..." and calls nothing. Set false to go live. |

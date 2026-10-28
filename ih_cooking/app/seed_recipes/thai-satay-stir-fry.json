@@ -1,0 +1,57 @@
+{
+ "name": "Thai satay noodle stir-fry",
+ "title": "Satay stir-fry",
+ "oven": null,
+ "steps": [
+  {
+   "before": 12,
+   "text": "Mix peanut butter, sweet chilli, soy and 100ml water into a smooth satay sauce.",
+   "short": "Make satay sauce"
+  },
+  {
+   "before": 8,
+   "text": "Noodles in a bowl, cover with boiling water, separate, drain well.",
+   "short": "Noodles: soak + drain"
+  },
+  {
+   "before": 5,
+   "text": "Hot wok, oil; stir-fry the ginger and the harder veg for 2 min.",
+   "short": "Ginger + hard veg"
+  },
+  {
+   "before": 3,
+   "text": "Noodles and the rest of the veg in; high heat 1-2 min.",
+   "short": "Noodles + veg in"
+  },
+  {
+   "before": 1,
+   "text": "Push to one side, pour sauce in the other side, bring to the boil, mix through.",
+   "short": "Sauce in, mix"
+  },
+  {
+   "before": 0,
+   "text": "Basil and chopped peanuts on top; serve.",
+   "short": "Basil + peanuts, serve"
+  }
+ ],
+ "prep": [
+  "Grate the ginger",
+  "Chop the peanuts"
+ ],
+ "shopping": [
+  "Crunchy peanut butter",
+  "Sweet chilli sauce",
+  "Soy sauce",
+  "Straight-to-wok noodles 300g",
+  "Root ginger",
+  "Stir-fry veg pack 300g",
+  "Basil",
+  "Roasted peanuts"
+ ],
+ "equipment": [
+  "a wok",
+  "a jug or bowl for the sauce",
+  "a kettle"
+ ],
+ "_about": "From Apple Notes (Recipes folder), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

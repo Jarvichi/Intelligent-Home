@@ -1,0 +1,54 @@
+{
+ "name": "Spaghetti Bolognaise",
+ "title": "Spaghetti Bolognaise",
+ "oven": null,
+ "steps": [
+  {
+   "before": 40,
+   "text": "Put water on to boil.",
+   "short": "Put water on to boil."
+  },
+  {
+   "before": 38,
+   "text": "Chop the onion.",
+   "short": "Chop onion"
+  },
+  {
+   "before": 35,
+   "text": "Onion in a pan 5 min, then the mince until browned.",
+   "short": "Onion + mince in"
+  },
+  {
+   "before": 28,
+   "text": "Tomatoes and purée in (beans and spices for chilli). Simmer.",
+   "short": "Tomatoes in, simmer"
+  },
+  {
+   "before": 15,
+   "text": "Spaghetti on (bolognese) or rice on (chilli).",
+   "short": "Spaghetti / rice on"
+  },
+  {
+   "before": 0,
+   "text": "Serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Chop onion"
+ ],
+ "shopping": [
+  "5% fat beef mince",
+  "Chopped tomatoes x2",
+  "Tomato purée",
+  "Onion",
+  "Spaghetti"
+ ],
+ "equipment": [
+  "a large frying pan",
+  "a big saucepan for the spaghetti",
+  "a knife and chopping board",
+  "a wooden spoon",
+  "a colander"
+ ]
+}

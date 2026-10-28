@@ -1,0 +1,105 @@
+{
+ "name": "Chicken and chorizo paella",
+ "title": "Paella",
+ "oven": null,
+ "steps": [
+  {
+   "before": 55,
+   "text": "Make 850 ml hot chicken or vegetable stock. Cut the chicken into chunks, slice the onions and chorizo, crush the garlic.",
+   "short": "Stock on, chop everything"
+  },
+  {
+   "before": 50,
+   "text": "1 tbsp olive oil in a deep frying pan, high heat. Brown the chicken all over (not cooked through), then onto a plate.",
+   "short": "Brown the chicken"
+  },
+  {
+   "before": 45,
+   "text": "Heat down to low. Onions in and cook slowly until soft, about 10 minutes.",
+   "short": "Onions in, low (10 min)"
+  },
+  {
+   "before": 35,
+   "text": "Garlic in, stir for 1 minute, then the chorizo until it releases its oils.",
+   "short": "Garlic, then chorizo"
+  },
+  {
+   "before": 32,
+   "text": "Stir in the turmeric, saffron and paprika, then the rice. Stir to coat for about 2 minutes.",
+   "short": "Spices + rice (2 min)"
+  },
+  {
+   "before": 30,
+   "text": "Pour in the stock, bring to the boil, put the chicken back in. Simmer about 20 minutes, stirring now and then.",
+   "short": "Stock + chicken, simmer 20"
+  },
+  {
+   "before": 20,
+   "text": "Give the paella a stir and check it is not catching.",
+   "short": "Stir"
+  },
+  {
+   "before": 10,
+   "text": "Stir again. Cut the lemon into wedges and chop the parsley.",
+   "short": "Stir, lemon + parsley"
+  },
+  {
+   "before": 5,
+   "text": "Peas in, simmer 5 more minutes until the rice is cooked and the chicken tender.",
+   "short": "Peas in (5 min)"
+  },
+  {
+   "before": 0,
+   "text": "Season well and serve with lemon wedges and parsley. Enjoy!",
+   "short": "Season and serve"
+  }
+ ],
+ "prep": [
+  "Chicken cut into chunks",
+  "Onions finely sliced",
+  "Garlic crushed",
+  "Chorizo sliced",
+  "Stock made (850 ml, hot)",
+  "Spices out: turmeric, saffron, paprika",
+  "Rice weighed (300 g)",
+  "Peas out (200 g)",
+  "Lemon and parsley ready"
+ ],
+ "shopping": [
+  "2 chicken breast fillets",
+  "2 small onions",
+  "garlic",
+  "140 g cooking chorizo",
+  "turmeric",
+  "saffron",
+  "paprika",
+  "300 g paella rice",
+  "chicken or vegetable stock",
+  "200 g frozen peas",
+  "1 lemon",
+  "parsley",
+  "olive oil"
+ ],
+ "ingredients": [
+  "1 tbsp olive oil",
+  "2 chicken breast fillets, cut into chunks",
+  "2 small onions, finely sliced",
+  "1 fat garlic clove, crushed",
+  "140 g cooking chorizo, sliced",
+  "1 tsp turmeric",
+  "pinch of saffron",
+  "1 tsp paprika",
+  "300 g paella rice",
+  "850 ml hot chicken or vegetable stock",
+  "200 g frozen peas",
+  "1 lemon, cut into wedges, to serve",
+  "½ small bunch of parsley, finely chopped, to serve"
+ ],
+ "source": "owner, Discord 11 Oct 2026 (BBC Good Food style recipe)",
+ "equipment": [
+  "a large deep frying pan or paella pan",
+  "a knife and chopping board",
+  "a wooden spoon",
+  "a measuring jug for the stock"
+ ]
+}

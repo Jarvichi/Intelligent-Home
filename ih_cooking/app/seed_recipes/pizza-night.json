@@ -1,0 +1,35 @@
+{
+ "name": "Pizza night",
+ "title": "Pizza",
+ "oven": 220,
+ "steps": [
+  {
+   "before": 25,
+   "text": "Oven on to 220.",
+   "short": "Oven on 220"
+  },
+  {
+   "before": 15,
+   "text": "Pizzas in, middle shelf (check the box time).",
+   "short": "Pizzas in"
+  },
+  {
+   "before": 15,
+   "text": "Plates and a pizza cutter out.",
+   "short": "Plates out"
+  },
+  {
+   "before": 0,
+   "text": "Slice and serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [],
+ "shopping": [
+  "Pizzas x2"
+ ],
+ "equipment": [
+  "two baking trays",
+  "a pizza cutter"
+ ]
+}

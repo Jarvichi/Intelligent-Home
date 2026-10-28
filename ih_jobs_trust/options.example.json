@@ -1,0 +1,15 @@
+{
+  "mode": "dry",
+  "old_loops_disabled": false,
+  "parent_url": "http://172.30.32.1:8792",
+  "callback_url": "",
+  "register_key": "",
+  "own_timer_min": 60,
+  "ai_layer_url": "http://172.30.32.1:8801",
+  "ai_layer_token": "",
+  "run_hour": "3",
+  "todo_entity": "todo.claude_to_do",
+  "pause_s": "4",
+  "keep_answers": false,
+  "timezone": "Europe/London"
+}

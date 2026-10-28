@@ -1,0 +1,83 @@
+{
+ "name": "Nachos (double-decker)",
+ "title": "Nachos",
+ "oven": 180,
+ "steps": [
+  {
+   "before": 35,
+   "text": "Finely chop the onion, quarter the cherry tomatoes, grate the cheddar, chop the spring onions.",
+   "short": "Chop + grate everything"
+  },
+  {
+   "before": 30,
+   "text": "1 tbsp oil in a frying pan, medium heat. Onion in for 3 to 5 minutes until soft.",
+   "short": "Onion in (3-5 min)"
+  },
+  {
+   "before": 26,
+   "text": "Heat up. Beef mince in with the paprika, cumin and chilli powder. Cook 5 to 10 minutes until browned.",
+   "short": "Beef + spices, brown it"
+  },
+  {
+   "before": 18,
+   "text": "Oven on: 200C, 180C fan, gas 6.",
+   "short": "Oven on 180 fan"
+  },
+  {
+   "before": 17,
+   "text": "Heat down to medium. Black beans in until hot. Season with salt and pepper.",
+   "short": "Beans in, season"
+  },
+  {
+   "before": 13,
+   "text": "Layer in the dish: tortilla chips, half the beef, half the cheese, half the tomatoes. Then chips, the rest of the beef and the rest of the cheese.",
+   "short": "Layer the nachos"
+  },
+  {
+   "before": 10,
+   "text": "Into the oven for 8 to 10 minutes until the cheese has melted.",
+   "short": "Into the oven (8-10 min)"
+  },
+  {
+   "before": 0,
+   "text": "Top with the remaining tomatoes, spring onions, coriander and chilli. Serve with soured cream, guacamole and lime wedges.",
+   "short": "Top and serve"
+  }
+ ],
+ "prep": [
+  "Onion chopped",
+  "Cheddar grated (150 g)",
+  "Tomatoes quartered",
+  "Spring onions chopped",
+  "Black beans drained",
+  "Spices out: paprika, cumin, chilli",
+  "Ovenproof dish out",
+  "Soured cream, guacamole, limes ready"
+ ],
+ "shopping": [
+  "250 g beef mince",
+  "onion",
+  "hot smoked paprika",
+  "ground cumin",
+  "chilli powder",
+  "400 g tin black beans",
+  "200 g lightly salted tortilla chips",
+  "150 g cheddar",
+  "100 g cherry tomatoes",
+  "4 spring onions",
+  "coriander (optional)",
+  "chillies (optional)",
+  "soured cream",
+  "guacamole or avocado (optional)",
+  "lime"
+ ],
+ "serves": "2 as a main, 4 as a starter",
+ "source": "https://www.bbc.co.uk/food/recipes/nachos_92445",
+ "equipment": [
+  "a frying pan",
+  "an ovenproof dish",
+  "a grater",
+  "a knife and chopping board",
+  "a wooden spoon"
+ ]
+}

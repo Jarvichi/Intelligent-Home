@@ -1,0 +1,58 @@
+{
+ "name": "Umami meatball rice bowl",
+ "title": "Meatball bowls",
+ "oven": null,
+ "steps": [
+  {
+   "before": 15,
+   "text": "Cook the itsu meatballs as the pack says.",
+   "short": "Meatballs on"
+  },
+  {
+   "before": 12,
+   "text": "Smash the cucumber, chunk it; mix with chilli oil and 1 tbsp rice vinegar.",
+   "short": "Cucumber salad"
+  },
+  {
+   "before": 9,
+   "text": "Grate the carrot, mix with edamame, 1 tbsp rice vinegar and a drizzle of sesame oil.",
+   "short": "Carrot + edamame"
+  },
+  {
+   "before": 4,
+   "text": "Microwave the rice pots.",
+   "short": "Rice in microwave"
+  },
+  {
+   "before": 1,
+   "text": "Rice into bowls, top with cucumber, carrot and edamame, and the meatballs.",
+   "short": "Build the bowls"
+  },
+  {
+   "before": 0,
+   "text": "Finish with sesame seeds, spring onion, radish and soy sauce.",
+   "short": "Toppings, serve"
+  }
+ ],
+ "prep": [
+  "Chop spring onion and radish"
+ ],
+ "shopping": [
+  "itsu sticky hoisin umami'meatballs",
+  "Microwave sticky rice pots x2",
+  "Cucumber",
+  "Carrot",
+  "Edamame beans",
+  "Rice wine vinegar",
+  "Crispy chilli oil",
+  "Sesame oil",
+  "Spring onions",
+  "Radishes"
+ ],
+ "equipment": [
+  "two bowls",
+  "a grater",
+  "a frying pan or the oven for the meatballs"
+ ],
+ "_about": "From Apple Notes (Recipes folder), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

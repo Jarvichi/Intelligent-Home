@@ -9,7 +9,7 @@ All except `/healthz` and `/register` need the header `Authorization: Bearer <ap
 
 | Call | Meaning |
 |---|---|
-| `POST /request` | Body `{text, capability (optional), context (optional object), request_id}`. Returns `{ok, answer, agent, capability, classified, took_ms, request_id}`. |
+| `POST /request` | Body `{text, capability (optional), context (optional object), model (optional string), request_id}`. With `model`: no classifier or scoring, the request goes only to the live agent that lists that model (agents register a `models` list), with no fallback to other agents; none = HTTP 404 `model_not_available`. Shadow mode, STOP, rate limit and auth apply as usual. If the agent refuses because of its `spend_cap`, the reply has `error: spend_cap`. Returns `{ok, answer, agent, capability, classified, took_ms, request_id}`. |
 | `POST /feedback` | Body `{request_id, score}`; a score above 0 is a thumbs up, otherwise a thumbs down. Counts for the agent that answered that request (the last 500 requests are remembered). |
 | `GET /agents` | Registered agents and their capabilities. |
 | `GET /status` | Mode, counts, agents, score table. Never contains request text. |
@@ -35,4 +35,4 @@ Set the same `register_key` here and in each agent add-on. Each agent posts a si
 The owner sets boot to auto, watchdog on, auto update on (the config file explains the watchdog line). Starts with boot manual.
 
 ## Status
-Version 0.1.0: code and tests only; not installed, not build-tested. Scores live in `/data/scores.json`.
+Version 0.2.0: code and tests only; not installed, not build-tested. Scores live in `/data/scores.json`.

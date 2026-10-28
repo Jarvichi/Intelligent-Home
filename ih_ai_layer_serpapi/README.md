@@ -9,6 +9,8 @@ An agent for **Intelligent Home - AI Layer** (`ih_ai_layer`). It registers with 
 | `register_key` | Same value as the parent's `register_key`. Empty = link off, nothing is accepted. |
 | `parent_url` | The parent (default: Supervisor gateway, port 8801). |
 | `callback_url` | How the parent reaches this agent (empty = gateway, port 8802). |
+| `spend_cap` | Max PAID calls a day. Default 0 = free only: paid calls are refused with error `spend_cap`. Counted before the call. |
+| `free_tier` | true = your plan costs nothing per call, so calls are free (spend_cap not needed). Default false. The agent cannot see real billing, so it treats every call as paid unless this is true (or the model name ends in `:free`). Stops by itself when the upstream credits run out (upstream error). |
 | `daily_cap` | Max real SerpApi searches a day (default 5; the free plan is small). Counted before the call. 0 = never search. |
 | `cache_hours` | Same question inside this time is answered from cache and costs nothing (default 6). |
 | `default_cinema` | Used for showtimes when the request context has no `cinema`. |

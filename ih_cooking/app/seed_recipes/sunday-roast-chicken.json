@@ -1,0 +1,162 @@
+{
+ "name": "Roast chicken dinner",
+ "title": "Roast Chicken Dinner",
+ "oven": 180,
+ "steps": [
+  {
+   "before": 130,
+   "text": "Prep: peel and cut the potatoes, peel the carrots, trim the sprouts.",
+   "short": "Prep: peel potatoes + veg"
+  },
+  {
+   "before": 110,
+   "text": "Salted water on to boil.",
+   "short": "Water on"
+  },
+  {
+   "before": 100,
+   "text": "Oven on to 180, so it is hot when the chicken goes in.",
+   "short": "Oven on (180)"
+  },
+  {
+   "before": 100,
+   "text": "Roasting tin with oil or fat into the oven now, while it heats up, so the fat is really hot for the potatoes.",
+   "short": "Fat tin in (with oven on)",
+   "note": "Owner 18 Oct: the fat was not hot enough when the tin went in with the chicken"
+  },
+  {
+   "before": 90,
+   "text": "Water boiling: potatoes in. Tap DONE when they go in, the rest of the plan follows from here.",
+   "short": "Boiling: potatoes in (tap DONE)",
+   "note": "the boil time varies, so this step sets the clock",
+   "anchor": true
+  },
+  {
+   "before": 80,
+   "text": "Chicken crown in the oven, 60 minutes at 180 (potatoes have boiled 10 minutes).",
+   "short": "Chicken in (60 min)",
+   "anchor": true
+  },
+  {
+   "before": 78,
+   "text": "Potatoes have boiled 12 minutes: drain, shake to rough them up, let them steam dry.",
+   "short": "Drain + rough up potatoes"
+  },
+  {
+   "before": 60,
+   "text": "Potatoes into the hot fat and into the oven, 1 hour. Turn them halfway.",
+   "short": "Potatoes in to roast (1 h)",
+   "anchor": true
+  },
+  {
+   "before": 50,
+   "text": "Carrots in the oven, 50 minutes.",
+   "short": "Carrots in (50 min)",
+   "anchor": true
+  },
+  {
+   "before": 40,
+   "text": "Sprouts in the oven, 40 minutes.",
+   "short": "Sprouts in (40 min)",
+   "anchor": true
+  },
+  {
+   "before": 36,
+   "text": "Prepare the stuffing: mix it up and put it in its dish, ready to go in the oven in 8 minutes.",
+   "short": "Prepare the stuffing",
+   "note": "Owner 18 Oct: 8 minutes before it goes in"
+  },
+  {
+   "before": 30,
+   "text": "Turn the potatoes.",
+   "short": "Turn the potatoes"
+  },
+  {
+   "before": 28,
+   "text": "Stuffing in the oven, 25 to 30 minutes.",
+   "short": "Stuffing in (25-30 min)",
+   "anchor": true
+  },
+  {
+   "before": 20,
+   "text": "Chicken out. Check it is cooked through, cover with foil and a tea towel to rest. Keep the juices for the gravy.",
+   "short": "Chicken out, rest"
+  },
+  {
+   "before": 20,
+   "text": "Turn the carrots and add the honey glaze, 20 minutes to go.",
+   "short": "Turn + glaze the carrots"
+  },
+  {
+   "before": 20,
+   "text": "Toss the sprouts and potatoes, and turn the oven up to 200 for the last 20 minutes.",
+   "short": "Toss sprouts + potatoes, oven 200"
+  },
+  {
+   "before": 15,
+   "text": "Make the gravy with the chicken juices.",
+   "short": "Make the gravy"
+  },
+  {
+   "before": 15,
+   "text": "Plates into the plate warmer.",
+   "short": "Plates into the warmer"
+  },
+  {
+   "before": 11,
+   "text": "Turn the steamer on, it takes 5 minutes to warm up.",
+   "short": "Steamer on (5 min warm-up)"
+  },
+  {
+   "before": 10,
+   "text": "Lay the table and make the drinks. Usually a helper's job.",
+   "short": "Lay table + drinks (the helper)"
+  },
+  {
+   "before": 6,
+   "text": "Spinach into the steamer, 3 to 5 minutes.",
+   "short": "Spinach in (3-5 min)",
+   "anchor": true
+  },
+  {
+   "before": 5,
+   "text": "Carve the chicken, about 5 minutes.",
+   "short": "Carve the chicken (5 min)"
+  },
+  {
+   "before": 0,
+   "text": "Everything out of the oven and serve. Enjoy!",
+   "short": "Everything out, serve"
+  }
+ ],
+ "prep": [
+  "Carrots peeled and cut",
+  "Sprouts trimmed and halved",
+  "Honey glaze mixed (honey, butter, pinch of salt)",
+  "Stuffing made up",
+  "Spinach washed",
+  "Gravy ready (stock / granules, jug)",
+  "Foil and tea towel out",
+  "Board and knife"
+ ],
+ "shopping": [
+  "chicken crown (about 1.6 kg)",
+  "potatoes",
+  "carrots",
+  "sprouts",
+  "spinach",
+  "stuffing mix",
+  "honey",
+  "gravy granules or stock"
+ ],
+ "equipment": [
+  "a roasting tin for the chicken",
+  "a roasting tray for the potatoes",
+  "a big saucepan for parboiling",
+  "a steamer",
+  "a small dish for the stuffing",
+  "a gravy jug",
+  "a knife and chopping board",
+  "a peeler"
+ ]
+}

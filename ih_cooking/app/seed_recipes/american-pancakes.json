@@ -1,0 +1,52 @@
+{
+ "name": "Fluffy American pancakes",
+ "title": "Pancakes",
+ "oven": null,
+ "steps": [
+  {
+   "before": 25,
+   "text": "Sift the flour, baking powder, salt and caster sugar into a bowl. Whisk the milk and egg, then whisk in the melted butter.",
+   "short": "Mix dry, whisk wet"
+  },
+  {
+   "before": 20,
+   "text": "Pour the milk mixture into the flour and beat with a fork to a smooth batter. Let it stand a few minutes. Optional: oven on low to keep pancakes warm.",
+   "short": "Batter, let it stand"
+  },
+  {
+   "before": 15,
+   "text": "Non-stick pan on medium with a knob of butter. A ladle of batter per pancake; flip when the top bubbles, cook until golden and about 1 cm thick. Repeat.",
+   "short": "Cook the pancakes"
+  },
+  {
+   "before": 0,
+   "text": "Serve with maple syrup and extra butter. Best fresh from the pan!",
+   "short": "Serve with syrup"
+  }
+ ],
+ "prep": [
+  "Flour sifted (135 g)",
+  "Butter melted and cooled",
+  "Milk (130 ml) and egg out",
+  "Maple syrup out"
+ ],
+ "shopping": [
+  "plain flour",
+  "baking powder",
+  "caster sugar",
+  "milk",
+  "eggs",
+  "butter",
+  "maple syrup"
+ ],
+ "serves": "about 8 pancakes",
+ "source": "BBC Food, sent by the owner 11 Oct 2026",
+ "equipment": [
+  "a large mixing bowl",
+  "a whisk",
+  "a measuring jug",
+  "a non-stick frying pan",
+  "a spatula",
+  "a ladle"
+ ]
+}

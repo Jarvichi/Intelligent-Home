@@ -1,0 +1,67 @@
+{
+ "name": "'Nduja pasta with cavolo nero",
+ "title": "'Nduja pasta",
+ "oven": null,
+ "steps": [
+  {
+   "before": 25,
+   "text": "Big pan of cold water, salt it well. Peel the potato, cut into 1 cm cubes, into the water and bring to the boil.",
+   "short": "Potato in salted water, boil"
+  },
+  {
+   "before": 20,
+   "text": "Pull the cavolo nero leaves off the stalks and tear them up.",
+   "short": "Strip the cavolo nero"
+  },
+  {
+   "before": 17,
+   "text": "Water boiling: potato has started its 10 minutes.",
+   "short": "Potato cooking (10 min)"
+  },
+  {
+   "before": 8,
+   "text": "Pappardelle in (about 7 min); once it is boiling again add the cavolo nero.",
+   "short": "Pasta + greens in"
+  },
+  {
+   "before": 6,
+   "text": "Melt the butter in the big stir-fry pan, low-medium heat, stir in the 'nduja to make a sauce.",
+   "short": "Butter + 'nduja sauce"
+  },
+  {
+   "before": 2,
+   "text": "Scoop out a cup of pasta water; stir 3-4 tbsp into the 'nduja.",
+   "short": "Save pasta water"
+  },
+  {
+   "before": 1,
+   "text": "Drain pasta and greens, tip into the 'nduja pan, toss with more pasta water to make it glossy.",
+   "short": "Drain, toss in sauce"
+  },
+  {
+   "before": 0,
+   "text": "Pour over the olive oil, toss and serve straight away (bottle on the table).",
+   "short": "Olive oil, serve"
+  }
+ ],
+ "prep": [
+  "Peel and cube the potato",
+  "Strip the cavolo nero"
+ ],
+ "shopping": [
+  "Floury potato (Rooster), 300g",
+  "Cavolo nero 500g",
+  "Pappardelle 500g (not egg)",
+  "Unsalted butter",
+  "'Nduja 150g",
+  "Extra-virgin olive oil"
+ ],
+ "equipment": [
+  "a big saucepan",
+  "a large stir-fry pan or wok",
+  "a colander",
+  "a knife and chopping board",
+  "a mug for pasta water"
+ ],
+ "_about": "From Apple Notes (Recipes folder), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

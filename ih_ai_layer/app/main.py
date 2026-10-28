@@ -67,7 +67,7 @@ def main():
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     opts = ailayer.load_options(os.environ.get('IHA_OPTIONS', '/data/options.json'))
     layer = ailayer.Layer(opts, data=os.environ.get('IHA_DATA', '/data'), log=lg.info)
-    lg.info('ih_ai_layer 0.1.0 starting: %s; api %s; agent link %s', 'SHADOW (agents not called)' if opts['shadow'] else 'LIVE',
+    lg.info('ih_ai_layer 0.2.0 starting: %s; api %s; agent link %s', 'SHADOW (agents not called)' if opts['shadow'] else 'LIVE',
             'on' if opts['api_token'] else 'OFF (no api_token: everything refused)', 'on' if opts['register_key'] else 'OFF (no register_key)')
     ThreadingHTTPServer(('0.0.0.0', PORT), make_handler(layer)).serve_forever()
 

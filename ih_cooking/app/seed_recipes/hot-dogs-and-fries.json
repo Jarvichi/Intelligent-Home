@@ -1,0 +1,51 @@
+{
+ "name": "Berlinki hot dogs with French fries",
+ "title": "Hot dogs and fries",
+ "oven": 220,
+ "steps": [
+  {
+   "before": 30,
+   "text": "Oven on to 220.",
+   "short": "Oven on 220"
+  },
+  {
+   "before": 22,
+   "text": "French fries in the oven (about 20 minutes, check the bag).",
+   "short": "Fries in"
+  },
+  {
+   "before": 12,
+   "text": "Turn the fries. Put a pan of water on to boil for the hot dogs.",
+   "short": "Turn fries, water on"
+  },
+  {
+   "before": 6,
+   "text": "Water boiling: Berlinki hot dogs in, 5 minutes. Warm the buns in the oven for the last 2 minutes if you like.",
+   "short": "Hot dogs in (5 min)"
+  },
+  {
+   "before": 1,
+   "text": "Drain the hot dogs, fries out.",
+   "short": "Drain + fries out"
+  },
+  {
+   "before": 0,
+   "text": "Serve in buns with ketchup, mustard, crispy onions.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [],
+ "shopping": [
+  "Berlinki hot dogs",
+  "Hot dog buns",
+  "French fries (frozen)",
+  "Ketchup",
+  "Hot dog mustard",
+  "Crispy onions"
+ ],
+ "equipment": [
+  "baking tray",
+  "saucepan",
+  "tongs"
+ ]
+}

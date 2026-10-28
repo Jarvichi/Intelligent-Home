@@ -1,0 +1,73 @@
+{
+ "name": "Chicken fajitas (about 30 minutes)",
+ "title": "Chicken fajitas",
+ "oven": 140,
+ "steps": [
+  {
+   "before": 30,
+   "text": "Slice the chicken into strips. Slice the peppers and onion. Mix chicken with the fajita spice and 1 tbsp oil.",
+   "short": "Slice and season chicken"
+  },
+  {
+   "before": 24,
+   "text": "Oven on: 140C fan. Wrap the corn tortillas in foil, ready to warm.",
+   "short": "Oven on (140)"
+  },
+  {
+   "before": 22,
+   "text": "Large pan, high heat, 1 tbsp oil. Chicken in. Cook 6 to 8 minutes, turning, until golden and cooked through. Check there is no pink.",
+   "short": "Cook the chicken (6-8 min)"
+  },
+  {
+   "before": 14,
+   "text": "Chicken onto a plate. Same pan: peppers and onion in for 6 to 8 minutes until soft and a bit charred.",
+   "short": "Peppers and onion"
+  },
+  {
+   "before": 7,
+   "text": "Chicken back in the pan. Squeeze over half the lime. Stir 1 minute.",
+   "short": "Chicken back in, lime"
+  },
+  {
+   "before": 6,
+   "text": "Tortillas into the oven in their foil.",
+   "short": "Warm tortillas"
+  },
+  {
+   "before": 2,
+   "text": "Put salsa in a bowl. Soured cream and grated cheese in bowls for the others.",
+   "short": "Bowls of toppings"
+  },
+  {
+   "before": 0,
+   "text": "Everything to the table. Build your own fajitas.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Chicken breast out of the fridge",
+  "Peppers and onion ready to slice",
+  "Tortillas and foil out",
+  "Cheese grated for the others",
+  "Soured cream and salsa out",
+  "Lime cut"
+ ],
+ "shopping": [
+  "2 chicken breasts (about 450 g)",
+  "3 mixed peppers",
+  "1 red onion",
+  "1 pack fajita seasoning (check it is gluten-free)",
+  "8 small corn tortillas (gluten-free)",
+  "1 lime",
+  "salsa",
+  "soured cream and 100 g cheddar for the others only (one person avoids dairy)"
+ ],
+ "serves": "3",
+ "source": "Written by Claude (own recipe, 22 Oct 2026)",
+ "equipment": [
+  "a large frying pan",
+  "a chopping board and knife",
+  "foil",
+  "a baking tray"
+ ]
+}

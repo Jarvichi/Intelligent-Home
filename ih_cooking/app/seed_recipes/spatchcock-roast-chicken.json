@@ -1,0 +1,66 @@
+{
+ "name": "Spatchcock roast chicken with potatoes and garlic",
+ "title": "Roast chicken",
+ "oven": 200,
+ "steps": [
+  {
+   "before": 90,
+   "text": "Oven on to 200C; racks in the middle and just above.",
+   "short": "Oven on 200"
+  },
+  {
+   "before": 85,
+   "text": "Halve the potatoes lengthways, slice the tops off the garlic bulbs, into a roasting tray, season, 1 tsp oil.",
+   "short": "Potatoes + garlic in tray"
+  },
+  {
+   "before": 80,
+   "text": "Cut down the back of the chicken and open it flat; rub butter, salt and pepper all over.",
+   "short": "Spatchcock the chicken"
+  },
+  {
+   "before": 75,
+   "text": "Potatoes on the bottom shelf, chicken straight on the shelf above, onions on top of the chicken.",
+   "short": "Everything in the oven"
+  },
+  {
+   "before": 50,
+   "text": "Turn the potatoes; brush the chicken with juices using the rosemary.",
+   "short": "Turn potatoes, baste"
+  },
+  {
+   "before": 25,
+   "text": "Turn the potatoes again and baste.",
+   "short": "Turn + baste again"
+  },
+  {
+   "before": 5,
+   "text": "Chicken out to rest. Squeeze onions and garlic out of their skins, toss through the potatoes.",
+   "short": "Rest, garlic into potatoes"
+  },
+  {
+   "before": 0,
+   "text": "Serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Halve the potatoes",
+  "Tie the rosemary into a brush"
+ ],
+ "shopping": [
+  "Whole free-range chicken 1.7kg",
+  "Charlotte potatoes 1.2kg",
+  "Garlic x2 bulbs",
+  "Salted butter 100g",
+  "Small onions x3",
+  "Fresh rosemary",
+  "Olive oil"
+ ],
+ "equipment": [
+  "a shallow roasting tray",
+  "a big sharp knife and board",
+  "kitchen scissors"
+ ],
+ "_about": "From Apple Notes (Recipes folder: Rotisserie chicken), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

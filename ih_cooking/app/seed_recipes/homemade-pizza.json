@@ -1,0 +1,56 @@
+{
+ "name": "Homemade pizza (dough from scratch)",
+ "title": "Homemade pizza",
+ "oven": 230,
+ "steps": [
+  {
+   "before": 100,
+   "text": "Mix warm water, yeast, oil and a pinch of sugar. Mix flour, semolina and salt.",
+   "short": "Mix the dough parts"
+  },
+  {
+   "before": 95,
+   "text": "Combine in the processor until doughy; cover with clingfilm and rest 1 hour.",
+   "short": "Make dough, rest 1 h"
+  },
+  {
+   "before": 30,
+   "text": "Oven on as hot as it goes (230+).",
+   "short": "Oven on 230"
+  },
+  {
+   "before": 25,
+   "text": "Shape the bases, add sauce and toppings.",
+   "short": "Shape + top pizzas"
+  },
+  {
+   "before": 15,
+   "text": "Pizzas in (about 10-12 min).",
+   "short": "Pizzas in"
+  },
+  {
+   "before": 0,
+   "text": "Slice and serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Get toppings ready"
+ ],
+ "shopping": [
+  "Tipo 00 flour 400g",
+  "Semolina 100g",
+  "Dried yeast",
+  "Olive oil",
+  "Passata or pizza sauce",
+  "Mozzarella",
+  "Toppings"
+ ],
+ "equipment": [
+  "a food processor",
+  "clingfilm",
+  "baking trays or a pizza stone",
+  "a pizza cutter"
+ ],
+ "_about": "From Apple Notes (Recipes folder: Pizza (dough for 4)), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

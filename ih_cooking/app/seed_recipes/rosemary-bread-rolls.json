@@ -1,0 +1,50 @@
+{
+ "name": "Rosemary bread rolls",
+ "title": "Bread rolls",
+ "oven": 180,
+ "steps": [
+  {
+   "before": 155,
+   "text": "800g strong flour, yeast, pinch of salt, 500ml warm water: blitz.",
+   "short": "Blitz the dough"
+  },
+  {
+   "before": 150,
+   "text": "Leave the dough for 60 min.",
+   "short": "Dough rests 1 h"
+  },
+  {
+   "before": 90,
+   "text": "Roll into balls onto greaseproof paper; leave for an hour.",
+   "short": "Shape balls, prove 1 h"
+  },
+  {
+   "before": 40,
+   "text": "Oven on to 180C.",
+   "short": "Oven on 180"
+  },
+  {
+   "before": 30,
+   "text": "Dress with rosemary and olive oil; in for 30 min.",
+   "short": "Rolls in (30 min)"
+  },
+  {
+   "before": 0,
+   "text": "Out and serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [],
+ "shopping": [
+  "Strong flour 800g",
+  "Dried yeast",
+  "Rosemary",
+  "Olive oil"
+ ],
+ "equipment": [
+  "a food processor",
+  "greaseproof paper",
+  "baking trays"
+ ],
+ "_about": "From Apple Notes (Notes folder: 800g strong flour), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

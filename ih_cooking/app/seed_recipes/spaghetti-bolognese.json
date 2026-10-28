@@ -1,0 +1,80 @@
+{
+ "name": "Spaghetti bolognese (about 45 minutes)",
+ "title": "Spaghetti bolognese",
+ "oven": null,
+ "steps": [
+  {
+   "before": 45,
+   "text": "Finely chop the onion, carrot and garlic.",
+   "short": "Chop onion, carrot, garlic"
+  },
+  {
+   "before": 40,
+   "text": "Big pan, 1 tbsp oil, medium heat. Onion and carrot in for 5 minutes until soft. Garlic in for 1 minute.",
+   "short": "Soften veg (5 min)"
+  },
+  {
+   "before": 34,
+   "text": "Turn the heat up. Mince in. Break it up and brown it for 6 to 8 minutes.",
+   "short": "Brown the mince"
+  },
+  {
+   "before": 26,
+   "text": "Tomato puree, chopped tomatoes, stock cube (crumbled), oregano, 100 ml water. Stir, season, bring to a gentle bubble.",
+   "short": "Sauce ingredients in"
+  },
+  {
+   "before": 24,
+   "text": "Heat down to low. Leave to simmer, lid half on, stir now and then.",
+   "short": "Simmer (20 min)"
+  },
+  {
+   "before": 13,
+   "text": "Big pan of water on, high heat, with a good pinch of salt.",
+   "short": "Pasta water on"
+  },
+  {
+   "before": 10,
+   "text": "Water boiling: spaghetti in. Tap DONE when it goes in, the rest follows. Cook as the packet says (gluten-free spaghetti: watch the time, about 10 minutes).",
+   "short": "Boiling: spaghetti in (tap DONE)",
+   "anchor": true
+  },
+  {
+   "before": 2,
+   "text": "Drain the spaghetti. Keep a cup of the water. Taste the sauce and fix the salt and pepper.",
+   "short": "Drain, taste sauce"
+  },
+  {
+   "before": 0,
+   "text": "Spaghetti onto plates, sauce on top. Parmesan for the others if they want it.",
+   "short": "Plate and serve"
+  }
+ ],
+ "prep": [
+  "Onion, carrot and garlic out",
+  "Tin of tomatoes opened",
+  "Stock cube out",
+  "Big pan and a pasta pan out",
+  "Parmesan to grate for the others (optional)"
+ ],
+ "shopping": [
+  "400 g beef mince",
+  "1 onion",
+  "1 carrot",
+  "2 garlic cloves",
+  "2 tbsp tomato puree",
+  "400 g tin chopped tomatoes",
+  "1 beef stock cube (check it is gluten-free)",
+  "1 tsp dried oregano",
+  "250 g gluten-free spaghetti (one person avoids gluten)",
+  "parmesan for the others only (one person avoids dairy)"
+ ],
+ "serves": "3",
+ "source": "Written by Claude (own recipe, 22 Oct 2026)",
+ "equipment": [
+  "a large frying pan or saucepan",
+  "a pasta pan",
+  "a colander",
+  "a wooden spoon"
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "name": "Slow-cooked bolognese (3.5 hours)",
+ "title": "Slow bolognese",
+ "oven": null,
+ "steps": [
+  {
+   "before": 225,
+   "text": "Dice the onion, carrots and celery.",
+   "short": "Dice the veg"
+  },
+  {
+   "before": 220,
+   "text": "Big deep pot: olive oil, the veg and the rosemary, medium heat 5 min.",
+   "short": "Veg + rosemary in oil"
+  },
+  {
+   "before": 215,
+   "text": "All the mince in, high heat, brown it; season.",
+   "short": "Brown the mince"
+  },
+  {
+   "before": 205,
+   "text": "Rosemary out, red wine in, let the alcohol cook off.",
+   "short": "Wine in"
+  },
+  {
+   "before": 200,
+   "text": "Passata in, lowest heat. Stir every 10-15 min from now on.",
+   "short": "Passata in, low simmer"
+  },
+  {
+   "before": 120,
+   "text": "Stir and check it is not catching.",
+   "short": "Stir + check"
+  },
+  {
+   "before": 60,
+   "text": "Stir; taste and season.",
+   "short": "Stir + season"
+  },
+  {
+   "before": 15,
+   "text": "Pasta water on to boil.",
+   "short": "Pasta water on"
+  },
+  {
+   "before": 10,
+   "text": "Spaghetti in (check the packet time).",
+   "short": "Spaghetti in"
+  },
+  {
+   "before": 0,
+   "text": "Drain, serve with the sauce.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Dice onion, carrots, celery"
+ ],
+ "shopping": [
+  "Beef mince 15% 1kg",
+  "Pork mince 15% 250g",
+  "Large onion",
+  "Carrots x2",
+  "Celery 100g",
+  "Rosemary",
+  "Passata 1.5L",
+  "Extra virgin olive oil",
+  "Red wine 200ml",
+  "Spaghetti or tagliatelle"
+ ],
+ "equipment": [
+  "a big deep pot",
+  "a big saucepan for pasta",
+  "a colander",
+  "a knife and chopping board",
+  "a wooden spoon"
+ ],
+ "_about": "From Apple Notes (Recipes folder: Spaghetti Bolognese (chef Cilla's 3.5 h version)), added 13 Oct 2026. Timings worked back from the method; adjust in the recipe builder."
+}

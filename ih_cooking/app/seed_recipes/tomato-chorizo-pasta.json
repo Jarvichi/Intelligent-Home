@@ -1,0 +1,56 @@
+{
+ "name": "Tomato and chorizo pasta",
+ "title": "Pasta",
+ "oven": null,
+ "steps": [
+  {
+   "before": 25,
+   "text": "Chop the chorizo, onion and garlic. Kettle on.",
+   "short": "Chop chorizo + onion"
+  },
+  {
+   "before": 20,
+   "text": "Chorizo and onion in a pan, medium heat, 5 min.",
+   "short": "Chorizo + onion in"
+  },
+  {
+   "before": 15,
+   "text": "Chopped tomatoes and purée in, simmer.",
+   "short": "Tomatoes in"
+  },
+  {
+   "before": 12,
+   "text": "Pasta into boiling salted water (check the packet time).",
+   "short": "Pasta on"
+  },
+  {
+   "before": 1,
+   "text": "Drain, stir the pasta through the sauce.",
+   "short": "Drain + mix"
+  },
+  {
+   "before": 0,
+   "text": "Serve.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Chop chorizo",
+  "Chop onion + garlic"
+ ],
+ "shopping": [
+  "Chorizo",
+  "De Cecco pasta (rigate/fusilli)",
+  "Mutti chopped tomatoes",
+  "Tomato purée",
+  "Onion",
+  "Garlic"
+ ],
+ "equipment": [
+  "a large frying pan",
+  "a big saucepan for the pasta",
+  "a knife and chopping board",
+  "a wooden spoon",
+  "a colander"
+ ]
+}

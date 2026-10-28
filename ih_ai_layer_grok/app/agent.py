@@ -5,7 +5,7 @@ Request and reply text are never logged. Daily cap is counted per local date in 
 import json, os, re, threading, time, urllib.request
 import jobs_link
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 CAPABILITIES = ['general_qa', 'summarize']
 API_URL = 'https://api.x.ai/v1/chat/completions'
 STOP_FILE = 'STOP'
@@ -34,6 +34,10 @@ def scrub(text):
     return t
 
 
+def _flag(v):
+    return v if isinstance(v, bool) else str(v).lower() in ('true', '1', 'yes')
+
+
 def load_options(path):
     try:
         with open(path) as f:
@@ -53,6 +57,7 @@ def load_options(path):
     return {'xai_key': str(o.get('xai_key') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
             'parent_url': str(o.get('parent_url') or 'http://172.30.32.1:8801').strip().rstrip('/'),
             'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'), 'model': model,
+            'spend_cap': num('spend_cap', 0, 0, 1000), 'free_tier': _flag(o.get('free_tier', False)),
             'daily_cap': num('daily_cap', 50, 0, 1000), 'timeout_s': num('timeout_s', 30, 5, 120),
             'shadow': sh if isinstance(sh, bool) else str(sh).lower() not in ('false', '0', 'no'),
             'max_chars': num('max_chars', 1900, 100, 4000)}
@@ -93,6 +98,22 @@ class Agent:
     def _count(self):
         self._write('usage.json', {self.today(): self.used_today() + 1})      # old days are dropped
 
+    def paid_today(self):
+        return int(self._read('paid.json').get(self.today(), 0))
+
+    def is_free(self):
+        """A call is paid unless the owner marked the plan free (option free_tier) or the model name ends in ':free'. Unknown = paid."""
+        return bool(self.opts.get('free_tier')) or str(self.opts.get('model', '')).endswith(':free')
+
+    def spend_ok(self):
+        """Call under self.lock. Free calls always pass. Paid calls need spend_cap > 0 and fewer paid calls today than spend_cap; passing counts the call."""
+        if self.is_free():
+            return True
+        if self.paid_today() >= self.opts.get('spend_cap', 0):
+            return False
+        self._write('paid.json', {self.today(): self.paid_today() + 1})
+        return True
+
     def stopped(self):
         return os.path.exists(self._p(STOP_FILE))
 
@@ -106,6 +127,8 @@ class Agent:
         self.served += 1
         if cap not in CAPABILITIES or not text:
             return res(False, 'This agent only does general_qa and summarize.', why='bad_request')
+        if obj.get('model') and obj.get('model') != self.opts['model']:
+            return res(False, 'This agent does not serve that model.', why='model_not_available', error='model_not_available')
         if self.stopped():
             return res(False, 'Grok agent is stopped (kill switch).', why='stopped')
         if not self.opts['xai_key']:
@@ -116,6 +139,9 @@ class Agent:
             if self.used_today() >= self.opts['daily_cap']:
                 self.refused += 1
                 return res(False, 'Grok daily limit reached (%d per day). Try tomorrow.' % self.opts['daily_cap'], why='cap')
+            if not self.spend_ok():
+                self.refused += 1
+                return res(False, 'Paid calls are not allowed (spend_cap %d paid calls per day, 0 = free only).' % self.opts.get('spend_cap', 0), why='spend_cap', error='spend_cap')
             self._count()
         try:
             answer = self.generate(cap, scrub(text[:MAX_IN]))
@@ -145,7 +171,7 @@ class Agent:
         now = self.clock()
         return {'name': 'ih_ai_layer_grok', 'version': VERSION, 'capabilities': CAPABILITIES, 'configured': bool(self.opts['xai_key']),
                 'model': self.opts['model'], 'shadow': self.opts['shadow'], 'kill_switch': self.stopped(), 'uptime_s': int(now - self.started),
-                'used_today': self.used_today(), 'daily_cap': self.opts['daily_cap'], 'served': self.served, 'live_calls': self.live_calls,
+                'used_today': self.used_today(), 'daily_cap': self.opts['daily_cap'], 'spend_cap': self.opts.get('spend_cap', 0), 'free': self.is_free(), 'paid_today': self.paid_today(), 'served': self.served, 'live_calls': self.live_calls,
                 'refused_by_cap': self.refused,
                 'parent': {'link_enabled': bool(self.opts['register_key']), 'registered_s_ago': None if self.registered_at is None else int(now - self.registered_at),
                            'last_error': self.register_error}}
@@ -158,7 +184,7 @@ class Agent:
             return False
         try:
             body, headers = jobs_link.pack(o['register_key'], {'name': 'ih_ai_layer_grok', 'version': VERSION, 'capabilities': CAPABILITIES,
-                                                               'url': o['callback_url'] or 'http://172.30.32.1:8808', 'healthy': True}, now=now)
+                                                               'models': [o['model']], 'url': o['callback_url'] or 'http://172.30.32.1:8808', 'healthy': True}, now=now)
             req = urllib.request.Request(o['parent_url'] + '/register', data=body, method='POST', headers=headers)
             with (opener or self.opener)(req, timeout=5) as x:
                 good = x.status == 200

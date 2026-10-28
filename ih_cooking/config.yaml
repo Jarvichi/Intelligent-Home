@@ -1,0 +1,30 @@
+name: "Intelligent Home - Cooking"
+version: "0.1.0"
+slug: ih_cooking
+description: "Data owner for recipes and the meal plan, plus the weekly meal-vs-calendar check (who is not home for each planned meal). Read-only in v0.1: no oven control, no writes to Home Assistant, no Discord. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself. After install the owner sets: boot auto, watchdog on, auto_update on.
+# watchdog: add  watchdog: http://[HOST]:[PORT:8809]/healthz  once boot is auto.
+boot: manual
+init: false
+ports:
+  8809/tcp: 8809
+ports_description:
+  8809/tcp: "Read-only API (bearer api_token): /recipes /plan /clashes /status; /healthz open"
+options:
+  api_token: ""
+  ha_url: "http://supervisor/core"
+  ha_token: ""
+  plan_entity_prefix: ""
+  rate_per_min: 60
+  clash_config: ""
+schema:
+  api_token: password
+  ha_url: str
+  ha_token: password?
+  plan_entity_prefix: str?
+  rate_per_min: int(1,600)
+  clash_config: str?

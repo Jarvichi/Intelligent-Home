@@ -1,0 +1,92 @@
+{
+ "name": "Fish pie (about 1 hour 15 minutes)",
+ "title": "Fish pie",
+ "oven": 200,
+ "steps": [
+  {
+   "before": 75,
+   "text": "Oven on: 200C, 180C fan, gas 6. Peel the potatoes and cut into chunks.",
+   "short": "Oven on (200)"
+  },
+  {
+   "before": 70,
+   "text": "Potatoes into a pan of cold salted water. Bring to the boil. Cook 15 to 18 minutes until soft.",
+   "short": "Boil potatoes"
+  },
+  {
+   "before": 68,
+   "text": "Fish and prawns into a pan with the almond milk. Heat gently 4 minutes until the fish just turns opaque. Do not boil hard. Lift the fish out onto a plate. Keep the milk.",
+   "short": "Poach the fish"
+  },
+  {
+   "before": 60,
+   "text": "Warning: the sauce can go lumpy. Stir all the time. Mix the cornflour with 4 tbsp of the kept milk. Heat the rest of the milk until it steams. Stir the cornflour mix in. Keep stirring 2 minutes until thick.",
+   "short": "White sauce"
+  },
+  {
+   "before": 55,
+   "text": "Stir in the parsley, a squeeze of lemon, salt and pepper. Flake the fish into the sauce with the peas. Mix gently. Tip into an ovenproof dish.",
+   "short": "Fish and sauce into dish"
+  },
+  {
+   "before": 52,
+   "text": "Potatoes soft when a knife goes in easily. Drain them. Mash with 2 tbsp olive oil and a splash of almond milk. Season. Tap DONE.",
+   "short": "Potatoes soft: drain, mash (tap DONE)",
+   "anchor": true
+  },
+  {
+   "before": 45,
+   "text": "Spoon the mash over the fish. Rough the top with a fork. Sprinkle cheese on the others' side only.",
+   "short": "Mash and cheese on top"
+  },
+  {
+   "before": 40,
+   "text": "Into the oven for 30 minutes until golden and bubbling.",
+   "short": "Into the oven (30 min)"
+  },
+  {
+   "before": 8,
+   "text": "Check the top is golden. Put on the grill for 3 minutes if it needs colour.",
+   "short": "Check, grill if pale"
+  },
+  {
+   "before": 5,
+   "text": "Warning: dish is hot. Take it out. Leave to stand 5 minutes.",
+   "short": "Out, rest 5 min"
+  },
+  {
+   "before": 0,
+   "text": "Serve with green veg.",
+   "short": "Serve"
+  }
+ ],
+ "prep": [
+  "Potatoes peeled",
+  "Fish pie mix and prawns out of the fridge",
+  "Almond milk and cornflour out",
+  "Ovenproof dish out",
+  "Frozen peas out",
+  "Cheese grated for the others"
+ ],
+ "shopping": [
+  "600 g potatoes",
+  "400 g fish pie mix (salmon, smoked haddock, cod)",
+  "80 g cooked prawns",
+  "350 ml unsweetened almond milk",
+  "30 g cornflour (thickens the sauce, gluten-free)",
+  "olive oil",
+  "handful of parsley",
+  "1 lemon",
+  "100 g frozen peas",
+  "cheddar for the others only (one person avoids dairy)"
+ ],
+ "serves": "3",
+ "source": "Written by Claude (own recipe, 22 Oct 2026)",
+ "equipment": [
+  "a saucepan for potatoes",
+  "a wide pan for the fish",
+  "a pan for the sauce",
+  "an ovenproof dish",
+  "a potato masher"
+ ]
+}

@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - Claude"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_ai_layer_claude
 description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Anthropic Claude (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders."
 arch:
@@ -21,6 +21,8 @@ options:
   parent_url: "http://172.30.32.1:8801"
   callback_url: ""
   model: "claude-haiku-5-5"
+  spend_cap: 0
+  free_tier: false
   daily_cap: 20
   timeout_s: 30
   shadow: true
@@ -31,6 +33,8 @@ schema:
   parent_url: str
   callback_url: str?
   model: str
+  spend_cap: int(0,1000)
+  free_tier: bool
   daily_cap: int(0,1000)
   timeout_s: int(5,120)
   shadow: bool

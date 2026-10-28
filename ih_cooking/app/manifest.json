@@ -1,0 +1,25 @@
+{
+ "name": "ih_cooking",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Data owner for recipes and the meal plan, plus the meal-vs-calendar check (read-only in v0.1).",
+ "owner": "local add-on ih_cooking",
+ "start": "Supervisor add-on 32c8114c_ih_cooking (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8809/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8809,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token",
+  "ha_token"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}
