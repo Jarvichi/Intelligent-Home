@@ -1,9 +1,9 @@
-"""Add-on manager page (v0.6.0). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
+"""Add-on manager page (v0.7.0: tabs Add-ons, Install, Plugins, Settings, Health). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import json, os, threading, time, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 import provisioner
 
 INGRESS_IP = "172.30.32.2"   # the Supervisor ingress gateway; host_network means the port is open to the LAN, so every other client is refused
@@ -33,6 +33,15 @@ def sup_text(path, timeout=20):
         raise provisioner.SupError("http_%d" % e.code)
     except Exception as e:
         raise provisioner.SupError(type(e).__name__)
+
+
+def http_json(url, timeout=4):
+    """GET a small JSON document from a sibling add-on; None when unreachable or not JSON."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return json.loads(r.read(1_000_000))
+    except Exception:
+        return None
 
 
 def load_catalogue(path):
@@ -111,8 +120,10 @@ class Jobs:
 
 
 class Manager:
-    def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60):
+    def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
+                 health=lambda: None, http=None):
         self.catalogue, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
+        self.health_src, self.http = health, http or http_json
         self.jobs, self.busy, self.lock = Jobs(), set(), threading.Lock()
         self.cache = (0, None)
 
@@ -189,7 +200,7 @@ class Manager:
             r = {"slug": s, "name": c.get("name") or s, "description": str(c.get("description") or "")[:200], "kind": c.get("kind"),
                  "installed": bool(i), "version": i["version"] if i else None, "latest": (i or {}).get("latest") or c.get("version"),
                  "state": i["state"] if i else None, "update": bool(i and i["update"]), "boot": None, "cpu": None, "mem_mb": None,
-                 "mem_pct": None, "seen": seen.get(s), "missing_settings": len(settings[s].get("missing") or []) if s in settings else None,
+                 "mem_pct": None, "full": (prefix + "_" + s) if i else None, "seen": seen.get(s), "missing_settings": len(settings[s].get("missing") or []) if s in settings else None,
                  "needs": [{"slug": n, "status": dep_status(n, states)} for n in needs.get(s, [])],
                  "needed_by": [{"slug": n, "status": dep_status(n, states)} for n in by.get(s, [])],
                  "can_act": s != "ih_orchestrator"}
@@ -284,45 +295,188 @@ class Manager:
         j = self.jobs.get(jid)
         return (200, j) if j else (404, {"error": "unknown job"})
 
+    # ---- plugins (ih_jobs). The `settings` text of a plugin holds private data: only its key names ever leave this class.
+    JOBS = "ih_jobs"
 
-PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Intelligent Home add-ons</title>
-<style>body{font:15px system-ui;margin:10px}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}
-.d{font-size:12px;opacity:.7}.r{color:#c62828;font-weight:bold}.g{color:#2e7d32}.o{color:#ef6c00}button{margin:1px;padding:3px 7px}
-pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px}#msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}.w{overflow-x:auto}</style>
-<h2>Intelligent Home add-ons</h2><div id=msg></div><div class=w><table id=t><tr><td>Loading the add-on list (the first load after a restart can take about 30 seconds)...</td></tr></table></div><h3>Dependencies</h3><div class=w><table id=dep></table></div><pre id=log hidden></pre>
+    def _jobs_full(self):
+        prefix, _ = self.context()
+        return prefix + "_" + self.JOBS
+
+    @staticmethod
+    def _setting_keys(text):
+        try:
+            d = json.loads(text) if str(text or "").strip() else {}
+        except ValueError:
+            return []
+        return sorted(str(k)[:60] for k in d) if isinstance(d, dict) else []
+
+    def plugins(self):
+        """-> (code, obj). obj: {installed, running, plugins:[{name, live, settings_keys, mode, schedule, next_run, last_run, last_error, runs}]}."""
+        try:
+            full = self._jobs_full()
+            try:
+                info = self.sup("GET", "/addons/%s/info" % full)
+            except provisioner.SupError:
+                return 200, {"installed": False, "running": False, "plugins": []}
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        opts = info.get("options") if isinstance(info, dict) and isinstance(info.get("options"), dict) else {}
+        listed = [r for r in (opts.get("plugins") or []) if isinstance(r, dict) and str(r.get("name") or "").strip()]
+        live = self.http("http://%s:8792/status" % full.replace("_", "-"))
+        pm = live.get("plugins") if isinstance(live, dict) and isinstance(live.get("plugins"), dict) else {}
+        out = []
+        for r in listed:
+            n = str(r["name"]).strip()
+            st = pm.get(n) if isinstance(pm.get(n), dict) else {}
+            out.append({"name": n, "live": r.get("live") is True, "settings_keys": self._setting_keys(r.get("settings")),
+                        "mode": st.get("mode"), "schedule": st.get("schedule"), "next_run": st.get("next_run"),
+                        "last_run": st.get("last_run"), "last_error": str(st["last_error"])[:200] if st.get("last_error") else None,
+                        "runs": st.get("runs")})
+        return 200, {"installed": True, "running": isinstance(live, dict), "plugins": out}
+
+    def plugin_set(self, name, live):
+        """Flip plugins[name].live with a read-modify-write of the FULL options, then restart ih_jobs. -> (code, obj); never returns settings."""
+        if not isinstance(live, bool):
+            return 400, {"error": "live must be true or false"}
+        try:
+            full = self._jobs_full()
+            info = self.sup("GET", "/addons/%s/info" % full)
+            opts = dict(info.get("options")) if isinstance(info, dict) and isinstance(info.get("options"), dict) else None
+            if opts is None:
+                return 502, {"error": "no options"}
+            plist = [dict(r) if isinstance(r, dict) else r for r in opts.get("plugins") or []]
+            hit = [r for r in plist if isinstance(r, dict) and str(r.get("name") or "").strip() == name]
+            if not hit:
+                return 404, {"error": "unknown plugin"}
+            hit[0]["live"] = live
+            opts["plugins"] = plist
+            self.sup("POST", "/addons/%s/options" % full, {"options": opts})
+            self.sup("POST", "/addons/%s/restart" % full)
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        return 200, {"ok": True, "name": name, "live": live}
+
+    # ---- settings and health
+    def settings(self):
+        """{addons:[{slug, missing:[names]}], provisioner, config_slug}. Names only, never values."""
+        try:
+            rows = self.rows()
+            own = self.context()[0] + "_ih_orchestrator"
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        p = self.prov()
+        st = ((p.get_status() if p else None) or {}).get("addons") or {}
+        out = [{"slug": r["slug"], "full": r.get("full"), "missing": [str(m)[:80] for m in (st.get(r["slug"]) or {}).get("missing") or []],
+                "error": (st.get(r["slug"]) or {}).get("error")} for r in rows if r["installed"] and r["slug"] in st]
+        return 200, {"addons": out, "provisioner": bool(p), "config_slug": own}
+
+    def fill_now(self):
+        if not self.prov():
+            return 409, {"error": "the settings hub is off (turn on 'provision' in the orchestrator configuration)"}
+        return 202, {"job": self.jobs.submit("provision", lambda step: self._provision(step))}
+
+    def health(self):
+        snap = self.health_src()
+        if not isinstance(snap, dict):
+            return 200, {"services": [], "counts": {}, "total": 0, "stale": True, "age_s": None}
+        svc = [{"name": r.get("name"), "state": r.get("state"), "kind": r.get("kind"), "version": r.get("version"),
+                "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or [] if isinstance(c, dict)]}
+               for r in snap.get("services") or []]
+        return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s")}
+
+
+PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Intelligent Home</title>
+<style>body{font:15px system-ui;margin:0;padding:0 10px 20px}h2{margin:10px 0 4px}
+nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid #8886;position:sticky;top:0;background:Canvas;color:CanvasText;padding:6px 0;z-index:2}
+nav a{padding:6px 12px;border-radius:14px;text-decoration:none;color:inherit;border:1px solid #8886;white-space:nowrap}nav a.on{background:#1976d2;color:#fff;border-color:#1976d2}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:10px}
+.card{border:1px solid #8886;border-left:6px solid #888;border-radius:8px;padding:8px 10px;min-width:0}.card.s-started{border-left-color:#2e7d32}.card.s-stopped,.card.s-error{border-left-color:#c62828}
+.card h3{margin:0 0 2px;font-size:16px;word-break:break-all}.d{font-size:12px;opacity:.7}.r{color:#c62828;font-weight:bold}.g{color:#2e7d32}.o{color:#ef6c00;font-weight:bold}
+.kv{display:flex;flex-wrap:wrap;gap:2px 12px;margin:4px 0;font-size:13px}.btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+button,a.b{padding:6px 10px;border:1px solid #8888;border-radius:6px;background:#8881;color:inherit;font:inherit;text-decoration:none;cursor:pointer}
+pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}
+#msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.w{overflow-x:auto}
+.chip{display:inline-block;margin:4px 4px 4px 0;padding:4px 12px;border:1px solid #8886;border-radius:14px;cursor:pointer}.chip.on{background:#1976d2;color:#fff}</style>
+<h2>Intelligent Home</h2>
+<nav id=nav><a href='#addons'>Add-ons</a><a href='#install'>Install</a><a href='#plugins'>Plugins</a><a href='#settings'>Settings</a><a href='#health'>Health</a></nav>
+<div id=msg></div><div id=main>Loading (the first load after a restart can take about 30 seconds)...</div>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
+var TABS=['addons','install','plugins','settings','health'],TAB='addons',FILT='All',OPEN={},DATA=null;
 function U(p){return B+p}
-function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
+function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
 function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
 function btn(label,fn){var b=E('button',label);b.onclick=fn;return b}
-function cell(tr,x,cls){var td=E('td');if(typeof x==='string'||typeof x==='number')td.textContent=x;else if(x)td.appendChild(x);if(cls)td.className=cls;tr.appendChild(td);return td}
-function post(a,s,extra){return fetch(U('api/action/'+a+'/'+s+(extra||'')),{method:'POST'}).then(function(r){return r.json().then(function(j){return[r.status,j]})})}
-function act(a,s,extra){say(a+' '+s+' ...');post(a,s,extra).then(function(x){var c=x[0],j=x[1];
+function kv(card,pairs){var d=E('div',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;var s=E('span');s.appendChild(E('span',p[0]+' ','d'));s.appendChild(E('span',String(p[1]),p[2]));d.appendChild(s)});card.appendChild(d)}
+function J(r){return r.json().then(function(j){return[r.status,j]})}
+function post(path){return fetch(U(path),{method:'POST'}).then(J)}
+function act(a,s,extra){say(a+' '+s+' ...');post('api/action/'+a+'/'+s+(extra||'')).then(function(x){var c=x[0],j=x[1];
  if(c==202)return poll(j.job);
  if(c==409&&j.warning){if(j.installable&&j.installable.length&&confirm(j.warning+'\\nInstall those first?'))return act(a,s,'?with_requires=1');say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
  say(j.error||j.warning||('failed '+c))}).catch(function(e){say('error: '+e)})}
 function poll(id){fetch(U('api/job/'+id)).then(function(r){return r.json()}).then(function(j){
  say(j.label+': '+j.state+(j.steps.length?' ('+j.steps[j.steps.length-1]+')':'')+(j.error?' ERROR '+j.error:''));
- if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else load()})}
-function logs(s){fetch(U('api/logs/'+s)).then(function(r){return r.json()}).then(function(j){var p=document.getElementById('log');p.hidden=false;p.textContent=j.error?j.error:s+'\\n'+j.lines.join('\\n')})}
+ if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else show()})}
 function age(x){if(!x||x.age_s==null)return '-';var a=x.age_s;return (x.state||'')+' '+(a<90?a+'s':a<5400?Math.round(a/60)+'m':Math.round(a/3600)+'h')}
-function load(){fetch(U('api/addons')).then(function(r){return r.json()}).then(function(d){
- if(d.error){say(d.error);return}
- var t=document.getElementById('t');t.textContent='';var h=E('tr');['Add-on','Version','State','Boot','CPU %','Mem MB','Seen','Missing','Actions'].forEach(function(x){h.appendChild(E('th',x))});t.appendChild(h);
- d.addons.forEach(function(a){var tr=E('tr'),n=E('div');n.appendChild(E('b',a.slug));n.appendChild(E('div',a.description,'d'));cell(tr,n);
-  cell(tr,a.installed?(a.version||'?')+(a.update?' -> '+a.latest:''):'not installed ('+(a.latest||'?')+')',a.update?'o':'');
-  cell(tr,a.state||'-',a.state=='started'?'g':(a.installed?'r':''));cell(tr,a.boot||'-');cell(tr,a.cpu==null?'-':a.cpu);cell(tr,a.mem_mb==null?'-':a.mem_mb);
-  cell(tr,age(a.seen));cell(tr,a.missing_settings==null?'-':a.missing_settings,a.missing_settings?'o':'');
-  var b=E('div');if(a.can_act){if(!a.installed)b.appendChild(btn('Install',function(){act('install',a.slug)}));else{
-   b.appendChild(btn('Start',function(){act('start',a.slug)}));b.appendChild(btn('Stop',function(){act('stop',a.slug)}));b.appendChild(btn('Restart',function(){act('restart',a.slug)}));
-   if(a.update)b.appendChild(btn('Update',function(){act('update',a.slug)}));b.appendChild(btn('Logs',function(){logs(a.slug)}))}}
-  cell(tr,b);t.appendChild(tr)});
- var p=document.getElementById('dep');p.textContent='';var h2=E('tr');['Add-on','Needs','Needed by'].forEach(function(x){h2.appendChild(E('th',x))});p.appendChild(h2);
- function list(xs){var s=E('div');xs.forEach(function(x){s.appendChild(E('div',x.slug+(x.status=='ok'?'':' ('+x.status+')'),x.status=='ok'?'g':'r'))});return s}
- d.addons.forEach(function(a){if(!a.needs.length&&!a.needed_by.length)return;var tr=E('tr');cell(tr,a.slug);cell(tr,list(a.needs));cell(tr,list(a.needed_by));p.appendChild(tr)})
- }).catch(function(e){say('error: '+e)})}
-load();setInterval(function(){if(!document.hidden)load()},30000);
+function cfgLink(full,label){var a=E('a',label||'Open config','b');a.setAttribute('href',['','hassio','addon',full,'config'].join('/'));a.target='_top';return a}
+function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
+ fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
+function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
+ var k=E('div',null,'card s-'+(a.state||'none'));k.appendChild(E('h3',a.slug));k.appendChild(E('div',a.description,'d'));
+ kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['State',a.state||'-',a.state=='started'?'g':'r'],
+  ['CPU',a.cpu==null?null:a.cpu+' %'],['Mem',a.mem_mb==null?null:a.mem_mb+' MB'],['Seen',age(a.seen)],
+  ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',a.requests_used==null?null:a.requests_used+' requests']]);
+ if(a.can_act){var b=E('div',null,'btns');
+  if(a.state=='started')b.appendChild(btn('Stop',function(){act('stop',a.slug)}));else b.appendChild(btn('Start',function(){act('start',a.slug)}));
+  b.appendChild(btn('Restart',function(){act('restart',a.slug)}));
+  if(a.update)b.appendChild(btn('Update to '+a.latest,function(){act('update',a.slug)}));
+  b.appendChild(btn('Logs',function(){logs(a.slug,k)}));if(a.full)b.appendChild(cfgLink(a.full));k.appendChild(b)}
+ else if(a.full){var b2=E('div',null,'btns');b2.appendChild(cfgLink(a.full));k.appendChild(b2)}
+ c.appendChild(k)});m.appendChild(c)}
+function tabInstall(m,d){var c=E('div',null,'cards'),n=0;d.addons.filter(function(a){return !a.installed&&a.can_act}).forEach(function(a){n++;
+ var k=E('div',null,'card');k.appendChild(E('h3',a.name+' ('+a.slug+')'));k.appendChild(E('div',a.description));
+ var w=E('div',null,'kv');a.needs.forEach(function(x){w.appendChild(E('span','needs '+x.slug+': '+(x.status=='ok'?'ok':'missing ('+x.status+')'),x.status=='ok'?'g':'r'))});if(!a.needs.length)w.appendChild(E('span','needs nothing','d'));k.appendChild(w);
+ var b=E('div',null,'btns');b.appendChild(btn('Install '+(a.latest||''),function(){act('install',a.slug)}));k.appendChild(b);c.appendChild(k)});
+ m.appendChild(n?c:E('p','Everything in the catalogue is installed.'))}
+function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/plugins')).then(J).then(function(x){m.textContent='';var j=x[1];
+ if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
+ if(!j.installed){m.appendChild(E('p','The ih_jobs add-on is not installed.'));return}
+ if(!j.running)m.appendChild(E('p','The jobs add-on did not answer: live details are missing.','o'));
+ if(!j.plugins.length)m.appendChild(E('p','No plugins are listed in the ih_jobs configuration.'));
+ var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
+  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule],['Next',p.next_run],['Last run',p.last_run],['Runs',p.runs],['Last error',p.last_error,p.last_error?'r':''],
+   ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
+  var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){
+   if(!confirm((p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.'))return;
+   say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'dry')+'; ih_jobs restarted':(y[1].error||'failed'));show()})}));
+  k.appendChild(b);c.appendChild(k)});m.appendChild(c)})}
+function tabSettings(m){m.appendChild(E('p','Loading settings...'));fetch(U('api/settings')).then(J).then(function(x){m.textContent='';var j=x[1];
+ if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
+ var t=E('div',null,'btns');t.appendChild(btn('Fill now',function(){if(!confirm('Run the settings hub now? It fills empty options of the add-ons.'))return;say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')})}));
+ t.appendChild(cfgLink(j.config_slug,'Shared settings list (orchestrator config)'));m.appendChild(t);
+ if(!j.provisioner)m.appendChild(E('p','The settings hub is off. Turn on provision in the orchestrator configuration.','o'));
+ var c=E('div',null,'cards');j.addons.forEach(function(a){var k=E('div',null,'card s-'+(a.missing.length?'stopped':'started'));k.appendChild(E('h3',a.slug));
+  k.appendChild(E('div',a.missing.length?'Missing: '+a.missing.join(', '):'All settings filled',a.missing.length?'o':'g'));if(a.error)k.appendChild(E('div',a.error,'r'));
+  if(a.full){var b=E('div',null,'btns');b.appendChild(cfgLink(a.full));k.appendChild(b)}c.appendChild(k)});m.appendChild(c)})}
+function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/health')).then(J).then(function(x){m.textContent='';var j=x[1];
+ var cn=j.counts||{};m.appendChild(E('p',(cn.OK||0)+' OK, '+(cn.FAIL||0)+' FAIL, '+(cn.UNKNOWN||0)+' unknown'+(j.stale?' (STALE data)':''),j.stale||cn.FAIL?'o':'g'));
+ ['All','FAIL','OK'].forEach(function(f){var c=E('span',f,'chip'+(FILT==f?' on':''));c.onclick=function(){FILT=f;show()};m.appendChild(c)});
+ var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Version','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
+ j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
+  [s.name,s.state,s.kind||'',s.version||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
+ w.appendChild(t);m.appendChild(w)})}
+function show(){var m=document.getElementById('main');
+ TAB=TABS.indexOf(location.hash.slice(1))>=0?location.hash.slice(1):'addons';
+ Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.getAttribute('href')=='#'+TAB?'on':''});
+ if(TAB=='plugins'){m.textContent='';tabPlugins(m);return}
+ if(TAB=='settings'){m.textContent='';tabSettings(m);return}
+ if(TAB=='health'){m.textContent='';tabHealth(m);return}
+ fetch(U('api/addons')).then(function(r){return r.json()}).then(function(d){
+  if(d.error){say(d.error);return}
+  var keep=m.querySelectorAll('pre').length;if(keep&&TAB=='addons'&&DATA)return;
+  m.textContent='';DATA=d;(TAB=='install'?tabInstall:tabAddons)(m,d)}).catch(function(e){say('error: '+e)})}
+window.onhashchange=function(){DATA=null;show()};show();
+setInterval(function(){if(!document.hidden&&(TAB=='addons'||TAB=='install'))show()},30000);
 </script>"""
 
 
@@ -347,6 +501,12 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+                if p == "/api/plugins":
+                    return self._json(*mgr.plugins())
+                if p == "/api/settings":
+                    return self._json(*mgr.settings())
+                if p == "/api/health":
+                    return self._json(*mgr.health())
                 if p == "/api/addons":
                     return self._json(200, {"addons": mgr.rows()})
                 if p.startswith("/api/job/"):
@@ -365,6 +525,10 @@ def make_handler(mgr):
             if len(parts) == 4 and parts[:2] == ["api", "action"]:
                 wr = parse_qs(u.query).get("with_requires", [""])[0] == "1"
                 return self._json(*mgr.act(parts[2], parts[3], wr))
+            if len(parts) == 4 and parts[:2] == ["api", "plugin"] and parts[3] in ("live", "dry"):
+                return self._json(*mgr.plugin_set(unquote(parts[2]), parts[3] == "live"))
+            if parts == ["api", "provision"]:
+                return self._json(*mgr.fill_now())
             self._json(404, {"error": "not found"})
 
         def log_message(self, *a):

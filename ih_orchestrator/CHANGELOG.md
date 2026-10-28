@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-10-28
+
+### Added
+- The sidebar page now has tabs: Add-ons, Install, Plugins, Settings, Health. It is the single Intelligent Home page.
+- Add-ons are cards that work on a phone: Start/Stop, Restart, Update, inline Logs and a link to the add-on configuration.
+- Plugins tab: lists the plugins of the jobs add-on with dry/live, schedule, next and last run and last error; "Make live" / "Make dry" changes the option and restarts the jobs add-on (asks first). Plugin settings are never shown, only their key names.
+- Settings tab: names of missing options per add-on and a "Fill now" button for the settings hub.
+- Health tab: the services table (filter All/FAIL/OK) from the pushed status.
+
+### Changed
+- Installable add-ons moved from the add-on list to the Install tab.
+
 ## [0.6.2] - 2026-10-28
 
 ### Changed

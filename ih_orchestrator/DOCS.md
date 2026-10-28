@@ -2,7 +2,7 @@
 
 ## What it does
 
-The hub of Intelligent Home. It shows a status page for the other add-ons and services, runs an optional signed MQTT scheduler, and has a settings hub that fills shared keys of the other add-ons from one list. It also lists every add-on of the repository in a sidebar manager. Parent of every other Intelligent Home add-on.
+The hub of Intelligent Home. It shows a status page for the other add-ons and services, runs an optional signed MQTT scheduler, and has a settings hub that fills shared keys of the other add-ons from one list. The sidebar page has tabs: Add-ons (start, stop, restart, update, logs), Install, Plugins (dry/live switch for the jobs add-on plugins), Settings (missing options, fill now) and Health (status table). Parent of every other Intelligent Home add-on.
 
 ## Requires
 
