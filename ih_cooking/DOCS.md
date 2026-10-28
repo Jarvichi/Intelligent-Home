@@ -24,8 +24,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 |---|---|---|
 | `log_payloads` | No | Off: logs one line of metadata per request. On: the line also holds the first 200 characters of the request and reply. Keys are never logged. Default: `false`. |
 | `api_token` | Yes | Bearer token callers must send. Empty = everything refused. |
-| `ha_url` | No | Home Assistant (default `http://supervisor/core`) and a long-lived token (calendars, states, services). |
-| `ha_token` | No | Home Assistant (default `http://supervisor/core`) and a long-lived token (calendars, states, services). |
+| `ha_url` | No | Home Assistant (default `http://supervisor/core`) and a token (calendars, states, services). |
+| `ha_token` | No | Home Assistant (default `http://supervisor/core`) and a token (calendars, states, services). |
 | `plan_entity_prefix` | No | Optional, see above. |
 | `rate_per_min` | No | Requests per minute (default 60). |
 | `clash_config` | No | JSON text with the house-specific calendar settings (below). |
@@ -98,7 +98,7 @@ Same behaviour as the old host scripts: the plan is built from the recipe (steps
 Live control is allowed only when **all** of these hold, checked when a cook starts and again every 15 seconds while it runs:
 1. `cook_mode` is `live` and `cook_confirm` is exactly `I-AM-THE-ONLY-COOK-CONTROLLER`.
 2. No file `/data/cook/STOP_LIVE`.
-3. Home Assistant is reachable (`ha_token`).
+3. Home Assistant is reachable (`ha_token`, or the add-on's own access when it is empty).
 4. The **other controller** is declared. Either `other_controller_entity` names an entity that the old daemon updates while it is alive, and its `last_updated` is **older** than `other_controller_max_age_s`; or `other_controller_none` is true (you confirm the old daemon is gone).
 5. `other_controller_entity` is not this add-on's own `plan_sensor_entity`.
 

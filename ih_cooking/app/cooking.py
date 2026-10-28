@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -30,10 +30,14 @@ def load_options(path):
         cc = json.loads(cc) if isinstance(cc, str) and cc.strip() else (cc if isinstance(cc, dict) else {})
     except ValueError:
         cc = {}
+    ha_url = str(o.get('ha_url') or 'http://supervisor/core').rstrip('/')
+    ha_token = str(o.get('ha_token') or '').strip()
+    if not ha_token and ha_url == 'http://supervisor/core':   # homeassistant_api: the add-on's own Supervisor token works for HA Core
+        ha_token = os.environ.get('SUPERVISOR_TOKEN', '').strip()
     return {
         'api_token': str(o.get('api_token') or '').strip(),
-        'ha_url': str(o.get('ha_url') or 'http://supervisor/core').rstrip('/'),
-        'ha_token': str(o.get('ha_token') or '').strip(),
+        'ha_url': ha_url,
+        'ha_token': ha_token,
         'plan_entity_prefix': str(o.get('plan_entity_prefix') or '').strip(),
         'rate_per_min': int(o.get('rate_per_min') or 60),
         'clash_config': cc,

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Cooking"
-version: "0.2.1"
+version: "0.2.2"
 slug: ih_cooking
 description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
 arch:
@@ -10,6 +10,7 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8809]/healthz  once boot is auto.
 boot: manual
 init: false
+homeassistant_api: true
 ingress: true
 ingress_port: 8810
 ingress_panel: false
