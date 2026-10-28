@@ -17,6 +17,12 @@ def _iso(t):
     return str(t)
 
 
+def _utc(t):
+    """UTC 'Z' text of a datetime (naive = UTC)."""
+    t = t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    return t.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 # ---- minimal websocket client (text frames only) ----
 class WS:
     def __init__(self, sock):
@@ -129,6 +135,11 @@ class HA:
             q['end_time'] = _iso(end)
         out = self.get('history/period/%s?%s' % (urllib.parse.quote(_iso(start)), urllib.parse.urlencode(q)), timeout=60)
         return (out or [[]])[0] if out else []
+
+    def calendar_events(self, entity, start, end):
+        """Events of a calendar entity between two datetimes (REST). Each is the raw HA dict (summary, start, end, location, uid ...)."""
+        q = urllib.parse.urlencode({'start': _utc(start), 'end': _utc(end)})
+        return self.get('calendars/%s?%s' % (entity, q), timeout=30) or []
 
     # ---- websocket ----
     def _open(self):

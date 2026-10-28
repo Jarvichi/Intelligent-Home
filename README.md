@@ -61,7 +61,7 @@ Nothing is copied by hand between add-ons.
 
 | Add-on | What it does | Needs | Docs |
 |---|---|---|---|
-| **Intelligent Home - AI Layer** (`ih_ai_layer`) | Intelligent Home - AI Layer: routes AI requests to agent add-ons. | nothing else | [DOCS](ih_ai_layer/DOCS.md) |
+| **Intelligent Home - AI Layer** (`ih_ai_layer`) | Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons. | nothing else | [DOCS](ih_ai_layer/DOCS.md) |
 | **Intelligent Home - AI Layer - Claude** (`ih_ai_layer_claude`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Anthropic Claude (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_claude/DOCS.md) |
 | **Intelligent Home - AI Layer - Claude CLI Agent** (`ih_ai_layer_claude_cli`) | Agent of Intelligent Home - AI Layer: general questions and summaries via the Claude Code CLI (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_claude_cli/DOCS.md) |
 | **Intelligent Home - AI Layer - Gemini** (`ih_ai_layer_gemini`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Google Gemini (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_gemini/DOCS.md) |

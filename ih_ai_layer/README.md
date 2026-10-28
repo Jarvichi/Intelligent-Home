@@ -1,6 +1,6 @@
 # Intelligent Home - AI Layer
 
-Intelligent Home - AI Layer: routes AI requests to agent add-ons.
+Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons.
 
 - **Family:** AI layer. Parent of its family.
 - **Needs:** nothing else

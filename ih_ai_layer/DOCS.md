@@ -2,7 +2,7 @@
 
 ## What it does
 
-Intelligent Home - AI Layer: routes AI requests to agent add-ons. No Discord. Parent of its family.
+Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons. No Discord. Parent of its family.
 
 ## Requires
 
@@ -30,6 +30,16 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `rate_per_min` | No | Maximum requests a minute. Default: `30`. |
 | `max_tries` | No | How many agents to try for one request. Default: `2`. |
 | `log_payloads` | No | Off: logs one line of metadata per request. On: the line also holds the first 200 characters of the request and reply. Keys are never logged. Default: `false`. |
+| `providers` | No | List of built-in providers: `name`, `enabled`, `key`, `model`, `settings` (JSON text for caps). See Built-in providers. |
+| `gemini_key` | No | Gemini API key. The settings hub can fill it. A key in the `providers` entry wins. |
+| `groq_key` | No | Groq API key. The settings hub can fill it. |
+| `openrouter_key` | No | OpenRouter API key. The settings hub can fill it. |
+| `mistral_key` | No | Mistral API key. The settings hub can fill it. |
+| `openai_key` | No | OpenAI API key. The settings hub can fill it. |
+| `pollinations_key` | No | Pollinations key (optional: the service works without one). |
+| `serpapi_key` | No | SerpApi key. The settings hub can fill it. |
+| `xai_key` | No | xAI (Grok) API key. The settings hub can fill it. |
+| `anthropic_key` | No | Anthropic (Claude) API key. The settings hub can fill it. |
 
 ## Troubleshooting
 
@@ -39,7 +49,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 
 ## Privacy
 
-The router sends nothing outside your network itself. It passes each request to the agent add-on you registered, and that agent may send the text to an outside AI service (see that agent's Privacy section).
+Each request goes to a built-in provider you enabled, or to an agent add-on you registered. Built-in providers send the question text to that provider with your own key, after a scrubber removes email addresses, phone numbers, long digit strings, IP and MAC addresses, URL queries and token-like strings; the request context is never sent. SerpApi sends the search text as it is. Pollinations prompts are public. Do not rely on the scrubber for secrets.
 
 ## More details
 
@@ -64,8 +74,50 @@ If no `capability` is given, a simple keyword rule picks one and `classified` is
 - **Privacy:** request text is never stored or shown in `/status`. Each `/request` and each agent try logs ONE line with metadata only (request id, caller, capability, agent, model, chars in/out, ms, ok, why, free, shadow). With option `log_payloads` true the line also holds the first 200 chars of the request and answer (one line, newlines escaped). Keys, tokens, signatures and headers are never logged. The text IS sent to the chosen agent add-on (that is the job), so choose agents you trust.
 - Agent links are signed (HMAC, 5 minute freshness) with the shared `register_key`. Empty `register_key` = nobody can register and no agent is called.
 
-### How agents join
-Set the same `register_key` here and in each agent add-on. Each agent posts a signed registration every 30 s with its name, URL and capabilities; an agent not seen for 2 minutes is not used. This parent calls the agent's signed `POST /ask`.
+### Built-in providers
+Nine AI providers run inside this add-on (Phase 4). Each does what the old agent add-on did: same request code, default model, capabilities, daily and spend caps, and text scrubbing. `claude_cli` is not here (it needs the Claude CLI) and stays a separate add-on.
+
+| Provider (`name`) | Capabilities | Default model | Key option | Plan |
+|---|---|---|---|---|
+| `gemini` | general_qa, summarize | gemini-2.5-flash | `gemini_key` | paid unless `free_tier` |
+| `groq` | general_qa, summarize | llama-3.3-70b-versatile | `groq_key` | paid unless `free_tier` |
+| `openrouter` | general_qa, summarize | openrouter/auto | `openrouter_key` | paid unless `free_tier` or a `:free` model |
+| `mistral` | general_qa, summarize | mistral-medium-latest | `mistral_key` (+ setting `agent_id`) | free by default |
+| `openai` | general_qa, summarize | gpt-6-luna | `openai_key` | paid unless `free_tier` |
+| `pollinations` | general_qa, summarize | openai | `pollinations_key` (optional) | free by default; prompts are PUBLIC |
+| `serpapi` | showtimes, web_search | none | `serpapi_key` | paid unless `free_tier` |
+| `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
+| `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
+
+A provider is used only when it has an entry in `providers` with `enabled` true and a key (the entry `key`, or the flat key option above). Paid calls need `spend_cap` above 0 in the `settings`.
+
+#### The `providers` option
+One entry per provider: `name`, `enabled`, `key` (optional: empty = use the flat key option), `model` (optional: empty = default) and `settings` (optional JSON text). Example settings: `{"daily_cap": 50, "spend_cap": 0, "free_tier": true, "timeout_s": 30, "max_chars": 1900, "shadow": false, "log_payloads": false}`. Extra settings: `agent_id` (mistral, required), `cache_hours` and `default_cinema` (serpapi). The daily cap counts calls per day, before the call. A provider-level `shadow` is off by default; the router `shadow` option already stops every call.
+
+#### How the router uses them
+Built-in providers join the same scoring and learning as agents, under the same names as the old add-ons (`ih_ai_layer_groq` and so on), so earlier scores still count. If an external agent add-on with the same name is live and healthy, it wins; when it stops registering (for example it is stopped or uninstalled), the built-in provider answers. Both can exist during the move. A file `/data/providers/<name>/STOP` stops one provider.
+
+### Provider options
+| Option | What it is |
+|---|---|
+| `providers` | List of built-in providers: `name`, `enabled`, `key`, `model`, `settings` (JSON text for caps). See Built-in providers. |
+| `gemini_key` | Gemini API key. The settings hub can fill it. A key in the `providers` entry wins. |
+| `groq_key` | Groq API key. The settings hub can fill it. |
+| `openrouter_key` | OpenRouter API key. The settings hub can fill it. |
+| `mistral_key` | Mistral API key. The settings hub can fill it. |
+| `openai_key` | OpenAI API key. The settings hub can fill it. |
+| `pollinations_key` | Pollinations key (optional: the service works without one). |
+| `serpapi_key` | SerpApi key. The settings hub can fill it. |
+| `xai_key` | xAI (Grok) API key. The settings hub can fill it. |
+| `anthropic_key` | Anthropic (Claude) API key. The settings hub can fill it. |
+
+### Move an agent add-on into a built-in provider
+Do one provider at a time. Never paste a key into a chat.
+1. Make sure the settings hub has the agent's key. If the orchestrator `provision` is on, `ih_ai_layer` gets `<provider>_key` filled by itself (the hub imports it from the agent add-on). Otherwise copy the value of the agent's key option into the same-named option here (`gemini_key`, `groq_key`, `openrouter_key`, `mistral_key`, `openai_key`, `pollinations_key`, `serpapi_key`; Grok uses `xai_key`; Claude uses `anthropic_key`).
+2. Add a `providers` entry: `name`, `enabled` true. Copy `model`, `spend_cap`, `free_tier`, `daily_cap`, `timeout_s`, `max_chars` (and Mistral `agent_id`, SerpApi `cache_hours` and `default_cinema`) from the agent add-on into `settings` as JSON, so the caps stay the same. Leave `key` empty.
+3. Save and restart this add-on. Read the log: one `provider <name>` line says `configured`.
+4. While the agent add-on is still running, it keeps answering. Stop the agent add-on, then send a test request: `/agents` shows the provider as `in_process` and live.
+5. When it works, uninstall the agent add-on. Its daily counters start again from zero in the new place.
 
 ### Status
-Version 0.2.0: code and tests only; not installed, not build-tested. Scores live in `/data/scores.json`.
+Version 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.

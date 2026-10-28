@@ -128,10 +128,10 @@
  {
   "name": "Intelligent Home - AI Layer",
   "slug": "ih_ai_layer",
-  "description": "Routes an AI request (text + optional capability) to a registered AI agent add-on and returns the answer. Remembers which agent answers best per capability. NOT connected to Discord or any chat. Agents join with a signed registration (register_key). SHADOW mode by default: agents are not called. No ",
+  "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remember",
   "kind": "addon",
   "requires": [],
-  "version": "0.2.1"
+  "version": "0.3.0"
  },
  {
   "name": "Intelligent Home - AI Layer - SerpApi Agent",

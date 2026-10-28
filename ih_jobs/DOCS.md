@@ -13,7 +13,7 @@ Parent of the Jobs family; lists and triggers the child job add-ons. Hourly Home
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Jobs**.
 2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
-3. Open the Configuration tab and set `met_office_key`, `ingest_token`, `mqtt_password`, `signing_key`, `register_key` (skip any the settings hub fills).
+3. Open the Configuration tab and set `met_office_key`, `ingest_token`, `register_key` (skip any the settings hub fills).
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `mode` to `live`.
 
@@ -38,9 +38,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `mqtt_host` | No | MQTT broker host (default: the Mosquitto add-on). |
 | `mqtt_port` | No | MQTT broker port. Default: `1883`. |
 | `mqtt_user` | No | MQTT user name for this add-on. Default: `ih_jobs`. |
-| `mqtt_password` | Yes | MQTT password for this add-on. |
+| `mqtt_password` | No | MQTT password for this add-on. |
 | `enable_scheduler` | No | Receive scheduled runs (needs a signing key). Default: `false`. |
-| `signing_key` | Yes | Receive scheduled runs (needs a signing key) |
+| `signing_key` | No | Receive scheduled runs (needs a signing key) |
 | `register_key` | Yes | Shared secret. Must be the same value in this add-on and its parent. Empty = link off. |
 | `run_builtin_jobs` | No | Run the built-in jobs in this add-on until the child add-ons take over. Default: `true`. |
 | `disk_total_entity` | No | Optional sensor with total disk size. |
@@ -79,5 +79,3 @@ Jobs run when the scheduler sends a signed message (every hour) and once 90 seco
 Drop a file in `app/plugins/` exposing `NAME`, `SCHEDULE` (`{"kind":"daily","at":"19:30"}` or `{"kind":"every","minutes":30}`), `DEFAULTS`, `run(ctx)`. Turn it on with the option `plugins`: a list of `{name, live, settings}`; `settings` is a JSON text with that plugin's house values. Dry by default (`live: false`: logs what it would do). `/data/STOP_LIVE` or `/data/STOP_<name>` forces dry. State lives in `/data/<name>/`. `/status` shows mode, last run, last error and next run per plugin. Shared helpers: `app/ihlib` (a copy: edit `ihlib/` and run `sync_ihlib.sh`).
 
 First plugin `physio_reminder`: settings `user_id`, `presence_entity`, `exercises` (list), `at`, `pick`, `openers`, `closers`, `token_option`; bot token in option `discord_token`.
-
-Plugin `birthday_reminder`: settings `user_id`, `at` (default 18:00), `leads` (default [7, 3]), `birthdays` (list of `{name, date: "YYYY-MM-DD" or "MM-DD", group}`), `group_labels`, `token_option`. One DM groups all birthdays of that day; age is shown when the year is known.

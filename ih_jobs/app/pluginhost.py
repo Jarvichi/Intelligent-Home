@@ -4,7 +4,7 @@ Nothing here ever prints option values."""
 import importlib, json, os, pkgutil, threading, time, traceback
 from datetime import datetime, timedelta, timezone
 
-import ihlib.ha, ihlib.discord, ihlib.state, ihlib.log
+import ihlib.ha, ihlib.discord, ihlib.http, ihlib.state, ihlib.log
 
 CATCHUP_MIN = 60   # a daily plugin missed by less than this still runs (add-on started late)
 STOP_ALL = 'STOP_LIVE'
@@ -53,12 +53,18 @@ class Discord:
     def __init__(self, opts, dry, log, opener=None):
         self.opts, self.dry, self.log, self.opener = opts, dry, log, opener
 
-    def dm(self, user_id, text, token_option='discord_token'):
-        """True if really sent; False in dry (message text is logged)."""
+    def dm(self, user_id, text, token_option='discord_token', embeds=None, file=None):
+        """True if really sent; False in dry (message text is logged). embeds = list of dicts; file = (filename, bytes), shown in an embed as attachment://<filename>."""
         if self.dry:
-            self.log('[DRY] would DM the configured user: ' + ihlib.log.one_line(text, 400))
+            extra = (' [+%d embed]' % len(embeds) if embeds else '') + (' [+file %s]' % file[0] if file else '')
+            self.log('[DRY] would DM the configured user: ' + ihlib.log.one_line(text, 400) + extra)
+            if embeds:
+                self.log('[DRY] embed: ' + ihlib.log.one_line(json.dumps(embeds, ensure_ascii=False), 700))
             return False
-        ihlib.discord.send_dm(self.opts.get(token_option) or '', user_id, text, self.opener)
+        if embeds or file:
+            ihlib.discord.send_dm_rich(self.opts.get(token_option) or '', user_id, text, embeds, file, self.opener)
+        else:
+            ihlib.discord.send_dm(self.opts.get(token_option) or '', user_id, text, self.opener)
         return True
 
     def post(self, channel_id, text, token_option='discord_token'):
@@ -70,9 +76,15 @@ class Discord:
 
 
 class PluginCtx:
-    def __init__(self, name, settings, dry, now, ha, discord, state, log):
+    def __init__(self, name, settings, dry, now, ha, discord, state, log, http=None, data=None):
         self.name, self.settings, self.dry, self.now = name, settings, dry, now
         self.ha, self.discord, self.state, self.log = ha, discord, state, log
+        self.http = http or ihlib.http.Http()   # ctx.http.get_json(url) / get_bytes(url): outside web, read-only, works in dry too
+        self.data = data   # the add-on data folder (plugins may READ another plugin's folder under it)
+
+    def sibling_state(self, plugin):
+        """Read-only view of another plugin's state store (same /data root)."""
+        return ihlib.state.Store(os.path.join(self.data, plugin)) if self.data else ihlib.state.Store(os.path.join(os.path.dirname(self.state.folder), plugin))
 
     def service(self, domain, service, data=None):
         """Dry-aware service call."""
@@ -152,7 +164,7 @@ class Host:
                 return False
             dry = mode != 'live'
             ctx = PluginCtx(name, settings, dry, self.clock(), self.ha, Discord(self.opts, dry, log, self.opener),
-                            ihlib.state.Store(os.path.join(self.data, name)), log)
+                            ihlib.state.Store(os.path.join(self.data, name)), log, ihlib.http.Http(self.opener), self.data)
             try:
                 ok = self.mods[name].run(ctx) is not False
                 info['runs'] += 1

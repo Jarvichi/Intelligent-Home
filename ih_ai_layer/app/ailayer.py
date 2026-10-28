@@ -4,6 +4,7 @@ Request text is never stored or put in /status. Logs hold metadata only (ids, ca
 then each log line also carries the first 200 chars of the request and of the answer. Keys, tokens, signatures and headers are never logged."""
 import collections, json, os, re, threading, time, urllib.request
 import jobs_link
+import providers as provmod
 
 STOP_FILE = 'STOP'
 AGENT_LIVE_S = 120          # an agent that has not re-registered for this long is not used
@@ -12,7 +13,7 @@ ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
-VERSION = '0.2.1'
+VERSION = '0.3.0'
 
 
 def _snip(s, n=200):
@@ -59,17 +60,32 @@ def load_options(path):
     return {'api_token': str(o.get('api_token') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
             'shadow': bool(o.get('shadow', True)), 'agent_timeout_s': num('agent_timeout_s', 20, 1, 60),
             'rate_per_min': num('rate_per_min', 30, 1, 600), 'max_tries': num('max_tries', 2, 1, 5),
-            'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes')}
+            'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes'),
+            'providers': load_providers(o.get('providers')),
+            'provider_keys': {n: str(o.get(opt) or '').strip() for n, opt in provmod.KEY_OPTIONS.items()}}
+
+
+def load_providers(raw):
+    """The `providers` option -> list of {name, enabled, key, model, settings}. Entries that are not objects, or whose name is unknown, are dropped."""
+    out = []
+    for e in raw if isinstance(raw, list) else []:
+        if not isinstance(e, dict) or e.get('name') not in provmod.REGISTRY:
+            continue
+        out.append({'name': e['name'], 'enabled': e.get('enabled') is True or str(e.get('enabled')).lower() in ('true', '1', 'yes'),
+                    'key': str(e.get('key') or '').strip(), 'model': str(e.get('model') or '').strip(), 'settings': e.get('settings') if isinstance(e.get('settings'), (str, dict)) else ''})
+    return out
 
 
 class Layer:
-    def __init__(self, opts, data='/data', log=None, opener=None, clock=time.time):
+    def __init__(self, opts, data='/data', log=None, opener=None, clock=time.time, provider_opener=None, today=None):
         self.opts, self.data = opts, data
         self.log = log or (lambda m: None)
         self.opener = opener or urllib.request.urlopen
         self.clock = clock
         self.lock = threading.Lock()
-        self.agents = {}                       # name -> dict(url, capabilities, version, healthy, seen)
+        self.agents = {}                       # name -> dict(url, capabilities, version, healthy, seen): EXTERNAL agent add-ons that registered
+        # in-process providers (Phase 4), same agent names as the old add-ons ('ih_ai_layer_groq' ...) so scores carry over
+        self.providers = provmod.build(opts.get('providers'), opts.get('provider_keys') or {}, data, self.log, provider_opener or urllib.request.urlopen, clock, today)
         self.scores = self._load()             # cap -> agent -> dict(n, ok, ms, up, down)
         self.recent = collections.OrderedDict()  # request_id -> (cap, agent), for feedback
         self.window = collections.deque()
@@ -141,9 +157,22 @@ class Layer:
                                  'healthy': bool(obj.get('healthy', True)), 'seen': self.clock()}
         return 200, {'ok': True}
 
+    def table(self):
+        """All agents the router knows: external registrations plus in-process providers. If an external agent with the same name is live and
+        healthy it WINS (nothing changes until the overseer uninstalls that add-on); once it stops registering, the provider takes over by itself."""
+        now = self.clock()
+        with self.lock:
+            t = dict(self.agents)
+        for n, p in self.providers.items():
+            ext = t.get(n)
+            if ext and now - ext['seen'] <= AGENT_LIVE_S and ext['healthy']:
+                continue
+            t[n] = {'models': p.models(), 'url': None, 'capabilities': sorted(p.CAPABILITIES), 'version': p.VERSION, 'healthy': p.healthy(), 'seen': now, 'local': p}
+        return t
+
     def live_agents(self, cap=None):
         now = self.clock()
-        return [n for n, a in sorted(self.agents.items()) if now - a['seen'] <= AGENT_LIVE_S and a['healthy'] and (cap is None or cap in a['capabilities'])]
+        return [n for n, a in sorted(self.table().items()) if now - a['seen'] <= AGENT_LIVE_S and a['healthy'] and (cap is None or cap in a['capabilities'])]
 
     # ---- scoring ----
     def score(self, cap, agent):
@@ -225,7 +254,8 @@ class Layer:
 
         if model:
             # explicit model: no classifier, no scoring, only the agent that lists it, no fallback to other agents
-            owners = [n for n in self.live_agents(cap) if model in self.agents[n].get('models', [])]
+            tbl = self.table()
+            owners = [n for n in self.live_agents(cap) if model in tbl[n].get('models', [])]
             if not owners:
                 self.counts['model_not_available'] += 1
                 self._logline('request', rid, caller, None, cap, model, text, False, '', (self.clock() - t0) * 1000, 'model_not_available', None)
@@ -275,15 +305,22 @@ class Layer:
 
     def _ask(self, name, text, cap, ctx, rid, model=None, caller=None):
         """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only. Logs one 'try' line per call."""
-        a = self.agents[name]
+        a = self.table().get(name)
+        if a is None:
+            return None
         t0, ok, ans, why, meta = self.clock(), False, None, None, {}
         try:
-            body, headers = jobs_link.pack(self.opts['register_key'], dict({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid}, **({'model': model} if model else {})), now=self.clock())
-            req = urllib.request.Request(a['url'] + '/ask', data=body, method='POST', headers=headers)
-            with self.opener(req, timeout=self.opts['agent_timeout_s']) as x:
-                raw = x.read(200000)
-                sig = x.headers.get(jobs_link.HEADER)
-            obj, why = jobs_link.unpack(self.opts['register_key'], raw, sig, now=self.clock())
+            if a.get('local'):
+                # in-process provider: no HTTP, no signature. The provider never raises and never logs the text.
+                obj = a['local'].ask({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid, 'caller': caller, **({'model': model} if model else {})},
+                                     timeout=self.opts['agent_timeout_s'])
+            else:
+                body, headers = jobs_link.pack(self.opts['register_key'], dict({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid}, **({'model': model} if model else {})), now=self.clock())
+                req = urllib.request.Request(a['url'] + '/ask', data=body, method='POST', headers=headers)
+                with self.opener(req, timeout=self.opts['agent_timeout_s']) as x:
+                    raw = x.read(200000)
+                    sig = x.headers.get(jobs_link.HEADER)
+                obj, why = jobs_link.unpack(self.opts['register_key'], raw, sig, now=self.clock())
             if obj is not None:
                 meta = {'free': obj.get('free') if isinstance(obj.get('free'), bool) else None,
                         'model': obj.get('model') if isinstance(obj.get('model'), str) and MODEL_RE.match(obj.get('model')) else None}
@@ -312,9 +349,9 @@ class Layer:
         now = self.clock()
         return {'name': 'ih_ai_layer', 'version': VERSION, 'mode': 'dry' if self.opts['shadow'] else 'live', 'kill_switch': self.stopped(),
                 'uptime_s': int(now - self.started), 'counts': dict(self.counts), 'link_enabled': bool(self.opts.get('register_key')),
-                'agents': self.agents_view(), 'scores': {c: {a: self.score(c, a) for a in d} for c, d in self.scores.items()}}
+                'agents': self.agents_view(), 'providers': [p.status() for _, p in sorted(self.providers.items())], 'scores': {c: {a: self.score(c, a) for a in d} for c, d in self.scores.items()}}
 
     def agents_view(self):
         now = self.clock()
         return [{'name': n, 'capabilities': a['capabilities'], 'models': a.get('models', []), 'version': a['version'], 'healthy': a['healthy'],
-                 'seen_s_ago': int(now - a['seen']), 'live': now - a['seen'] <= AGENT_LIVE_S} for n, a in sorted(self.agents.items())]
+                 'seen_s_ago': int(now - a['seen']), 'live': now - a['seen'] <= AGENT_LIVE_S, 'in_process': bool(a.get('local'))} for n, a in sorted(self.table().items())]

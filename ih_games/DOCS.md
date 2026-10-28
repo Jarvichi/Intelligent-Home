@@ -14,7 +14,7 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home Games**.
 2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
-3. Open the Configuration tab and set `ingest_token`, `mqtt_password`, `signing_key`, `outbox_token`, `bungie_api_key` (skip any the settings hub fills).
+3. Open the Configuration tab and set `ingest_token`, `outbox_token`, `bungie_api_key` (skip any the settings hub fills).
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `mode` to `live`.
 
@@ -36,9 +36,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `mqtt_host` | No | MQTT broker host (default: the Mosquitto add-on). |
 | `mqtt_port` | No | MQTT broker port. Default: `1883`. |
 | `mqtt_user` | No | MQTT user name for this add-on. Default: `ih_games`. |
-| `mqtt_password` | Yes | MQTT password for this add-on. |
+| `mqtt_password` | No | MQTT password for this add-on. |
 | `enable_scheduler` | No | Turn on the signed MQTT scheduler. Default: `false`. |
-| `signing_key` | Yes | Key used to sign messages. Must match this module's entry in the orchestrator's `module_keys`. |
+| `signing_key` | No | Key used to sign messages. Must match this module's entry in the orchestrator's `module_keys`. |
 | `outbox_token` | Yes | Token the chat side uses to fetch and acknowledge queued messages. |
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |

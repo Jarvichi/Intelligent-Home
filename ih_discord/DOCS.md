@@ -13,7 +13,7 @@ Discord transport: one bot token, one poller per channel, signed MQTT bus for fe
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Discord**.
 2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
-3. Open the Configuration tab and set `discord_token`, `ingest_token`, `brain_webhook_id`, `mqtt_password`, `signing_key` (skip any the settings hub fills).
+3. Open the Configuration tab and set `discord_token`, `ingest_token`, `mqtt_password`, `signing_key` (skip any the settings hub fills).
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `dry_run` to `false`.
 

@@ -1,7 +1,7 @@
 name: "Intelligent Home - AI Layer"
-version: "0.2.1"
+version: "0.3.0"
 slug: ih_ai_layer
-description: "Routes an AI request (text + optional capability) to a registered AI agent add-on and returns the answer. Remembers which agent answers best per capability. NOT connected to Discord or any chat. Agents join with a signed registration (register_key). SHADOW mode by default: agents are not called. No Home Assistant access. Maps no folders."
+description: "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. SHADOW mode by default: nothing is called. No Home Assistant access. Maps no folders."
 arch:
   - aarch64
   - amd64
@@ -23,6 +23,16 @@ options:
   rate_per_min: 30
   max_tries: 2
   log_payloads: false
+  providers: []
+  gemini_key: ""
+  groq_key: ""
+  openrouter_key: ""
+  mistral_key: ""
+  openai_key: ""
+  pollinations_key: ""
+  serpapi_key: ""
+  xai_key: ""
+  anthropic_key: ""
 schema:
   api_token: password
   register_key: password
@@ -31,3 +41,18 @@ schema:
   rate_per_min: int(1,600)
   max_tries: int(1,5)
   log_payloads: bool?
+  providers:
+    - name: list(gemini|groq|openrouter|mistral|openai|pollinations|serpapi|grok|claude)
+      enabled: bool
+      key: password?
+      model: str?
+      settings: str?
+  gemini_key: password?
+  groq_key: password?
+  openrouter_key: password?
+  mistral_key: password?
+  openai_key: password?
+  pollinations_key: password?
+  serpapi_key: password?
+  xai_key: password?
+  anthropic_key: password?

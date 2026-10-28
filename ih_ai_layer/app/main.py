@@ -69,6 +69,8 @@ def main():
     layer = ailayer.Layer(opts, data=os.environ.get('IHA_DATA', '/data'), log=lg.info)
     lg.info('ih_ai_layer %s starting: %s; api %s; agent link %s; payload logging %s', ailayer.VERSION, 'SHADOW (agents not called)' if opts['shadow'] else 'LIVE',
             'on' if opts['api_token'] else 'OFF (no api_token: everything refused)', 'on' if opts['register_key'] else 'OFF (no register_key)', 'ON' if opts['log_payloads'] else 'off')
+    for n, p in sorted(layer.providers.items()):
+        lg.info('provider %s %s: %s; model %s; cap %d/day', n, p.VERSION, 'configured' if p.configured() else 'NOT configured (no key)', p.opts['model'] if p.HAS_MODELS else '-', p.opts['daily_cap'])
     ThreadingHTTPServer(('0.0.0.0', PORT), make_handler(layer)).serve_forever()
 
 
