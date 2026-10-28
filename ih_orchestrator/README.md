@@ -35,4 +35,4 @@ Run `python3 ../privacy_scan.py` before sharing this folder.
 
 ## Add-on manager (0.6.0)
 
-Sidebar panel "Intelligent Home" (Supervisor ingress, port 8791, answers only the ingress gateway). Lists every add-on of `app/catalogue.json` (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
+Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of `app/catalogue.json` (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.

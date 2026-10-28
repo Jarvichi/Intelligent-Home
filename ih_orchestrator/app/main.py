@@ -22,7 +22,7 @@ PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
 PORT = int(os.environ.get("IH_PORT", "8790"))
-MANAGER_PORT = int(os.environ.get("IH_MANAGER_PORT", "8791"))   # ingress only (manager.py refuses every client but the Supervisor gateway)
+MANAGER_PORT = int(os.environ.get("IH_MANAGER_PORT", "8789"))   # ingress only (manager.py refuses every client but the Supervisor gateway)
 CATALOGUE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogue.json")
 PROBE_MAX_AGE = 180  # host probe results older than this count as unknown
 SNAPSHOT_MAX_AGE = 180  # a pushed snapshot older than this is stale
