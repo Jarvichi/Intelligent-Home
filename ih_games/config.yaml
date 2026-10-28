@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.3.3"
+version: "0.3.4"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -73,9 +73,9 @@ schema:
   mqtt_host: str
   mqtt_port: port
   mqtt_user: str
-  mqtt_password: password
+  mqtt_password: password?
   enable_scheduler: bool
-  signing_key: password
+  signing_key: password?
   outbox_token: password
   bungie_api_key: password
   destiny_poll_s: int(60,86400)

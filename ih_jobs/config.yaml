@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs"
-version: "0.4.1"
+version: "0.4.2"
 slug: ih_jobs
 description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."
 arch:
@@ -58,9 +58,9 @@ schema:
   mqtt_host: str
   mqtt_port: port
   mqtt_user: str
-  mqtt_password: password
+  mqtt_password: password?
   enable_scheduler: bool
-  signing_key: password
+  signing_key: password?
   register_key: password
   run_builtin_jobs: bool
   disk_total_entity: str?

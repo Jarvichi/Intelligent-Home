@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.4] - 2026-10-28
+
+### Changed
+- `mqtt_password` and `signing_key` are optional: only the orchestrator scheduler (off by default) uses them.
+
 ## [0.3.3] - 2026-10-28
 
 ### Added
