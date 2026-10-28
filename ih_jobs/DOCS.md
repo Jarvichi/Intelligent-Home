@@ -272,3 +272,48 @@ Files in /data/bus_watch/: shadow.jsonl (same rows as the old shadow.jsonl), pro
 Page rebuild: the page generator stays on the host. After every change to the promise log (live only) the plugin POSTs `{"source": "bus_watch", "rows": [...]}` to `promise_webhook_url`. A failed post is retried on the next pass. The host side must (1) write the rows to its `promise_log.jsonl` and (2) run its page builder; that receiver is not part of this add-on. The same rows are also on disk in `/data/bus_watch/promise_log.jsonl`.
 
 SAFETY: the old host loop (tmux `robbus`) and this plugin both append records. Keep the plugin dry until the host loop is stopped, then copy the old `promise_log.jsonl` (to `/data/bus_watch/`) and `vehicle_types.json` first. Never both live. The BODS key goes in the add-on option `bods_api_key`.
+
+##### Photo plugins and folder access (0.8.0)
+
+New in 0.8.0: `config.yaml` has `map: [media:rw, share:rw]` (approved for the photo plugins; no other plugin uses the folders), and the image has Pillow 11.0.0 (pinned in the Dockerfile; binary wheels for Python 3.12 on aarch64 and amd64). If Pillow is missing, a live photo plugin logs "Pillow is not installed ... (rebuild the add-on)" and does nothing; dry runs still work.
+
+New helper `ctx.ha.subscribe_events(event_type, on_event, max_seconds, on_idle)` (ihlib): one websocket subscription for one event type; returns after `max_seconds` so a service pass is bounded. `WS.wait(timeout)` makes sure a read is never cut half way.
+
+**Who writes what.** `photo_catalogue` owns `index.json` and the automatic album folders (by-topic, by-month, `_thumbs/by-*`, `_family/by-*`). `photo_albums` owns `albums.json` (the registry), `_lib`, `_originals`, `_uploads`, `_failed`, `_state`, `my-albums` (also in `_family` and in the file share). Each only READS the other plugin's file (`ctx.sibling_state`). Both run in the same process and take one shared lock (`_photolib.LOCK`) around every write into the media and share folders, so a nightly catalogue and an album click never overlap. Files `index.json` and `albums.json` are the plugin state files `/data/photo_catalogue/index.json` and `/data/photo_albums/albums.json` (same JSON shape as the old files; written compact instead of indented).
+
+`photo_catalogue` (daily, 03:20):
+
+```
+photo_catalogue: nightly catalogue of photos into viewable albums.
+Sources: <brain_dir>/attachments/** and every folder in `media_sources` (an allow-list: nothing else is scanned).
+Outputs: index.json (state), <media_out>/by-topic/<topic>/<name>.jpg (1600 px), by-month hard links, _thumbs/* (400 px), _family/* (only auto albums picked in the
+registry), <share_out>/{by-topic,by-month} real copies (skipped when share_out is empty). Captions in index.json are kept on re-run.
+Privacy rules are SETTINGS: skip_name_regex (file names never catalogued), private_note_marker (a photo whose first mentioning note has this text in its path is skipped).
+  at ['03:20']  brain_dir ['/share/brain']  media_out ['/media/albums']  share_out ['']  media_sources []
+  skip_name_regex [generic list: licence/passport/receipt/insurance/bank/card/statement/id/private]  private_note_marker ['private']
+  big_px [1600] thumb_px [400] jpeg_quality [82]  share_uid [1000] share_gid [1000]
+  auto_family_seed []   auto albums picked for the family until the registry exists
+  seed_index ['']       path of an old index.json read once when the plugin has no index (keeps captions); never written
+Dry: scans and logs counts and what it would resize, link and copy; writes nothing.
+```
+
+`photo_albums` (service):
+
+```
+photo_albums: manual albums for a dashboard card. Each pass subscribes to the Home Assistant event `event_type` for `listen_s` seconds and handles every event; once a minute it
+ingests files dropped in <media_out>/_uploads and refreshes the sensor. Actions: refresh, create_album, rename_album, delete_album, add, remove, move, set_family, delete_photos,
+ingest. Destructive and sharing actions need confirm:true.
+  event_type ['house_photo_action']  sensor_entity ['sensor.photo_albums']  media_out ['/media/albums']  share_out ['']  skip_name_regex [generic]
+  big_px [1600] thumb_px [400] jpeg_quality [82]  share_uid [1000] share_gid [1000]
+  seconds [2] listen_s [600] periodic_s [60] settle_s [20] max_upload_mb [10]
+  auto_family_seed []  seed_registry ['']   path of an old albums.json read once when the plugin has no registry (never written)
+Dry: subscribes (read only), runs each action on an in-memory copy and logs the result; no file, sensor, registry or upload is touched.
+```
+
+Both plugins must use the same `media_out`, `share_out` and `skip_name_regex` values.
+
+**Known limits.** A pass ends every `listen_s` seconds and the next starts `seconds` later, so an event fired in that gap (a few seconds every ten minutes) is lost; the card shows the result from the sensor, so a missed click is visible and can be repeated. An action runs on the plugin thread: a long nightly catalogue holds the lock, so clicks wait until it ends.
+
+**Pillow versus the old node resizer.** Same: file names, folder layout, `index.json` and `albums.json` fields, the 1600 px / 400 px sizes, JPEG quality 82, existing files are skipped, never enlarged, EXIF data not copied. Different: (1) resampling is Lanczos (the old tool used its default bilinear), so pixels differ slightly and the files are not byte-identical; (2) the EXIF orientation is applied (phone pictures taken sideways come out upright); (3) a picture with transparency (PNG) is flattened onto white; (4) output is written to a temporary file and renamed, so an interrupted run leaves no half file; (5) the target size follows `round(w x scale)` (checked within 1 pixel against the old tool in tests/test_photo_compare.py).
+
+**Taking over from the host loops (overseer steps).** Keep the plugins dry until the tmux sessions `photocat` and `photoalbums` are stopped (two live copies would both write the same folders). Then: (1) stop both sessions; (2) put copies of the old `index.json` and `albums.json` where the add-on can read them (for example a temporary folder in `/share`) and set `seed_index` / `seed_registry` to those paths; (3) set both plugins live; the first live run saves the seeded files as plugin state, after which the seed settings are ignored; (4) remove the seed copies. Settings values for the real house live on the host (the photo scripts and the old tmux lines), not in this repository.

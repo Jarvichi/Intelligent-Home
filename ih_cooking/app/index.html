@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recipes</title>
+<style>
+:root{--bg:#f6f6f4;--card:#fff;--ink:#1c1c1c;--muted:#727272;--line:rgba(127,127,127,.3);--accent:#1b4fd8;--ok:#43a047;--bad:#db4437}
+@media (prefers-color-scheme:dark){:root{--bg:#111;--card:#1c1c1c;--ink:#e6e6e6;--muted:#9a9a9a;--accent:#7ea2ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
+main{max-width:900px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
+input.s{border-radius:20px}textarea{min-height:90px}
+label{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--muted);display:block;margin:10px 0 3px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:8px 14px;cursor:pointer}
+button.p{background:var(--accent);border-color:var(--accent);color:#fff}
+.item{display:flex;justify-content:space-between;gap:8px;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border:0}.m{color:var(--muted);font-size:.8rem;white-space:nowrap}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:110px}
+.st{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.st b{min-width:62px;color:var(--accent)}
+#msg{min-height:1.3em;font-size:.9rem}.err{color:var(--bad)}.good{color:var(--ok)}
+h2{font-size:1.2rem;margin:0 0 6px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+</style></head><body><main>
+<div id="list"><div class="card"><input class="s" id="q" placeholder="Find a recipe..." autocomplete="off"><div id="items" style="margin-top:8px"></div></div></div>
+<div id="view" hidden></div>
+</main>
+<script>
+const RK='ro'+'b_';
+const $=s=>document.querySelector(s);let ALL=[],CUR=null;
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,o){const r=await fetch(p,o);const j=await r.json();if(!r.ok)throw j;return j}
+async function init(){ALL=await api('api/recipes');draw()}
+function draw(){const q=$('#q').value.toLowerCase();$('#items').innerHTML=ALL.filter(r=>r.title.toLowerCase().includes(q)).sort((a,b)=>a.title.localeCompare(b.title))
+ .map(r=>`<div class="item" data-id="${r.id}"><span>${esc(r.title)}</span><span class="m">${r.minutes} min${r.serves?' · serves '+r.serves:''}${r.oven?' · '+r.oven+'C':''}</span></div>`).join('')||'<div class="m">No match</div>'}
+$('#q').oninput=draw;$('#items').onclick=e=>{const i=e.target.closest('.item');if(i)open(i.dataset.id)};
+async function open(id){CUR=await api('api/recipes/'+id);CUR._id=id;show()}
+function show(){const r=CUR,st=[...r.steps].sort((a,b)=>b.before-a.before);
+ $('#list').hidden=true;$('#view').hidden=false;$('#view').innerHTML=`<div class="card"><button id="back">&larr; All recipes</button>
+ <h2 style="margin-top:12px">${esc(r.title||r.name)}</h2><div class="m">${r.oven?'Oven '+r.oven+'C · ':''}${r.serves?'Serves '+r.serves+' · ':''}Child messaged ${r[RK+'minutes']??15} min before</div>
+ <label>Steps</label>${st.map(s=>`<div class="st"><b>${s.before} min</b><span>${esc(s.text)}</span></div>`).join('')}
+ <label>Prep</label>${(r.prep||[]).map(p=>'<div>- '+esc(p)+'</div>').join('')||'<div class="m">none</div>'}
+ <label>Shopping</label>${(r.shopping||[]).map(p=>'<div>- '+esc(p)+'</div>').join('')||'<div class="m">none</div>'}
+ <div class="bar"><button id="ed">Edit</button><button class="p" id="cook">Cook this now</button></div><div id="msg"></div></div>`;
+ $('#back').onclick=()=>{$('#view').hidden=true;$('#list').hidden=false};$('#ed').onclick=edit;$('#cook').onclick=cook}
+const lines=a=>(a||[]).join('\n'),unl=t=>t.split('\n').map(x=>x.trim()).filter(Boolean);
+function edit(){const r=CUR;$('#view').innerHTML=`<div class="card"><h2>Edit: ${esc(r.title||r.name)}</h2>
+ <label>Title</label><input id="e_title" value="${esc(r.title||r.name)}">
+ <div class="row"><div><label>Oven (C)</label><input id="e_oven" type="number" value="${r.oven||''}"></div><div><label>Serves</label><input id="e_serves" value="${r.serves||''}"></div><div><label>Child message (min before)</label><input id="e_kid" type="number" value="${r[RK+'minutes']??15}"></div></div>
+ <label>Steps (one per line: minutes before serving | text)</label><textarea id="e_steps" style="min-height:220px">${esc(r.steps.map(s=>s.before+' | '+s.text).join('\n'))}</textarea>
+ <label>Prep (one per line)</label><textarea id="e_prep">${esc(lines(r.prep))}</textarea>
+ <label>Shopping (one per line)</label><textarea id="e_shop">${esc(lines(r.shopping))}</textarea>
+ <div class="bar"><button class="p" id="sv">Save</button><button id="cx">Cancel</button></div><div id="msg"></div></div>`;
+ $('#cx').onclick=show;$('#sv').onclick=save}
+async function save(){const num=v=>v===''?null:Number(v);
+ const steps=unl($('#e_steps').value).map(l=>{const i=l.indexOf('|');return{before:Number(l.slice(0,i).trim()),text:l.slice(i+1).trim()}});
+ if(steps.some(s=>!Number.isInteger(s.before)))return msg('Each step line needs: minutes | text','err');
+ const d={title:$('#e_title').value.trim(),oven:num($('#e_oven').value),serves:(v=>/^\d+$/.test(v)?Number(v):v)($('#e_serves').value.trim()),[RK+'minutes']:num($('#e_kid').value)??15,steps,prep:unl($('#e_prep').value),shopping:unl($('#e_shop').value)};
+ try{await api('api/recipes/'+CUR._id,{method:'PUT',body:JSON.stringify(d)});CUR=await api('api/recipes/'+CUR._id);CUR._id=CUR._id;ALL=await api('api/recipes');draw();show();msg('Saved (backup kept)','good')}
+ catch(e){msg((e.errors||[e.error||'failed']).join('; '),'err')}}
+function msg(t,c){const m=$('#msg');if(m){m.textContent=t;m.className=c||''}}
+function cook(){$('#msg').innerHTML=`<div class="row" style="align-items:end;margin-top:8px"><div><label>Eat time</label><input id="eat" type="time" value="18:30"></div><div><button class="p" id="go">Start cooking mode</button></div></div>
+ <div class="m">Starts spoken steps on the kitchen HomePod and the wall display cooking screen.</div>`;
+ $('#go').onclick=async()=>{if(!confirm('Start cooking mode for '+(CUR.title||CUR.name)+' at '+$('#eat').value+'?'))return;
+  const live=true;
+  try{const j=await api('api/cook',{method:'POST',body:JSON.stringify({name:CUR._id,eat:$('#eat').value,live})});msg(j.dry_run?'Shadow mode (nothing is sent): '+j.would_run:'Started: '+j.result,'good')}catch(e){msg((e.errors||['failed']).join('; '),'err')}}}
+init();
+</script></body></html>

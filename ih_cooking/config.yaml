@@ -1,7 +1,7 @@
 name: "Intelligent Home - Cooking"
-version: "0.1.1"
+version: "0.2.0"
 slug: ih_cooking
-description: "Data owner for recipes and the meal plan, plus the weekly meal-vs-calendar check (who is not home for each planned meal). Read-only in v0.1: no oven control, no writes to Home Assistant, no Discord. Maps no folders."
+description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
 arch:
   - aarch64
   - amd64
@@ -10,10 +10,13 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8809]/healthz  once boot is auto.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8810
+ingress_panel: false
 ports:
   8809/tcp: 8809
 ports_description:
-  8809/tcp: "Read-only API (bearer api_token): /recipes /plan /clashes /status; /healthz open"
+  8809/tcp: "API (bearer api_token): /recipes /plan /clashes /status /cook /oven; /healthz open"
 options:
   log_payloads: false
   api_token: ""
@@ -22,6 +25,25 @@ options:
   plan_entity_prefix: ""
   rate_per_min: 60
   clash_config: ""
+  cook_mode: "dry"
+  cook_confirm: ""
+  other_controller_entity: ""
+  other_controller_max_age_s: 120
+  other_controller_none: false
+  discord_token: ""
+  discord_channel_id: ""
+  discord_child_id: ""
+  discord_owner_id: ""
+  child_name: ""
+  player_entity: ""
+  player_group: ""
+  tts_entity: "tts.google_translate_en_com"
+  oven_prefix: ""
+  oven_device_id: ""
+  plan_sensor_entity: "sensor.cooking_plan"
+  rerender_script_entity: ""
+  publish_webhook_url: ""
+  publish_live: false
 schema:
   log_payloads: bool?
   api_token: password
@@ -30,3 +52,22 @@ schema:
   plan_entity_prefix: str?
   rate_per_min: int(1,600)
   clash_config: str?
+  cook_mode: list(off|dry|live)
+  cook_confirm: str?
+  other_controller_entity: str?
+  other_controller_max_age_s: int(10,3600)
+  other_controller_none: bool?
+  discord_token: password?
+  discord_channel_id: str?
+  discord_child_id: str?
+  discord_owner_id: str?
+  child_name: str?
+  player_entity: str?
+  player_group: str?
+  tts_entity: str?
+  oven_prefix: str?
+  oven_device_id: str?
+  plan_sensor_entity: str?
+  rerender_script_entity: str?
+  publish_webhook_url: str?
+  publish_live: bool?

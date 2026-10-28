@@ -1,7 +1,7 @@
-"""Add-on manager page (v0.7.0: tabs Add-ons, Install, Plugins, Settings, Health). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
+"""Add-on manager page (v0.8.0: tabs Add-ons, Install, Plugins, Settings, Health, Usage). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
-import json, os, threading, time, urllib.request, urllib.error
+import hashlib, json, os, re, threading, time, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 import provisioner
@@ -11,6 +11,7 @@ ACTIONS = ("install", "start", "stop", "restart", "update")
 EXTERNAL = {"mqtt": "core_mosquitto"}   # requires that are not ours: only checked, never acted on
 LOG_LINES = 50
 JOB_KEEP = 50
+USAGE_EVERY = 300   # seconds between usage counts (done by the cache warmer, never on a page load)
 SLOW = 900   # seconds: install and update can take minutes (local build)
 
 
@@ -82,6 +83,71 @@ def install_order(short, needs, installed, seen=None):
     return out
 
 
+# ---- usage counting (0.8.0). Counts and times ONLY: log text is parsed in memory and never stored, returned or logged.
+# Every IH add-on logs ONE metadata line per real invocation, starting with HH:MM:SS (no date). Add a row to USAGE_FORMATS for a new
+# line format: (label, regex matching the SHORT slug, regex for the line). The line regex needs the groups t (HH:MM:SS) and ok (True|False);
+# an optional group id is used to dedupe. The first row whose slug regex matches is used; USAGE_GENERIC is the fallback for every other add-on.
+_T = r"^(?P<t>\d\d:\d\d:\d\d) "
+_OK = r".*?\bok=(?P<ok>True|False)\b"
+USAGE_FORMATS = [
+    ("ai_layer request line", r"^ih_ai_layer$", re.compile(_T + r"request id=(?P<id>\S*)" + _OK)),       # `12:27:07 request id=.. caller=.. cap=.. ok=True`
+    ("provider ask line", r"^ih_ai_layer_", re.compile(_T + r"ask id=(?P<id>\S*)" + _OK)),                # `.. ask id=.. agent=.. ok=True`
+    ("invoke line", r"^ih_(jobs|games|cooking|orchestrator|orchestration_inbox|discord)", re.compile(_T + r"invoke id=(?P<id>\S*)" + _OK)),   # `.. invoke id=run1 src=startup what=trust .. ok=True`
+]
+USAGE_GENERIC = re.compile(_T + r"(?:.*?\bid=(?P<id>\S*))?" + _OK)   # fallback: any timestamped line holding ok=True / ok=False
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+USAGE_DAYS = 14        # days of counts kept in /data/usage.json
+USAGE_KEY_DAYS = 3     # days of dedupe keys kept
+USAGE_KEY_MAX = 6000   # dedupe keys per add-on and day
+
+
+def usage_regex(short):
+    for _label, slug_rx, rx in USAGE_FORMATS:
+        if re.search(slug_rx, short):
+            return rx
+    return USAGE_GENERIC
+
+
+def parse_usage(short, text, now):
+    """-> [(day 'YYYY-MM-DD', seconds_of_day, ok, key)] for the invocation lines of one log. Text is not kept.
+    Lines carry only a time of day: walking back from the newest line, a time later than the next line's means we crossed midnight.
+    Quiet spells of more than a day cannot be seen, so very old lines in a long log may be dated a day or more late (known limit)."""
+    rx = usage_regex(short)
+    found, seen = [], {}
+    for line in text.splitlines():
+        m = rx.match(_ANSI.sub("", line).strip())
+        if not m:
+            continue
+        h, mi, se = (int(x) for x in m.group("t").split(":"))
+        if h > 23 or mi > 59 or se > 59:
+            continue
+        gd = m.groupdict()
+        base = hashlib.sha1((short + "|" + m.group("t") + "|" + (gd.get("id") or line)).encode()).hexdigest()[:10]
+        seen[base] = seen.get(base, 0) + 1
+        found.append((h * 3600 + mi * 60 + se, m.group("ok") == "True", "%s#%d" % (base, seen[base])))
+    out = []
+    if not found:
+        return out
+    lt = time.localtime(now)
+    day = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+    nowsec = lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec
+    off = 1 if found[-1][0] > nowsec + 120 else 0    # newest line is later than now: it was yesterday
+    prev = None
+    for sec, ok, key in reversed(found):
+        if prev is not None and sec > prev:
+            off += 1
+        prev = sec
+        d = time.localtime(day - off * 86400 + 43200)
+        out.append(("%04d-%02d-%02d" % (d.tm_year, d.tm_mon, d.tm_mday), sec, ok, key))
+    out.reverse()
+    return out
+
+
+def day_str(ts):
+    d = time.localtime(ts)
+    return "%04d-%02d-%02d" % (d.tm_year, d.tm_mon, d.tm_mday)
+
+
 class Jobs:
     """Background runner. States: queued, running, done, error. Keeps the last JOB_KEEP jobs."""
     def __init__(self):
@@ -121,11 +187,13 @@ class Jobs:
 
 class Manager:
     def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
-                 health=lambda: None, http=None):
+                 health=lambda: None, http=None, usage_path=None, clock=time.time):
         self.catalogue, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.health_src, self.http = health, http or http_json
         self.jobs, self.busy, self.lock = Jobs(), set(), threading.Lock()
         self.cache = (0, None)
+        self.usage_path, self.clock, self.ulock = usage_path or os.environ.get("IH_USAGE", "/data/usage.json"), clock, threading.Lock()
+        self.usage, self.usage_t, self.usage_err = self._usage_load(), 0, {}
 
     # ---- scope
     def context(self):
@@ -184,6 +252,11 @@ class Manager:
                 self.rows(force=True)
             except Exception as e:
                 self.log("manager warm: %s" % type(e).__name__)
+            if self.clock() - self.usage_t >= USAGE_EVERY:
+                try:
+                    self.collect_usage()
+                except Exception as e:
+                    self.log("manager usage: %s" % type(e).__name__)
             sleep(every)
 
     def _rows(self):
@@ -203,7 +276,7 @@ class Manager:
                  "mem_pct": None, "full": (prefix + "_" + s) if i else None, "seen": seen.get(s), "missing_settings": len(settings[s].get("missing") or []) if s in settings else None,
                  "needs": [{"slug": n, "status": dep_status(n, states)} for n in needs.get(s, [])],
                  "needed_by": [{"slug": n, "status": dep_status(n, states)} for n in by.get(s, [])],
-                 "can_act": s != "ih_orchestrator"}
+                 "can_act": s != "ih_orchestrator", "used": self.used(s) if i else None}
             if i:
                 self._live(prefix + "_" + s, r)
             out.append(r)
@@ -290,6 +363,111 @@ class Manager:
         except provisioner.SupError as e:
             return 502, {"error": str(e)}
         return 200, {"slug": short, "lines": text.splitlines()[-LOG_LINES:]}
+
+    # ---- usage (counts only; see parse_usage)
+    def _usage_load(self):
+        try:
+            d = json.load(open(self.usage_path))
+            if isinstance(d, dict) and isinstance(d.get("days"), dict):
+                return d
+        except Exception:
+            pass
+        return {"v": 1, "days": {}}
+
+    def _usage_save(self):
+        try:
+            tmp = self.usage_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self.usage, f, separators=(",", ":"))
+            os.replace(tmp, self.usage_path)
+        except Exception as e:
+            self.log("manager usage save: %s" % type(e).__name__)
+
+    def collect_usage(self):
+        """Read each installed catalogue add-on's log tail once, add NEW invocation lines to the day buckets, save. Returns lines added."""
+        prefix, _ = self.context()
+        inst = self.installed_map(prefix)
+        now, added, err = self.clock(), 0, {}
+        with self.ulock:
+            days = self.usage["days"]
+            for c in self.catalogue:
+                s = c["slug"]
+                if s not in inst or not s.startswith("ih_"):
+                    continue
+                try:
+                    text = self.text("/addons/%s/logs" % inst[s]["slug"])
+                except provisioner.SupError as e:
+                    err[s] = str(e); continue
+                known = set()
+                for dd in days.values():
+                    known.update((dd.get(s) or {}).get("k") or [])
+                for day, sec, ok, key in parse_usage(s, text, now):
+                    if key in known:
+                        continue
+                    known.add(key)
+                    b = days.setdefault(day, {}).setdefault(s, {"ok": 0, "fail": 0, "last": -1, "h": [0] * 24, "hf": [0] * 24, "k": []})
+                    b["ok" if ok else "fail"] += 1
+                    b["h" if ok else "hf"][sec // 3600] += 1
+                    b["last"] = max(b["last"], sec)
+                    if len(b["k"]) < USAGE_KEY_MAX:
+                        b["k"].append(key)
+                    added += 1
+            keep = sorted(days)[-USAGE_DAYS:]
+            for d in [d for d in days if d not in keep]:
+                del days[d]
+            for d in sorted(days)[:-USAGE_KEY_DAYS]:
+                for b in days[d].values():
+                    b.pop("k", None)
+            self.usage_t, self.usage_err = now, err
+            self._usage_save()
+        return added
+
+    def used(self, short):
+        """{today, failed_today, h24, failed_24h, last (HH:MM or None), last_day} or None when nothing was ever counted/read yet."""
+        now = self.clock()
+        with self.ulock:
+            if not self.usage_t and not self.usage["days"]:
+                return None
+            days = self.usage["days"]
+            today, yest = day_str(now), day_str(now - 86400)
+            t = (days.get(today) or {}).get(short) or {}
+            y = (days.get(yest) or {}).get(short) or {}
+            hr = time.localtime(now).tm_hour
+            h24 = sum(sum(b.get(k, [0] * 24)[hr + 1:]) for b, k in ((y, "h"), (y, "hf"))) + sum(sum(t.get(k, [0] * 24)[:hr + 1]) for k in ("h", "hf"))
+            f24 = sum(y.get("hf", [0] * 24)[hr + 1:]) + sum(t.get("hf", [0] * 24)[:hr + 1])
+            last, last_day = None, None
+            for d in sorted(days, reverse=True):
+                b = days[d].get(short)
+                if b and b.get("last", -1) >= 0:
+                    last, last_day = "%02d:%02d" % (b["last"] // 3600, b["last"] % 3600 // 60), d
+                    break
+            return {"today": t.get("ok", 0) + t.get("fail", 0), "failed_today": t.get("fail", 0), "h24": h24, "failed_24h": f24, "last": last, "last_day": last_day, "today_day": today}
+
+    def usage_report(self):
+        """-> (200, obj): per installed add-on, counts for the last 7 days. Counts and times only."""
+        now = self.clock()
+        dates = [day_str(now - 86400 * i) for i in range(6, -1, -1)]
+        try:
+            prefix, _ = self.context()
+            inst = self.installed_map(prefix)
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        rows = []
+        with self.ulock:
+            for c in self.catalogue:
+                s = c["slug"]
+                if s not in inst or not s.startswith("ih_"):
+                    continue
+                per, fl = [], 0
+                for d in dates:
+                    b = (self.usage["days"].get(d) or {}).get(s) or {}
+                    per.append(b.get("ok", 0) + b.get("fail", 0)); fl += b.get("fail", 0)
+                rows.append({"slug": s, "state": inst[s]["state"], "per_day": per, "total": sum(per), "failed": fl, "unreadable": s in self.usage_err})
+        for r in rows:
+            u = self.used(r["slug"]); r["last"], r["last_day"] = (u or {}).get("last"), (u or {}).get("last_day")
+        rows.sort(key=lambda r: (-r["total"], r["slug"]))
+        return 200, {"days": dates, "addons": rows, "counted_at": self.usage_t or None,
+                     "note": "Counted from the recent log of each add-on (a limited tail), saved every 5 minutes, so older days survive log rotation. Counts start when this version first ran."}
 
     def job(self, jid):
         j = self.jobs.get(jid)
@@ -399,11 +577,11 @@ pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px;w
 #msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.w{overflow-x:auto}
 .chip{display:inline-block;margin:4px 4px 4px 0;padding:4px 12px;border:1px solid #8886;border-radius:14px;cursor:pointer}.chip.on{background:#1976d2;color:#fff}</style>
 <h2>Intelligent Home</h2>
-<nav id=nav><a data-t=addons>Add-ons</a><a data-t=install>Install</a><a data-t=plugins>Plugins</a><a data-t=settings>Settings</a><a data-t=health>Health</a></nav>
+<nav id=nav><a data-t=addons>Add-ons</a><a data-t=install>Install</a><a data-t=plugins>Plugins</a><a data-t=settings>Settings</a><a data-t=health>Health</a><a data-t=usage>Usage</a></nav>
 <div id=msg></div><div id=main>Loading (the first load after a restart can take about 30 seconds)...</div>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
-var TABS=['addons','install','plugins','settings','health'],TAB='addons',FILT='All',OPEN={},DATA=null;
+var TABS=['addons','install','plugins','settings','health','usage'],TAB='addons',FILT='All',OPEN={},DATA=null;
 function U(p){return B+p}
 function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
 function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
@@ -427,11 +605,12 @@ function goHA(path){try{window.top.history.pushState(null,'',path);window.top.di
 function cfgLink(full,label){return btn(label||'Open config',function(){goHA(['','config','app',full,'config'].join('/'))})}
 function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
  fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
+function usedTxt(u){if(!u)return null;return u.today+' today'+(u.failed_today?' ('+u.failed_today+' failed)':'')+', last '+(u.last?(u.last_day==u.today_day||!u.last_day?u.last:u.last+' on '+u.last_day.slice(5)):'never seen')}
 function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
  var k=E('div',null,'card s-'+(a.state||'none'));k.appendChild(E('h3',a.slug));k.appendChild(E('div',a.description,'d'));
  kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['State',a.state||'-',a.state=='started'?'g':'r'],
   ['CPU',a.cpu==null?null:a.cpu+' %'],['Mem',a.mem_mb==null?null:a.mem_mb+' MB'],['Seen',age(a.seen)],
-  ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',a.requests_used==null?null:a.requests_used+' requests']]);
+  ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',usedTxt(a.used),a.used&&a.used.failed_today?'o':'']]);
  if(a.can_act){var b=E('div',null,'btns');
   if(a.state=='started')b.appendChild(btn('Stop',function(){act('stop',a.slug)}));else b.appendChild(btn('Start',function(){act('start',a.slug)}));
   b.appendChild(btn('Restart',function(){act('restart',a.slug)}));
@@ -471,11 +650,24 @@ function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/hea
  j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
   [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
  w.appendChild(t);m.appendChild(w)})}
+function tabUsage(m){m.appendChild(E('p','Loading usage...'));fetch(U('api/usage')).then(J).then(function(x){m.textContent='';var j=x[1];
+ if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
+ m.appendChild(E('p','Invocations per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are highlighted.','d'));
+ var mx=1;j.addons.forEach(function(a){a.per_day.forEach(function(n){if(n>mx)mx=n})});
+ var w=E('div',null,'w'),t=E('table'),h=E('tr');['Add-on','7 days','Total','Failed','Last'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
+ j.addons.forEach(function(a){var r=E('tr'),dead=a.total==0;if(dead)r.style.background='#ef6c0030';
+  r.appendChild(E('td',a.slug+(a.state=='started'?'':' ('+(a.state||'stopped')+')')+(a.unreadable?' (log unreadable)':'')));
+  var c=E('td'),bars=E('span');bars.style.cssText='display:inline-flex;align-items:flex-end;gap:2px;height:22px';
+  a.per_day.forEach(function(n,i){var b=E('span');b.title=j.days[i]+': '+n;b.style.cssText='display:inline-block;width:8px;background:'+(n?'#1976d2':'#8884')+';height:'+(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(b)});c.appendChild(bars);r.appendChild(c);
+  r.appendChild(E('td',dead?'not used in 7 days':String(a.total),dead?'o':''));r.appendChild(E('td',String(a.failed),a.failed?'r':''));
+  r.appendChild(E('td',a.last?(a.last+(a.last_day?' '+a.last_day.slice(5):'')):'-'));t.appendChild(r)});
+ w.appendChild(t);m.appendChild(w)})}
 function show(){var m=document.getElementById('main');
  Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.dataset.t==TAB?'on':''});
  if(TAB=='plugins'){m.textContent='';tabPlugins(m);return}
  if(TAB=='settings'){m.textContent='';tabSettings(m);return}
  if(TAB=='health'){m.textContent='';tabHealth(m);return}
+ if(TAB=='usage'){m.textContent='';tabUsage(m);return}
  fetch(U('api/addons')).then(function(r){return r.json()}).then(function(d){
   if(d.error){say(d.error);return}
   var keep=m.querySelectorAll('pre').length;if(keep&&TAB=='addons'&&DATA)return;
@@ -512,6 +704,8 @@ def make_handler(mgr):
                     return self._json(*mgr.plugins())
                 if p == "/api/settings":
                     return self._json(*mgr.settings())
+                if p == "/api/usage":
+                    return self._json(*mgr.usage_report())
                 if p == "/api/health":
                     return self._json(*mgr.health())
                 if p == "/api/addons":

@@ -1,6 +1,6 @@
 # Intelligent Home - Cooking
 
-Data owner for recipes and the meal plan, plus the meal-vs-calendar check (read-only in v0.1).
+Data owner for recipes and the meal plan, plus the meal-vs-calendar check (dry cook control, recipes page).
 
 - **Family:** Cooking. Stand-alone family member.
 - **Needs:** nothing else

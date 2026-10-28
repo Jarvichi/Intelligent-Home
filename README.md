@@ -83,7 +83,7 @@ Nothing is copied by hand between add-ons.
 
 | Add-on | What it does | Needs | Docs |
 |---|---|---|---|
-| **Intelligent Home - Cooking** (`ih_cooking`) | Data owner for recipes and the meal plan, plus the meal-vs-calendar check (read-only in v0.1). | nothing else | [DOCS](ih_cooking/DOCS.md) |
+| **Intelligent Home - Cooking** (`ih_cooking`) | Data owner for recipes and the meal plan, plus the meal-vs-calendar check (dry cook control, recipes page). | nothing else | [DOCS](ih_cooking/DOCS.md) |
 
 ### Brain
 

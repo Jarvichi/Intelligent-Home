@@ -1,6 +1,6 @@
 """Home Assistant access from an add-on: REST through the Supervisor proxy and a minimal stdlib websocket client.
 Token = SUPERVISOR_TOKEN (or passed in). opener / connect are injectable for tests."""
-import base64, json, os, socket, struct, urllib.parse, urllib.request
+import base64, json, os, select, socket, struct, time, urllib.parse, urllib.request
 from datetime import datetime, timezone
 
 REST_BASE = 'http://supervisor/core/api/'
@@ -36,6 +36,15 @@ class WS:
             self.buf += c
         out, self.buf = self.buf[:n], self.buf[n:]
         return out
+
+    def wait(self, timeout):
+        """True when a frame can be read now (data already buffered or arriving within `timeout` seconds). Used so recv() is never cut off half way by a timeout."""
+        if self.buf:
+            return True
+        try:
+            return bool(select.select([self.s], [], [], timeout)[0])
+        except (OSError, ValueError):
+            raise HAError('websocket closed')
 
     def send(self, obj):
         data = json.dumps(obj).encode()
@@ -171,3 +180,27 @@ class HA:
 
     def ws(self, message):
         return self.ws_many([message])[0]
+
+    def subscribe_events(self, event_type, on_event, max_seconds=600, on_idle=None, poll=1.0):
+        """Listen for one HA event type over a websocket for at most `max_seconds`, then return (the caller starts the next pass).
+        on_event(data_dict) is called for each event, on_idle() about every `poll` seconds when nothing arrived. Handlers run on this thread,
+        so events that arrive meanwhile wait in the socket. Raises HAError if the subscription is refused or the connection drops."""
+        ws = self._open()
+        try:
+            ws.send({'id': 1, 'type': 'subscribe_events', 'event_type': event_type})
+            end = time.time() + max_seconds
+            ready = False
+            while time.time() < end:
+                if ws.wait(poll):
+                    m = ws.recv()
+                    if m.get('id') == 1 and m.get('type') == 'result':
+                        if not m.get('success'):
+                            raise HAError('subscribe refused')
+                        ready = True
+                    elif m.get('type') == 'event' and ready:
+                        d = (m.get('event') or {}).get('data')
+                        on_event(d if isinstance(d, dict) else {})
+                elif on_idle:
+                    on_idle()
+        finally:
+            ws.close()

@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')

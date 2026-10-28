@@ -1,9 +1,9 @@
 """Store (recipes, meal plan), options, HA calendar fetch, rate limit. stdlib only."""
 import glob, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
-import clashes
+import clashes, recipeadmin
 
-VERSION = '0.1.1'
+VERSION = '0.2.0'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -37,12 +37,32 @@ def load_options(path):
         'rate_per_min': int(o.get('rate_per_min') or 60),
         'clash_config': cc,
         'log_payloads': o.get('log_payloads') is True,
+        'publish_webhook_url': str(o.get('publish_webhook_url') or '').strip(),
+        'publish_live': o.get('publish_live') is True,
+        'cook': cook_config(o),
+    }
+
+
+def cook_config(o):
+    """Cook-control settings (all ids come from options; nothing is built in). cook_mode: off | dry (default) | live."""
+    s = lambda k, d='': str(o.get(k) or d).strip()
+    mode = s('cook_mode', 'dry')
+    return {
+        'mode': mode if mode in ('off', 'dry', 'live') else 'dry', 'confirm': s('cook_confirm'),
+        'other_entity': s('other_controller_entity'), 'other_max_age': int(o.get('other_controller_max_age_s') or 120), 'other_none': o.get('other_controller_none') is True,
+        'channel': s('discord_channel_id'), 'child_dm': s('discord_child_id'), 'owner_dm': s('discord_owner_id'), 'child_name': s('child_name'),
+        'discord_token': s('discord_token'),
+        'player_entity': s('player_entity'), 'player_group': [x.strip() for x in s('player_group').split(',') if x.strip()], 'tts_entity': s('tts_entity', 'tts.google_translate_en_com'),
+        'oven_prefix': s('oven_prefix'), 'oven_device': s('oven_device_id'),
+        'plan_sensor': s('plan_sensor_entity', 'sensor.cooking_plan'), 'rerender_script': s('rerender_script_entity'),
     }
 
 
 class Store:
     def __init__(self, data, seed_dir, opts, log=None, clock=time.time, opener=None):
         self.data, self.seed, self.opts = data, seed_dir, opts
+        self.opts.setdefault('cook', cook_config({}))
+        self.opts.setdefault('publish_webhook_url', ''); self.opts.setdefault('publish_live', False)
         self.log = log or (lambda *a: None)
         self.clock, self.opener = clock, opener or urllib.request.urlopen
         self.rdir = os.path.join(data, 'recipes')
@@ -50,6 +70,37 @@ class Store:
         self.hits = []
         self.calls = 0
         self.seed_recipes()
+        self.engine = None
+
+    def make_engine(self, clock_now=None, discord=None, ha=None, **kw):
+        """The cook engine. HA client only if ha_token is set; Discord client only if a bot token is set."""
+        import cookengine
+        c = self.opts['cook']
+        if ha is None and self.opts['ha_token']:
+            ha = cookengine.HAClient(self.opts['ha_url'], self.opts['ha_token'], self.opener)
+        if discord is None and c.get('discord_token'):
+            discord = cookengine.DiscordClient(c['discord_token'], self.opener)
+        kw.setdefault('log', self.log)
+        self.engine = cookengine.Engine(c, os.path.join(self.data, 'cook'), ha=ha, discord=discord, **kw)
+        return self.engine
+
+    # --- publish (replaces recipes.py publish: www copy + brain notes). Dry by default: only logs. Live: POST to publish_webhook_url.
+    def publish(self):
+        files = {}
+        for k, v in recipeadmin.brain_notes(self.data).items(): files['brain/' + k] = v
+        for k, v in recipeadmin.www_index(self.data).items(): files['www/' + k] = v
+        url = self.opts['publish_webhook_url']
+        if not (self.opts['publish_live'] and url):
+            self.log('publish (dry): would send %d files to the publish webhook%s' % (len(files), '' if url else ' (publish_webhook_url not set)'))
+            return {'ok': True, 'dry': True, 'files': len(files)}
+        req = urllib.request.Request(url, data=json.dumps({'source': 'ih_cooking', 'files': files}, ensure_ascii=False).encode(), method='POST', headers={'Content-Type': 'application/json'})
+        try:
+            with self.opener(req, timeout=20) as r: code = getattr(r, 'status', 200)
+            self.log('publish: sent %d files (HTTP %s)' % (len(files), code))
+            return {'ok': True, 'dry': False, 'files': len(files)}
+        except Exception as e:
+            self.log('publish failed: ' + type(e).__name__)
+            return {'ok': False, 'why': type(e).__name__}
 
     def seed_recipes(self):
         os.makedirs(self.rdir, exist_ok=True)

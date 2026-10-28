@@ -1,8 +1,8 @@
 {
  "name": "ih_cooking",
- "version": "0.1.1",
+ "version": "0.2.0",
  "kind": "addon",
- "description": "Data owner for recipes and the meal plan, plus the meal-vs-calendar check (read-only in v0.1).",
+ "description": "Data owner for recipes and the meal plan, plus the meal-vs-calendar check (dry cook control, recipes page).",
  "owner": "local add-on ih_cooking",
  "start": "Supervisor add-on 32c8114c_ih_cooking (boot manual)",
  "health": [
@@ -19,6 +19,7 @@
  "schedules": [],
  "declares_secrets": [
   "api_token",
+  "discord_token",
   "ha_token"
  ],
  "restore": "Stop the add-on. Uninstall to remove.",

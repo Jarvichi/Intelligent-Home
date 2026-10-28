@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-10-28
+
+### Added
+- Usage: the page now shows which add-ons are really being used. Every 5 minutes the background refresher counts the invocation lines in each add-on's recent log (today, last 24 hours, failed, time of the last one). Add-on cards show "Used: N today (M failed), last HH:MM".
+- New Usage tab: add-ons sorted by use over the last 7 days, a small bar per day, and "not used in 7 days" highlighted.
+- Daily counts are saved in `/data/usage.json` so they survive log rotation and restarts; the same log line is never counted twice. Only counts and times are stored or shown, never log text. Counts start when this version first runs, and logs hold only a limited tail.
+
 ## [0.7.3] - 2026-10-28
 
 ### Fixed

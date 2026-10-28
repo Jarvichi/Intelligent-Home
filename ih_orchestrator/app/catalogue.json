@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.7.3"
+  "version": "0.8.0"
  },
  {
   "name": "Intelligent Home - Discord",
@@ -25,7 +25,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.7.0"
+  "version": "0.8.0"
  },
  {
   "name": "Intelligent Home - Jobs - Backup",
@@ -236,10 +236,10 @@
  {
   "name": "Intelligent Home - Cooking",
   "slug": "ih_cooking",
-  "description": "Data owner for recipes and the meal plan, plus the weekly meal-vs-calendar check (who is not home for each planned meal). Read-only in v0.1: no oven control, no writes to Home Assistant, no Discord. Maps no folders.",
+  "description": "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders.",
   "kind": "addon",
   "requires": [],
-  "version": "0.1.1"
+  "version": "0.2.0"
  },
  {
   "name": "Intelligent Home - Brain",

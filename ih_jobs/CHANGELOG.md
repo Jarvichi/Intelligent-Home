@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-10-28
+
+### Added
+- Folder access: `map: media:rw, share:rw` in `config.yaml`. Needed for the two photo plugins only (the albums live under `/media`, the brain photos and a private file share under `/share`). No other plugin reads or writes these folders. This widens what the add-on can touch, so check it when updating.
+- Plugin `photo_catalogue` (daily 03:20): catalogues photos from the brain attachments and allow-listed media folders into viewable albums (1600 px copies, 400 px thumbnails, by topic and by month, optional private file-share copy, family-shared albums). Skip rules (file-name pattern, private-note marker) are settings. Dry by default.
+- Plugin `photo_albums` (service): manual albums driven by a dashboard card through a Home Assistant event (create, rename, add, move, share, delete, upload ingest). Dry by default (runs each action in memory only).
+- Pillow 11.0.0 in the image (resizing; replaces the old node tool). Missing Pillow is logged and the live plugin does nothing.
+- Shared library: `HA.subscribe_events` (bounded event subscription over the websocket) and `WS.wait`.
+
 ## [0.7.0] - 2026-10-28
 
 ### Added
