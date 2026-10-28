@@ -9,6 +9,7 @@ STR_TYPES = ("str", "string", "password", "url", "email")
 PER_ADDON_ONLY = frozenset(("module_name", "signing_key", "model", "agent_id", "callback_url", "channel_key",
                             "command_channel_key", "house_channel_key", "mqtt_user", "mqtt_password",
                             "api_token", "outbox_token", "parent_url"))   # own inbound tokens and per-login values never spread (28 Oct review)
+FAMILY_OPTS = ("register_key",)   # a child add-on takes its parent's value before any global one
 WAIT_POLLS, WAIT_STEP = 30, 2   # restarted add-on must be 'started' within 60 s
 
 
@@ -214,7 +215,7 @@ class Provisioner:
         for slug in slugs:
             suf = self.suffix(prefix, slug)
             try:
-                st["addons"][suf] = self._one(slug, suf, g, a.get(suf, {}), overwrite)
+                st["addons"][suf] = self._one(slug, suf, g, family_view(suf, a), overwrite)
                 if st["addons"][suf].get("halt"):
                     st["errors"].append("stopped: %s did not restart" % suf)
                     self.log("provision: stopped, %s did not reach started" % suf)
@@ -293,6 +294,18 @@ def settings_html(status, esc):
                    for k, v in sorted((status.get("addons") or {}).items()))
     err = "".join("<p>%s</p>" % esc(e) for e in status.get("errors") or [])
     return "<h3>Settings</h3>%s<table><tr><th>Add-on<th>Missing options<th>Error</tr>%s</table>" % (err, rows)
+
+
+def family_view(suf, per_addon):
+    """Per-add-on values for suf, falling back to its family parent (longest suffix that is a prefix + '_'),
+    e.g. ih_jobs_trust inherits ih_jobs. Only FAMILY_OPTS are inherited: each family has its own register key (28 Oct)."""
+    own = dict(per_addon.get(suf, {}))
+    parents = sorted((p for p in per_addon if p != suf and suf.startswith(p + "_")), key=len, reverse=True)
+    if parents:
+        for opt in FAMILY_OPTS:
+            if opt not in own and opt in per_addon[parents[0]]:
+                own[opt] = per_addon[parents[0]][opt]
+    return own
 
 
 def loop(prov, get_interval_min, stop=lambda: False, sleep=time.sleep):
