@@ -53,7 +53,7 @@ Nothing leaves your network. Status data and tokens stay on the add-on; the only
 Fills the empty options of your other `ih_*` add-ons from one list, so there are no hand-copied keys.
 1. Set `ingest_token`, then turn on `provision` and restart this add-on.
 2. On first start it imports the options your installed `ih_*` add-ons already hold into `/data/hub.json` (same value everywhere = global; otherwise per add-on).
-3. Add anything missing to `shared`: name `opt` (all add-ons) or `<addon_suffix>.opt` (one add-on, e.g. `ih_ai_layer_groq.api_key`). `shared` wins over hub.json.
+3. Add anything missing to `shared`: name `opt` (all add-ons) or `<addon_suffix>.opt` (one add-on, e.g. `ih_ai_layer.groq_key`). `shared` wins over hub.json.
 4. Every `provision_interval_min` minutes it fills EMPTY options and restarts changed add-ons that are running. `provision_overwrite` also corrects differing values.
 5. See names only (never values) on the status page "Settings" section, or `GET /provision/status` (bearer `ingest_token`). `POST /provision` runs now, `POST /provision/import` re-imports.
 It only touches add-ons from its own repository. A `register_key` is generated once.

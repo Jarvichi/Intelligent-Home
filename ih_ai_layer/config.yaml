@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer"
-version: "0.3.1"
+version: "0.3.2"
 slug: ih_ai_layer
 description: "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. SHADOW mode by default: nothing is called. No Home Assistant access. Maps no folders."
 arch:

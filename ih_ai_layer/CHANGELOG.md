@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.2] - 2026-10-28
+
+### Removed
+- The separate provider add-ons (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) are no longer in the repository. Their providers are built in. Uninstall any you still have.
+
 ## [0.3.1] - 2026-10-28
 
 ### Added

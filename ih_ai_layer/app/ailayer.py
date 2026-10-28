@@ -13,7 +13,7 @@ ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 

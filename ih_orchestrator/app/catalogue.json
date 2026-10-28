@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.8.0"
+  "version": "0.8.1"
  },
  {
   "name": "Intelligent Home - Discord",
@@ -131,57 +131,7 @@
   "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remember",
   "kind": "addon",
   "requires": [],
-  "version": "0.3.1"
- },
- {
-  "name": "Intelligent Home - AI Layer - SerpApi Agent",
-  "slug": "ih_ai_layer_serpapi",
-  "description": "Agent of Intelligent Home - AI Layer. Answers cinema showtimes and web search questions through SerpApi (your own key, small daily cap, cached). Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.1.4"
- },
- {
-  "name": "Intelligent Home - AI Layer - Gemini",
-  "slug": "ih_ai_layer_gemini",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Google Gemini (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.2.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - Groq",
-  "slug": "ih_ai_layer_groq",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Groq (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.2.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - OpenRouter",
-  "slug": "ih_ai_layer_openrouter",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through OpenRouter (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.2.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - Claude",
-  "slug": "ih_ai_layer_claude",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Anthropic Claude (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.2.2"
+  "version": "0.3.2"
  },
  {
   "name": "Intelligent Home - AI Layer - Claude CLI Agent",
@@ -192,46 +142,6 @@
    "ih_ai_layer"
   ],
   "version": "0.1.0"
- },
- {
-  "name": "Intelligent Home - AI Layer - Grok",
-  "slug": "ih_ai_layer_grok",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through xAI Grok (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.2.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - OpenAI",
-  "slug": "ih_ai_layer_openai",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through OpenAI (Responses API, your own key, daily cap; spend cap 0 = no paid calls). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.1.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - Mistral",
-  "slug": "ih_ai_layer_mistral",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through a Mistral agent (Agents conversations endpoint, your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders.",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.1.2"
- },
- {
-  "name": "Intelligent Home - AI Layer - Pollinations",
-  "slug": "ih_ai_layer_pollinations",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Pollinations (no key needed, daily cap; prompts are PUBLIC, generic jobs only). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folde",
-  "kind": "addon",
-  "requires": [
-   "ih_ai_layer"
-  ],
-  "version": "0.1.2"
  },
  {
   "name": "Intelligent Home - Cooking",

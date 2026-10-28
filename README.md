@@ -19,7 +19,7 @@ Intelligent Home (IH) is a set of small Home Assistant add-ons. Each one does on
 4. Set `ingest_token` to a long random text.
 5. Set `mqtt_password` if you use an MQTT broker.
 6. Turn on `provision` to switch on the settings hub.
-7. Fill the shared settings in the `shared` list. Add one name and value per line. A name without a dot (for example `register_key`) applies to every add-on. A name with a dot (`ih_ai_layer_groq.groq_key`) applies to one add-on.
+7. Fill the shared settings in the `shared` list. Add one name and value per line. A name without a dot (for example `register_key`) applies to every add-on. A name with a dot (`ih_ai_layer.groq_key`) applies to one add-on.
 8. Select Save, then start the add-on.
 9. Open **Intelligent Home** in the sidebar.
 10. Open the Install tab and install the modules you want.
@@ -62,16 +62,7 @@ Nothing is copied by hand between add-ons.
 | Add-on | What it does | Needs | Docs |
 |---|---|---|---|
 | **Intelligent Home - AI Layer** (`ih_ai_layer`) | Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons. | nothing else | [DOCS](ih_ai_layer/DOCS.md) |
-| **Intelligent Home - AI Layer - Claude** (`ih_ai_layer_claude`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Anthropic Claude (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_claude/DOCS.md) |
 | **Intelligent Home - AI Layer - Claude CLI Agent** (`ih_ai_layer_claude_cli`) | Agent of Intelligent Home - AI Layer: general questions and summaries via the Claude Code CLI (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_claude_cli/DOCS.md) |
-| **Intelligent Home - AI Layer - Gemini** (`ih_ai_layer_gemini`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Google Gemini (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_gemini/DOCS.md) |
-| **Intelligent Home - AI Layer - Grok** (`ih_ai_layer_grok`) | Agent of Intelligent Home - AI Layer: general questions and summaries via xAI Grok (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_grok/DOCS.md) |
-| **Intelligent Home - AI Layer - Groq** (`ih_ai_layer_groq`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Groq (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_groq/DOCS.md) |
-| **Intelligent Home - AI Layer - Mistral** (`ih_ai_layer_mistral`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Mistral (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_mistral/DOCS.md) |
-| **Intelligent Home - AI Layer - OpenAI** (`ih_ai_layer_openai`) | Agent of Intelligent Home - AI Layer: general questions and summaries via OpenAI (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_openai/DOCS.md) |
-| **Intelligent Home - AI Layer - OpenRouter** (`ih_ai_layer_openrouter`) | Agent of Intelligent Home - AI Layer: general questions and summaries via OpenRouter (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_openrouter/DOCS.md) |
-| **Intelligent Home - AI Layer - Pollinations** (`ih_ai_layer_pollinations`) | Agent of Intelligent Home - AI Layer: general questions and summaries via Pollinations (text scrubbed first). | `ih_ai_layer` | [DOCS](ih_ai_layer_pollinations/DOCS.md) |
-| **Intelligent Home - AI Layer - SerpApi Agent** (`ih_ai_layer_serpapi`) | Agent of Intelligent Home - AI Layer: showtimes and web search via SerpApi. | `ih_ai_layer` | [DOCS](ih_ai_layer_serpapi/DOCS.md) |
 
 ### Games
 
