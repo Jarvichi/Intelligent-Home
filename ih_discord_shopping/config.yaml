@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Shopping"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_discord_shopping
 description: "Shopping list commands (add items, shop checklist by aisle with tick reactions, got ...) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders."
 arch:
@@ -14,6 +14,7 @@ ports:
 ports_description:
   8795/tcp: "Health and status (/healthz, /status)"
 options:
+  log_payloads: false
   module_name: "ih_discord_shopping"
   signing_key: ""
   shadow: true
@@ -32,6 +33,7 @@ options:
   aisles: []
   aisle_order: []
 schema:
+  log_payloads: bool?
   module_name: str
   signing_key: password
   shadow: bool

@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "api_token": "",
   "ha_url": "http://supervisor/core",
   "ha_token": "",

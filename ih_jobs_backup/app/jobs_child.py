@@ -22,6 +22,18 @@ REGISTER_EVERY = 30
 MAX_RUN_BODY = 4096
 
 
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = ''.join(c if (c.isalnum() and c.isascii()) or c in '._:-' else '_' for c in str(v if v is not None else default))[:64]
+    return t or default
+
+
 class Ring(logging.Handler):
     """Last log lines in memory; counts '[DRY] would set' lines."""
     def __init__(self):
@@ -49,7 +61,8 @@ def load_options(path, extra_str=(), extra_bool=()):
            'parent_url': str(o.get('parent_url') or DEFAULT_PARENT).strip().rstrip('/'),
            'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'),
            'register_key': str(o.get('register_key') or '').strip(),
-           'own_timer_min': max(0, int(o.get('own_timer_min') or 0))}
+           'own_timer_min': max(0, int(o.get('own_timer_min') or 0)),
+           'log_payloads': o.get('log_payloads') is True}
     for k, d in extra_str:
         out[k] = str(o.get(k) or d).strip()
     for k, d in extra_bool:
@@ -88,23 +101,43 @@ class Child:
 
     # ---- run ----
     def run_job(self, trigger='manual'):
+        """One job run = ONE invocation: logs ONE line (run id, trigger, job, chars of job log out, ms, ok, why). Job log text only when log_payloads is on."""
         with self.lock:
             live, _ = self.live_mode()
-            ctx = common.Ctx(dry=not live, log=self.log, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
+            t0, seen = time.time(), []
+            self.seq = getattr(self, 'seq', 0) + 1
+            rid = self.seq
+
+            def jlog(m):
+                seen.append(str(m)); self.log(m)
+            ctx = common.Ctx(dry=not live, log=jlog, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
             self.last_mode, self.last_trigger = ('live' if live else 'dry'), trigger
+            ok, why = False, '-'
             try:
                 ok = self.spec['runner'](ctx) is not False
                 self.last, self.last_ok = time.time(), ok
                 self.runs += 1
                 if ok:
                     self.err_last = None
+                else:
+                    why = 'runner_returned_false'
                 return ok
-            except Exception:
+            except Exception as e:
                 self.last, self.last_ok = time.time(), False
                 self.errors += 1
+                why = type(e).__name__
                 self.err_last = traceback.format_exc(limit=3).strip().splitlines()[-1][:200]
                 self.log('%s error: %s' % (self.spec['job'], self.err_last))
                 return False
+            finally:
+                try:
+                    f = ['invoke', 'id=run%d' % rid, 'src=' + _tag(trigger), 'what=' + _tag(self.spec['job']), 'in=0', 'out=%d' % sum(len(x) for x in seen),
+                         'ms=%d' % int((time.time() - t0) * 1000), 'ok=%s' % bool(ok), 'why=' + _tag(why), 'mode=' + _tag(self.last_mode)]
+                    if self.opts.get('log_payloads'):
+                        f += ['req="%s"' % _snip('%s %s' % (trigger, self.spec['job'])), 'ans="%s"' % _snip(seen[-1] if seen else '')]
+                    self.log(' '.join(f))
+                except Exception:
+                    pass
 
     def start_background(self, delay=START_DELAY_S, sleep=time.sleep):
         def go():

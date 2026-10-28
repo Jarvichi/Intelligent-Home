@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "module_name": "ih_orchestration_inbox",
   "signing_key": "",
   "shadow": true,

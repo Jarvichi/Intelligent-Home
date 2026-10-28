@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - Groq"
-version: "0.2.1"
+version: "0.2.2"
 slug: ih_ai_layer_groq
 description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Groq (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders."
 arch:
@@ -27,6 +27,7 @@ options:
   timeout_s: 30
   shadow: true
   max_chars: 1900
+  log_payloads: false
 schema:
   groq_key: password
   register_key: password
@@ -39,3 +40,4 @@ schema:
   timeout_s: int(5,120)
   shadow: bool
   max_chars: int(100,4000)
+  log_payloads: bool?

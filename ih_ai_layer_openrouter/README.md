@@ -18,9 +18,10 @@ This agent sends text to an OUTSIDE service. Before sending, a scrubber removes 
 | `timeout_s` | Timeout of the OpenRouter call (default 30). |
 | `shadow` | true (default) = answers "[dry] ..." and calls nothing. Set false to go live. |
 | `max_chars` | Replies are cut to this length (default 1900). |
+| `log_payloads` | false (default) = each /ask logs ONE line with metadata only (id, caller, capability, model, chars in/out, ms, ok, why, free, shadow). true = the line also holds the first 200 chars of the request text and of the answer (one line, newlines escaped). Keys, tokens and headers are never logged. |
 
 ## Safety
-Kill switch: file `/data/STOP`. `/status` shows use today versus cap and whether the key is set (not the key). Request text and reply text are never logged. No cache.
+Kill switch: file `/data/STOP`. `/status` shows use today versus cap and whether the key is set (not the key). Request text and reply text are logged only when `log_payloads` is true (200 chars each); by default the log has metadata only. No cache.
 
 ## After install
 The owner sets boot to auto, watchdog on, auto update on. Starts with boot manual and shadow on. Version 0.1.0: not tested against the real OpenRouter API.

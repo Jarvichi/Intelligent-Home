@@ -27,6 +27,7 @@ Data owner for **recipes** and the **meal plan**, plus the **meal-vs-calendar ch
 | `plan_entity_prefix` | Optional, see above. |
 | `rate_per_min` | Requests per minute (default 60). |
 | `clash_config` | JSON text with the house-specific settings (below). Empty = example defaults (Person A/B/C). |
+| `log_payloads` | false = each authenticated API request (not /healthz) logs ONE line with metadata only (request id and caller if the client sends X-Request-Id / X-Caller, path, HTTP status, chars out, ms, ok, why). true = the line also holds the first 200 chars of the request path+query and of the response (one line, newlines escaped). Tokens and calendar text are never logged otherwise. |
 
 ### clash_config keys
 `timezone`; `people`: list of `{name, calendar, pattern, schedule, travel_minutes, closures}` (`calendar` = that person's own calendar; `pattern` = regex matched against shared-calendar event text; `schedule` = weekday number (0 = Monday) -> list of `[start, end]` such as lessons or shifts; `travel_minutes` each side; `closures` = `{first, last, label, sure}` dates when the schedule does not apply); `shared_calendars`; `away_words`, `ignore_words` (regexes); `evening_window`, `lunch_window` (`["HH:MM","HH:MM"]`); `lunch_words`. A recipe with `meal_time` (before 15:00 = lunch) overrides the window for that meal. Keys left out keep the example default, so set `people` and `shared_calendars` at least.

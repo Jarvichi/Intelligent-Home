@@ -47,6 +47,7 @@ The transport can also stop only the admin operations with `/data/STOP_ADMIN` (a
 | `cleanup_days` | Delete done channels after this many days | `30` |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | The broker | `core-mosquitto`, `1883`, `ih_discord_taskchannels`, empty |
 | `ingest_url`, `ingest_token` | Orchestrator status push (optional) | empty token = no push |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 ## Behaviour
 

@@ -34,6 +34,7 @@ Jobs run when the scheduler sends a signed message (every hour) and once 90 seco
 | `ingest_url`, `ingest_token` | Status page add-on (default host is the Supervisor gateway `172.30.32.1`, port 8790) | |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | Scheduler bus | `core-mosquitto`, `1883` |
 | `enable_scheduler`, `signing_key` | Receive scheduled runs (needs a signing key) | `false` |
+| `log_payloads` | false = each job run (scheduler, start-up, own timer or parent trigger) logs ONE line with metadata only (run id, trigger, job, chars of job log, ms, ok, why). true = the line also holds the first 200 chars of the trigger and of the last job log line (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 The output sensor names are this module's fixed contract (documented above).
 

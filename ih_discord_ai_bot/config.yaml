@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - AI Bot"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_discord_ai_bot
 description: "Answers messages on chosen Discord channel keys with the Intelligent Home AI layer, as a module of the ih_discord transport. It sends the text of an allow-listed user's message to the AI layer over its local API and posts the reply back through the transport. It holds no Discord token and no AI key. SHADOW mode by default: it logs what it would post and posts nothing. Maps no folders."
 arch:
@@ -15,6 +15,7 @@ ports:
 ports_description:
   8803/tcp: "Health and status (/healthz, /status)"
 options:
+  log_payloads: false
   module_name: "ih_discord_ai_bot"
   signing_key: ""
   shadow: true
@@ -35,6 +36,7 @@ options:
   ingest_url: "http://172.30.32.1:8790"
   ingest_token: ""
 schema:
+  log_payloads: bool?
   module_name: str
   signing_key: password
   shadow: bool

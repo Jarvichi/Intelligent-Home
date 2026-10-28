@@ -37,6 +37,7 @@ To go live: switch the older feature off first, set `shadow` to false here, and 
 | `status_device` | `label`, `battery`, `seen` for the status line | empty |
 | `aliases` | Extra words per command (`status`, `bins`, `free`) | none |
 | `shopping_list_entity`, `meal_plan_script`, `shop_names`, `aisles`, `aisle_order` | Used for `shop` and `got ...` typed in the house channel | generic defaults |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 The option names are the same as in `ih_discord`, so values can be copied over.
 

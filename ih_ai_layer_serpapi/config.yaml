@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - SerpApi Agent"
-version: "0.1.3"
+version: "0.1.4"
 slug: ih_ai_layer_serpapi
 description: "Agent of Intelligent Home - AI Layer. Answers cinema showtimes and web search questions through SerpApi (your own key, small daily cap, cached). Registers with the parent. No Home Assistant access. Maps no folders."
 arch:
@@ -25,6 +25,7 @@ options:
   daily_cap: 5
   cache_hours: 6
   default_cinema: ""
+  log_payloads: false
 schema:
   serpapi_key: password
   register_key: password
@@ -35,3 +36,4 @@ schema:
   daily_cap: int(0,250)
   cache_hours: int(0,168)
   default_cinema: str?
+  log_payloads: bool?

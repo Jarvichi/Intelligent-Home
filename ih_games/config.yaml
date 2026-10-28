@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.3.2"
+version: "0.3.3"
 slug: ih_games
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
 arch:
@@ -15,6 +15,7 @@ ports:
 ports_description:
   8794/tcp: "Health and status (/healthz, /status)"
 options:
+  log_payloads: false
   mode: "dry"
   players:
     - key: "player_a"
@@ -43,6 +44,7 @@ options:
   bungie_api_key: ""
   destiny_poll_s: 900
 schema:
+  log_payloads: bool?
   mode: list(dry|live)
   players:
     - key: str

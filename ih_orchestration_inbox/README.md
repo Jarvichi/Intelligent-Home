@@ -41,6 +41,7 @@ The message text is never written to the add-on log or to `/status`. Only allowe
 | `api_token` | Bearer token for `/queue` and `/ack`. Empty = refused | empty |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | The broker | `core-mosquitto`, `1883`, `ih_orchestration_inbox`, empty |
 | `ingest_url`, `ingest_token` | Orchestrator status push (optional) | empty token = no push |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 ## API (port 8800, header `Authorization: Bearer <api_token>`)
 

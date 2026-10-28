@@ -52,6 +52,7 @@ messages that start with it and strips it before asking.
 | `ai_timeout_s` | Wait for the AI layer this long | `60` |
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | The broker | `core-mosquitto`, `1883`, `ih_discord_ai_bot`, empty |
 | `ingest_url`, `ingest_token` | Orchestrator status push (optional) | empty token = no push |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 `GET /healthz` and `GET /status` on port 8803 need no token and show no secrets or text.
 

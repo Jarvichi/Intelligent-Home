@@ -1,11 +1,11 @@
 """Mistral agent core: answers signed /ask requests for 'general_qa' and 'summarize'. stdlib only.
 Sends text to an OUTSIDE service, so the text is scrubbed first and the request context is never sent.
 The Mistral key (option mistral_key) is only put in the Authorization (Bearer) header and is never logged, returned or put in /status.
-Request and reply text are never logged. Daily cap is counted per local date in /data/usage.json BEFORE the call is made."""
+Request and reply text are logged (first 200 chars, one line) ONLY when option log_payloads is true (default false); otherwise one metadata line per /ask. Daily cap is counted per local date in /data/usage.json BEFORE the call is made."""
 import json, os, re, threading, time, urllib.request
 import jobs_link
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 CAPABILITIES = ['general_qa', 'summarize']
 API_URL = 'https://api.mistral.ai/v1/conversations'
 STOP_FILE = 'STOP'
@@ -20,6 +20,18 @@ _IPV4 = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 _PHONE = re.compile(r'(?<![\w])\+?\d[\d ()\-.]{7,}\d(?![\w])')
 _DIGITS = re.compile(r'\d{6,}')
 _TOKEN = re.compile(r'\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b')
+
+
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
+    return t or default
 
 
 def scrub(text):
@@ -62,6 +74,7 @@ def load_options(path):
             'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'), 'model': model, 'agent_id': aid,
             'spend_cap': num('spend_cap', 0, 0, 1000), 'free_tier': _flag(o.get('free_tier', True)),
             'daily_cap': num('daily_cap', 50, 0, 1000), 'timeout_s': num('timeout_s', 30, 5, 120),
+            'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes'),
             'shadow': sh if isinstance(sh, bool) else str(sh).lower() not in ('false', '0', 'no'),
             'max_chars': num('max_chars', 1900, 100, 4000)}
 
@@ -117,6 +130,17 @@ class Agent:
         self._write('paid.json', {self.today(): self.paid_today() + 1})
         return True
 
+    def log_line(self, name, obj, cap, text, ok, answer, kw, t0):
+        """ONE structured line per /ask: metadata only. Request/answer snippets (200 chars) only when option log_payloads is true. Never keys or headers."""
+        ctx = obj.get('context') if isinstance(obj.get('context'), dict) else {}
+        f = ['ask', 'id=' + _tag(obj.get('request_id')), 'agent=' + name, 'caller=' + _tag(obj.get('caller') or ctx.get('caller')), 'cap=' + _tag(cap),
+             'model=' + _tag(self.opts.get('model')), 'in=%d' % len(text), 'out=%d' % (len(answer) if ok and isinstance(answer, str) else 0),
+             'ms=%d' % int((self.clock() - t0) * 1000), 'ok=%s' % bool(ok), 'why=' + _tag(kw.get('error') or kw.get('why')),
+             'free=%s' % self.is_free(), 'shadow=%s' % bool(self.opts.get('shadow', False))]
+        if self.opts.get('log_payloads'):
+            f += ['req="%s"' % _snip(text), 'ans="%s"' % _snip(answer if ok else '')]
+        return ' '.join(f)
+
     def stopped(self):
         return os.path.exists(self._p(STOP_FILE))
 
@@ -126,9 +150,11 @@ class Agent:
         if not cap and obj.get('model'):
             cap = 'general_qa'  # forced model without a capability: plain question
 
+        t0 = self.clock()
+
         def res(ok, answer, **kw):
-            self.log('ask id=%s cap=%s ok=%s %s' % (rid, cap, ok, kw.get('why', '')))
-            return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': 'ih_ai_layer_mistral'}, **kw)
+            self.log(self.log_line('ih_ai_layer_mistral', obj, cap, text, ok, answer, kw, t0))
+            return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': 'ih_ai_layer_mistral', 'free': self.is_free(), 'model': self.opts.get('model')}, **kw)
         self.served += 1
         if cap not in CAPABILITIES or not text:
             return res(False, 'This agent only does general_qa and summarize.', why='bad_request')

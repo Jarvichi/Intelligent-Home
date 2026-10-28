@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs"
-version: "0.3.0"
+version: "0.3.1"
 slug: ih_jobs
 description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps no folders."
 arch:
@@ -16,6 +16,7 @@ ports:
 ports_description:
   8792/tcp: "Health and status (/healthz, /status)"
 options:
+  log_payloads: false
   mode: "dry"
   live_jobs: []
   old_loops_disabled: false
@@ -39,6 +40,7 @@ options:
   disk_used_entity: ""
   host_info: true
 schema:
+  log_payloads: bool?
   mode: list(dry|live)
   live_jobs:
     - list(backupstore|metoffice)

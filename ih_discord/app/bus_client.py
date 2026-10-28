@@ -300,6 +300,18 @@ class PahoBus:
         return self._c.publish(topic, payload, qos=1, retain=retain).rc == 0
 
 
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
+    return t or default
+
+
 # ---------- module side ----------
 class ModuleClient:
     """What a feature add-on uses. It holds ONLY its own key and sees only channel keys.
@@ -308,7 +320,7 @@ class ModuleClient:
         c.post('chat', 'hello') -> the `res` dict ({ok, code, discord_id, ...}) or None after the retries.
     Handlers run in one worker thread (threaded=True, keeps the bus thread free) or inline (threaded=False, tests)."""
     def __init__(self, module, key, bus, version='0', log=print, clock=time.time, threaded=True, claims=None, ops_needed=None,
-                 offline_notice=False, heartbeat_s=HEARTBEAT_S, dry=False, retries=3, boot_id=None, seen_max=500, guard=None):
+                 offline_notice=False, heartbeat_s=HEARTBEAT_S, dry=False, retries=3, boot_id=None, seen_max=500, guard=None, log_payloads=False):
         if not NAME_RE.match(module):
             raise ValueError('bad module name')
         self.module, self.key, self.bus, self.version, self.log, self.clock = module, str(key or '').strip(), bus, version, log, clock
@@ -322,6 +334,8 @@ class ModuleClient:
         self.lock = threading.Lock()
         self.q, self.cv, self._stop = deque(), threading.Condition(), False
         self.started = False
+        self.log_payloads = bool(log_payloads)   # true: the invocation line also holds 200 chars of the request and the reply text
+        self._tl = threading.local()
 
     @property
     def active(self):
@@ -415,15 +429,42 @@ class ModuleClient:
             self._publish('ack', topic_ack(self.module), {'ids': [mid]})   # ACK BEFORE ACT
         if self.threaded:
             with self.cv:
-                self.q.append((h, d)); self.cv.notify()
+                self.q.append((h, d, pt[2])); self.cv.notify()
         else:
-            self._run(h, d)
+            self._run(h, d, pt[2])
 
-    def _run(self, h, d):
+    def _run(self, h, d, ck=None):
+        """Run one handler = ONE invocation: logs ONE line (id, source, what, chars in/out, ms, ok, why). Text only when log_payloads is on."""
+        t0 = time.time()
+        self._tl.out, self._tl.ans = 0, ''
+        ok, why = True, '-'
         try:
             h(d)
         except Exception as e:
+            ok, why = False, type(e).__name__
             self.log('bus: handler failed (%s)' % type(e).__name__)
+        try:
+            self.log(self._inv_line(d, ok, why, t0, ck))
+        except Exception:
+            pass
+
+    def _inv_line(self, d, ok, why, t0, ck=None):
+        what = '%s:%s' % (_tag(d.get('type') or 'message'), _tag(ck or d.get('channel_key')))
+        txt = str(d.get('content') or d.get('emoji') or '')
+        f = ['invoke', 'id=' + _tag(d.get('id')), 'src=' + _tag(d.get('author_id') or d.get('user_id')), 'module=' + _tag(self.module), 'what=' + what,
+             'in=%d' % len(txt), 'out=%d' % getattr(self._tl, 'out', 0), 'ms=%d' % int((time.time() - t0) * 1000), 'ok=%s' % bool(ok), 'why=' + _tag(why)]
+        if self.log_payloads:
+            f += ['req="%s"' % _snip(txt), 'ans="%s"' % _snip(getattr(self._tl, 'ans', ''))]
+        return ' '.join(f)
+
+    def _note_out(self, text):
+        """Count (and keep the first 200 chars of) text this handler sends out; only read when log_payloads is on."""
+        if text is None or not hasattr(self._tl, 'out'):
+            return
+        t = str(text)
+        self._tl.out += len(t)
+        if len(self._tl.ans) < 200:
+            self._tl.ans = (self._tl.ans + (' | ' if self._tl.ans else '') + t)[:200]
 
     def _worker(self):
         while not self._stop:
@@ -472,11 +513,13 @@ class ModuleClient:
         a = {'channel_key': channel_key, 'text': text}
         if reply_to: a['reply_to'] = reply_to
         if tag: a['tag'] = tag
+        self._note_out(text)
         return self._op('post', a, **kw)
 
     def reply(self, channel_key, text, reply_to, tag=None, **kw):
         a = {'channel_key': channel_key, 'text': text, 'reply_to': reply_to}
         if tag: a['tag'] = tag
+        self._note_out(text)
         return self._op('reply', a, **kw)
 
     def react(self, channel_key, msg_id, emoji, **kw): return self._op('react', {'channel_key': channel_key, 'msg_id': msg_id, 'emoji': emoji}, **kw)
@@ -486,7 +529,9 @@ class ModuleClient:
         if user_id: a['user_id'] = user_id
         return self._op('unreact', a, **kw)
 
-    def edit(self, channel_key, msg_id, text, **kw): return self._op('edit', {'channel_key': channel_key, 'msg_id': msg_id, 'text': text}, **kw)
+    def edit(self, channel_key, msg_id, text, **kw):
+        self._note_out(text)
+        return self._op('edit', {'channel_key': channel_key, 'msg_id': msg_id, 'text': text}, **kw)
     def delete(self, channel_key, msg_id, **kw): return self._op('delete', {'channel_key': channel_key, 'msg_id': msg_id}, **kw)
     def delete_tagged(self, channel_key, tag, **kw): return self._op('delete_tagged', {'channel_key': channel_key, 'tag': tag}, **kw)
     def get_message(self, channel_key, msg_id, **kw): return self._op('get_message', {'channel_key': channel_key, 'msg_id': msg_id}, **kw)

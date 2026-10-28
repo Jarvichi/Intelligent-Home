@@ -3,8 +3,20 @@ import glob, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
 import clashes
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
+
+
+def snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:/-]', '_', str(v if v is not None else default))[:64]
+    return t or default
 
 
 def load_options(path):
@@ -24,6 +36,7 @@ def load_options(path):
         'plan_entity_prefix': str(o.get('plan_entity_prefix') or '').strip(),
         'rate_per_min': int(o.get('rate_per_min') or 60),
         'clash_config': cc,
+        'log_payloads': o.get('log_payloads') is True,
     }
 
 
@@ -154,6 +167,17 @@ class Store:
         res['plan_source'] = src
         res['errors'] = errors + ([tzwarn] if tzwarn else [])
         return res
+
+    def invocation_line(self, headers, path, code, out_text, t0, why='-'):
+        """ONE line per authenticated API request (an invocation): id, caller, what, chars in/out, ms, ok, why. Path/response text only when log_payloads is on."""
+        try:
+            f = ['invoke', 'id=' + tag(headers.get('X-Request-Id')), 'src=' + tag(headers.get('X-Caller')), 'what=' + tag(path.split('?')[0]), 'in=%d' % len(path),
+                 'out=%d' % len(out_text), 'ms=%d' % int((self.clock() - t0) * 1000), 'ok=%s' % (code < 400), 'why=' + tag(why if code >= 400 else '-'), 'http=%d' % code]
+            if self.opts.get('log_payloads'):
+                f += ['req="%s"' % snip(path), 'ans="%s"' % snip(out_text)]
+            self.log(' '.join(f))
+        except Exception:
+            pass
 
     def status(self):
         return {'ok': True, 'version': VERSION, 'uptime_s': int(self.clock() - self.started), 'stopped': self.stopped(),

@@ -1,0 +1,15 @@
+{
+  "register_key": "",
+  "parent_url": "http://172.30.32.1:8801",
+  "callback_url": "",
+  "model": "sonnet",
+  "spend_cap": 0,
+  "free_tier": false,
+  "daily_cap": 20,
+  "timeout_s": 90,
+  "shadow": true,
+  "max_chars": 1900,
+  "log_payloads": false,
+  "max_week_percent": 50,
+  "usage_url": ""
+}

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - AI Trust Test"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_jobs_trust
 description: "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent."
 arch:
@@ -16,6 +16,7 @@ ports:
 ports_description:
   8810/tcp: "Health, status and signed run requests (/healthz, /status, /run)"
 options:
+  log_payloads: false
   mode: "dry"
   old_loops_disabled: false
   parent_url: "http://172.30.32.1:8792"
@@ -30,6 +31,7 @@ options:
   keep_answers: false
   timezone: "Europe/London"
 schema:
+  log_payloads: bool?
   mode: list(dry|live)
   old_loops_disabled: bool
   parent_url: str

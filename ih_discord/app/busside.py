@@ -21,6 +21,18 @@ ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,32}$')   # a user id (Discord ids are digi
 OWNER_OPS = ('edit', 'delete', 'get_message', 'watch', 'unwatch')
 
 
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
+    return t or default
+
+
 class Grant:
     def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None):
         self.name, self.key, self.channels, self.ops, self.rate, self.public = name, key, set(channels), set(ops), rate, set(public)
@@ -68,11 +80,12 @@ def _save(path, obj):
 
 class BusTransport:
     def __init__(self, bus, router, discord, grants, channels, data, journal=None, clock=time.time, log=print, is_live=None,
-                 offline_notice=False, notice_live=None, max_age_s=600, threaded=False, categories=None, templates=None):
+                 offline_notice=False, notice_live=None, max_age_s=600, threaded=False, categories=None, templates=None, log_payloads=False):
         self.bus, self.router, self.discord, self.grants, self.channels, self.data = bus, router, discord, grants, dict(channels), data
         self.journal, self.clock, self.log, self.max_age_s, self.threaded = journal, clock, log, max_age_s, threaded
         self.is_live = is_live or (lambda m: (False, 'no gate given'))
         self.offline_notice = offline_notice
+        self.log_payloads = bool(log_payloads)
         self.notice_live = notice_live or (lambda: False)
         self.lock = threading.RLock()
         self.guard = B.ReplayGuard(os.path.join(data, 'bus_replay.log'), clock=clock)
@@ -305,16 +318,31 @@ class BusTransport:
 
     def _run_op(self, module, g, d):
         oid, op = d['op_id'], d.get('op')
+        t0 = time.time()
         try:
             res = self._execute(module, g, d)
         except Exception as e:   # never leave the module without an answer; the detail is only the error type
             self.log('bus: op failed inside the transport (%s)' % type(e).__name__)
             res = self._fail('discord_error', 'internal error')
         res['op_id'] = oid
+        self._invocation_line(module, op, d, res, t0)
         self._audit(module, str(op)[:20], str(d.get('channel_key') or res.get('channel_key') or '')[:60], res.get('discord_id'), res.get('code'))
         self.results[oid] = {'t': self.clock(), 'res': res}
         self._trim_results()
         self._pub('res', module, B.topic_res(module), res)
+
+    def _invocation_line(self, module, op, d, res, t0):
+        """ONE line per bus op (an invocation): module, op, channel key, chars in/out, ms, ok, code. Text only when log_payloads is on. Never keys."""
+        try:
+            txt = d.get('text') if isinstance(d.get('text'), str) else ''
+            back = res.get('text') if isinstance(res.get('text'), str) else ''
+            f = ['invoke', 'id=' + _tag(d.get('op_id')), 'src=' + _tag(module), 'what=%s:%s' % (_tag(op), _tag(d.get('channel_key'))), 'in=%d' % len(txt),
+                 'out=%d' % len(back), 'ms=%d' % int((time.time() - t0) * 1000), 'ok=%s' % bool(res.get('ok')), 'why=' + _tag(res.get('code') if not res.get('ok') else res.get('detail'))]
+            if self.log_payloads:
+                f += ['req="%s"' % _snip(txt), 'ans="%s"' % _snip(back)]
+            self.log(' '.join(f))
+        except Exception:
+            pass
 
     def _trim_results(self):
         now = self.clock()

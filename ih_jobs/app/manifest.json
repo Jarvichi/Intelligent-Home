@@ -1,6 +1,6 @@
 {
  "name": "ih_jobs",
- "version": "0.3.0",
+ "version": "0.3.1",
  "kind": "addon",
  "description": "Parent of the Jobs family; lists and triggers the child job add-ons. Hourly Home Assistant jobs: backup storage sensors and the Met Office forecast. Dry-run by default; each job goes live only when told to (live_jobs) after any older loop is switched off.",
  "owner": "local add-on ih_jobs",

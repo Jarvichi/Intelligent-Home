@@ -1,5 +1,5 @@
 name: "Intelligent Home - Orchestration - Inbox"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_orchestration_inbox
 description: "Durable inbox for messages on chosen Discord channel keys, as a module of the ih_discord transport. It claims the channel keys you list, stores each message in a queue (7 days), reacts with an eye emoji so the sender knows it arrived, and never answers in the channel. Claude and workers read the queue over a token-protected local API. SHADOW mode by default: queue is written, no reactions. No Home Assistant access. Maps no folders."
 arch:
@@ -13,6 +13,7 @@ ports:
 ports_description:
   8800/tcp: "Queue API (token) plus health and status (/healthz, /status)"
 options:
+  log_payloads: false
   module_name: "ih_orchestration_inbox"
   signing_key: ""
   shadow: true
@@ -27,6 +28,7 @@ options:
   ingest_url: "http://172.30.32.1:8790"
   ingest_token: ""
 schema:
+  log_payloads: bool?
   module_name: str
   signing_key: password
   shadow: bool

@@ -10,7 +10,7 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -51,8 +51,21 @@ def load_options(path=None):
         "signing_key": str(o.get("signing_key") or "").strip(),
         "outbox_token": str(o.get("outbox_token") or "").strip(),
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
-        "destiny_poll_s": int(o.get("destiny_poll_s") or 900)
+        "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
+        "log_payloads": o.get("log_payloads") is True,
     }
+
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = ''.join(c if (c.isalnum() and c.isascii()) or c in '._:-' else '_' for c in str(v if v is not None else default))[:64]
+    return t or default
+
 
 class Module:
     def __init__(self, opts, data=None, log=None, token=None, opener=None):
@@ -80,9 +93,16 @@ class Module:
             return False
         with self.locks[name]:
             live, why = self.live_mode()
-            ctx = common.Ctx(dry=not live, log=self.log, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
+            t0, seen = time.time(), []
+            self.inv_seq = getattr(self, "inv_seq", 0) + 1
+            rid = self.inv_seq
+
+            def jlog(m):
+                seen.append(str(m)); self.log(m)
+            ctx = common.Ctx(dry=not live, log=jlog, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
             self.last_mode[name] = "live" if live else "dry"
             self.last_trigger[name] = trigger
+            ok, ewhy = False, "-"
             try:
                 if name == "providers":
                     for p_name in self.opts.get("providers_enabled", []):
@@ -96,14 +116,29 @@ class Module:
                 self.last[name] = time.time()
                 self.runs[name] += 1
                 self.err_last.pop(name, None)
+                ok = True
                 return True
-            except Exception:
+            except Exception as e:
                 self.last[name] = time.time()
                 self.last_ok[name] = False
                 self.errors[name] += 1
+                ewhy = type(e).__name__
                 self.err_last[name] = traceback.format_exc(limit=3).strip().splitlines()[-1][:200]
                 self.log(f"{name} error: {self.err_last[name]}")
                 return False
+            finally:
+                self.invoke_line("run%d" % rid, trigger, name, 0, sum(len(x) for x in seen), t0, ok, ewhy, "%s %s" % (trigger, name), seen[-1] if seen else "")
+
+    def invoke_line(self, rid, src, what, n_in, n_out, t0, ok, why, req="", ans=""):
+        """ONE line per invocation (job run, /outbox read, /ack): id, source, what, chars in/out, ms, ok, why. Text only when log_payloads is on."""
+        try:
+            f = ["invoke", "id=" + _tag(rid), "src=" + _tag(src), "what=" + _tag(what), "in=%d" % n_in, "out=%d" % n_out,
+                 "ms=%d" % int((time.time() - t0) * 1000), "ok=%s" % bool(ok), "why=" + _tag(why)]
+            if self.opts.get("log_payloads"):
+                f += ['req="%s"' % _snip(req), 'ans="%s"' % _snip(ans)]
+            self.log(" ".join(f))
+        except Exception:
+            pass
 
     def start_run_all(self, delay=START_DELAY_S):
         def go():
@@ -255,12 +290,14 @@ def make_handler(mod):
             elif p == "/status":
                 code, body = 200, json.dumps(mod.status()).encode()
             elif p == "/outbox":
+                t0 = time.time()
                 if not mod.opts.get("outbox_token"):
                     code, body = 503, b"outbox off"
                 elif not mod.authorised(self.headers.get("Authorization")):
                     code, body = 401, b"no"
                 else:
                     code, body = 200, json.dumps(mod.outbox_pending()).encode()
+                mod.invoke_line("-", "outbox_client", "outbox", 0, len(body), t0, code == 200, "-" if code == 200 else ("outbox_off" if code == 503 else "unauthorized"), "GET /outbox", body.decode("utf-8", "replace"))
             else:
                 self.send_error(404)
                 return
@@ -274,6 +311,7 @@ def make_handler(mod):
             if self.path.split("?")[0] != "/ack":
                 self.send_error(404)
                 return
+            t0, mid = time.time(), ""
             if not mod.opts.get("outbox_token"):
                 code, body = 503, b"outbox off"
             elif not mod.authorised(self.headers.get("Authorization")):
@@ -281,10 +319,12 @@ def make_handler(mod):
             else:
                 try:
                     n = min(int(self.headers.get("Content-Length") or 0), 4096)
-                    mod.ack(str(json.loads(self.rfile.read(n))["id"]))
+                    mid = str(json.loads(self.rfile.read(n))["id"])
+                    mod.ack(mid)
                     code, body = 200, b"ok"
                 except Exception:
                     code, body = 400, b"bad"
+            mod.invoke_line(mid or "-", "outbox_client", "ack", len(mid), len(body), t0, code == 200, "-" if code == 200 else ("outbox_off" if code == 503 else "unauthorized" if code == 401 else "bad_request"), "POST /ack " + mid, body.decode())
             self.send_response(code)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

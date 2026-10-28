@@ -25,7 +25,7 @@ import journal as J
 import busside
 import admin
 
-VERSION = '0.8.0'
+VERSION = '0.8.1'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
@@ -85,7 +85,7 @@ def load_options(path=None):
             'mqtt_user': str(o.get('mqtt_user') or 'ih_discord').strip(), 'mqtt_password': str(o.get('mqtt_password') or ''),
             'enable_scheduler': bool(o.get('enable_scheduler', False)),
             'signing_key': str(o.get('signing_key') or '').strip(),
-            'offline_notice': bool(o.get('offline_notice', False)),
+            'offline_notice': bool(o.get('offline_notice', False)), 'log_payloads': o.get('log_payloads') is True,
             'max_age_s': max(60, int(o.get('max_age_s') or 600)),
             'module_grants': busside.parse_modules(o.get('modules'), RESERVED_MODULES),
             'extra_channels': {_text(c.get('key')): _text(c.get('id')) for c in (o.get('extra_channels') or [])
@@ -247,7 +247,7 @@ class Module:
         self.bus_t = busside.BusTransport(bus, self.router, self.tdiscord, grants, self.channels(), self.data, journal=self.journal, log=core.log,
                                           is_live=self.bus_live, offline_notice=bool(o.get('offline_notice')), notice_live=self.notice_live,
                                           max_age_s=o.get('max_age_s', 600), threaded=True,
-                                          categories=o.get('categories'), templates=o.get('permission_templates'))
+                                          categories=o.get('categories'), templates=o.get('permission_templates'), log_payloads=bool(o.get('log_payloads')))
         ok = self.bus_t.start()
         if not ok:
             self.bus_reason = 'bus did not start'

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Backup"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_jobs_backup
 description: "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent."
 arch:
@@ -16,6 +16,7 @@ ports:
 ports_description:
   8798/tcp: "Health, status and signed run requests (/healthz, /status, /run)"
 options:
+  log_payloads: false
   mode: "dry"
   old_loops_disabled: false
   parent_url: "http://172.30.32.1:8792"
@@ -28,6 +29,7 @@ options:
   disk_total_entity: ""
   host_info: true
 schema:
+  log_payloads: bool?
   mode: list(dry|live)
   old_loops_disabled: bool
   parent_url: str

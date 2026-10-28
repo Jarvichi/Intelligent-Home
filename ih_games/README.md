@@ -23,6 +23,7 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 | `timezone` | str | `Europe/London` | Used for quiet hours and "one a day" |
 | `ingest_url`, `ingest_token` | | | Status page add-on |
 | `mqtt_*`, `enable_scheduler`, `signing_key` | | | Signed scheduler (same as ih_jobs) |
+| `log_payloads` | bool | `false` | false = each job run (providers, orchestrate) and each `/outbox` or `/ack` request logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and of the response / last job log line (one line, newlines escaped). Keys and tokens are never logged. |
 
 ## How to add a Provider in 5 steps
 1. Create `app/providers/<name>.py`.

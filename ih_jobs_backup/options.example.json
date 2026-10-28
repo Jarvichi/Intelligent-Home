@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "mode": "dry",
   "old_loops_disabled": false,
   "parent_url": "http://172.30.32.1:8792",

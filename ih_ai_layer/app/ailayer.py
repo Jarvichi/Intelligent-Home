@@ -1,6 +1,7 @@
 """ailayer: core logic of "Intelligent Home - AI Layer". stdlib only. NOTHING here knows about Discord or any chat: input is an AI request
 (text + optional capability + optional context), output is an answer from a registered AI agent add-on.
-Request text is never logged, stored or put in /status (only ids, capability, agent name, timings)."""
+Request text is never stored or put in /status. Logs hold metadata only (ids, caller, capability, agent, model, sizes, timings, result) unless option log_payloads is true:
+then each log line also carries the first 200 chars of the request and of the answer. Keys, tokens, signatures and headers are never logged."""
 import collections, json, os, re, threading, time, urllib.request
 import jobs_link
 
@@ -11,6 +12,19 @@ ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
+VERSION = '0.2.1'
+
+
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
+    return t or default
 
 # capability -> keywords (lower case, substring match on the request text). First capability with most hits wins; no hit = no capability.
 KEYWORDS = {
@@ -44,7 +58,8 @@ def load_options(path):
             return d
     return {'api_token': str(o.get('api_token') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
             'shadow': bool(o.get('shadow', True)), 'agent_timeout_s': num('agent_timeout_s', 20, 1, 60),
-            'rate_per_min': num('rate_per_min', 30, 1, 600), 'max_tries': num('max_tries', 2, 1, 5)}
+            'rate_per_min': num('rate_per_min', 30, 1, 600), 'max_tries': num('max_tries', 2, 1, 5),
+            'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes')}
 
 
 class Layer:
@@ -60,6 +75,7 @@ class Layer:
         self.window = collections.deque()
         self.started = clock()
         self.counts = collections.Counter()
+        self.meta = {}                         # request_id -> dict(free, model) reported by the agent that was asked last (popped when logged)
         self.agent_why = {}                    # request_id -> why code of the last refusal by an agent (e.g. spend_cap), popped when reported
 
     # ---- persistence ----
@@ -164,6 +180,16 @@ class Layer:
     def ranked(self, cap):
         return sorted(self.live_agents(cap), key=lambda a: (-self.score(cap, a), a))
 
+    # ---- logging ----
+    def _logline(self, event, rid, caller, agent, cap, model, text, ok, answer, ms, why, free):
+        """ONE structured line: metadata only; request/answer snippets (200 chars) only when option log_payloads is true."""
+        f = [event, 'id=' + _tag(rid), 'caller=' + _tag(caller), 'agent=' + _tag(agent), 'cap=' + _tag(cap), 'model=' + _tag(model),
+             'in=%d' % len(text or ''), 'out=%d' % (len(answer) if ok and isinstance(answer, str) else 0), 'ms=%d' % int(ms), 'ok=%s' % bool(ok),
+             'why=' + _tag(why), 'free=' + _tag(free), 'shadow=%s' % bool(self.opts.get('shadow'))]
+        if self.opts.get('log_payloads'):
+            f += ['req="%s"' % _snip(text), 'ans="%s"' % _snip(answer if ok else '')]
+        self.log(' '.join(f))
+
     # ---- the request ----
     def request(self, obj):
         """-> (http code, response dict). Never logs obj['text']."""
@@ -186,12 +212,15 @@ class Layer:
         if not cap and not model:
             cap, classified = classify(text), True
         self.counts['requests'] += 1
+        caller = obj.get('caller') or (ctx or {}).get('caller')
 
-        def out(ok, answer, agent=None, extra=None):
+        def out(ok, answer, agent=None, extra=None, why=None):
             r = {'ok': ok, 'answer': answer, 'agent': agent, 'capability': cap, 'classified': classified,
                  'took_ms': int((self.clock() - t0) * 1000), 'request_id': rid}
             r.update(extra or {})
-            self.log('request id=%s cap=%s agent=%s ok=%s ms=%d' % (rid, cap, agent, ok, r['took_ms']))
+            m = self.meta.pop(rid, {})
+            self._logline('request', rid, caller, agent, cap, r.get('model') or m.get('model') or model, text, ok, answer, r['took_ms'],
+                          why or r.get('error') or ('shadow' if r.get('mode') == 'dry' else None), m.get('free'))
             return 200, r
 
         if model:
@@ -199,13 +228,13 @@ class Layer:
             owners = [n for n in self.live_agents(cap) if model in self.agents[n].get('models', [])]
             if not owners:
                 self.counts['model_not_available'] += 1
-                self.log('request id=%s model_not_available' % rid)
+                self._logline('request', rid, caller, None, cap, model, text, False, '', (self.clock() - t0) * 1000, 'model_not_available', None)
                 return 404, {'ok': False, 'error': 'model_not_available', 'answer': "No live agent serves model '%s'." % model,
                              'model': model, 'request_id': rid}
             if self.opts['shadow']:
                 return out(True, "[dry] shadow mode: would ask agent '%s' for model '%s'. No agent was called." % (owners[0], model), owners[0], {'mode': 'dry', 'model': model})
             a0 = self.clock()
-            ans = self._ask(owners[0], text, cap, ctx or {}, rid, model)
+            ans = self._ask(owners[0], text, cap, ctx or {}, rid, model, caller)
             ok = ans is not None
             if cap:
                 self._record(cap, owners[0], ok, (self.clock() - a0) * 1000)
@@ -231,7 +260,7 @@ class Layer:
         for name in order[:self.opts['max_tries']]:
             tried += 1
             a0 = self.clock()
-            ans = self._ask(name, text, cap, ctx or {}, rid)
+            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller)
             ms = (self.clock() - a0) * 1000
             self._record(cap, name, ans is not None, ms)
             if ans is not None:
@@ -244,9 +273,10 @@ class Layer:
         w = self.agent_why.pop(rid, None)
         return out(False, "The agents for '%s' did not answer (%d tried)." % (cap, tried), None, {'error': w} if w else None)
 
-    def _ask(self, name, text, cap, ctx, rid, model=None):
-        """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only."""
+    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None):
+        """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only. Logs one 'try' line per call."""
         a = self.agents[name]
+        t0, ok, ans, why, meta = self.clock(), False, None, None, {}
         try:
             body, headers = jobs_link.pack(self.opts['register_key'], dict({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid}, **({'model': model} if model else {})), now=self.clock())
             req = urllib.request.Request(a['url'] + '/ask', data=body, method='POST', headers=headers)
@@ -254,6 +284,12 @@ class Layer:
                 raw = x.read(200000)
                 sig = x.headers.get(jobs_link.HEADER)
             obj, why = jobs_link.unpack(self.opts['register_key'], raw, sig, now=self.clock())
+            if obj is not None:
+                meta = {'free': obj.get('free') if isinstance(obj.get('free'), bool) else None,
+                        'model': obj.get('model') if isinstance(obj.get('model'), str) and MODEL_RE.match(obj.get('model')) else None}
+                self.meta[rid] = meta
+                while len(self.meta) > 100:
+                    self.meta.pop(next(iter(self.meta)))
             if obj is None or obj.get('request_id') != rid or not obj.get('ok') or not isinstance(obj.get('answer'), str):
                 self.log('agent %s bad answer id=%s (%s)' % (name, rid, why if obj is None else 'not ok'))
                 w = obj.get('why') if obj else None
@@ -261,15 +297,20 @@ class Layer:
                     self.agent_why[rid] = w
                     while len(self.agent_why) > 100:
                         self.agent_why.pop(next(iter(self.agent_why)))
+                why = w if isinstance(w, str) else (why if obj is None else 'not_ok')
                 return None
-            return obj['answer']
+            ok, ans, why = True, obj['answer'], None
+            return ans
         except Exception as e:
             self.log('agent %s failed id=%s: %s' % (name, rid, type(e).__name__))
+            why = type(e).__name__
             return None
+        finally:
+            self._logline('try', rid, caller, name, cap, meta.get('model') or model, text, ok, ans, (self.clock() - t0) * 1000, why, meta.get('free'))
 
     def status(self):
         now = self.clock()
-        return {'name': 'ih_ai_layer', 'version': '0.2.0', 'mode': 'dry' if self.opts['shadow'] else 'live', 'kill_switch': self.stopped(),
+        return {'name': 'ih_ai_layer', 'version': VERSION, 'mode': 'dry' if self.opts['shadow'] else 'live', 'kill_switch': self.stopped(),
                 'uptime_s': int(now - self.started), 'counts': dict(self.counts), 'link_enabled': bool(self.opts.get('register_key')),
                 'agents': self.agents_view(), 'scores': {c: {a: self.score(c, a) for a in d} for c, d in self.scores.items()}}
 

@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "discord_token": "",
   "dry_run": true,
   "bot_name": "Discord module",

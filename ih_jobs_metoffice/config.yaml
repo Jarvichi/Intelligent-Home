@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Met Office"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_jobs_metoffice
 description: "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent."
 arch:
@@ -16,6 +16,7 @@ ports:
 ports_description:
   8799/tcp: "Health, status and signed run requests (/healthz, /status, /run)"
 options:
+  log_payloads: false
   mode: "dry"
   old_loops_disabled: false
   parent_url: "http://172.30.32.1:8792"
@@ -27,6 +28,7 @@ options:
   zone_entity: "zone.home"
   fallback_weather_entity: "weather.forecast_home"
 schema:
+  log_payloads: bool?
   mode: list(dry|live)
   old_loops_disabled: bool
   parent_url: str

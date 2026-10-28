@@ -7,5 +7,6 @@
   "free_tier": false,
   "daily_cap": 5,
   "cache_hours": 6,
-  "default_cinema": ""
+  "default_cinema": "",
+  "log_payloads": false
 }

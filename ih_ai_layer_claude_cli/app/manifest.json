@@ -1,0 +1,24 @@
+{
+ "name": "ih_ai_layer_claude_cli",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Agent of Intelligent Home - AI Layer: general questions and summaries via the Claude Code CLI (text scrubbed first).",
+ "owner": "local add-on ih_ai_layer_claude_cli",
+ "start": "Supervisor add-on local_ih_ai_layer_claude_cli (slug prefix set at install) (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8814/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8814,
+ "schedules": [],
+ "declares_secrets": [
+  "register_key"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove."
+}

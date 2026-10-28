@@ -26,6 +26,7 @@ The layer chooses the agent itself (best score for the capability) and accepts n
 | `pause_s` | Seconds between questions (default 4; the layer allows 30 a minute) |
 | `keep_answers` | Store answer text in the run file (default off) |
 | `timezone` | For the day-of-month check |
+| `log_payloads` | false = each job run (scheduler, start-up, own timer or parent trigger) logs ONE line with metadata only (run id, trigger, job, chars of job log, ms, ok, why). true = the line also holds the first 200 chars of the trigger and of the last job log line (one line, newlines escaped). Keys and tokens are never logged. |
 
 ## Boot and watchdog
 Default `boot: manual`. After the dry run looks right set "Start on boot" and add `watchdog: http://[HOST]:[PORT:8810]/healthz` to `config.yaml`. Port 8810.

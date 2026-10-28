@@ -1,6 +1,6 @@
 {
  "name": "ih_jobs_trust",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Child of Intelligent Home - Jobs: monthly trust test of the outside AIs via the AI layer, adds a review to-do. Dry-run (shadow) by default.",
  "owner": "local add-on ih_jobs_trust",

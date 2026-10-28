@@ -18,6 +18,7 @@ It maps no folders and holds no secrets in code. Prepared as a local add-on: cop
 | `mqtt_user`, `mqtt_password` | Bus login | |
 | `default_timezone` | Time zone for daily/weekly jobs whose manifest has no `tz` (IANA name) | `"UTC"` |
 | `module_keys` | One `{module, key}` per module for message signing | `[{"module":"my_module","key":"..."}]` |
+| `log_payloads` | false = each scheduler dispatch, each job done message, each broker register/admin call and each pause/resume call logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). Status pushes (/ingest), heartbeats and health checks are not logged. true = the line also holds the first 200 chars of the request and reply (topic, secret NAMES, never values, signatures, codes or PINs; /admin never logs text). One line, newlines escaped. | `false` |
 
 ## Privacy
 Run `python3 ../privacy_scan.py` before sharing this folder.

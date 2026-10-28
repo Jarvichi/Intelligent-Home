@@ -23,6 +23,18 @@ SKEW_S = 60  # a done ts this far in the future is tolerated
 SEEN_MAX = 500
 
 
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or "")[:n]
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "\\r").replace("\n", "\\n")
+
+
+def _tag(v, default="-"):
+    """A short safe token for a log line (letters, digits and . _ : / - only)."""
+    t = re.sub(r"[^A-Za-z0-9._:/-]", "_", str(v if v is not None else default))[:64]
+    return t or default
+
+
 def sign(key, text):
     return hmac.new(key.encode("utf-8"), text.encode("utf-8"), hashlib.sha256).hexdigest()
 
@@ -186,6 +198,7 @@ class Scheduler:
         self.bus, self.path, self.log, self.clock = bus, state_path, log, clock
         self.keys = dict(keys or {})  # module -> secret; never logged, never in status
         self.rejected = 0
+        self.log_payloads = False
         self.seen_done = OrderedDict()  # signatures of accepted done messages (replay guard)
         self.started_at = clock() if started_at is None else started_at
         self.jobs, self.errors = {}, []
@@ -250,11 +263,13 @@ class Scheduler:
             return False
         payload = json.dumps({"v": 1, "id": jid, "due_at": int(due_at), "attempt": attempt,
                               "sig": sign(key, due_text(j["module"], j["job"], jid, due_at, attempt))})
-        ok = False
+        ok, t0 = False, time.time()
         try:
             ok = bool(self.bus.publish("%s/%s/%s" % (TOPIC_ROOT, j["module"], j["job"]), payload))
         except Exception:
             ok = False
+        self._inv(jid, "scheduler", "dispatch:%s/%s" % (j["module"], j["job"]), 0, len(payload), t0, ok, "-" if ok else "publish_failed",
+                  "%s/%s/%s attempt=%d" % (TOPIC_ROOT, j["module"], j["job"], attempt), "")   # never the payload: it holds the signature
         if ok:
             st["last_run"] = now
             st["pending"] = {"id": jid, "due_at": due_at, "published_at": now, "attempt": attempt, "retry_at": now + j["window_s"]}
@@ -311,7 +326,33 @@ class Scheduler:
         self.rejected += 1
         return False
 
+    def _inv(self, rid, src, what, n_in, n_out, t0, ok, why, req="", ans=""):
+        """ONE line per invocation (a job dispatch or a done message): id, source, what, chars in/out, ms, ok, why. Never keys or signatures."""
+        try:
+            f = ["invoke", "id=" + _tag(rid), "src=" + _tag(src), "what=" + _tag(what), "in=%d" % n_in, "out=%d" % n_out, "ms=%d" % int((time.time() - t0) * 1000),
+                 "ok=%s" % bool(ok), "why=" + _tag(why)]
+            if self.log_payloads:
+                f += ['req="%s"' % _snip(req), 'ans="%s"' % _snip(ans)]
+            self.log(" ".join(f))
+        except Exception:
+            pass
+
     def on_done(self, topic, payload, now=None):
+        t0, before = time.time(), self.rejected
+        r = self._on_done(topic, payload, now)
+        try:
+            d = json.loads(payload)
+            jid, ok = d.get("id"), d.get("ok")
+        except Exception:
+            jid, ok = "-", None
+        parts = str(topic).split("/")
+        mod = parts[2] if len(parts) > 2 else "-"
+        self._inv(jid, mod, "done:%s" % "/".join(parts[2:4]), len(payload) if hasattr(payload, "__len__") else 0, 0, t0, r and ok is not False,
+                  "-" if r and ok is not False else ("module_reported_failure" if r else ("rejected" if self.rejected > before else "ignored")),
+                  "%s ok=%s" % (topic, ok), "")   # never the payload: it holds the signature
+        return r
+
+    def _on_done(self, topic, payload, now=None):
         now = self.clock() if now is None else now
         parts = topic.split("/")
         if len(parts) != 5 or parts[:2] != ["ih", "schedule"] or parts[4] != "done":
@@ -495,5 +536,6 @@ def build(options, data_dir, log=print):
     set_default_tz(options.get("default_timezone"))
     bus = PahoBus(host, port, user, pw, log=log, subs=[DONE_FILTER])
     s = Scheduler(bus, os.path.join(data_dir, "schedule_state.json"), log=log, keys=parse_keys(options.get("module_keys")))
+    s.log_payloads = options.get("log_payloads") is True
     bus._handlers.append((DONE_FILTER, s.handle_message))
     return s, None

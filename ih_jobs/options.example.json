@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "mode": "dry",
   "live_jobs": [],
   "old_loops_disabled": false,

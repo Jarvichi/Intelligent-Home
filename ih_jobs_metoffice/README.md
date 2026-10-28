@@ -25,6 +25,7 @@ Acts only when `mode` is `live`, `old_loops_disabled` is on and `/data/STOP_LIVE
 | `timezone` | Day boundaries (default `Europe/London`) |
 | `zone_entity` | Zone whose latitude/longitude is used |
 | `fallback_weather_entity` | Weather entity used when Met Office data is missing or stale |
+| `log_payloads` | false = each job run (scheduler, start-up, own timer or parent trigger) logs ONE line with metadata only (run id, trigger, job, chars of job log, ms, ok, why). true = the line also holds the first 200 chars of the trigger and of the last job log line (one line, newlines escaped). Keys and tokens are never logged. |
 
 ## Boot and watchdog
 Default `boot: manual`. For automatic start set the Supervisor option "Start on boot" and add `watchdog: http://[HOST]:[PORT:8799]/healthz` to `config.yaml` after the dry-run looks right.

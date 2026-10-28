@@ -30,6 +30,7 @@ A module's Discord writes are real only when ALL of these are true: `dry_run` is
 | `modules` | Bus modules and what they are GRANTED: `name`, `signing_key` (secret, one per module), `channels` (channel keys), `ops`, `rate_per_min`, `public_words` | see below |
 | `live_modules` | Bus modules whose Discord writes are real (also needs `dry_run` off). Others get result code `dry` | `["ih_discord_house","ih_discord_shopping"]` |
 | `offline_notice` | Post one "module is offline" line (once per channel per 10 minutes) when a message for a silent module arrives | `false` |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 ## Router and bus (always on since 0.7.0)
 Modules never get the token or a channel number, only channel **keys**. The channel keys are `house` (`channels.house`), `shopping` (`channels.shopping`) and the `key`s in `extra_channels`.

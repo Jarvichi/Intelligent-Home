@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "module_name": "ih_discord_taskchannels",
   "signing_key": "",
   "shadow": true,

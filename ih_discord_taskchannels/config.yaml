@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Task channels"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_discord_taskchannels
 description: "One private Discord channel per task, as a module of the ih_discord transport: commands new / done / reopen / list in a commands channel, goal as channel topic, Work in Progress and Done categories, daily cleanup of old done channels. It asks the transport (signed MQTT bus) to administer channels and never holds a Discord token. SHADOW mode by default: it creates nothing. No Home Assistant access. Maps no folders."
 arch:
@@ -13,6 +13,7 @@ ports:
 ports_description:
   8797/tcp: "Health and status (/healthz, /status)"
 options:
+  log_payloads: false
   module_name: "ih_discord_taskchannels"
   signing_key: ""
   shadow: true
@@ -28,6 +29,7 @@ options:
   ingest_url: "http://172.30.32.1:8790"
   ingest_token: ""
 schema:
+  log_payloads: bool?
   module_name: str
   signing_key: password
   shadow: bool

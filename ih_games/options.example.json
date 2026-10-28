@@ -1,5 +1,6 @@
 
 {
+  "log_payloads": false,
   "mode": "dry",
   "players": [
     {

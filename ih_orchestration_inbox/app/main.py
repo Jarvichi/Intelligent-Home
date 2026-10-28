@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 DATA = os.environ.get('IHI_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHI_PORT', '8800'))
@@ -58,7 +58,7 @@ def load_options(path=None):
         if bus_client.KEY_RE.match(k) and k not in keys:
             keys.append(k)
     return {'module': name if bus_client.NAME_RE.match(name) else DEFAULT_MODULE,
-            'signing_key': _text(o.get('signing_key')), 'shadow': o.get('shadow') is not False,   # anything but an explicit false = shadow
+            'signing_key': _text(o.get('signing_key')), 'log_payloads': o.get('log_payloads') is True, 'shadow': o.get('shadow') is not False,   # anything but an explicit false = shadow
             'channel_keys': keys, 'ack_emoji': _text(o.get('ack_emoji'))[:16] or DEFAULT_EMOJI, 'retention_days': days,
             'api_token': _text(o.get('api_token')),
             'mqtt_host': _text(o.get('mqtt_host')) or 'core-mosquitto', 'mqtt_port': int(o.get('mqtt_port') or 1883),
@@ -230,7 +230,7 @@ class Module:
             self.bus = bus_client.PahoBus(self.opts['mqtt_host'], self.opts['mqtt_port'], self.opts['mqtt_user'], self.opts['mqtt_password'],
                                           self.opts['module'] + '_mod', log=lambda m: self.lg.info('bus: ' + m))
         self.client = bus_client.ModuleClient(self.opts['module'], self.opts['signing_key'], self.bus, version=VERSION, log=lambda m: self.lg.info(m),
-                                              clock=self.clock, threaded=self.threaded, ops_needed=OPS_NEEDED, dry=True)
+                                              clock=self.clock, threaded=self.threaded, log_payloads=self.opts.get('log_payloads', False), ops_needed=OPS_NEEDED, dry=True)
         for ck in self.opts['channel_keys']:
             self.client.on_message(ck, self.on_in, any=True)
         self.apply_mode()

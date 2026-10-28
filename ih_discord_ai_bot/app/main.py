@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
@@ -84,7 +84,7 @@ def load_options(path=None):
             users.append(u)
     cap = _text(o.get('capability'))
     return {'module': name if KEY_NAME_RE.match(name) else DEFAULT_MODULE,
-            'signing_key': _text(o.get('signing_key')), 'shadow': o.get('shadow') is not False,   # anything but an explicit false = shadow
+            'signing_key': _text(o.get('signing_key')), 'log_payloads': o.get('log_payloads') is True, 'shadow': o.get('shadow') is not False,   # anything but an explicit false = shadow
             'channel_keys': keys, 'trigger_prefix': _text(o.get('trigger_prefix'))[:20], 'allowed_user_ids': users,
             'ai_layer_url': _text(o.get('ai_layer_url')).rstrip('/'), 'api_token': _text(o.get('api_token')),
             'capability': cap if CAP_RE.match(cap) else '',
@@ -208,7 +208,7 @@ class Module:
             self.bus = bus_client.PahoBus(self.opts['mqtt_host'], self.opts['mqtt_port'], self.opts['mqtt_user'], self.opts['mqtt_password'],
                                           self.opts['module'] + '_mod', log=lambda m: self.lg.info('bus: ' + m))
         self.client = bus_client.ModuleClient(self.opts['module'], self.opts['signing_key'], self.bus, version=VERSION, log=lambda m: self.lg.info(m),
-                                              clock=self.clock, threaded=self.threaded, ops_needed=OPS_NEEDED, dry=True)
+                                              clock=self.clock, threaded=self.threaded, log_payloads=self.opts.get('log_payloads', False), ops_needed=OPS_NEEDED, dry=True)
         pre = self.opts['trigger_prefix']
         for ck in self.opts['channel_keys']:
             if pre:

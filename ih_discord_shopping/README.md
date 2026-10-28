@@ -47,6 +47,7 @@ The transport sends the reaction events for watched messages to this module only
 | `shop_names` | Extra shop names for "I'm at <shop>", words separated by `\|` | empty |
 | `aisles`, `aisle_order` | Departments (`name`, `words` separated by `\|`) and their order. Empty = generic grocery defaults | defaults |
 | `command_event` | Event fired for `shop` / `got ...` typed in the house channel. Empty = none | `ih_discord_command` |
+| `log_payloads` | false = each handled Discord message or reaction logs ONE line with metadata only (id, source, what, chars in/out, ms, ok, why). true = the line also holds the first 200 chars of the request and the reply (one line, newlines escaped). Keys and tokens are never logged. | `false` |
 
 The option names are the same as in `ih_discord`, so values can be copied over.
 

@@ -1,6 +1,6 @@
 {
  "name": "ih_orchestration_inbox",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Orchestration inbox: durable queue of messages on chosen Discord channel keys (bus module of ih_discord), eye-emoji acknowledgement, token-protected read API. Never answers in the channel. Shadow mode by default: queue written, no reactions.",
  "owner": "local add-on ih_orchestration_inbox",

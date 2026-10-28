@@ -1,4 +1,5 @@
 {
+  "log_payloads": false,
   "ingest_token": "",
   "enable_broker": false,
   "enable_scheduler": false,

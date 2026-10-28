@@ -1,6 +1,6 @@
 {
  "name": "ih_discord_shopping",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing.",
  "owner": "local add-on ih_discord_shopping",

@@ -1,0 +1,44 @@
+name: "Intelligent Home - AI Layer - Claude CLI Agent"
+version: "0.1.0"
+slug: ih_ai_layer_claude_cli
+description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text by running the Claude Code CLI (print mode, all tools off) with a login that the owner creates inside this add-on. No API key. Weekly usage gate and daily cap. Text is scrubbed of personal data first. No Home Assistant access. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself (the default here). After install the owner sets: boot auto, watchdog on, auto_update on.
+# watchdog: add  watchdog: http://[HOST]:[PORT:8814]/healthz  once boot is auto.
+boot: manual
+init: false
+ports:
+  8814/tcp: 8814
+ports_description:
+  8814/tcp: "Signed /ask from the parent, plus /healthz and /status"
+options:
+  register_key: ""
+  parent_url: "http://172.30.32.1:8801"
+  callback_url: ""
+  model: "sonnet"
+  spend_cap: 0
+  free_tier: false
+  daily_cap: 20
+  timeout_s: 90
+  shadow: true
+  max_chars: 1900
+  log_payloads: false
+  max_week_percent: 50
+  usage_url: ""
+schema:
+  register_key: password
+  parent_url: str
+  callback_url: str?
+  model: str
+  spend_cap: int(0,1000)
+  free_tier: bool
+  daily_cap: int(0,1000)
+  timeout_s: int(5,300)
+  shadow: bool
+  max_chars: int(100,4000)
+  log_payloads: bool?
+  max_week_percent: int(0,100)
+  usage_url: str?

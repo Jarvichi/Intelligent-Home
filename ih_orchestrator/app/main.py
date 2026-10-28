@@ -18,6 +18,8 @@ ENABLE_BROKER = False
 SCHED = None
 SCHED_REASON = "not started"
 TOKEN = ""
+LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
+LOG = lambda m: print(m, flush=True)
 PORT = int(os.environ.get("IH_PORT", "8790"))
 PROBE_MAX_AGE = 180  # host probe results older than this count as unknown
 SNAPSHOT_MAX_AGE = 180  # a pushed snapshot older than this is stale
@@ -25,6 +27,30 @@ MAX_BODY = 1024 * 1024
 MAX_ITEMS = 500
 STATE = {"manifests": [], "status": [], "received_at": None, "extra": {}}  # extra: pushes from modules, by source name
 LOCK = threading.Lock()
+
+
+def _snip(t, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    t = str(t or "")[:n]
+    return t.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "\\r").replace("\n", "\\n")
+
+
+def _tag(v, default="-"):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = "".join(c if (c.isalnum() and c.isascii()) or c in "._:/-" else "_" for c in str(v if v is not None else default))[:64]
+    return t or default
+
+
+def inv(src, what, n_in, n_out, t0, ok, why="-", req="", ans="", rid="-"):
+    """ONE line per real invocation (/register, /admin, /pause): id, source, what, chars in/out, ms, ok, why. Text only when option log_payloads is true."""
+    try:
+        f = ["invoke", "id=" + _tag(rid), "src=" + _tag(src), "what=" + _tag(what), "in=%d" % n_in, "out=%d" % n_out, "ms=%d" % int((time.time() - t0) * 1000),
+             "ok=%s" % bool(ok), "why=" + _tag(why)]
+        if LOG_PAYLOADS and (req or ans):
+            f += ['req="%s"' % _snip(req), 'ans="%s"' % _snip(ans)]
+        LOG(" ".join(f))
+    except Exception:
+        pass
 
 
 def load_manifests(d=MANIFESTS):
@@ -209,7 +235,7 @@ def init_scheduler(o):
 
 
 def load_options(path=None):
-    global TOKEN, ENABLE_BROKER
+    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS
     try:
         o = json.load(open(path or OPTIONS))
     except Exception:
@@ -217,6 +243,7 @@ def load_options(path=None):
     load_options.last = o
     TOKEN = str(o.get("ingest_token") or "").strip()
     ENABLE_BROKER = bool(o.get("enable_broker", False))
+    LOG_PAYLOADS = o.get("log_payloads") is True
 
 
 def sensor(snap):
@@ -306,12 +333,16 @@ class H(BaseHTTPRequestHandler):
                 return self._json(401, {"error": "unauthorized"})
             if not SCHED:
                 return self._json(503, {"error": "scheduler off"})
+            t0 = time.time()
             q = parse_qs(urlparse(self.path).query)
             mod, job, act = (q.get(k, [""])[0] for k in ("module", "job", "action"))
             if act not in ("", "pause", "resume"):
+                inv("api", "pause", len(self.path), 0, t0, False, "bad_action", self.path)
                 return self._json(400, {"error": "action is pause or resume"})
             if not SCHED.set_paused(mod, job, act != "resume"):
+                inv("api", "pause", len(self.path), 0, t0, False, "unknown_job", self.path)
                 return self._json(404, {"error": "unknown job"})
+            inv("api", "pause:%s/%s" % (mod, job), len(self.path), 0, t0, True, "-", self.path, "paused" if act != "resume" else "resumed")
             return self._json(200, {"ok": True, "module": mod, "job": job, "paused": act != "resume"})
         if not BROKER or p not in ("/register", "/heartbeat", "/admin"):
             return self.send_error(404)
@@ -326,11 +357,20 @@ class H(BaseHTTPRequestHandler):
         ip = self.client_address[0]
         if not broker.is_local(ip):
             return self._json(403, {"error": "local only"})
+        t0 = time.time()
         if p == "/register":
-            return self._json(*BROKER.register(req))
+            code, out = BROKER.register(req)
+            decl = req.get("declares_secrets") if isinstance(req.get("declares_secrets"), list) else []
+            inv(req.get("name") if isinstance(req.get("name"), str) else "?", "register", len(json.dumps(req)), len(json.dumps(out)), t0, code == 200,
+                "-" if code == 200 else (out.get("error") if isinstance(out, dict) else "error"), "declares=%s" % ",".join(str(x) for x in decl),
+                "http=%d given=%s pending=%s" % (code, ",".join(sorted(out.get("secrets", {}))) if isinstance(out, dict) else "", ",".join(out.get("pending", [])) if isinstance(out, dict) else ""))   # names only, never values or tokens
+            return self._json(code, out)
         if p == "/heartbeat":
-            return self._json(*BROKER.heartbeat(req.get("module"), req.get("token")))
-        return self._json(*BROKER.admin(ip, req))
+            return self._json(*BROKER.heartbeat(req.get("module"), req.get("token")))   # a heartbeat is a health ping: not logged
+        code, out = BROKER.admin(ip, req)
+        inv("owner", "admin:%s" % _tag(req.get("action")), len(json.dumps(req)), len(json.dumps(out)), t0, code == 200,
+            "-" if code == 200 else (out.get("error") if isinstance(out, dict) else "error"))   # never the request (code/pin): no payload even when log_payloads is on
+        return self._json(code, out)
 
     def _json(self, code, obj):
         body = json.dumps(obj).encode()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_jobs 0.3.0: PARENT "Intelligent Home - Jobs". GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
+"""ih_jobs 0.3.1: PARENT "Intelligent Home - Jobs". GENERIC (house details come from the add-on options only). Hourly Home Assistant jobs as an add-on module: backupstore (backup storage sensors) and metoffice (forecast sensors).
 DRY by default: the fetch logic runs for real (read-only) but HA states are only logged as '[DRY] would set <entity> = <state>'.
 A job is LIVE only when mode=live AND the job is in live_jobs AND old_loops_disabled=true AND /data/STOP_LIVE does not exist.
 Runs: when the scheduler sends a signed message (MQTT, interval 3600 s), and once 90 s after start (REST sensors vanish at an HA restart).
@@ -18,7 +18,7 @@ import schedule_client
 import jobs_link
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -33,6 +33,18 @@ WINDOW_S = 600
 CHILD_FRESH_S = 120     # a child that registered within this many seconds counts as up
 MAX_CHILDREN = 20
 FORWARD_TIMEOUT_S = 120
+
+
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = ''.join(c if (c.isalnum() and c.isascii()) or c in '._:-' else '_' for c in str(v if v is not None else default))[:64]
+    return t or default
 
 
 class Ring(logging.Handler):
@@ -71,7 +83,8 @@ def load_options(path=None):
             'signing_key': str(o.get('signing_key') or '').strip(),
             'disk_used_entity': str(o.get('disk_used_entity') or '').strip(), 'disk_total_entity': str(o.get('disk_total_entity') or '').strip(),
             'host_info': bool(o.get('host_info', True)),
-            'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True))}
+            'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True)),
+            'log_payloads': o.get('log_payloads') is True}
 
 
 class Module:
@@ -113,8 +126,15 @@ class Module:
             return False
         with self.locks[name]:
             live, why = self.live_mode(name)
-            ctx = common.Ctx(dry=not live, log=self.log, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
+            t0, seen = time.time(), []
+            self.inv_seq = getattr(self, 'inv_seq', 0) + 1
+            rid = self.inv_seq
+
+            def jlog(m):
+                seen.append(str(m)); self.log(m)
+            ctx = common.Ctx(dry=not live, log=jlog, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
             self.last_mode[name] = 'live' if live else 'dry'; self.last_trigger[name] = trigger
+            ok, ewhy = False, '-'
             try:
                 ok = self.runners[name](ctx) is not False
                 self.last_ok[name] = ok
@@ -122,13 +142,29 @@ class Module:
                 self.runs[name] += 1
                 if ok:
                     self.err_last.pop(name, None)
+                else:
+                    ewhy = 'runner_returned_false'
                 return ok
-            except Exception:
+            except Exception as e:
                 self.last[name] = time.time(); self.last_ok[name] = False
                 self.errors[name] += 1
+                ewhy = type(e).__name__
                 self.err_last[name] = traceback.format_exc(limit=3).strip().splitlines()[-1][:200]
                 self.log('%s error: %s' % (name, self.err_last[name]))
                 return False
+            finally:
+                self._invoke_line('run%d' % rid, trigger, name, sum(len(x) for x in seen), t0, ok, ewhy, seen[-1] if seen else '')
+
+    def _invoke_line(self, rid, trigger, what, out, t0, ok, why, ans=''):
+        """ONE line per job run or forward (an invocation): id, trigger, job, chars out, ms, ok, why. Job log text only when log_payloads is on."""
+        try:
+            f = ['invoke', 'id=' + _tag(rid), 'src=' + _tag(trigger), 'what=' + _tag(what), 'in=0', 'out=%d' % out, 'ms=%d' % int((time.time() - t0) * 1000),
+                 'ok=%s' % bool(ok), 'why=' + _tag(why)]
+            if self.opts.get('log_payloads'):
+                f += ['req="%s"' % _snip('%s %s' % (trigger, what)), 'ans="%s"' % _snip(ans)]
+            self.log(' '.join(f))
+        except Exception:
+            pass
 
     # ---- children (jobs_link.py) ----
     def register_child(self, body, signature, now=None):
@@ -168,14 +204,16 @@ class Module:
         key = self.opts.get('register_key', '')
         if not c or not key:
             return False
-        ok = False
+        ok, t0, why = False, time.time(), '-'
         try:
             body, headers = jobs_link.pack(key, {'job': job})
             req = urllib.request.Request(c['url'] + '/run', data=body, method='POST', headers=headers)
             with (opener or self._opener or urllib.request.urlopen)(req, timeout=FORWARD_TIMEOUT_S) as x:
                 ok = x.status == 200 and json.load(x).get('ok') is True
         except Exception as e:
+            why = type(e).__name__
             self.log('forward %s failed (%s)' % (job, type(e).__name__))
+        self._invoke_line('fwd-' + job, 'scheduler', 'forward:' + job, 0, t0, ok, why if not ok and why != '-' else ('child_said_no' if not ok else '-'))
         self.forward_results[job] = (time.time(), ok)
         return ok
 

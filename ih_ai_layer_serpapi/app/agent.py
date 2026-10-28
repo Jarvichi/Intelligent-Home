@@ -1,14 +1,26 @@
 """SerpApi agent core: answers signed /ask requests for 'showtimes' and 'web_search'. stdlib only.
 The SerpApi key (option serpapi_key) is only used to build the request URL and is never logged, returned or put in /status.
-Daily cap is counted per local date in /data/usage.json BEFORE the call is made; cached answers cost nothing."""
-import hashlib, json, os, threading, time, urllib.parse, urllib.request
+One metadata line is logged per /ask; request/answer snippets (200 chars) only when option log_payloads is true (default false). Daily cap is counted per local date in /data/usage.json BEFORE the call is made; cached answers cost nothing."""
+import hashlib, json, os, re, threading, time, urllib.parse, urllib.request
 import jobs_link
 import showtimes_parse as sp
 
-VERSION = '0.1.3'
+VERSION = '0.1.4'
 CAPABILITIES = ['showtimes', 'web_search']
 SERP_URL = 'https://serpapi.com/search.json'
 STOP_FILE = 'STOP'
+
+
+def _snip(s, n=200):
+    """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
+    s = str(s or '')[:n]
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tag(v, default='-'):
+    """A short safe token for a log line (letters, digits and . _ : - only)."""
+    t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
+    return t or default
 
 
 def _flag(v):
@@ -32,6 +44,7 @@ def load_options(path):
             'callback_url': str(o.get('callback_url') or '').strip().rstrip('/'),
             'spend_cap': num('spend_cap', 0, 0, 1000), 'free_tier': _flag(o.get('free_tier', False)),
             'daily_cap': num('daily_cap', 5, 0, 250), 'cache_hours': num('cache_hours', 6, 0, 168),
+            'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes'),
             'default_cinema': str(o.get('default_cinema') or '').strip()[:80]}
 
 
@@ -88,6 +101,17 @@ class Agent:
         self._write('paid.json', {self.today(): self.paid_today() + 1})
         return True
 
+    def log_line(self, name, obj, cap, text, ok, answer, kw, t0):
+        """ONE structured line per /ask: metadata only. Request/answer snippets (200 chars) only when option log_payloads is true. Never keys or headers."""
+        ctx = obj.get('context') if isinstance(obj.get('context'), dict) else {}
+        f = ['ask', 'id=' + _tag(obj.get('request_id')), 'agent=' + name, 'caller=' + _tag(obj.get('caller') or ctx.get('caller')), 'cap=' + _tag(cap),
+             'model=' + _tag(self.opts.get('model')), 'in=%d' % len(text), 'out=%d' % (len(answer) if ok and isinstance(answer, str) else 0),
+             'ms=%d' % int((self.clock() - t0) * 1000), 'ok=%s' % bool(ok), 'why=' + _tag(kw.get('error') or kw.get('why')),
+             'free=%s' % self.is_free(), 'shadow=%s' % bool(self.opts.get('shadow', False))]
+        if self.opts.get('log_payloads'):
+            f += ['req="%s"' % _snip(text), 'ans="%s"' % _snip(answer if ok else '')]
+        return ' '.join(f)
+
     def stopped(self):
         return os.path.exists(self._p(STOP_FILE))
 
@@ -97,9 +121,11 @@ class Agent:
         rid, cap, text = obj.get('request_id'), obj.get('capability'), str(obj.get('text') or '').strip()
         ctx = obj.get('context') if isinstance(obj.get('context'), dict) else {}
 
+        t0 = self.clock()
+
         def res(ok, answer, **kw):
-            self.log('ask id=%s cap=%s ok=%s %s' % (rid, cap, ok, kw.get('why', '')))
-            return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': 'ih_ai_layer_serpapi'}, **kw)
+            self.log(self.log_line('ih_ai_layer_serpapi', obj, cap, text, ok, answer, kw, t0))
+            return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': 'ih_ai_layer_serpapi', 'free': self.is_free(), 'model': self.opts.get('model')}, **kw)
         self.served += 1
         if cap not in CAPABILITIES or not text:
             return res(False, 'This agent only does showtimes and web_search.', why='bad_request')
