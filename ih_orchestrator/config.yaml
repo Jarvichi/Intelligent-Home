@@ -1,5 +1,5 @@
 name: "Intelligent Home"
-version: "0.7.0"
+version: "0.7.1"
 slug: ih_orchestrator
 description: "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set."
 arch:

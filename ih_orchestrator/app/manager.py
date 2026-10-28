@@ -367,6 +367,7 @@ class Manager:
         p = self.prov()
         st = ((p.get_status() if p else None) or {}).get("addons") or {}
         out = [{"slug": r["slug"], "full": r.get("full"), "missing": [str(m)[:80] for m in (st.get(r["slug"]) or {}).get("missing") or []],
+                "optional_empty": [str(m)[:80] for m in (st.get(r["slug"]) or {}).get("optional_empty") or []],
                 "error": (st.get(r["slug"]) or {}).get("error")} for r in rows if r["installed"] and r["slug"] in st]
         return 200, {"addons": out, "provisioner": bool(p), "config_slug": own}
 
@@ -407,6 +408,7 @@ function U(p){return B+p}
 function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
 function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
 function btn(label,fn){var b=E('button',label);b.onclick=fn;return b}
+function T(x){if(!x)return null;var d=new Date(typeof x=='number'?x*1000:x);return isNaN(d)?String(x):d.toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
 function kv(card,pairs){var d=E('div',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;var s=E('span');s.appendChild(E('span',p[0]+' ','d'));s.appendChild(E('span',String(p[1]),p[2]));d.appendChild(s)});card.appendChild(d)}
 function J(r){return r.json().then(function(j){return[r.status,j]})}
 function post(path){return fetch(U(path),{method:'POST'}).then(J)}
@@ -444,7 +446,7 @@ function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/p
  if(!j.running)m.appendChild(E('p','The jobs add-on did not answer: live details are missing.','o'));
  if(!j.plugins.length)m.appendChild(E('p','No plugins are listed in the ih_jobs configuration.'));
  var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
-  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule],['Next',p.next_run],['Last run',p.last_run],['Runs',p.runs],['Last error',p.last_error,p.last_error?'r':''],
+  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Last error',p.last_error,p.last_error?'r':''],
    ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
   var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){
    if(!confirm((p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.'))return;
@@ -456,14 +458,14 @@ function tabSettings(m){m.appendChild(E('p','Loading settings...'));fetch(U('api
  t.appendChild(cfgLink(j.config_slug,'Shared settings list (orchestrator config)'));m.appendChild(t);
  if(!j.provisioner)m.appendChild(E('p','The settings hub is off. Turn on provision in the orchestrator configuration.','o'));
  var c=E('div',null,'cards');j.addons.forEach(function(a){var k=E('div',null,'card s-'+(a.missing.length?'stopped':'started'));k.appendChild(E('h3',a.slug));
-  k.appendChild(E('div',a.missing.length?'Missing: '+a.missing.join(', '):'All settings filled',a.missing.length?'o':'g'));if(a.error)k.appendChild(E('div',a.error,'r'));
+  k.appendChild(E('div',a.missing.length?'Missing: '+a.missing.join(', '):'All settings filled',a.missing.length?'o':'g'));if(a.optional_empty&&a.optional_empty.length)k.appendChild(E('div','Optional, not set: '+a.optional_empty.join(', '),'d'));if(a.error)k.appendChild(E('div',a.error,'r'));
   if(a.full){var b=E('div',null,'btns');b.appendChild(cfgLink(a.full));k.appendChild(b)}c.appendChild(k)});m.appendChild(c)})}
 function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/health')).then(J).then(function(x){m.textContent='';var j=x[1];
  var cn=j.counts||{};m.appendChild(E('p',(cn.OK||0)+' OK, '+(cn.FAIL||0)+' FAIL, '+(cn.UNKNOWN||0)+' unknown'+(j.stale?' (STALE data)':''),j.stale||cn.FAIL?'o':'g'));
  ['All','FAIL','OK'].forEach(function(f){var c=E('span',f,'chip'+(FILT==f?' on':''));c.onclick=function(){FILT=f;show()};m.appendChild(c)});
- var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Version','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
+ var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
  j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
-  [s.name,s.state,s.kind||'',s.version||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
+  [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
  w.appendChild(t);m.appendChild(w)})}
 function show(){var m=document.getElementById('main');
  TAB=TABS.indexOf(location.hash.slice(1))>=0?location.hash.slice(1):'addons';

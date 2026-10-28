@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.1] - 2026-10-28
+
+### Fixed
+- Settings tab: options the add-on marks optional are listed as "Optional, not set" and no longer count as missing.
+- Plugins tab: schedule and times are readable; Health tab: dropped the empty version column.
+
 ## [0.7.0] - 2026-10-28
 
 ### Added

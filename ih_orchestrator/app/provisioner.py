@@ -61,6 +61,15 @@ def schema_types(schema):
     return out
 
 
+def optional_names(schema):
+    """Option names the schema marks optional ('str?' in a dict schema, 'optional': true in the Supervisor list)."""
+    if isinstance(schema, dict):
+        return {str(k) for k, v in schema.items() if isinstance(v, str) and v.strip().endswith("?")}
+    if isinstance(schema, list):
+        return {f["name"] for f in schema if isinstance(f, dict) and isinstance(f.get("name"), str) and f.get("optional") is True}
+    return set()
+
+
 def is_text(t):
     return t in STR_TYPES
 
@@ -233,7 +242,8 @@ class Provisioner:
             return {"filled": [], "missing": [], "restarted": False, "error": "other_repository"}
         cur = dict(d.get("options") if isinstance(d.get("options"), dict) else {})
         types = schema_types(d.get("schema"))
-        filled, missing = [], []
+        optional = optional_names(d.get("schema"))
+        filled, missing, opt_empty = [], [], []
         for opt, t in types.items():
             if not is_text(t):
                 continue
@@ -243,8 +253,8 @@ class Provisioner:
                 cur[opt] = want
                 filled.append(opt)
             elif empty(have):
-                missing.append(opt)
-        res = {"filled": sorted(filled), "missing": sorted(missing), "restarted": False, "error": None}
+                (opt_empty if opt in optional else missing).append(opt)
+        res = {"filled": sorted(filled), "missing": sorted(missing), "optional_empty": sorted(opt_empty), "restarted": False, "error": None}
         if filled and not all(opt in types and isinstance(cur[opt], str) for opt in filled):
             self.log("provision: %s skipped (value or schema check failed)" % suf)
             res.update(filled=[], error="validation_failed")
