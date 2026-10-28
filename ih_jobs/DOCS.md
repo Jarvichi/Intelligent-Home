@@ -79,3 +79,5 @@ Jobs run when the scheduler sends a signed message (every hour) and once 90 seco
 Drop a file in `app/plugins/` exposing `NAME`, `SCHEDULE` (`{"kind":"daily","at":"19:30"}` or `{"kind":"every","minutes":30}`), `DEFAULTS`, `run(ctx)`. Turn it on with the option `plugins`: a list of `{name, live, settings}`; `settings` is a JSON text with that plugin's house values. Dry by default (`live: false`: logs what it would do). `/data/STOP_LIVE` or `/data/STOP_<name>` forces dry. State lives in `/data/<name>/`. `/status` shows mode, last run, last error and next run per plugin. Shared helpers: `app/ihlib` (a copy: edit `ihlib/` and run `sync_ihlib.sh`).
 
 First plugin `physio_reminder`: settings `user_id`, `presence_entity`, `exercises` (list), `at`, `pick`, `openers`, `closers`, `token_option`; bot token in option `discord_token`.
+
+Plugin `birthday_reminder`: settings `user_id`, `at` (default 18:00), `leads` (default [7, 3]), `birthdays` (list of `{name, date: "YYYY-MM-DD" or "MM-DD", group}`), `group_labels`, `token_option`. One DM groups all birthdays of that day; age is shown when the year is known.

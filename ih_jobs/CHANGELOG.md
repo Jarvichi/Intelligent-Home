@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.1] - 2026-10-28
+
+### Added
+- Plugin `birthday_reminder`: a daily DM about birthdays 7 and 3 days ahead (list in settings).
+
 ## [0.4.0] - 2026-10-28
 
 ### Added
