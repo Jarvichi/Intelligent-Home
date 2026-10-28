@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.2] - 2026-10-28
+
+### Fixed
+- "Open config" pointed at the old add-on page address (404 since the apps rename); it now opens the app configuration inside Home Assistant without a page load.
+- Buttons crashed the Home Assistant phone app: no browser confirm dialogs (tap twice instead) and tabs switch without links.
+
 ## [0.7.1] - 2026-10-28
 
 ### Fixed

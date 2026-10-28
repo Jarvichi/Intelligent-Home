@@ -389,7 +389,7 @@ class Manager:
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Intelligent Home</title>
 <style>body{font:15px system-ui;margin:0;padding:0 10px 20px}h2{margin:10px 0 4px}
 nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid #8886;position:sticky;top:0;background:Canvas;color:CanvasText;padding:6px 0;z-index:2}
-nav a{padding:6px 12px;border-radius:14px;text-decoration:none;color:inherit;border:1px solid #8886;white-space:nowrap}nav a.on{background:#1976d2;color:#fff;border-color:#1976d2}
+nav a{cursor:pointer;user-select:none;padding:6px 12px;border-radius:14px;text-decoration:none;color:inherit;border:1px solid #8886;white-space:nowrap}nav a.on{background:#1976d2;color:#fff;border-color:#1976d2}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:10px}
 .card{border:1px solid #8886;border-left:6px solid #888;border-radius:8px;padding:8px 10px;min-width:0}.card.s-started{border-left-color:#2e7d32}.card.s-stopped,.card.s-error{border-left-color:#c62828}
 .card h3{margin:0 0 2px;font-size:16px;word-break:break-all}.d{font-size:12px;opacity:.7}.r{color:#c62828;font-weight:bold}.g{color:#2e7d32}.o{color:#ef6c00;font-weight:bold}
@@ -399,7 +399,7 @@ pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px;w
 #msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.w{overflow-x:auto}
 .chip{display:inline-block;margin:4px 4px 4px 0;padding:4px 12px;border:1px solid #8886;border-radius:14px;cursor:pointer}.chip.on{background:#1976d2;color:#fff}</style>
 <h2>Intelligent Home</h2>
-<nav id=nav><a href='#addons'>Add-ons</a><a href='#install'>Install</a><a href='#plugins'>Plugins</a><a href='#settings'>Settings</a><a href='#health'>Health</a></nav>
+<nav id=nav><a data-t=addons>Add-ons</a><a data-t=install>Install</a><a data-t=plugins>Plugins</a><a data-t=settings>Settings</a><a data-t=health>Health</a></nav>
 <div id=msg></div><div id=main>Loading (the first load after a restart can take about 30 seconds)...</div>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
@@ -407,20 +407,24 @@ var TABS=['addons','install','plugins','settings','health'],TAB='addons',FILT='A
 function U(p){return B+p}
 function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
 function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
-function btn(label,fn){var b=E('button',label);b.onclick=fn;return b}
+function btn(label,fn){var b=E('button',label);b.type='button';b.onclick=fn;return b}
+/* No confirm(): the HA phone app can crash on dialogs inside the panel frame (28 Oct 2026). Two taps instead. */
+function ask(b,text,fn){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label;fn();return}b.dataset.label=b.textContent;b.dataset.armed=1;b.textContent='Tap again to confirm';say(text);setTimeout(function(){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label}},5000)}
 function T(x){if(!x)return null;var d=new Date(typeof x=='number'?x*1000:x);return isNaN(d)?String(x):d.toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
 function kv(card,pairs){var d=E('div',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;var s=E('span');s.appendChild(E('span',p[0]+' ','d'));s.appendChild(E('span',String(p[1]),p[2]));d.appendChild(s)});card.appendChild(d)}
 function J(r){return r.json().then(function(j){return[r.status,j]})}
 function post(path){return fetch(U(path),{method:'POST'}).then(J)}
 function act(a,s,extra){say(a+' '+s+' ...');post('api/action/'+a+'/'+s+(extra||'')).then(function(x){var c=x[0],j=x[1];
  if(c==202)return poll(j.job);
- if(c==409&&j.warning){if(j.installable&&j.installable.length&&confirm(j.warning+'\\nInstall those first?'))return act(a,s,'?with_requires=1');say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
+ if(c==409&&j.warning){if(j.installable&&j.installable.length){say(j.warning);var m=document.getElementById('msg');m.appendChild(E('br'));m.appendChild(btn('Install those first, then '+s,function(){act(a,s,'?with_requires=1')}));return}say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
  say(j.error||j.warning||('failed '+c))}).catch(function(e){say('error: '+e)})}
 function poll(id){fetch(U('api/job/'+id)).then(function(r){return r.json()}).then(function(j){
  say(j.label+': '+j.state+(j.steps.length?' ('+j.steps[j.steps.length-1]+')':'')+(j.error?' ERROR '+j.error:''));
  if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else show()})}
 function age(x){if(!x||x.age_s==null)return '-';var a=x.age_s;return (x.state||'')+' '+(a<90?a+'s':a<5400?Math.round(a/60)+'m':Math.round(a/3600)+'h')}
-function cfgLink(full,label){var a=E('a',label||'Open config','b');a.setAttribute('href',['','hassio','addon',full,'config'].join('/'));a.target='_top';return a}
+/* HA navigation without a page load (the old /hassio/addon path is a 404 since the apps rename). */
+function goHA(path){try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
+function cfgLink(full,label){return btn(label||'Open config',function(){goHA(['','config','app',full,'config'].join('/'))})}
 function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
  fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
 function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
@@ -448,13 +452,13 @@ function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/p
  var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
   kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Last error',p.last_error,p.last_error?'r':''],
    ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
-  var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){
-   if(!confirm((p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.'))return;
-   say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'dry')+'; ih_jobs restarted':(y[1].error||'failed'));show()})}));
+  var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){var me=this;
+   ask(me,(p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.',function(){
+   say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'dry')+'; ih_jobs restarted':(y[1].error||'failed'));show()})})}));
   k.appendChild(b);c.appendChild(k)});m.appendChild(c)})}
 function tabSettings(m){m.appendChild(E('p','Loading settings...'));fetch(U('api/settings')).then(J).then(function(x){m.textContent='';var j=x[1];
  if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- var t=E('div',null,'btns');t.appendChild(btn('Fill now',function(){if(!confirm('Run the settings hub now? It fills empty options of the add-ons.'))return;say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')})}));
+ var t=E('div',null,'btns');t.appendChild(btn('Fill now',function(){var me=this;ask(me,'Run the settings hub now? It fills empty options of the add-ons.',function(){say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')})})}));
  t.appendChild(cfgLink(j.config_slug,'Shared settings list (orchestrator config)'));m.appendChild(t);
  if(!j.provisioner)m.appendChild(E('p','The settings hub is off. Turn on provision in the orchestrator configuration.','o'));
  var c=E('div',null,'cards');j.addons.forEach(function(a){var k=E('div',null,'card s-'+(a.missing.length?'stopped':'started'));k.appendChild(E('h3',a.slug));
@@ -468,8 +472,7 @@ function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/hea
   [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
  w.appendChild(t);m.appendChild(w)})}
 function show(){var m=document.getElementById('main');
- TAB=TABS.indexOf(location.hash.slice(1))>=0?location.hash.slice(1):'addons';
- Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.getAttribute('href')=='#'+TAB?'on':''});
+ Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.dataset.t==TAB?'on':''});
  if(TAB=='plugins'){m.textContent='';tabPlugins(m);return}
  if(TAB=='settings'){m.textContent='';tabSettings(m);return}
  if(TAB=='health'){m.textContent='';tabHealth(m);return}
@@ -477,7 +480,9 @@ function show(){var m=document.getElementById('main');
   if(d.error){say(d.error);return}
   var keep=m.querySelectorAll('pre').length;if(keep&&TAB=='addons'&&DATA)return;
   m.textContent='';DATA=d;(TAB=='install'?tabInstall:tabAddons)(m,d)}).catch(function(e){say('error: '+e)})}
-window.onhashchange=function(){DATA=null;show()};show();
+/* Tabs switch in JS: no hash links (the HA phone app treats link taps in the panel frame as navigation). #name on first load still works. */
+if(TABS.indexOf(location.hash.slice(1))>=0)TAB=location.hash.slice(1);
+Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.setAttribute('role','button');a.onclick=function(){TAB=a.dataset.t;DATA=null;say('');show()}});show();
 setInterval(function(){if(!document.hidden&&(TAB=='addons'||TAB=='install'))show()},30000);
 </script>"""
 
