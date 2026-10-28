@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - Pollinations"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_ai_layer_pollinations
 description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Pollinations (no key needed, daily cap; prompts are PUBLIC, generic jobs only). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders."
 arch:

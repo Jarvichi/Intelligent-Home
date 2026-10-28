@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - Groq"
-version: "0.2.0"
+version: "0.2.1"
 slug: ih_ai_layer_groq
 description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text through Groq (your own key, daily cap). Text is scrubbed of personal data before it leaves the house. Registers with the parent. No Home Assistant access. Maps no folders."
 arch:

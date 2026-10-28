@@ -5,7 +5,7 @@ Request and reply text are never logged. Daily cap is counted per local date in 
 import json, os, re, threading, time, urllib.request
 import jobs_link
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 CAPABILITIES = ['general_qa', 'summarize']
 API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 STOP_FILE = 'STOP'
@@ -120,6 +120,8 @@ class Agent:
     def ask(self, obj):
         """obj: {text, capability, context, request_id}. -> dict {ok, answer, request_id, ...}. Never raises; never logs text."""
         rid, cap, text = obj.get('request_id'), obj.get('capability'), str(obj.get('text') or '').strip()
+        if not cap and obj.get('model'):
+            cap = 'general_qa'  # forced model without a capability: plain question
 
         def res(ok, answer, **kw):
             self.log('ask id=%s cap=%s ok=%s %s' % (rid, cap, ok, kw.get('why', '')))
