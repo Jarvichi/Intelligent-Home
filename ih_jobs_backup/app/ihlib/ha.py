@@ -58,7 +58,9 @@ class WS:
         mask = os.urandom(4)
         self.s.sendall(hdr + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
 
-    def recv(self):
+    def recv(self, idle_ok=False):
+        """Next JSON message. idle_ok: return None after answering a ping when nothing else is waiting (a listener then goes back to idle
+        instead of blocking until the socket timeout; HA sends a ping about every 30 s)."""
         msg = b''
         while True:
             b1, b2 = self._read(2)
@@ -73,6 +75,12 @@ class WS:
                 raise HAError('websocket closed')
             if op == 9:   # ping -> pong (masked, empty)
                 self.s.sendall(b'\x8a\x80' + os.urandom(4))
+                if idle_ok and not msg and not self.wait(0):
+                    return None
+                continue
+            if op == 10:   # unsolicited pong: ignore
+                if idle_ok and not msg and not self.wait(0):
+                    return None
                 continue
             msg += payload
             if b1 & 0x80:
@@ -192,7 +200,9 @@ class HA:
             ready = False
             while time.time() < end:
                 if ws.wait(poll):
-                    m = ws.recv()
+                    m = ws.recv(idle_ok=True)
+                    if m is None:
+                        continue
                     if m.get('id') == 1 and m.get('type') == 'result':
                         if not m.get('success'):
                             raise HAError('subscribe refused')

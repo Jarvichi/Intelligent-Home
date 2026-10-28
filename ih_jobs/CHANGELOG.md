@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.2] - 2026-10-28
+
+### Fixed
+- Event listeners (photo_albums) no longer drop and reconnect every 50 seconds: a websocket ping from Home Assistant is answered and the listener goes back to waiting.
+
 ## [0.8.1] - 2026-10-28
 
 ### Changed
