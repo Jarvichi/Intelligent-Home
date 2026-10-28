@@ -16,9 +16,17 @@ class SupError(Exception):
     """A Supervisor call failed. Holds only a short kind (no response text: it could echo values)."""
 
 
+def _s6_token():
+    """s6-overlay keeps the container env here when the process env was cleaned (28 Oct: 'Invalid token')."""
+    try:
+        return open("/run/s6/container_environment/SUPERVISOR_TOKEN").read().strip()
+    except OSError:
+        return ""
+
+
 def supervisor(method, path, body=None, token=None, timeout=20):
     """Real Supervisor call; returns the 'data' dict. Tests replace this with a fake."""
-    tok = token if token is not None else os.environ.get("SUPERVISOR_TOKEN", "")
+    tok = token if token is not None else (os.environ.get("SUPERVISOR_TOKEN", "") or _s6_token())
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(SUP + path, data=data, method=method,
                                  headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
