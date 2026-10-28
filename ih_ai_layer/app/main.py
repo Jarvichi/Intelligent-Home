@@ -1,5 +1,5 @@
 """Intelligent Home - AI Layer (ih_ai_layer): HTTP front for ailayer.Layer. Not connected to Discord or any chat."""
-import json, logging, os, sys
+import json, logging, os, sys, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -26,6 +26,14 @@ def make_handler(layer):
             p = self.path.split('?')[0]
             if p == '/healthz':
                 self._send(200, 'ok', 'text/plain')
+            elif p == '/usage':
+                if self._authed():
+                    q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                    try:
+                        since = float(q.get('since', ['0'])[0])
+                    except ValueError:
+                        since = 0.0
+                    self._send(200, {'ok': True, 'lines': layer.usage_lines(since)})
             elif p in ('/status', '/agents'):
                 if self._authed():
                     self._send(200, layer.status() if p == '/status' else {'agents': layer.agents_view()})

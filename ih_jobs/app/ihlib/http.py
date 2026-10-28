@@ -31,3 +31,14 @@ class Http:
 
     def get_json(self, url, headers=None, timeout=20, min_interval=0.0):
         return json.loads(self.get_bytes(url, headers, timeout, min_interval))
+
+    def post_json(self, url, obj, headers=None, timeout=20):
+        """POST a JSON document (http/https only). -> HTTP status code. The body of the answer is not returned."""
+        u = urllib.parse.urlparse(str(url))
+        if u.scheme not in ('http', 'https') or not u.hostname:
+            raise ValueError('bad url')
+        h = {'User-Agent': DEFAULT_UA, 'Content-Type': 'application/json'}
+        h.update(headers or {})
+        req = urllib.request.Request(url, data=json.dumps(obj).encode(), headers=h, method='POST')
+        with (self.opener or urllib.request.urlopen)(req, timeout=timeout) as r:
+            return getattr(r, 'status', 200) or 200

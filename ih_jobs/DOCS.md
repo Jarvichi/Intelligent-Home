@@ -47,6 +47,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `disk_used_entity` | No | Optional sensor with used disk size. |
 | `host_info` | No | Ask the Supervisor for disk size. Switch off if it is refused. Default: `true`. |
 | `discord_token` | No | Optional Discord bot token for plugins that post. |
+| `bods_api_key` | No | Optional Bus Open Data API key for the bus_watch plugin (the plugin setting bods_key_option names this option). |
 | `plugins` | No | Extra job plugins to enable. |
 
 ## Troubleshooting
@@ -76,7 +77,7 @@ A job acts only when `mode` is `live`, the job is in `live_jobs`, `old_loops_dis
 Jobs run when the scheduler sends a signed message (every hour) and once 90 seconds after start.
 
 ### Plugins (0.4.0)
-Drop a file in `app/plugins/` exposing `NAME`, `SCHEDULE` (`{"kind":"daily","at":"19:30"}` or `{"kind":"every","minutes":30}`), `DEFAULTS`, `run(ctx)`. Turn it on with the option `plugins`: a list of `{name, live, settings}`; `settings` is a JSON text with that plugin's house values. Dry by default (`live: false`: logs what it would do). `/data/STOP_LIVE` or `/data/STOP_<name>` forces dry. State lives in `/data/<name>/`. `/status` shows mode, last run, last error and next run per plugin. Shared helpers: `app/ihlib` (a copy: edit `ihlib/` and run `sync_ihlib.sh`).
+Drop a file in `app/plugins/` exposing `NAME`, `SCHEDULE` (`{"kind":"daily","at":"19:30"}`, `{"kind":"every","minutes":30}` or `{"kind":"service","seconds":90}`), `DEFAULTS`, `run(ctx)`. Turn it on with the option `plugins`: a list of `{name, live, settings}`; `settings` is a JSON text with that plugin's house values. Dry by default (`live: false`: logs what it would do). `/data/STOP_LIVE` or `/data/STOP_<name>` forces dry. State lives in `/data/<name>/`. `/status` shows mode, last run, last error and next run per plugin. Shared helpers: `app/ihlib` (a copy: edit `ihlib/` and run `sync_ihlib.sh`).
 
 First plugin `physio_reminder`: settings `user_id`, `presence_entity`, `exercises` (list), `at`, `pick`, `openers`, `closers`, `token_option`; bot token in option `discord_token`.
 
@@ -228,3 +229,46 @@ A timed job (advise, review) is logged once per day in dry. SAFETY: only ONE liv
 ```
 
 Both need Home Assistant history (REST) and the websocket; the add-on has no access to the recorder database, so history windows are bounded (see each plugin's settings).
+
+##### Bus plugin and the `service` schedule kind (0.7.0)
+
+Schedule kind `service`: the host starts one supervised thread per configured service plugin and calls `run(ctx)` every `seconds` (the plugin default, or `"seconds"` in its settings). Every pass gets a fresh context, so `live`, the kill-switch files (`/data/STOP_LIVE`, `/data/STOP_<name>`) and the clock are re-read each time; an exception in a pass is logged and the loop continues. The 30-second timer never runs a service plugin. Why not `every`: `every` is whole minutes and runs on the shared timer thread, so a slow network call would delay every other plugin; a service pass has its own thread and a seconds interval (90 s for the bus feed). The plugin keeps its progress in state between passes instead of looping inside one call, so a restart in the middle of a window loses nothing.
+
+`bus_watch` (service, 90 s). A recorder only: it has no DM mode. Dry reads the feed (read only) and the vehicle page and logs `would log shadow row`, `would write promise record` and `would POST`; it writes nothing to disk and posts nothing. Live writes `shadow.jsonl`, `promise_log.jsonl`, `sessions.json` and `vehicle_types.json` under `/data/bus_watch/`, and POSTs the promise log to the webhook in settings.
+
+```
+bus_watch: a recorder for one bus route. Polls the Bus Open Data (BODS SIRI-VM) vehicle feed during morning windows, projects each bus onto the route to estimate
+minutes to a stop, keeps a SHADOW log (every poll, for scoring the estimate later) and a PROMISE log (one record per day and stop: which vehicle came and whether it
+was a double-decker). It never sends a DM and has no 'run' mode: it is a recorder only. Runs as a `service` plugin (its own thread, one pass every `seconds`, 90 by default).
+A pass outside every window returns at once without touching the network.
+Day logic (same as the old host script): on a day with rules for today that is not in `closed` and is Monday-Friday, each rule {stop, time} is tracked from
+(time - start_before_min) to (time + shadow_after_min): the bus whose estimated arrival is nearest `time` is followed, a 'passed' row ends it, and ONE promise record is written.
+Any other day (weekend, closed day, weekday without rules) is a SWEEP from sweep_start to sweep_end: every inbound bus seen within sweep_km of `sweep_stop` is recorded
+(an empty window is 'no_info', never a no-show, because no timetable is known).
+The estimate is distance along the route x road_factor / avg_speed_kmh; it is NOT a timetable estimate.
+Every house value comes from settings (JSON in plugins[].settings); defaults in brackets:
+  operator_ref, line_ref   feed filters (required)
+  feed_url                 BODS data feed URL (the public one)
+  bods_key_option          NAME of the add-on option holding the BODS API key (bods_api_key). The key is never logged.
+  presence_entity          reserved for a future DM mode; not used (this plugin never sends)
+  direction                DirectionRef to follow (inbound)
+  stops                    {key: {name, code, lat, lon}}  the stops that rules refer to
+  schedule                 {mon..sun: [{stop: key, time: 'HH:MM'}]}  time = timetabled time at THAT stop
+  closed                   [[from 'YYYY-MM-DD', to, reason]]  days with no service (anything unsure counts as closed)
+  route_stops              [{code, lat, lon, name}] real stop coordinates of the route in order, ending at or after your stops (best), OR leave empty and
+                           put the old route_stops.json in plugin state; with neither, a rough 'memory' route is built from route_polyline
+  route_polyline           [[lat, lon], ...] rough route (first 2 points, then the stop, then the last point) and the closing point used with route_stops
+  start_before_min [25], shadow_after_min [25], dm_when_eta_min [15] (only marks 'would_dm' in the log), avg_speed_kmh [35], road_factor [1.25], stale_min [5]
+  sweep_start ['07:00'], sweep_end ['09:00'], sweep_km [1.5], sweep_stop (key), promise_stop (key of the promised journey; default sweep_stop)
+  vehicle_page_url        page per vehicle with an og:description type text; {veh} = vehicle ref lower case (bustimes style); looked up 1 per second, cached
+  promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change (page rebuild stays on the host). Empty = not posted.
+  keep_days [90]          shadow log rows older than this are dropped once a day
+  seconds [90]            pass interval
+Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
+route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in.
+Files in /data/bus_watch/: shadow.jsonl (same rows as the old shadow.jsonl), promise_log.jsonl (same records as the old promise_log.jsonl), sessions.json, vehicle_types.json.
+```
+
+Page rebuild: the page generator stays on the host. After every change to the promise log (live only) the plugin POSTs `{"source": "bus_watch", "rows": [...]}` to `promise_webhook_url`. A failed post is retried on the next pass. The host side must (1) write the rows to its `promise_log.jsonl` and (2) run its page builder; that receiver is not part of this add-on. The same rows are also on disk in `/data/bus_watch/promise_log.jsonl`.
+
+SAFETY: the old host loop (tmux `robbus`) and this plugin both append records. Keep the plugin dry until the host loop is stopped, then copy the old `promise_log.jsonl` (to `/data/bus_watch/`) and `vehicle_types.json` first. Never both live. The BODS key goes in the add-on option `bods_api_key`.

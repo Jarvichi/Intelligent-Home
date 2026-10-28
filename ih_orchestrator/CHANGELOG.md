@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.3] - 2026-10-28
+
+### Fixed
+- Health: a module that stopped pushing drops out of the list after 6 hours instead of showing FAIL forever.
+- Health: new check type `http_host` for URLs only the host can reach (127.0.0.1); the host probe runs it.
+
 ## [0.7.2] - 2026-10-28
 
 ### Fixed

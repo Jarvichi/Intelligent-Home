@@ -23,5 +23,6 @@
   "disk_used_entity": "",
   "host_info": true,
   "discord_token": "",
+  "bods_api_key": "",
   "plugins": []
 }

@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.1] - 2026-10-28
+
+### Added
+- Persistent request log: one JSON line per handled request in `/data/usage.jsonl` (time, ai, model, script, what, ok, ms, by, via). It holds metadata only: the capability name, never request text, answers or keys. The last 2000 lines are kept.
+- `GET /usage?since=<ts>` (token needed) returns the recent lines, so the house dashboards can show requests that go through the AI layer.
+
 ## [0.3.0] - 2026-10-28
 
 ### Added

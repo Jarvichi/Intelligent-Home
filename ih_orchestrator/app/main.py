@@ -142,10 +142,16 @@ def all_manifests():
     return merge_extra(m, s, extra)[0]
 
 
-def merge_extra(m, s, extra):
+EXTRA_MAX_AGE = 6 * 3600   # 28 Oct 2026: a module that stopped pushing (stopped or removed) drops out of the list after 6 h
+
+
+def merge_extra(m, s, extra, now=None):
+    now = time.time() if now is None else now
     names = {x["name"] for x in m}  # the host list wins on a name clash
     for src in sorted(extra):
         e = extra[src]
+        if isinstance(e.get("received_at"), (int, float)) and now - e["received_at"] > EXTRA_MAX_AGE:
+            continue
         m += [x for x in e["manifests"] if x["name"] not in names]
         s += [x for x in e["status"] if x["name"] not in names]
         names |= {x["name"] for x in e["manifests"]}

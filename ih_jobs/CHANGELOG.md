@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-10-28
+
+### Added
+- New plugin schedule kind `service`: the host runs the plugin in its own supervised thread, one pass every `seconds` (settings can override it). Each pass gets a fresh context, so dry/live, kill-switch files and the clock are re-read; a crash in a pass is logged and the loop carries on. The 30-second timer ignores service plugins.
+- Plugin `bus_watch`: recorder for one bus route during morning windows. Reads the Bus Open Data vehicle feed, estimates minutes to a stop, keeps a shadow log and a promise log (which vehicle came, double-decker or not), and can POST the promise log to a host webhook so the host can rebuild a page. Never sends a message. Dry by default (reads the feed, logs what it would write, writes nothing).
+- Option `bods_api_key` (optional password) for the feed key; plugins read options through `ctx.option(name)`.
+- Shared library: `Http.post_json` (JSON POST, returns the status code).
+
 ## [0.6.0] - 2026-10-28
 
 ### Added

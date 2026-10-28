@@ -13,7 +13,8 @@ ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
-VERSION = '0.3.0'
+VERSION = '0.3.1'
+USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
 def _snip(s, n=200):
@@ -114,6 +115,50 @@ class Layer:
             os.replace(tmp, self._path())
         except OSError:
             self.log('scores save failed')
+
+    # ---- request usage log (metadata only: never text, answers or keys) ----
+    def _usage_path(self):
+        return os.path.join(self.data, USAGE_FILE)
+
+    def _usage(self, caller, agent, cap, model, ok, ms):
+        """Append ONE JSON line per handled request to /data/usage.jsonl; keep the last USAGE_KEEP lines. Never raises."""
+        try:
+            now = self.clock()
+            ai = _tag(agent, 'none')
+            if ai.startswith('ih_ai_layer_'):
+                ai = ai[len('ih_ai_layer_'):]
+            e = {'ts': round(now, 3), 'time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now)), 'ai': ai, 'model': _tag(model, ''),
+                 'script': _tag(caller, 'unknown'), 'what': _tag(cap, 'model'), 'ok': bool(ok), 'ms': int(ms), 'by': _tag(caller, 'unknown'), 'via': 'ai_layer'}
+            with self.lock:
+                p = self._usage_path()
+                with open(p, 'a') as f:
+                    f.write(json.dumps(e) + '\n')
+                self._usage_n = getattr(self, '_usage_n', USAGE_KEEP) + 1
+                if self._usage_n > USAGE_KEEP + 200:
+                    with open(p) as f:
+                        lines = f.readlines()[-USAGE_KEEP:]
+                    with open(p + '.tmp', 'w') as f:
+                        f.writelines(lines)
+                    os.replace(p + '.tmp', p)
+                    self._usage_n = len(lines)
+        except Exception:
+            self.log('usage log failed')
+
+    def usage_lines(self, since=0.0, limit=None):
+        """Recent usage entries with ts > since, oldest first."""
+        out = []
+        try:
+            with open(self._usage_path()) as f:
+                for l in f:
+                    try:
+                        e = json.loads(l)
+                    except ValueError:
+                        continue
+                    if isinstance(e, dict) and e.get('ts', 0) > since:
+                        out.append(e)
+        except OSError:
+            pass
+        return out[-(limit or USAGE_KEEP):]
 
     # ---- gates ----
     def stopped(self):
@@ -248,6 +293,7 @@ class Layer:
                  'took_ms': int((self.clock() - t0) * 1000), 'request_id': rid}
             r.update(extra or {})
             m = self.meta.pop(rid, {})
+            self._usage(caller, agent, cap, r.get('model') or m.get('model') or model, ok, r['took_ms'])
             self._logline('request', rid, caller, agent, cap, r.get('model') or m.get('model') or model, text, ok, answer, r['took_ms'],
                           why or r.get('error') or ('shadow' if r.get('mode') == 'dry' else None), m.get('free'))
             return 200, r
@@ -259,6 +305,7 @@ class Layer:
             if not owners:
                 self.counts['model_not_available'] += 1
                 self._logline('request', rid, caller, None, cap, model, text, False, '', (self.clock() - t0) * 1000, 'model_not_available', None)
+                self._usage(caller, None, cap, model, False, (self.clock() - t0) * 1000)
                 return 404, {'ok': False, 'error': 'model_not_available', 'answer': "No live agent serves model '%s'." % model,
                              'model': model, 'request_id': rid}
             if self.opts['shadow']:

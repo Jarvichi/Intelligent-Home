@@ -12,7 +12,7 @@ Each check function returns {"type", "ok": True|False|None, "detail": str}. None
 """
 import json, os, subprocess, time, urllib.request, urllib.error
 
-HOST_ONLY = {"tmux", "file_age", "file_exists", "supervisor_addon"}  # the add-on maps no folders, so only the host can run these
+HOST_ONLY = {"tmux", "file_age", "file_exists", "supervisor_addon", "http_host"}  # http_host: a URL only the host can reach (127.0.0.1)  # the add-on maps no folders, so only the host can run these
 
 
 def check_file_age(path, max_age_s, now=None):
@@ -86,7 +86,7 @@ def run_check(chk, host=True, now=None):
         return {"type": t, "ok": None, "detail": "host-only check"}
     if t == "tmux":
         return check_tmux(chk["session"])
-    if t == "http":
+    if t in ("http", "http_host"):
         return check_http(chk["url"], chk.get("timeout", 3), tuple(chk.get("ok_status", [200])))
     if t == "file_age":
         return check_file_age(chk["path"], chk["max_age_s"], now)

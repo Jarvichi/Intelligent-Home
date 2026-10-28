@@ -1,4 +1,5 @@
-"""Plugin platform for ih_jobs 0.4.0: auto-discovery of plugins/*.py, per-plugin dry/live, state under /data/<plugin>/, a simple built-in timer.
+"""Plugin platform for ih_jobs 0.7.0: auto-discovery of plugins/*.py, per-plugin dry/live, state under /data/<plugin>/, a simple built-in timer.
+Schedule kinds: daily {at}, every {minutes}, service {seconds}: the host runs the plugin's run(ctx) in its OWN supervised thread every `seconds` (fresh ctx each time, so mode, kill switches and the clock are re-read; a crash never stops the loop).
 A plugin runs only when it is listed in the option `plugins`. It is LIVE only when plugins[].live is true AND /data/STOP_LIVE and /data/STOP_<name> do not exist.
 Nothing here ever prints option values."""
 import importlib, json, os, pkgutil, threading, time, traceback
@@ -76,11 +77,17 @@ class Discord:
 
 
 class PluginCtx:
-    def __init__(self, name, settings, dry, now, ha, discord, state, log, http=None, data=None):
+    def __init__(self, name, settings, dry, now, ha, discord, state, log, http=None, data=None, opts=None):
         self.name, self.settings, self.dry, self.now = name, settings, dry, now
         self.ha, self.discord, self.state, self.log = ha, discord, state, log
         self.http = http or ihlib.http.Http()   # ctx.http.get_json(url) / get_bytes(url): outside web, read-only, works in dry too
         self.data = data   # the add-on data folder (plugins may READ another plugin's folder under it)
+        self._opts = opts or {}
+
+    def option(self, name):
+        """Value of an add-on option as text ('' if unset). For keys and tokens a plugin needs; never log the result."""
+        v = self._opts.get(name)
+        return '' if v is None else str(v)
 
     def sibling_state(self, plugin):
         """Read-only view of another plugin's state store (same /data root)."""
@@ -107,6 +114,8 @@ class Host:
         self.locks = {n: threading.Lock() for n in self.mods}
         self.info = {n: {'last_run': None, 'last_ok': None, 'last_error': None, 'last_mode': None, 'runs': 0, 'errors': 0} for n in self.mods}
         self.thread = None
+        self.stop_evt = threading.Event()
+        self.service_threads = {}
 
     # ---- config ----
     def settings(self, name):
@@ -141,6 +150,8 @@ class Host:
             sch['at'] = s['at']
         if sch.get('kind') == 'every' and isinstance(s.get('minutes'), int) and s['minutes'] > 0:
             sch['minutes'] = s['minutes']
+        if sch.get('kind') == 'service' and isinstance(s.get('seconds'), int) and s['seconds'] > 0:
+            sch['seconds'] = s['seconds']
         return sch
 
     # ---- running ----
@@ -164,7 +175,7 @@ class Host:
                 return False
             dry = mode != 'live'
             ctx = PluginCtx(name, settings, dry, self.clock(), self.ha, Discord(self.opts, dry, log, self.opener),
-                            ihlib.state.Store(os.path.join(self.data, name)), log, ihlib.http.Http(self.opener), self.data)
+                            ihlib.state.Store(os.path.join(self.data, name)), log, ihlib.http.Http(self.opener), self.data, self.opts)
             try:
                 ok = self.mods[name].run(ctx) is not False
                 info['runs'] += 1
@@ -191,6 +202,9 @@ class Host:
             if sch['kind'] == 'every':
                 last = self.info[name].get('last_ts')
                 return datetime.fromtimestamp(last + int(sch['minutes']) * 60, self.tz) if last else now
+            if sch['kind'] == 'service':
+                last = self.info[name].get('last_ts')
+                return datetime.fromtimestamp(last + int(sch['seconds']), self.tz) if last else now
         except (KeyError, ValueError, TypeError):
             return None
         return None
@@ -235,6 +249,34 @@ class Host:
                 time.sleep(interval)
         self.thread = threading.Thread(target=loop, daemon=True, name='plugins')
         self.thread.start()
+        self.start_services()
+
+    def service_names(self):
+        return [n for n in sorted(self.mods) if n in self.cfg and self.mods[n].SCHEDULE.get('kind') == 'service']
+
+    def service_loop(self, name):
+        """Supervised loop of one `service` plugin: run, wait `seconds`, repeat. Re-reads the schedule each time; ends on stop()."""
+        while not self.stop_evt.is_set():
+            try:
+                self.info[name]['last_ts'] = time.time()
+                self.run(name, 'service')
+            except Exception:
+                pass
+            try:
+                wait = max(1, int(self.schedule(name).get('seconds', 60)))
+            except (TypeError, ValueError):
+                wait = 60
+            self.stop_evt.wait(wait)
+
+    def start_services(self):
+        for n in self.service_names():
+            if n not in self.service_threads or not self.service_threads[n].is_alive():
+                t = threading.Thread(target=self.service_loop, args=(n,), daemon=True, name='plugin-' + n)
+                self.service_threads[n] = t
+                t.start()
+
+    def stop(self):
+        self.stop_evt.set()
 
     def status(self):
         out = {}

@@ -62,6 +62,7 @@ All except `/healthz` and `/register` need the header `Authorization: Bearer <ap
 | `POST /feedback` | Body `{request_id, score}`; a score above 0 is a thumbs up, otherwise a thumbs down. Counts for the agent that answered that request (the last 500 requests are remembered). |
 | `GET /agents` | Registered agents and their capabilities. |
 | `GET /status` | Mode, counts, agents, score table. Never contains request text. |
+| `GET /usage?since=<ts>` | Recent request log lines (token needed): time, ai, model, script, what (capability only), ok, ms, by, via. Last 2000 kept in `/data/usage.jsonl`. Never contains request text, answers or keys. |
 | `GET /healthz` | Plain `ok`. |
 | `POST /register` | Used by agent add-ons (signed, see below). |
 
@@ -120,4 +121,4 @@ Do one provider at a time. Never paste a key into a chat.
 5. When it works, uninstall the agent add-on. Its daily counters start again from zero in the new place.
 
 ### Status
-Version 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.
+Version 0.3.1: request usage log (`/usage`); 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.
