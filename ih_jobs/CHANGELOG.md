@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-10-28
+
+### Added
+- Plugin `trv_watch`: every 30 minutes finds radiator valves (ZHA) whose temperature reading is frozen, reconfigures them (12 h cap per valve) and puts one display message if still frozen an hour later. Dry by default; only ONE live copy (host loop or plugin) may run.
+- Plugin `fire_advisor`: log-burner helper (fire detection every 10 minutes, fire-lit switch and stuffy nudge, daily advice row, weekly review text in plugin state).
+- Shared library: `ihlib.series` (history rows to time series, windows, value-at), used by both plugins. Websocket calls (`ctx.ha.ws`, `ctx.ha.ws_many`) now used for registries, ZHA and statistics.
+
 ## [0.5.0] - 2026-10-28
 
 ### Added

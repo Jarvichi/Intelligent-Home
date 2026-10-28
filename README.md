@@ -85,6 +85,12 @@ Nothing is copied by hand between add-ons.
 |---|---|---|---|
 | **Intelligent Home - Cooking** (`ih_cooking`) | Data owner for recipes and the meal plan, plus the meal-vs-calendar check (read-only in v0.1). | nothing else | [DOCS](ih_cooking/DOCS.md) |
 
+### Brain
+
+| Add-on | What it does | Needs | Docs |
+|---|---|---|---|
+| **Intelligent Home - Brain** (`ih_brain`) | Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default). | nothing else | [DOCS](ih_brain/DOCS.md) |
+
 "Needs" lists the add-ons and services a module depends on. `mqtt` is an MQTT broker you run yourself (for example the Mosquitto add-on).
 
 ## Build on first install

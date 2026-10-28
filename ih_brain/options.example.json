@@ -1,0 +1,7 @@
+{
+  "brain_dir": "/share/brain",
+  "api_token": "",
+  "read_only": true,
+  "port": 8820,
+  "rate_per_min": 120
+}

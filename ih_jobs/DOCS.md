@@ -158,3 +158,73 @@ Dry: reads everything, logs the message and card it would send; sends nothing an
 ```
 
 Seeding state from an older loop: stop the old loop, then copy its state files into `/data/<plugin>/` (`car_log/charges.json`, `car_tyres/tyres.json`, `car_charge/state.json`, `car_charge/cache.json`). Shapes are unchanged.
+
+##### Heating plugins (0.6.0)
+
+`trv_watch` (every 30 minutes). Only ONE live copy may exist (the old host loop or this plugin): keep the plugin dry until the host loop is stopped. Dry logs `would reconfigure <entity>` and sends nothing.
+
+```
+trv_watch: every 30 minutes, find radiator valves (ZHA) whose temperature reading has frozen, try a ZHA reconfigure (at most one per valve per 12 h),
+and put ONE display message on the display if a valve is still frozen an hour after the reconfigure (at most one per valve per day).
+Stage 1 (history): current_temperature has not CHANGED value for `frozen_h` hours and the valve was not 'off' during that time.
+Stage 2 (the valve itself): read the valve's own temperature (a radio read, which also refreshes HA's cached value). Frozen when it differs from what HA shows by
+`diff_c` or more. If the valve does not answer, act only when it was flat >= 24 h and heating (or off its target) during that time.
+Valves are found at run time from the device and entity registries (platform zha, climate, device model == `model`), so no addresses are stored.
+SAFETY: the reconfigure is a real action on a heating device. Only ONE live copy may exist: if the old host loop (tmux 'trvwatch') is live, keep this plugin dry
+(live false). Never both: they would each keep their own 12 h cap.
+Every house value comes from settings (JSON in plugins[].settings); defaults in brackets:
+  model             device model text to watch (TRVZB)
+  display_script     script entity that shows a display row; called with text 'title | detail' (empty = no display message)
+  frozen_h          hours without a change = candidate (6)
+  diff_c            stage-2 difference counted as frozen (0.5)
+  reconf_gap_h      hours before reconfigure is tried again (12)
+  check_after_min   minutes after a reconfigure before the follow-up read (60)
+  msg_gap_h         hours between display messages for one valve (24)
+  ok_read_gap_h     hours before a valve whose read matched HA is asked again (3)
+  history_h         hours of history read per valve (30; more than 24 so the 24 h rule still works; the old script read 72)
+  title_strip       text removed from the device name in the message (' Thermostat')
+  msg_title         message title, {name} = short device name ('{name} valve stuck')
+  msg_detail        message detail ('reconfigure did not help, check batteries')
+  dry_device_read   true = a DRY run may also do the stage-2 radio read (read only, costs valve battery); default false
+  minutes           run every N minutes (30)
+State (plugin state 'valves'): {entity_id: {"reconf_ts", "msg_ts", "ok_read_ts"}}, unix seconds. Same shape as the old script's json, so it can be copied in.
+Dry: reads history and states, logs the verdict per valve and 'would reconfigure <entity>' / 'would send display'; sends nothing, saves nothing.
+```
+
+`fire_advisor` (every 10 minutes; advise and review are gated by time inside the run):
+
+```
+fire_advisor: log-burner helper. Runs every 10 minutes and does three jobs, gated by time inside the run:
+  detect (every run)        spot a fire being lit from a quick rise of a room temperature, record it, keep a 'fire is lit' switch in step (on while lit, off
+                            when the room cools or after max_lit_hours), send ONE 'stuffy' display nudge per fire when the air-quality value stays high, and (while a fire
+                            is lit) write a temperature sample into the watch log every run.
+  advise (daily, advise_at) decide whether tonight is a good fire night (cold or windy evening, someone home or expected, heating would run anyway) and put a display row.
+  review (weekly)           write a markdown week review (fire evenings vs others, advice followed or not, suggested threshold changes) into plugin state and the log. Nothing is sent.
+The old script read the recorder database; this one uses Home Assistant history (a few hours for detect, 4 weeks of presence switches once a day for advise,
+7-15 days of a few entities for advise and review) and the statistics websocket call for gas use. Starting the old fire_watch.py script is replaced by the watch log.
+Every house value comes from settings (JSON in plugins[].settings). A section you give REPLACES the same-named default section's keys one by one (missing keys keep the default).
+  weather_entity      weather entity (outside temperature, hourly forecast)
+  people              presence switches ('on' = at home); names in the message come from the entity id with '_home' and the domain removed
+  boiler_entity       boiler heating binary sensor (review only)
+  ufh_entities        list of underfloor climate entities (review only; hvac_action 'heating' counts)
+  gas_entity          cumulative gas kWh statistic id (advise and review; optional: without it the saving estimate is skipped)
+  display_script       script entity that shows a display row; called with text 'title | detail'
+  room_label          words for the room in the advice title ('fire room')
+  watch_entities      {label: entity id} sampled into the watch log while a fire is lit (optional)
+  rooms               {name: {detect_enabled, state_enabled, temp (entity), temp_attr (or null), rise_c, window_min, min_temp, flag (input_boolean), purity (entity or null),
+                              nudge ('title | detail'), warmed_by [names of rooms whose fire also warms this one]}}
+  detect              {cooldown_min 240, watch_minutes 240}
+  state               {end_drop_c 0.5, end_window_min 30, end_below_c 25.0, min_age_min 40, max_lit_hours 8, purity_over 1200, purity_min 15}
+  advise              {cold_evening_c 10, cool_evening_c 13, windy_kmh 30, min_people_home 1, typical_home_fraction 0.5, earliest_light '15:30', latest_light '19:00',
+                       lead_min_before_arrival 60, gas_p_per_kwh 7, fire_displaces_fraction 0.3, evening_share_of_daily_gas 0.4, log_cost_per_fire_gbp null,
+                       cost_mode 'cosy_not_wasteful'}   ('strict' = the saving must beat the log cost)
+  review              {followed_window_min 60, days 7}
+  advise_at '14:00'; review_at '18:30'; review_isoweekday 7 (Sunday); gate_min 30 (a timed job still runs up to this many minutes late)
+  minutes             run every N minutes (10)
+State: 'fires' (list, same shape as the old fires.json), 'advice' (list, same as advice.json), 'done' (dates of the last advise and review), 'reviews' (last 12 texts),
+'watch' (samples per fire). The old json files can be copied in.
+Dry: reads history, states and the forecast; logs every decision ('would call ...', 'would record fire ...'); sets no switch, sends no display row, saves nothing.
+A timed job (advise, review) is logged once per day in dry. SAFETY: only ONE live copy: the old host loop and this plugin would both set the fire switch and send rows.
+```
+
+Both need Home Assistant history (REST) and the websocket; the add-on has no access to the recorder database, so history windows are bounded (see each plugin's settings).

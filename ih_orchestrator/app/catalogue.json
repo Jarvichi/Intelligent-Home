@@ -25,7 +25,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.5.0"
+  "version": "0.6.0"
  },
  {
   "name": "Intelligent Home - Jobs - Backup",
@@ -240,5 +240,13 @@
   "kind": "addon",
   "requires": [],
   "version": "0.1.1"
+ },
+ {
+  "name": "Intelligent Home - Brain",
+  "slug": "ih_brain",
+  "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder.",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.1.0"
  }
 ]
