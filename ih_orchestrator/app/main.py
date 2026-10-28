@@ -267,6 +267,7 @@ def init_manager():
     """Start the ingress-only manager page server on its own port. Never raises."""
     try:
         mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, log=lambda m: print(m, flush=True))
+        threading.Thread(target=mgr.warm, daemon=True).start()
         threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
         return mgr
     except Exception as e:

@@ -111,7 +111,7 @@ class Jobs:
 
 
 class Manager:
-    def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=10):
+    def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60):
         self.catalogue, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.jobs, self.busy, self.lock = Jobs(), set(), threading.Lock()
         self.cache = (0, None)
@@ -164,6 +164,16 @@ class Manager:
         data = self._rows()
         self.cache = (time.time(), data)
         return data
+
+    def warm(self, every=20, stop=lambda: False, sleep=time.sleep):
+        """Background refresher (28 Oct): ~24 sequential stats calls take longer than the page waits,
+        so a cold request left the table empty. Keeps the cache fresh; page requests then answer at once."""
+        while not stop():
+            try:
+                self.rows(force=True)
+            except Exception as e:
+                self.log("manager warm: %s" % type(e).__name__)
+            sleep(every)
 
     def _rows(self):
         prefix, _ = self.context()
@@ -279,7 +289,7 @@ PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=
 <style>body{font:15px system-ui;margin:10px}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}
 .d{font-size:12px;opacity:.7}.r{color:#c62828;font-weight:bold}.g{color:#2e7d32}.o{color:#ef6c00}button{margin:1px;padding:3px 7px}
 pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px}#msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}.w{overflow-x:auto}</style>
-<h2>Intelligent Home add-ons</h2><div id=msg></div><div class=w><table id=t></table></div><h3>Dependencies</h3><div class=w><table id=dep></table></div><pre id=log hidden></pre>
+<h2>Intelligent Home add-ons</h2><div id=msg></div><div class=w><table id=t><tr><td>Loading the add-on list (the first load after a restart can take about 30 seconds)...</td></tr></table></div><h3>Dependencies</h3><div class=w><table id=dep></table></div><pre id=log hidden></pre>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
 function U(p){return B+p}
