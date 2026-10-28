@@ -1,0 +1,71 @@
+# Intelligent Home - AI Layer
+
+## What it does
+
+Intelligent Home - AI Layer: routes AI requests to agent add-ons. No Discord. Parent of its family.
+
+## Requires
+
+- No other Intelligent Home add-on is required.
+- Home Assistant OS or Supervised (add-ons need the Supervisor)
+
+## Set-up
+
+1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - AI Layer**.
+2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
+3. Open the Configuration tab and set `api_token`, `register_key` (skip any the settings hub fills).
+4. Start the add-on and read the log. It starts in shadow mode, so it changes nothing yet.
+5. When the log looks right, set `shadow` to `false` to go live.
+
+## Options
+
+Set these in the add-on Configuration tab. Required = must be filled before it can work (the settings hub may fill it).
+
+| Option | Required? | What it is |
+|---|---|---|
+| `api_token` | Yes | Bearer token callers must send to this add-on's API. |
+| `register_key` | Yes | Shared secret. Must be the same value in this add-on and its parent. Empty = link off. |
+| `shadow` | No | On (default): answers or logs only, posts nothing. Turn off to go live. |
+| `agent_timeout_s` | No | How long to wait for an agent to answer, in seconds. Default: `20`. |
+| `rate_per_min` | No | Maximum requests a minute. Default: `30`. |
+| `max_tries` | No | How many agents to try for one request. Default: `2`. |
+| `log_payloads` | No | Off: logs one line of metadata per request. On: the line also holds the first 200 characters of the request and reply. Keys are never logged. Default: `false`. |
+
+## Troubleshooting
+
+- **Nothing happens, or replies start with `[dry]`.** The add-on starts safe because `shadow` is on. Switch it as in the last Set-up step once the log looks right.
+- **Still dry after going live.** A file `/data/STOP` or `/data/STOP_LIVE` is a kill switch that forces dry mode. Delete it to re-enable.
+- **Parent does not list this add-on / "cannot reach parent".** `register_key` must be identical in both add-ons, and `parent_url` must point at the parent (default gateway address and port). An empty key turns the link off.
+
+## Privacy
+
+The router sends nothing outside your network itself. It passes each request to the agent add-on you registered, and that agent may send the text to an outside AI service (see that agent's Privacy section).
+
+## More details
+
+### API (port 8801)
+All except `/healthz` and `/register` need the header `Authorization: Bearer <api_token>`. With an empty `api_token` everything is refused.
+
+| Call | Meaning |
+|---|---|
+| `POST /request` | Body `{text, capability (optional), context (optional object), model (optional string), request_id}`. With `model`: no classifier or scoring, the request goes only to the live agent that lists that model (agents register a `models` list), with no fallback to other agents; none = HTTP 404 `model_not_available`. Shadow mode, STOP, rate limit and auth apply as usual. If the agent refuses because of its `spend_cap`, the reply has `error: spend_cap`. Returns `{ok, answer, agent, capability, classified, took_ms, request_id}`. |
+| `POST /feedback` | Body `{request_id, score}`; a score above 0 is a thumbs up, otherwise a thumbs down. Counts for the agent that answered that request (the last 500 requests are remembered). |
+| `GET /agents` | Registered agents and their capabilities. |
+| `GET /status` | Mode, counts, agents, score table. Never contains request text. |
+| `GET /healthz` | Plain `ok`. |
+| `POST /register` | Used by agent add-ons (signed, see below). |
+
+If no `capability` is given, a simple keyword rule picks one and `classified` is `true`. If nothing matches, or no live agent has that capability, the answer says so ("No agent ..."). The best agent is tried first (score = thumbs, success rate and speed); on failure the next one is tried, up to `max_tries`.
+
+### Safety
+- **Shadow mode** (option `shadow`, on by default): agents are NOT called; the answer is a canned "[dry]" line naming the agent that would be asked.
+- **Kill switch:** create the file `/data/STOP` and `/request` and `/feedback` return 503.
+- **Rate limit:** `rate_per_min` requests a minute, then 429.
+- **Privacy:** request text is never stored or shown in `/status`. Each `/request` and each agent try logs ONE line with metadata only (request id, caller, capability, agent, model, chars in/out, ms, ok, why, free, shadow). With option `log_payloads` true the line also holds the first 200 chars of the request and answer (one line, newlines escaped). Keys, tokens, signatures and headers are never logged. The text IS sent to the chosen agent add-on (that is the job), so choose agents you trust.
+- Agent links are signed (HMAC, 5 minute freshness) with the shared `register_key`. Empty `register_key` = nobody can register and no agent is called.
+
+### How agents join
+Set the same `register_key` here and in each agent add-on. Each agent posts a signed registration every 30 s with its name, URL and capabilities; an agent not seen for 2 minutes is not used. This parent calls the agent's signed `POST /ask`.
+
+### Status
+Version 0.2.0: code and tests only; not installed, not build-tested. Scores live in `/data/scores.json`.
