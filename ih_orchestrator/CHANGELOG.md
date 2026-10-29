@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.0] - 2026-10-29
+
+### Added
+- Shared facts store. Option `fact_clients` (`{module, key, write}` per module; empty = off, `/facts` answers 404). `PUT/GET/DELETE /facts/<module>/<name>` and `GET /facts?module=<m>`, bearer key per module, a module writes only its own facts, values up to 4 KiB, 500 facts, optional expiry (`ttl_s` or `expires_at`). Saved in `/data/facts.json`. The status page lists fact names and times, never values. Values are never logged.
+
 ## [0.8.1] - 2026-10-28
 
 ### Removed

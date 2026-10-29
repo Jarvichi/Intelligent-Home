@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.8.1"
+  "version": "0.9.0"
  },
  {
   "name": "Intelligent Home - Discord",
@@ -149,7 +149,7 @@
   "description": "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders.",
   "kind": "addon",
   "requires": [],
-  "version": "0.3.0"
+  "version": "0.4.0"
  },
  {
   "name": "Intelligent Home - Brain",
@@ -165,6 +165,6 @@
   "description": "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default.",
   "kind": "addon",
   "requires": [],
-  "version": "0.4.0"
+  "version": "0.5.0"
  }
 ]

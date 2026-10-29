@@ -26,5 +26,7 @@
   "publish_webhook_url": "",
   "publish_live": false,
   "brain_url": "http://<host>:8820/mcp",
-  "brain_token": ""
+  "brain_token": "",
+  "facts_url": "",
+  "facts_key": ""
 }

@@ -3,7 +3,7 @@ The reply text is written elsewhere (the host); this add-on moves messages in an
 SEPARATE datastore per persona. Dry-run by default."""
 import base64, binascii, datetime, hmac, json, logging, os, re, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import urllib.parse
+import urllib.error, urllib.parse, urllib.request
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -14,7 +14,7 @@ from ihlib import log as ihlog
 from ihlib import ha as ihha
 import planner
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 MAX_BODY = 2 * 1024 * 1024   # the identity call carries a base64 avatar (up to 1 MiB)
 NAME_CHANGES_PER_HOUR = 2
 NAME_WINDOW_S = 3600
@@ -29,6 +29,8 @@ EVENT_FACTS_MAX, EVENT_FACT_LEN, EVENT_SOURCE_LEN, EVENT_TEXT_LEN = 20, 300, 40,
 CHECKIN_WINDOW_MIN = 30
 AGREED_MAX = 20
 PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
+FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
+FACT_TIMEOUT_S = 5
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 8
 TYPING_MAX_S = 300
@@ -37,7 +39,7 @@ ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'busy_windows': [], 'free_windows': [],
-                 'meal_plan_entity': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0}
+                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 
@@ -77,12 +79,13 @@ def load_options(path):
         ents = lambda v: [e for e in (v or []) if isinstance(e, str) and ENTITY_RE.match(e)] if isinstance(v, list) else []
         wins = lambda v: [w.strip().lower() for w in (v or []) if isinstance(w, str) and planner.parse_window(w)] if isinstance(v, list) else []
         ent1 = lambda v: v if isinstance(v, str) and ENTITY_RE.match(v) else ''
+        fact1 = lambda v: v if isinstance(v, str) and FACT_RE.match(v) else ''
         personas.append({
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
             'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')),
-            'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'presence_entity': ent1(p.get('presence_entity')),
+            'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
             'quiet_start': hhmm(p.get('quiet_start'), '22:00'), 'quiet_end': hhmm(p.get('quiet_end'), '08:00'),
@@ -90,7 +93,8 @@ def load_options(path):
             'checkins': sorted({c for c in (p.get('checkins') or []) if isinstance(c, str) and HHMM.match(c)}),
             'can_tell': [k for k in (p.get('can_tell') or []) if valid_key(k) and k != p['key']],
             'live': p.get('live') is True})
-    return {'mode': mode, 'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
+    return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
+            'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'personas': personas}, problems
 
 
@@ -102,8 +106,9 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
+        self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
         self.cfg, self.stores, self.discord = {}, {}, {}
@@ -276,12 +281,43 @@ class Assistant:
         except Exception as e:
             self.log('persona %s: meal sensor unreadable (%s)' % (key, type(e).__name__))
             note = note or 'meal sensor unreadable (%s)' % type(e).__name__
+        if c.get('meal_fact') and self.opts.get('facts_url') and self.opts.get('facts_key'):   # the orchestrator fact wins over the sensor when it has today's time
+            try:
+                got = self._read_fact(c['meal_fact'])
+                if got is None:
+                    self.log('persona %s: meal fact %s not set, default meal windows' % (key, c['meal_fact']))
+                else:
+                    e2 = self._fact_eat(got, day)
+                    eat = e2 if e2 is not None else eat
+            except Exception as e:
+                self.log('persona %s: meal fact unreadable (%s), default meal windows' % (key, type(e).__name__))
+                note = note or 'meal fact unreadable (%s)' % type(e).__name__
         # static layers: busy_windows + default meals, minus free_windows (free wins). The eat-time window and calendar events always block.
         wd = day.weekday()
         eatwin = (max(0, eat - 60), min(24 * 60, eat + 45)) if eat is not None else None
         static = planner.windows_for(c['busy_windows'], wd) + [m for m in planner.meal_windows(eat) if m != eatwin]
         static = planner.subtract(static, planner.windows_for(c['free_windows'], wd))
         return sorted(out + static + ([eatwin] if eatwin else [])), note
+
+    def _read_fact(self, ref):
+        """Value of orchestrator fact 'module/name' (GET facts_url/facts/<ref>, 5 s). None when it is not set (404 or expired). Other errors raise."""
+        req = urllib.request.Request('%s/facts/%s' % (self.opts['facts_url'], ref), headers={'Authorization': 'Bearer ' + self.opts['facts_key']})
+        try:
+            with (self.facts_opener or urllib.request.urlopen)(req, timeout=FACT_TIMEOUT_S) as r:
+                return json.loads(r.read())['value']
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+
+    def _fact_eat(self, value, day):
+        """Eat minute of `day` from a fact value: 'HH:MM' (today only) or {'date': 'YYYY-MM-DD', 'eat': 'HH:MM'} (only when the date is `day`)."""
+        if isinstance(value, dict):
+            eat = value.get('eat')
+            if value.get('date') != day.isoformat() or not isinstance(eat, str) or not HHMM.match(eat.strip()):
+                return None
+            return to_min(eat.strip())
+        return self._eat_minute(value, day) if isinstance(value, str) and re.match(r'^\d{1,2}:\d{2}$', value.strip()) else None
 
     def _eat_minute(self, state, day):
         """Planned eating time of `day` from a sensor state: 'HH:MM' / 'HH:MM:SS' (only for today) or an ISO date-time on that day."""
@@ -890,7 +926,7 @@ def worker(app, key):
 
 def main():
     opts, problems = load_options(os.environ.get('IHP_OPTIONS', '/data/options.json'))
-    secrets = [opts['api_token']] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
+    secrets = [opts['api_token'], opts['facts_key']] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
     lg = logging.getLogger('ih_assistant'); lg.setLevel(logging.INFO)
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     log = ihlog.Logger(lg.info, [s for s in secrets if len(s) >= 4])

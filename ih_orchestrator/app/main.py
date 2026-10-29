@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner, manager
+import healthlib, scheduler, provisioner, manager, facts
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -18,6 +18,7 @@ ENABLE_BROKER = False
 SCHED = None
 SCHED_REASON = "not started"
 TOKEN = ""
+FACTS = None  # facts.Facts once options are loaded (v0.9.0; off when fact_clients is empty)
 PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
@@ -132,6 +133,7 @@ def snapshot(manifests=None, status=None, now=None):
     snap = build_snapshot(m, s, r, now)
     snap["schedule"] = SCHED.status(now) if SCHED else scheduler.off_status(m, SCHED_REASON, now)
     snap["settings"] = PROV.get_status() if PROV else None   # names only, never values
+    snap["facts"] = FACTS.status() if FACTS else None        # fact names and times only, never values
     return snap
 
 
@@ -281,7 +283,7 @@ def init_manager():
 
 
 def load_options(path=None):
-    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS
+    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS, FACTS
     try:
         o = json.load(open(path or OPTIONS))
     except Exception:
@@ -290,6 +292,7 @@ def load_options(path=None):
     TOKEN = str(o.get("ingest_token") or "").strip()
     ENABLE_BROKER = bool(o.get("enable_broker", False))
     LOG_PAYLOADS = o.get("log_payloads") is True
+    FACTS = facts.build(o, DATA, LOG)
 
 
 def sensor(snap):
@@ -314,8 +317,8 @@ def page(snap):
             "<meta http-equiv=refresh content=30><title>Intelligent Home</title>"
             "<style>body{font:15px system-ui;margin:12px}td,th{padding:4px 8px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.d{font-size:13px;opacity:.7;font-weight:normal}</style>"
             "<h2>Intelligent Home: %d OK, %d FAIL, %d unknown</h2><table><tr><th>Service<th>State<th>Kind<th>Detail</tr>%s</table>"
-            "%s%s<p>Status only. %s</p>" % (c["OK"], c["FAIL"], c["UNKNOWN"], rows, schedule_html(snap.get("schedule")),
-                                 provisioner.settings_html(snap.get("settings"), html.escape),
+            "%s%s%s<p>Status only. %s</p>" % (c["OK"], c["FAIL"], c["UNKNOWN"], rows, schedule_html(snap.get("schedule")),
+                                 provisioner.settings_html(snap.get("settings"), html.escape), facts.facts_html(snap.get("facts"), html.escape),
                                  "STALE: no push for %s s." % snap["age_s"] if snap["stale"] and snap["age_s"] is not None
                                  else "STALE: nothing pushed yet." if snap["stale"] else "Pushed %d s ago." % snap["age_s"]))
 
@@ -339,9 +342,54 @@ def schedule_html(sc):
     return head + "<table><tr><th>Job<th>State<th>Next<th>Last run<th>Detail</tr>%s</table>" % rows
 
 
+FACTS_BODY_MAX = 16 * 1024
+
+
 class H(BaseHTTPRequestHandler):
+    def _facts(self, method):
+        """/facts: off (404) unless fact_clients is set. Bearer key = the calling module. PUT/DELETE only on the caller's own module."""
+        if not FACTS or not FACTS.on:
+            return self.send_error(404)
+        u = urlparse(self.path)
+        parts = [x for x in u.path.split("/") if x]
+        caller = FACTS.auth(self.headers.get("Authorization"))
+        if not caller:
+            return self._json(401, {"error": "unauthorized"})
+        if method == "GET" and parts == ["facts"]:
+            return self._json(*FACTS.list(parse_qs(u.query).get("module", [None])[0]))
+        if len(parts) != 3:
+            return self._json(404, {"error": "not found"})
+        mod, name = parts[1], parts[2]
+        if method == "GET":
+            return self._json(*FACTS.get(mod, name))
+        if method == "DELETE":
+            return self._json(*FACTS.delete(caller, mod, name))
+        try:
+            n = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            return self._json(411, {"error": "length required"})
+        if n < 0 or n > FACTS_BODY_MAX:
+            return self._json(413, {"error": "too large"})
+        try:
+            body = json.loads(self.rfile.read(n) or b"{}")
+        except (ValueError, UnicodeDecodeError):
+            return self._json(400, {"error": "bad json"})
+        return self._json(*FACTS.put(caller, mod, name, body))
+
+    def do_PUT(self):
+        if self.path.split("?")[0].startswith("/facts/"):
+            return self._facts("PUT")
+        self.send_error(404)
+
+    def do_DELETE(self):
+        if self.path.split("?")[0].startswith("/facts/"):
+            return self._facts("DELETE")
+        self.send_error(404)
+
     def do_GET(self):
         p = self.path.split("?")[0]
+        if p == "/facts" or p.startswith("/facts/"):
+            return self._facts("GET")
         if p == "/healthz":
             body, ct = b"ok", "text/plain"
         elif p == "/status":

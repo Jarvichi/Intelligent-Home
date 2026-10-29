@@ -2,6 +2,8 @@
   "mode": "dry",
   "api_token": "",
   "timezone": "Europe/London",
+  "facts_url": "",
+  "facts_key": "",
   "personas": [
     {
       "key": "persona_a",
@@ -21,6 +23,7 @@
       "min_gap_h": 3,
       "calendars": [],
       "meal_plan_entity": "",
+      "meal_fact": "",
       "presence_entity": "",
       "quiet_if_messaged_h": 2,
       "live": false

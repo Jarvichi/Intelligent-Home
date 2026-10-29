@@ -12,5 +12,6 @@
   "provision_overwrite": false,
   "provision_interval_min": 10,
   "shared": [{"name": "some_option", "value": ""}],
-  "module_keys": [{"module": "my_module", "key": ""}]
+  "module_keys": [{"module": "my_module", "key": ""}],
+  "fact_clients": [{"module": "my_module", "key": "", "write": true}]
 }

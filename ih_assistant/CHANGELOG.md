@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-10-29
+
+### Added
+- Meal times from the orchestrator facts store. Options `facts_url` (the orchestrator API address) and `facts_key` (this add-on's fact client key), and per persona `meal_fact` (for example `cooking/eat_time`). When set, the planner reads that fact (5 s timeout) and avoids the meal like the `meal_plan_entity` eat time (it wins when both are set). The value is `HH:MM` or `{"date": "YYYY-MM-DD", "eat": "HH:MM"}`; a fact for another date is ignored. A missing or unreadable fact means the default meal windows and one log line. The fact is read again when a check-in falls due, so a cook started after the day's plan was made still blocks a check-in at meal time.
+
 ## [0.4.0] - 2026-10-29
 
 ### Added

@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -46,6 +46,8 @@ def load_options(path):
         'publish_live': o.get('publish_live') is True,
         'brain_url': str(o.get('brain_url') or '').strip(),
         'brain_token': str(o.get('brain_token') or '').strip(),
+        'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'),
+        'facts_key': str(o.get('facts_key') or '').strip(),
         'cook': cook_config(o),
     }
 
@@ -88,6 +90,9 @@ class Store:
         if discord is None and c.get('discord_token'):
             discord = cookengine.DiscordClient(c['discord_token'], self.opener)
         kw.setdefault('log', self.log)
+        if 'facts' not in kw and self.opts.get('facts_url') and self.opts.get('facts_key'):   # off when either option is empty
+            from factsclient import FactsClient
+            kw['facts'] = FactsClient(self.opts['facts_url'], self.opts['facts_key'], 'cooking', self.opener)
         self.engine = cookengine.Engine(c, os.path.join(self.data, 'cook'), ha=ha, discord=discord, **kw)
         return self.engine
 

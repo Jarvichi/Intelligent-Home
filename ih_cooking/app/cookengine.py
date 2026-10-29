@@ -152,8 +152,10 @@ def parse_ts(s):
 
 # ---------------------------------------------------------------- the engine
 class Engine:
-    def __init__(self, cfg, data_dir, ha=None, discord=None, now=datetime.datetime.now, ts=time.time, sleep=time.sleep, log=None, spawn=None):
+    def __init__(self, cfg, data_dir, ha=None, discord=None, now=datetime.datetime.now, ts=time.time, sleep=time.sleep, log=None, spawn=None, facts=None):
         self.cfg, self.dir = cfg, data_dir
+        self.facts = facts   # factsclient.FactsClient or None (off)
+        self._fact_sig, self._fact_try = None, -1e9
         os.makedirs(self.dir, exist_ok=True)
         self.ha, self.discord = ha, discord
         self.now, self.ts, self._sleep = now, ts, sleep
@@ -461,10 +463,44 @@ class Engine:
             self.dump('state.json', st)
 
     # --- one iteration of the cook loop (port of cook.py's while-loop body). Returns True to carry on, False when finished.
+    FACT_NAME = 'eat_time'
+    FACT_RETRY_S = 60
+
+    def _sync_fact(self, plan):
+        """Tell the orchestrator today's eat time (fact cooking/eat_time, expires at the next local midnight) whenever it changes; delete it when the plan is gone.
+        Runs in a spawned thread and never raises: a failure is logged (type only) and retried after FACT_RETRY_S. Never blocks cooking."""
+        if not self.facts:
+            return
+        try:
+            now = self.now()
+            eat = (plan or {}).get('eat')
+            sig = (now.date().isoformat(), eat) if eat else None
+            if sig == self._fact_sig or self.ts() - self._fact_try < self.FACT_RETRY_S:
+                return
+            if sig is None and self._fact_sig is None:
+                return
+            self._fact_try = self.ts()
+            midnight = datetime.datetime.combine(now.date() + datetime.timedelta(days=1), datetime.time(0, 0))
+            ttl = max(60, int((midnight - now).total_seconds()))
+            def push():
+                try:
+                    if sig:
+                        self.facts.put(self.FACT_NAME, {'date': sig[0], 'eat': sig[1]}, ttl)
+                    else:
+                        self.facts.delete(self.FACT_NAME)
+                    self._fact_sig = sig
+                    self.log('fact %s %s' % (self.FACT_NAME, 'set' if sig else 'cleared'))
+                except Exception as e:
+                    self.log('fact %s not sent (%s), will retry' % (self.FACT_NAME, type(e).__name__))
+            self.spawn(push)
+        except Exception as e:
+            self.log('fact sync error (%s)' % type(e).__name__)
+
     def tick(self):
         cfg = self.cfg
         with self.lock:
             plan = self.load('plan.json', None)
+        self._sync_fact(plan)
         if not plan:
             self.log('no plan, stopping')
             try: self.publish(None, {'done': []}, False)

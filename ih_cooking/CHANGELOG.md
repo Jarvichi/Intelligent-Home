@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-10-29
+
+### Added
+- Options `facts_url` and `facts_key`. While a cook plan exists, the cook engine writes its eat time to the orchestrator facts store as `cooking/eat_time` = `{"date": "YYYY-MM-DD", "eat": "HH:MM"}`, expiring at the next local midnight. It is sent again when the eat time moves (a delay, or waiting for the ingredients) and deleted when the plan is stopped or gone. Other add-ons (the Assistant's check-in planner) read it to avoid the meal. Off when either option is empty. Sending is in the background, retried once a minute on failure, and never blocks cooking. Values and the key are never logged.
+- The eat time is known only while a cook is started. The weekly meal plan holds recipe names, not eat times, so a day without a started cook has no fact.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added
