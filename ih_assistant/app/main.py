@@ -14,7 +14,18 @@ from ihlib import log as ihlog
 from ihlib import ha as ihha
 import planner
 
-VERSION = '0.5.0'
+VERSION = '0.5.1'
+ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
+ATTACH_MAX_BYTES = 25 * 1024 * 1024
+ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
+
+
+def safe_name(v):
+    """A Discord file name made safe for a local file: letters, digits, dot, dash, underscore; at most 80 characters."""
+    n = re.sub(r'[^A-Za-z0-9._-]+', '_', str(v or 'file')).strip('._') or 'file'
+    return n[-80:]
+
+
 MAX_BODY = 2 * 1024 * 1024   # the identity call carries a base64 avatar (up to 1 MiB)
 NAME_CHANGES_PER_HOUR = 2
 NAME_WINDOW_S = 3600
@@ -181,7 +192,9 @@ class Assistant:
                 continue
             self.maybe_intro(key)
             st.append_event({'type': 'message', 'msg_id': m['id'], 'text': str(m.get('content') or ''),
-                             'attachments': len(m.get('attachments') or [])})
+                             'attachments': len(m.get('attachments') or []),
+                             'files': [{'n': i, 'name': safe_name(a.get('filename')), 'size': int(a.get('size') or 0), 'type': str(a.get('content_type') or '')}
+                                       for i, a in enumerate((m.get('attachments') or [])[:ATTACH_MAX_N])]})
             added += 1
         st.update_state(lambda s: s.__setitem__('last_seen', newest))
         return added
@@ -824,6 +837,38 @@ class Assistant:
         self.log('persona %s: identity changed (%s)' % (key, ', '.join(changed)))
         return 200, {'ok': True, 'dry': False, 'changed': changed}
 
+    def attachment(self, key, msg_id, n):
+        """Bytes of attachment n of the person's own private message msg_id, fetched fresh (Discord CDN links expire). -> (code, bytes|dict, content type)."""
+        if key not in self.discord:
+            return 409, {'ok': False, 'why': 'no bot configured'}, None
+        if not (msg_id.isdigit() and n.isdigit()):
+            return 400, {'ok': False, 'why': 'message id and file number are numbers'}, None
+        d = self.discord[key]
+        try:
+            m = d.call('GET', '/channels/%s/messages/%s' % (self._channel(key), msg_id)) or {}
+        except DiscordError as e:
+            return 502, {'ok': False, 'why': 'discord error (%s)' % e}, None
+        if str(m.get('author', {}).get('id')) != self.cfg[key]['user_id']:
+            return 404, {'ok': False, 'why': 'not a message from the person'}, None
+        att = (m.get('attachments') or [])
+        if int(n) >= min(len(att), ATTACH_MAX_N):
+            return 404, {'ok': False, 'why': 'no such file'}, None
+        a = att[int(n)]
+        url = str(a.get('url') or '')
+        if urlparse(url).scheme != 'https' or urlparse(url).hostname not in ATTACH_HOSTS:
+            return 502, {'ok': False, 'why': 'unexpected file host'}, None
+        if int(a.get('size') or 0) > ATTACH_MAX_BYTES:
+            return 413, {'ok': False, 'why': 'file too large'}, None
+        try:
+            with d.opener(urllib.request.Request(url, headers={'User-Agent': 'IntelligentHomeAssistant (local, 1.0)'}), timeout=30) as r:
+                data = r.read(ATTACH_MAX_BYTES + 1)
+        except (urllib.error.URLError, OSError) as e:
+            return 502, {'ok': False, 'why': 'download failed (%s)' % type(e).__name__}, None
+        if len(data) > ATTACH_MAX_BYTES:
+            return 413, {'ok': False, 'why': 'file too large'}, None
+        self.log('persona %s: attachment %s/%s fetched (%d bytes)' % (key, msg_id, n, len(data)))
+        return 200, data, str(a.get('content_type') or 'application/octet-stream')
+
     def status(self):
         out = {}
         for k, c in self.cfg.items():
@@ -864,6 +909,13 @@ def make_handler(app):
                 return self._send(200, {'ok': True, 'events': app.stores[key].read_inbox(after, limit)})
             if method == 'GET' and act == 'plan' and len(parts) == 3:
                 return self._send(200, app.plan_view(key))
+            if method == 'GET' and act == 'attachment' and len(parts) == 5:
+                code, body, ct = app.attachment(key, parts[3], parts[4])
+                if code != 200:
+                    return self._send(code, body)
+                self.send_response(200); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
+                self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
+                return
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method != 'POST':

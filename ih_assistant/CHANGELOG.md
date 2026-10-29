@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.1] - 2026-10-29
+
+### Fixed
+- Files the person sends (screenshots, photos) can be read again. A message event now lists its files (`files`: number, safe name, size, type), and `GET /persona/<key>/attachment/<message id>/<n>` returns the file, fetched fresh from Discord each time (links expire). Only the person's own messages, only Discord's file hosts, at most 10 files of 25 MB each.
+
 ## [0.5.0] - 2026-10-29
 
 ### Added
