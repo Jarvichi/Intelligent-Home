@@ -13,6 +13,8 @@
   "ingest_token": "",
   "command_event": "ih_discord_command",
   "shopping_list_entity": "todo.shopping_list",
+  "shortcut_token": "",
+  "shortcut_dry": true,
   "meal_plan_script": "",
   "shop_names": "corner shop|acme",
   "aisles": [

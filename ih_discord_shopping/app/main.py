@@ -17,10 +17,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import core
 import settings as ST
+import shortcut
 import bus_client
 from features import shopping as S
 
-VERSION = '0.1.2'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -67,6 +68,7 @@ def load_options(path=None):
             'cfg': settings_from_options(o),
             'mqtt_host': _text(o.get('mqtt_host')) or 'core-mosquitto', 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': _text(o.get('mqtt_user')) or DEFAULT_MODULE, 'mqtt_password': str(o.get('mqtt_password') or ''),
+            'shortcut_token': _text(o.get('shortcut_token')), 'shortcut_dry': o.get('shortcut_dry') is not False,   # anything but an explicit false = dry
             'ingest_url': (_text(o.get('ingest_url')) or DEFAULT_INGEST_URL).rstrip('/'), 'ingest_token': _text(o.get('ingest_token'))}
 
 
@@ -161,6 +163,7 @@ class Module:
         self.lg = logging.getLogger('ihshopping')
         self.in_count = self.react_count = self.out_ops = self.out_failed = 0
         self.last_in = None
+        self.shortcut_count = 0
         self.error, self.client, self.feature, self.bus, self.bus_reason = None, None, None, bus, ''
         self.cur_allowed, self.cur_ck = set(), opts['channel_key']
         self.lists = {}          # checklist message id -> {lines, t, renewed}
@@ -171,6 +174,14 @@ class Module:
         except Exception as e:
             self.ha, self.error = None, 'no Home Assistant access: ' + str(e)[:80]
         self.threaded = threaded
+
+    def shortcut_ha(self):
+        """HA access for the Shortcut endpoint: reads always, writes without the module's dry logger (which would print item text)."""
+        ha = self.ha
+        class A:
+            def get_items(self, e): return ha.get_items(e)
+            def call(self, d, s, data): return ha._req('POST', '/services/%s/%s' % (d, s), data)
+        return A()
 
     # ---- mode ----
     def dry_now(self):
@@ -406,6 +417,7 @@ class Module:
                         'reason': self.bus_reason, 'last_heartbeat_s': None if hb is None else int(now - hb)},
                 'counts': {'in': self.in_count, 'reactions': self.react_count, 'out': self.out_ops, 'out_failed': self.out_failed,
                            'rejected': sum((self.client.rejected if self.client else {}).values()), 'rejected_by': dict(self.client.rejected) if self.client else {}},
+                'shortcut': {'enabled': bool(self.opts['shortcut_token']), 'dry': bool(self.opts['shortcut_dry']), 'requests': self.shortcut_count},
                 'scope_question_open': bool(p), 'checklists_open': len(self.lists),
                 'last_in_s': None if self.last_in is None else int(now - self.last_in),
                 'would_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
@@ -444,6 +456,28 @@ def make_handler(mod):
             else:
                 self.send_error(404); return
             self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
+
+        def do_POST(self):
+            p = self.path.split('?')[0]
+            pre = '/shortcut/'
+            if not (mod.opts['shortcut_token'] and p.startswith(pre) and shortcut.token_ok(mod.opts['shortcut_token'], p[len(pre):])):
+                self.send_error(404); return
+            try:
+                n = int(self.headers.get('Content-Length') or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > shortcut.MAX_BODY:
+                code, reply = 400, {'error': 'bad body size'}
+            elif mod.ha is None:
+                code, reply = 502, {'error': 'home assistant unavailable'}
+            else:
+                raw = self.rfile.read(n)
+                code, reply = shortcut.handle(self.headers.get('Content-Type'), raw, mod.shortcut_ha(), mod.cfg.get('shopping_list_entity') or 'todo.shopping_list',
+                                              mod.opts['shortcut_dry'] or os.path.exists(os.path.join(mod.data, STOP_FILE)))
+                mod.shortcut_count += 1
+            body = json.dumps(reply).encode()
+            self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
 
         def log_message(self, *a):

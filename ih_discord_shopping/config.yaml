@@ -1,7 +1,7 @@
 name: "Intelligent Home - Discord - Shopping"
-version: "0.1.2"
+version: "0.2.0"
 slug: ih_discord_shopping
-description: "Shopping list commands (add items, shop checklist by aisle with tick reactions, got ...) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders."
+description: "Shopping list commands (add items, shop checklist by aisle with tick reactions, got ...) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Also serves the iPhone shopping Shortcut endpoint (POST /shortcut/<token>, dry by default). Maps no folders."
 arch:
   - aarch64
   - amd64
@@ -12,7 +12,7 @@ homeassistant_api: true
 ports:
   8795/tcp: 8795
 ports_description:
-  8795/tcp: "Health and status (/healthz, /status)"
+  8795/tcp: "Health and status (/healthz, /status) and the iPhone Shortcut endpoint (/shortcut/<token>)"
 options:
   log_payloads: false
   module_name: "ih_discord_shopping"
@@ -28,6 +28,8 @@ options:
   ingest_token: ""
   command_event: "ih_discord_command"
   shopping_list_entity: "todo.shopping_list"
+  shortcut_token: ""
+  shortcut_dry: true
   meal_plan_script: ""
   shop_names: ""
   aisles: []
@@ -47,6 +49,8 @@ schema:
   ingest_token: password
   command_event: str?
   shopping_list_entity: str?
+  shortcut_token: password?
+  shortcut_dry: bool?
   meal_plan_script: str?
   shop_names: str?
   aisles:

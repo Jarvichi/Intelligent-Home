@@ -2,7 +2,7 @@
 
 ## What it does
 
-Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing. Module of the `ih_discord` transport.
+Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing. Also the iPhone shopping Shortcut endpoint (dry by default). Module of the `ih_discord` transport.
 
 ## Requires
 
@@ -38,6 +38,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `ingest_token` | Yes | Orchestrator status push (optional) |
 | `command_event` | No | Event fired for `shop` / `got ...` typed in the house channel. Empty = none. Default: `ih_discord_command`. |
 | `shopping_list_entity` | No | The Home Assistant to-do entity. Default: `todo.shopping_list`. |
+| `shortcut_token` | No | Setting `shortcut_token`. |
+| `shortcut_dry` | No | Setting `shortcut_dry`. Default: `true`. |
 | `meal_plan_script` | No | Script (name without `script.`) run quietly before a list is built. Empty = none |
 | `shop_names` | No | Extra shop names for "I'm at <shop>", words separated by `\ |
 | `aisles` | No | Departments (`name`, `words` separated by `\ |
@@ -89,3 +91,15 @@ The transport sends the reaction events for watched messages to this module only
 ### Endpoints
 
 `/healthz` (200 when the module is up) and `/status`: version, shadow, `dry_now`, bus connected, last heartbeat, counts of messages and reactions in, ops out, rejected, open scope question, open checklists, `last_would`. No secrets.
+
+### iPhone Shortcut endpoint
+
+The same add-on serves the endpoint the iPhone Shortcut posts its Reminders to (it replaces the old Home Assistant webhook).
+`POST http://<host IP>:8795/shortcut/<shortcut_token>`. The token in the path is the only secret; use a long random value. `shortcut_token` empty = the endpoint is off (404).
+
+- Body: JSON `{"items": ["milk", "eggs"]}` (or one string with line breaks), form field `items=` (one per line), or plain text (one per line). Empty lines and repeats are dropped.
+- Items already open on the list (any letter case) are skipped. The rest are added with `todo.add_item` on `shopping_list_entity`.
+- Reply `200 {"status":"ok","added":[...],"duplicates_skipped":N,"total_items":N}`; `400 {"error":...}` for bad or empty input; `502` if Home Assistant does not answer.
+- `shortcut_dry: true` (the default) changes nothing and the reply adds `"dry": true`. The file `/data/STOP_LIVE` forces dry at once. This is separate from `shadow` (Discord).
+- The log shows counts only, never item text. `/status` has a `shortcut` block (enabled, dry, requests).
+- Keep the port on the home network only: anyone who knows the token can add items.
