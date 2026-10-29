@@ -32,6 +32,8 @@
   "enable_scheduler": false,
   "signing_key": "",
   "outbox_token": "",
+  "assistant_url": "",
+  "assistant_token": "",
   "bungie_api_key": "",
   "destiny_poll_s": 900
 }

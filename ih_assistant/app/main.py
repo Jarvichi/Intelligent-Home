@@ -12,7 +12,7 @@ from store import PersonaStore, StoreError, valid_key
 from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 MAX_BODY = 2 * 1024 * 1024   # the identity call carries a base64 avatar (up to 1 MiB)
 NAME_CHANGES_PER_HOUR = 2
 NAME_WINDOW_S = 3600
@@ -21,6 +21,9 @@ BAD_NAME = ('discord', '@', '#', ':', '```')
 TEXT_MAX = 4000
 TELL_MAX = 2000
 TELL_PER_DAY = 20
+EVENT_TYPES = ('game_session', 'game_reset', 'reminder_due')
+EVENT_PER_DAY = 30
+EVENT_FACTS_MAX, EVENT_FACT_LEN, EVENT_SOURCE_LEN, EVENT_TEXT_LEN = 20, 300, 40, 1000
 CHECKIN_WINDOW_MIN = 30
 POLL_S = 8
 TYPING_MAX_S = 300
@@ -378,6 +381,39 @@ class Assistant:
         self.log('persona %s: tell to %s, %d chars' % (frm, to, len(text)))
         return 200, {'ok': True, 'id': stored['id']}
 
+    def event(self, key, body):
+        """An add-on (e.g. ih_games) hands this persona one event for its mind to act on. Lands ONLY in this persona's own inbox. Logs type and lengths only."""
+        if key not in self.stores:
+            return 404, {'ok': False, 'why': 'unknown persona'}
+        typ, src, facts, sug = body.get('type'), body.get('source'), body.get('facts'), body.get('suggested_text')
+        if typ not in EVENT_TYPES:
+            return 400, {'ok': False, 'why': 'type must be one of ' + ', '.join(EVENT_TYPES)}
+        if not isinstance(src, str) or not src.strip() or len(src) > EVENT_SOURCE_LEN:
+            return 400, {'ok': False, 'why': 'source: text 1..%d characters' % EVENT_SOURCE_LEN}
+        if not isinstance(facts, dict) or len(facts) > EVENT_FACTS_MAX:
+            return 400, {'ok': False, 'why': 'facts: object with up to %d keys' % EVENT_FACTS_MAX}
+        for k, v in facts.items():
+            if not isinstance(k, str) or not k or len(k) > 60 or not (v is None or isinstance(v, (str, int, float, bool))):
+                return 400, {'ok': False, 'why': 'facts: flat, values text/number/true-false'}
+            if isinstance(v, str) and len(v) > EVENT_FACT_LEN:
+                return 400, {'ok': False, 'why': 'facts: each text up to %d characters' % EVENT_FACT_LEN}
+        if sug is not None and (not isinstance(sug, str) or len(sug) > EVENT_TEXT_LEN):
+            return 400, {'ok': False, 'why': 'suggested_text: up to %d characters' % EVENT_TEXT_LEN}
+        day = self._day()
+        def take(s):
+            t = s.setdefault('events_in', {})
+            if t.get('day') != day:
+                t.clear(); t['day'] = day
+            if int(t.get(src, 0)) >= EVENT_PER_DAY:
+                return False
+            t[src] = int(t.get(src, 0)) + 1
+            return True
+        if not self.stores[key].update_state(take):
+            return 429, {'ok': False, 'why': 'limit of %d a day for this source' % EVENT_PER_DAY}
+        stored = self.stores[key].append_event({'type': typ, 'source': src, 'facts': facts, 'suggested_text': sug})
+        self.log('persona %s: event %s from %s, %d facts, %d chars' % (key, typ, src[:EVENT_SOURCE_LEN], len(facts), len(sug or '')))
+        return 200, {'ok': True, 'id': stored['id']}
+
     def identity(self, key, body):
         """Change the persona's own username / avatar / server nickname. A username change is limited to 2 an hour (Discord's rule), counted per persona."""
         un, av, nick = body.get('username'), body.get('avatar'), body.get('nickname')
@@ -507,6 +543,8 @@ def make_handler(app):
                 return self._send(*app.ask(key, body))
             if act == 'identity' and len(parts) == 3:
                 return self._send(*app.identity(key, body))
+            if act == 'event' and len(parts) == 3:
+                return self._send(*app.event(key, body))
             if act == 'tell' and len(parts) == 4:
                 return self._send(*app.tell(key, parts[3], body))
             if act == 'profile' and len(parts) == 3:

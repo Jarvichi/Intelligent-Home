@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-10-29
+
+### Added
+- `POST /persona/<key>/event`: other add-ons hand a persona an event (`game_session`, `game_reset`, `reminder_due`) with flat `facts` and an optional `suggested_text`. It lands only in that persona's own inbox. 30 a day per persona and source (429). The log holds the type and lengths only.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added

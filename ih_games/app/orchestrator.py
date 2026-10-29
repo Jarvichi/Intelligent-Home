@@ -1,6 +1,6 @@
 
 """Orchestrator: reads feeds, decides messages, respects quiet hours, and emits HA events."""
-import datetime, json, os, random
+import datetime, json, os, random, urllib.parse, urllib.request
 from zoneinfo import ZoneInfo
 
 TEMPLATES = {
@@ -40,6 +40,22 @@ def _is_quiet(now_dt, q_start_str, q_end_str):
     if qs <= qe:
         return qs <= t <= qe
     return t >= qs or t <= qe
+
+def _flat(v):
+    return v if isinstance(v, (int, float, bool)) else str(v if v is not None else "")[:300]
+
+
+def send_event(ctx, url, token, persona, payload):
+    """POST one event to the persona's inbox in ih_assistant. -> True on success. Never raises; logs only the error type."""
+    req = urllib.request.Request(url.rstrip("/") + "/persona/" + urllib.parse.quote(str(persona), safe="") + "/event", data=json.dumps(payload).encode(), method="POST",
+                                 headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    try:
+        with ctx.open(req, timeout=10) as r:
+            return 200 <= getattr(r, "status", 200) < 300
+    except Exception as ex:
+        ctx.log("assistant event failed (%s), using the outbox" % type(ex).__name__)
+        return False
+
 
 def run(ctx, now=None):
     opts = ctx.opts
@@ -173,7 +189,16 @@ def run(ctx, now=None):
 
         with open(msg_log_path, "a") as f:
             f.write(json.dumps(log_entry) + "\n")
-        if sent_ok and not ctx.dry:   # outbox: a sender on the host collects these (GET /outbox, POST /ack) and delivers them
+        a_url = str(opts.get("assistant_url") or "").strip()
+        via_event = False
+        if a_url and sent_ok and ctx.dry:
+            ctx.log("[DRY] would send event to persona %s" % speaker)
+        elif a_url and sent_ok:
+            facts = {"player": pkey, "kind": kind, "game": game, "events": len(valid_events), "big": has_big,
+                     "summary": summary_str, "event_time": valid_events[-1]["time"]}
+            payload = {"type": "game_session", "source": "ih_games", "facts": {k: _flat(v) for k, v in facts.items()}, "suggested_text": msg_text[:1000]}
+            via_event = send_event(ctx, a_url, str(opts.get("assistant_token") or ""), speaker, payload)
+        if sent_ok and not ctx.dry and not via_event:   # outbox: a sender on the host collects these (GET /outbox, POST /ack) and delivers them
             with open(os.path.join(data_dir, "outbox.jsonl"), "a") as f:
                 f.write(json.dumps(dict(msg_payload, id=f"{pkey}-{valid_events[-1]['time']}", time=now_iso)) + "\n")
 

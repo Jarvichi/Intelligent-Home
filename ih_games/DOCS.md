@@ -40,6 +40,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `enable_scheduler` | No | Turn on the signed MQTT scheduler. Default: `false`. |
 | `signing_key` | No | Key used to sign messages. Must match this module's entry in the orchestrator's `module_keys`. |
 | `outbox_token` | Yes | Token the chat side uses to fetch and acknowledge queued messages. |
+| `assistant_url` | No | str, password |
+| `assistant_token` | No | str, password |
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |
 

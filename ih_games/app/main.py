@@ -10,7 +10,7 @@ import schedule_client, orchestrator
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.3.4"
+VERSION = "0.4.0"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -50,6 +50,8 @@ def load_options(path=None):
         "enable_scheduler": bool(o.get("enable_scheduler", False)),
         "signing_key": str(o.get("signing_key") or "").strip(),
         "outbox_token": str(o.get("outbox_token") or "").strip(),
+        "assistant_url": str(o.get("assistant_url") or "").strip().rstrip("/"),
+        "assistant_token": str(o.get("assistant_token") or "").strip(),
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
         "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
         "log_payloads": o.get("log_payloads") is True,
