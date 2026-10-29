@@ -46,8 +46,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `oven_device_id` | No | Home Assistant device id of the oven, for the program services. |
 | `plan_sensor_entity` | No | Sensor the wall display cooking screen reads (default `sensor.cooking_plan`). |
 | `rerender_script_entity` | No | Script run when a cook ends so the wall display redraws. Optional. |
-| `publish_webhook_url` | No | Where `/publish` (and every recipe save) sends `{files: {path: text}}`: `brain/...` notes and `www/recipes/...` copies. Empty = nowhere. |
-| `publish_live` | No | False (default) = publishing only logs. |
+| `publish_webhook_url` | No | Where `/publish` (and every recipe save) sends `{files: {path: text}}`: `brain/...` notes and `www/recipes/...` copies. Empty = the www copy is skipped quietly. |
+| `publish_live` | No | False (default) = publishing only logs counts. |
+| `brain_url` | No | Brain add-on MCP address, e.g. `http://HOST:8820/mcp`. Recipe notes are written with `brain_write`; only changed notes are sent (hashes kept in /data). |
+| `brain_token` | No | Bearer token of the Brain add-on (needs its read_only off). |
 
 ## Troubleshooting
 
@@ -74,7 +76,7 @@ Calendars, the oven, the speaker and the cooking sensor are your own Home Assist
 | `POST /cook` | `{recipe, eat:"HH:MM"}` starts (replaces) a cook; `POST /cook/stop`; `GET /cook` status |
 | `POST /cook/done`, `/cook/ack`, `/cook/tick`, `/cook/delay` | the wall display buttons: `{row, did}`, `{row}`, `{row}`, `{minutes, row}` |
 | `POST /oven/start`, `/oven/set`, `/oven/stop` | `{temp, program, minutes}` ; retried until the oven confirms. Dry = logs `would set oven ...` |
-| `POST /publish` | sends the recipe notes and index to `publish_webhook_url` (dry: logs only) |
+| `POST /publish` | writes changed recipe notes to the Brain add-on (`brain_url`) and sends www copies to `publish_webhook_url` if set (dry: logs counts only) |
 | `POST /import` | seed `/data` from the host (see Seeding). Never overwrites unless `overwrite: true` |
 
 Rate limit: `rate_per_min` (429). Kill switch: file `/data/STOP` (503). Tokens, URLs and calendar text are never logged.

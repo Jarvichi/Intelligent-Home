@@ -19,7 +19,7 @@ button.p{background:var(--accent);border-color:var(--accent);color:#fff}
 #msg{min-height:1.3em;font-size:.9rem}.err{color:var(--bad)}.good{color:var(--ok)}
 h2{font-size:1.2rem;margin:0 0 6px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 </style></head><body><main>
-<div id="list"><div class="card"><input class="s" id="q" placeholder="Find a recipe..." autocomplete="off"><div id="items" style="margin-top:8px"></div></div></div>
+<div id="list"><div class="card"><div class="row" style="align-items:center"><div style="flex:4"><input class="s" id="q" placeholder="Find a recipe..." autocomplete="off"></div><div style="flex:0 0 auto;min-width:0"><button class="p" id="new">New recipe</button></div></div><div id="items" style="margin-top:8px"></div></div></div>
 <div id="view" hidden></div>
 </main>
 <script>
@@ -30,7 +30,7 @@ async function api(p,o){const r=await fetch(p,o);const j=await r.json();if(!r.ok
 async function init(){ALL=await api('api/recipes');draw()}
 function draw(){const q=$('#q').value.toLowerCase();$('#items').innerHTML=ALL.filter(r=>r.title.toLowerCase().includes(q)).sort((a,b)=>a.title.localeCompare(b.title))
  .map(r=>`<div class="item" data-id="${r.id}"><span>${esc(r.title)}</span><span class="m">${r.minutes} min${r.serves?' · serves '+r.serves:''}${r.oven?' · '+r.oven+'C':''}</span></div>`).join('')||'<div class="m">No match</div>'}
-$('#q').oninput=draw;$('#items').onclick=e=>{const i=e.target.closest('.item');if(i)open(i.dataset.id)};
+$('#q').oninput=draw;$('#new').onclick=()=>{CUR={title:'',oven:null,serves:'',steps:[],prep:[],shopping:[],_new:true};$('#list').hidden=true;$('#view').hidden=false;edit()};$('#items').onclick=e=>{const i=e.target.closest('.item');if(i)open(i.dataset.id)};
 async function open(id){CUR=await api('api/recipes/'+id);CUR._id=id;show()}
 function show(){const r=CUR,st=[...r.steps].sort((a,b)=>b.before-a.before);
  $('#list').hidden=true;$('#view').hidden=false;$('#view').innerHTML=`<div class="card"><button id="back">&larr; All recipes</button>
@@ -41,25 +41,31 @@ function show(){const r=CUR,st=[...r.steps].sort((a,b)=>b.before-a.before);
  <div class="bar"><button id="ed">Edit</button><button class="p" id="cook">Cook this now</button></div><div id="msg"></div></div>`;
  $('#back').onclick=()=>{$('#view').hidden=true;$('#list').hidden=false};$('#ed').onclick=edit;$('#cook').onclick=cook}
 const lines=a=>(a||[]).join('\n'),unl=t=>t.split('\n').map(x=>x.trim()).filter(Boolean);
-function edit(){const r=CUR;$('#view').innerHTML=`<div class="card"><h2>Edit: ${esc(r.title||r.name)}</h2>
+function edit(){const r=CUR;$('#view').innerHTML=`<div class="card"><h2>${r._new?'New recipe':'Edit: '+esc(r.title||r.name)}</h2>
  <label>Title</label><input id="e_title" value="${esc(r.title||r.name)}">
  <div class="row"><div><label>Oven (C)</label><input id="e_oven" type="number" value="${r.oven||''}"></div><div><label>Serves</label><input id="e_serves" value="${r.serves||''}"></div><div><label>Child message (min before)</label><input id="e_kid" type="number" value="${r[RK+'minutes']??15}"></div></div>
  <label>Steps (one per line: minutes before serving | text)</label><textarea id="e_steps" style="min-height:220px">${esc(r.steps.map(s=>s.before+' | '+s.text).join('\n'))}</textarea>
  <label>Prep (one per line)</label><textarea id="e_prep">${esc(lines(r.prep))}</textarea>
  <label>Shopping (one per line)</label><textarea id="e_shop">${esc(lines(r.shopping))}</textarea>
  <div class="bar"><button class="p" id="sv">Save</button><button id="cx">Cancel</button></div><div id="msg"></div></div>`;
- $('#cx').onclick=show;$('#sv').onclick=save}
+ $('#cx').onclick=()=>{if(CUR._new){$('#view').hidden=true;$('#list').hidden=false}else show()};$('#sv').onclick=save}
 async function save(){const num=v=>v===''?null:Number(v);
  const steps=unl($('#e_steps').value).map(l=>{const i=l.indexOf('|');return{before:Number(l.slice(0,i).trim()),text:l.slice(i+1).trim()}});
  if(steps.some(s=>!Number.isInteger(s.before)))return msg('Each step line needs: minutes | text','err');
  const d={title:$('#e_title').value.trim(),oven:num($('#e_oven').value),serves:(v=>/^\d+$/.test(v)?Number(v):v)($('#e_serves').value.trim()),[RK+'minutes']:num($('#e_kid').value)??15,steps,prep:unl($('#e_prep').value),shopping:unl($('#e_shop').value)};
- try{await api('api/recipes/'+CUR._id,{method:'PUT',body:JSON.stringify(d)});CUR=await api('api/recipes/'+CUR._id);CUR._id=CUR._id;ALL=await api('api/recipes');draw();show();msg('Saved (backup kept)','good')}
+ try{if(CUR._new){const c=await api('api/recipes',{method:'POST',body:JSON.stringify(d)});CUR=await api('api/recipes/'+c.created);CUR._id=c.created;ALL=await api('api/recipes');draw();show();return msg('Created','good')}
+  await api('api/recipes/'+CUR._id,{method:'PUT',body:JSON.stringify(d)});CUR=await api('api/recipes/'+CUR._id);CUR._id=CUR._id;ALL=await api('api/recipes');draw();show();msg('Saved (backup kept)','good')}
  catch(e){msg((e.errors||[e.error||'failed']).join('; '),'err')}}
 function msg(t,c){const m=$('#msg');if(m){m.textContent=t;m.className=c||''}}
 function cook(){$('#msg').innerHTML=`<div class="row" style="align-items:end;margin-top:8px"><div><label>Eat time</label><input id="eat" type="time" value="18:30"></div><div><button class="p" id="go">Start cooking mode</button></div></div>
  <div class="m">Starts spoken steps on the kitchen HomePod and the wall display cooking screen.</div>`;
  $('#go').onclick=async()=>{if(!confirm('Start cooking mode for '+(CUR.title||CUR.name)+' at '+$('#eat').value+'?'))return;
   const live=true;
-  try{const j=await api('api/cook',{method:'POST',body:JSON.stringify({name:CUR._id,eat:$('#eat').value,live})});msg(j.dry_run?'Shadow mode (nothing is sent): '+j.would_run:'Started: '+j.result,'good')}catch(e){msg((e.errors||['failed']).join('; '),'err')}}}
+  try{const j=await api('api/cook',{method:'POST',body:JSON.stringify({name:CUR._id,eat:$('#eat').value})});
+   const sl=(j.steps||[]).map(x=>'<div class="st"><b>'+esc(x.at||x.time||'')+'</b><span>'+esc(x.text||x.short||JSON.stringify(x))+'</span></div>').join('');
+   $('#msg').className='good';$('#msg').innerHTML=esc(j.dry_run?'Shadow mode (nothing is sent): '+j.would_run:'Started: '+j.result)+sl+'<div class="bar"><button id="stat">Cook status</button><button id="stop">Stop cooking</button></div><pre id="cs" class="m" style="white-space:pre-wrap"></pre>';
+   $('#stat').onclick=async()=>{try{$('#cs').textContent=JSON.stringify(await api('api/cook'),null,1)}catch(e){msg('status failed','err')}};
+   $('#stop').onclick=async()=>{if(!confirm('Stop cooking mode?'))return;try{await api('api/cook/stop',{method:'POST',body:'{}'});$('#cs').textContent='Stopped'}catch(e){msg('stop failed','err')}}}
+  catch(e){msg((e.errors||['failed']).join('; '),'err')}}}
 init();
 </script></body></html>

@@ -24,6 +24,13 @@ def ingress_api(st, method, p, body):
         if not r: return 404, {'error': 'not found'}
         r.pop('slug', None)
         return 200, r
+    if method == 'POST' and p == '/recipes':
+        ok, r = recipeadmin.create_recipe(st.data, body)
+        if not ok: return 422, {'errors': r}
+        st.publish()
+        return 200, {'created': r}
+    if method == 'POST' and p == '/cook/stop':
+        return 200, engine(st).stop_cook()
     if method == 'PUT' and m:
         ok, e = recipeadmin.save_recipe(st.data, m[1], body)
         if not ok: return (404 if e == ['no such recipe'] else 422), {'errors': e}

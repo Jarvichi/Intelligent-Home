@@ -1,5 +1,5 @@
 name: "Intelligent Home - Cooking"
-version: "0.2.2"
+version: "0.3.0"
 slug: ih_cooking
 description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
 arch:
@@ -45,6 +45,8 @@ options:
   rerender_script_entity: ""
   publish_webhook_url: ""
   publish_live: false
+  brain_url: ""
+  brain_token: ""
 schema:
   log_payloads: bool?
   api_token: password
@@ -72,3 +74,5 @@ schema:
   rerender_script_entity: str?
   publish_webhook_url: str?
   publish_live: bool?
+  brain_url: str?
+  brain_token: password?

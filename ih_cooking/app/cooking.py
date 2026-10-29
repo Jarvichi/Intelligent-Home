@@ -1,10 +1,10 @@
 """Store (recipes, meal plan), options, HA calendar fetch, rate limit. stdlib only."""
-import glob, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
+import glob, hashlib, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.2.2'
+VERSION = '0.3.0'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -44,6 +44,8 @@ def load_options(path):
         'log_payloads': o.get('log_payloads') is True,
         'publish_webhook_url': str(o.get('publish_webhook_url') or '').strip(),
         'publish_live': o.get('publish_live') is True,
+        'brain_url': str(o.get('brain_url') or '').strip(),
+        'brain_token': str(o.get('brain_token') or '').strip(),
         'cook': cook_config(o),
     }
 
@@ -67,7 +69,7 @@ class Store:
     def __init__(self, data, seed_dir, opts, log=None, clock=time.time, opener=None):
         self.data, self.seed, self.opts = data, seed_dir, opts
         self.opts.setdefault('cook', cook_config({}))
-        self.opts.setdefault('publish_webhook_url', ''); self.opts.setdefault('publish_live', False)
+        self.opts.setdefault('publish_webhook_url', ''); self.opts.setdefault('publish_live', False); self.opts.setdefault('brain_url', ''); self.opts.setdefault('brain_token', '')
         self.log = log or (lambda *a: None)
         self.clock, self.opener = clock, opener or urllib.request.urlopen
         self.rdir = os.path.join(data, 'recipes')
@@ -89,23 +91,69 @@ class Store:
         self.engine = cookengine.Engine(c, os.path.join(self.data, 'cook'), ha=ha, discord=discord, **kw)
         return self.engine
 
-    # --- publish (replaces recipes.py publish: www copy + brain notes). Dry by default: only logs. Live: POST to publish_webhook_url.
+    # --- publish (replaces recipes.py publish). Dry by default: only logs counts. Live: brain notes -> ih_brain (brain_write over HTTP JSON-RPC), www files -> publish_webhook_url.
+    def _hash_file(self):
+        return os.path.join(self.data, 'brain_hashes.json')
+
+    @staticmethod
+    def _note_hash(text):
+        body = '\n'.join(l for l in text.split('\n') if not l.startswith('updated:'))   # the date line changes daily: not a content change
+        return hashlib.sha256(body.encode()).hexdigest()
+
+    def _brain_call(self, path, content):
+        msg = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'brain_write', 'arguments': {
+            'path': path, 'content': content, 'author': 'ih_cooking', 'summary': 'recipe published by ih_cooking'}}}
+        req = urllib.request.Request(self.opts['brain_url'], data=json.dumps(msg, ensure_ascii=False).encode(), method='POST',
+                                     headers={'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'Authorization': 'Bearer ' + self.opts['brain_token']})
+        with self.opener(req, timeout=20) as r:
+            j = json.loads(r.read() or b'{}')
+        if j.get('error') or (j.get('result') or {}).get('isError'):
+            raise ValueError('brain refused')
+
+    def publish_brain(self, notes):
+        """-> dict(sent, unchanged, failed). Only notes whose content changed are sent. Never logs note text."""
+        try: hashes = json.load(open(self._hash_file()))
+        except (OSError, ValueError): hashes = {}
+        sent = unchanged = failed = 0
+        for path, text in notes.items():
+            h = self._note_hash(text)
+            if hashes.get(path) == h:
+                unchanged += 1; continue
+            try:
+                self._brain_call(path, text); hashes[path] = h; sent += 1
+            except Exception as e:
+                failed += 1; self.log('brain publish failed: %s (%s)' % (tag(path), type(e).__name__))
+        if sent:
+            try:
+                tmp = self._hash_file() + '.tmp'; json.dump(hashes, open(tmp, 'w')); os.replace(tmp, self._hash_file())
+            except OSError: pass
+        self.log('publish brain: sent %d, unchanged %d, failed %d' % (sent, unchanged, failed))
+        return {'sent': sent, 'unchanged': unchanged, 'failed': failed}
+
     def publish(self):
-        files = {}
-        for k, v in recipeadmin.brain_notes(self.data).items(): files['brain/' + k] = v
-        for k, v in recipeadmin.www_index(self.data).items(): files['www/' + k] = v
-        url = self.opts['publish_webhook_url']
-        if not (self.opts['publish_live'] and url):
-            self.log('publish (dry): would send %d files to the publish webhook%s' % (len(files), '' if url else ' (publish_webhook_url not set)'))
-            return {'ok': True, 'dry': True, 'files': len(files)}
-        req = urllib.request.Request(url, data=json.dumps({'source': 'ih_cooking', 'files': files}, ensure_ascii=False).encode(), method='POST', headers={'Content-Type': 'application/json'})
-        try:
-            with self.opener(req, timeout=20) as r: code = getattr(r, 'status', 200)
-            self.log('publish: sent %d files (HTTP %s)' % (len(files), code))
-            return {'ok': True, 'dry': False, 'files': len(files)}
-        except Exception as e:
-            self.log('publish failed: ' + type(e).__name__)
-            return {'ok': False, 'why': type(e).__name__}
+        notes = recipeadmin.brain_notes(self.data)
+        www = {'www/' + k: v for k, v in recipeadmin.www_index(self.data).items()}
+        url, burl = self.opts['publish_webhook_url'], self.opts['brain_url']
+        if not self.opts['publish_live']:
+            self.log('publish (dry): would write %d brain notes%s and send %d www files%s' % (
+                len(notes), '' if burl else ' (brain_url not set)', len(www) if url else 0, '' if url else ' (publish_webhook_url not set: www skipped)'))
+            return {'ok': True, 'dry': True, 'files': len(notes) + (len(www) if url else 0), 'notes': len(notes), 'www': len(www) if url else 0}
+        res = {'ok': True, 'dry': False, 'notes': len(notes), 'www': 0}
+        if burl and self.opts['brain_token']:
+            b = self.publish_brain(notes); res['brain'] = b
+            if b['failed']: res['ok'] = False
+        else:
+            self.log('publish: brain_url or brain_token not set, brain notes skipped')
+        if url:
+            files = dict(('brain/' + k, v) for k, v in notes.items()); files.update(www)
+            req = urllib.request.Request(url, data=json.dumps({'source': 'ih_cooking', 'files': files}, ensure_ascii=False).encode(), method='POST', headers={'Content-Type': 'application/json'})
+            try:
+                with self.opener(req, timeout=20) as r: code = getattr(r, 'status', 200)
+                self.log('publish: sent %d files to the webhook (HTTP %s)' % (len(files), code)); res['www'] = len(www)
+            except Exception as e:
+                self.log('publish failed: ' + type(e).__name__); res['ok'] = False; res['why'] = type(e).__name__
+        res['files'] = res['notes'] + res['www']
+        return res
 
     def seed_recipes(self):
         os.makedirs(self.rdir, exist_ok=True)

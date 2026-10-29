@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-10-29
+
+### Added
+- Options `brain_url` and `brain_token`: publishing writes the recipe notes straight to the Brain add-on (MCP `brain_write`). Only notes whose content changed are sent. Dry unless `publish_live` is true; note text is never logged.
+- Recipes page: create a new recipe, show the full cook result (steps), cook status and stop button.
+
+### Changed
+- The www part of publish is skipped quietly when `publish_webhook_url` is empty.
+
 ## [0.2.2] - 2026-10-28
 
 ### Added
