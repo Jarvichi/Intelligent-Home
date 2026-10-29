@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.3.0"
+version: "0.4.0"
 slug: ih_assistant
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
 arch:
@@ -10,6 +10,7 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8830]/healthz  once boot is auto.
 boot: manual
 init: false
+homeassistant_api: true
 ports:
   8830/tcp: 8830
 ports_description:
@@ -35,3 +36,13 @@ schema:
       can_tell:
         - str?
       live: bool?
+      checkin_plan: bool?
+      checkins_per_day: int(0,4)?
+      wake_start: str?
+      wake_end: str?
+      min_gap_h: float?
+      calendars:
+        - str?
+      meal_plan_entity: str?
+      presence_entity: str?
+      quiet_if_messaged_h: float?

@@ -11,8 +11,10 @@ import store as storemod
 from store import PersonaStore, StoreError, valid_key
 from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
+from ihlib import ha as ihha
+import planner
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 MAX_BODY = 2 * 1024 * 1024   # the identity call carries a base64 avatar (up to 1 MiB)
 NAME_CHANGES_PER_HOUR = 2
 NAME_WINDOW_S = 3600
@@ -25,12 +27,16 @@ EVENT_TYPES = ('game_session', 'game_reset', 'reminder_due')
 EVENT_PER_DAY = 30
 EVENT_FACTS_MAX, EVENT_FACT_LEN, EVENT_SOURCE_LEN, EVENT_TEXT_LEN = 20, 300, 40, 1000
 CHECKIN_WINDOW_MIN = 30
+AGREED_MAX = 20
+ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 8
 TYPING_MAX_S = 300
 ASK_KEEP_S = 86400
 ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [],
+                 'meal_plan_entity': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 
@@ -62,7 +68,19 @@ def load_options(path):
             mpd = int(p.get('max_per_day') if p.get('max_per_day') is not None else 4)
         except (TypeError, ValueError):
             mpd = 4
+        def num(v, lo, hi, d):
+            try:
+                return min(hi, max(lo, float(v))) if v is not None else d
+            except (TypeError, ValueError):
+                return d
+        ents = lambda v: [e for e in (v or []) if isinstance(e, str) and ENTITY_RE.match(e)] if isinstance(v, list) else []
+        ent1 = lambda v: v if isinstance(v, str) and ENTITY_RE.match(v) else ''
         personas.append({
+            'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': int(num(p.get('checkins_per_day'), 0, 4, 2)),
+            'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
+            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')),
+            'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'presence_entity': ent1(p.get('presence_entity')),
+            'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
             'quiet_start': hhmm(p.get('quiet_start'), '22:00'), 'quiet_end': hhmm(p.get('quiet_end'), '08:00'),
             'max_per_day': max(0, mpd),
@@ -81,12 +99,15 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
+        self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
         self.cfg, self.stores, self.discord = {}, {}, {}
         for p in opts['personas']:
             k = p['key']
+            for dk, dv in PLAN_DEFAULTS.items():
+                p.setdefault(dk, list(dv) if isinstance(dv, list) else dv)
             self.cfg[k] = p
             self.stores[k] = PersonaStore(data_dir, k, clock)
             if p['bot_token'] and p['user_id']:
@@ -189,10 +210,249 @@ class Assistant:
             if skip:
                 continue
             self.maybe_intro(key)
-            st.append_event({'type': 'checkin_due', 'slot': t})
+            st.append_event({'type': 'checkin_due', 'slot': t, 'planned': t, 'reason': 'fixed'})
             self._count_out(key, 'checkin')
+            self._note_fired(key, t)
             fired.append(t)
+        if c['checkin_plan']:
+            fired += self.tick_plan(key)
         return fired
+
+    # ---- planned check-ins (checkin_plan) ----
+    def _note_fired(self, key, t):
+        day = self._day()
+        def f(s):
+            fd = s.setdefault('fired_today', {})
+            if fd.get('day') != day:
+                fd.clear(); fd['day'] = day; fd['times'] = []
+            fd['times'].append(t)
+        self.stores[key].update_state(f)
+
+    def _fired_times(self, key):
+        fd = self.stores[key].state().get('fired_today', {})
+        return fd.get('times', []) if fd.get('day') == self._day() else []
+
+    def _event_span(self, ev, day, tz):
+        """(start_min, end_min) of a timed calendar event on `day`, or None (all-day events never block)."""
+        def one(v):
+            if isinstance(v, dict):
+                v = v.get('dateTime') or v.get('date')
+            if not isinstance(v, str) or 'T' not in v:
+                return None
+            d = datetime.datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return d.astimezone(tz).replace(tzinfo=None) if d.tzinfo else d
+        s, e = one(ev.get('start')), one(ev.get('end'))
+        if s is None or e is None:
+            return None
+        a = 0 if s.date() < day else s.hour * 60 + s.minute
+        b = 24 * 60 if e.date() > day else e.hour * 60 + e.minute
+        return planner.event_window(a, b) if b > a else None
+
+    def busy_for(self, key, day):
+        """-> (busy spans [(a, b)], note). Calendar events + meal windows. HA errors: meals only, note names the error type."""
+        c, out, note = self.cfg[key], [], ''
+        tz = self.tz or datetime.timezone.utc
+        eat = None
+        try:
+            if c['calendars'] or c['meal_plan_entity']:
+                if self.ha is None:
+                    raise RuntimeError('no HA client')
+            start = datetime.datetime.combine(day, datetime.time(0, 0), tz)
+            end = start + datetime.timedelta(days=1)
+            for ent in c['calendars']:
+                for ev in self.ha.calendar_events(ent, start, end) or []:
+                    sp = self._event_span(ev, day, tz)
+                    if sp:
+                        out.append(sp)
+        except Exception as e:
+            note = 'calendar unreadable (%s)' % type(e).__name__
+            self.log('persona %s: %s, planning without calendars' % (key, note))
+        try:
+            if c['meal_plan_entity'] and self.ha is not None:
+                eat = self._eat_minute(self.ha.state(c['meal_plan_entity']), day)
+        except Exception as e:
+            self.log('persona %s: meal sensor unreadable (%s)' % (key, type(e).__name__))
+        return sorted(out + planner.meal_windows(eat)), note
+
+    def _eat_minute(self, state, day):
+        """Planned eating time of `day` from a sensor state: 'HH:MM' / 'HH:MM:SS' (only for today) or an ISO date-time on that day."""
+        if not isinstance(state, str):
+            return None
+        m = re.match(r'^(\d{1,2}):(\d{2})(:\d{2})?$', state.strip())
+        if m:
+            return int(m.group(1)) * 60 + int(m.group(2)) if day == self.now().date() and int(m.group(1)) < 24 else None
+        try:
+            d = datetime.datetime.fromisoformat(state.strip().replace('Z', '+00:00'))
+        except ValueError:
+            return None
+        if d.tzinfo and self.tz:
+            d = d.astimezone(self.tz)
+        return d.hour * 60 + d.minute if d.date() == day else None
+
+    def _quiet_fn(self, key):
+        c = self.cfg[key]
+        return lambda t: in_quiet(t, c['quiet_start'], c['quiet_end'])
+
+    def make_day_plan(self, key, day):
+        """Build and store the plan for `day` (once). Agreed times first, then random ones up to checkins_per_day."""
+        c, st = self.cfg[key], self.stores[key]
+        dkey = day.isoformat()
+        agreed = [a['time'] for a in st.state().get('agreed', []) if a['date'] == dkey]
+        busy, note = self.busy_for(key, day)
+        n = self.now()
+        floor = n.hour * 60 + n.minute + 10 if day == n.date() else 0
+        wake = (to_min(c['wake_start']), to_min(c['wake_end']))
+        slots = planner.make_plan('%s-%s' % (key, dkey), wake, busy, agreed, c['checkins_per_day'], int(c['min_gap_h'] * 60), max(floor, wake[0]), self._quiet_fn(key))
+        plan = {'target': c['checkins_per_day'], 'slots': slots, 'note': note}
+        def put(s):
+            ps = s.setdefault('plans', {})
+            for k in [k for k in ps if k < (day - datetime.timedelta(days=3)).isoformat()]:
+                del ps[k]
+            ps.setdefault(dkey, plan)
+        st.update_state(put)
+        self.log('persona %s: plan for the day made: %d times%s' % (key, len(slots), ' (' + note + ')' if note else ''))
+
+    def minutes_since_message(self, key):
+        """Minutes since the person's last message, from the persona's own inbox timestamps (None = none seen)."""
+        last = None
+        for ev in self.stores[key].read_inbox(0, 500):
+            if ev.get('type') == 'message':
+                try:
+                    t = datetime.datetime.strptime(ev['ts'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()
+                except (KeyError, ValueError, TypeError):
+                    continue
+                last = t if last is None else max(last, t)
+        return None if last is None else (self.clock() - last) / 60
+
+    def _skip_reason(self, key, slot, nm):
+        c = self.cfg[key]
+        if in_quiet(nm, c['quiet_start'], c['quiet_end']):
+            return 'quiet hours'
+        if self.out_today(key) >= c['max_per_day']:
+            return 'max per day'
+        age = self.minutes_since_message(key)
+        if age is not None and age < c['quiet_if_messaged_h'] * 60:
+            return 'messaged recently'
+        if slot['kind'] == 'agreed':
+            return None
+        gap = c['min_gap_h'] * 60
+        if any(abs(nm - to_min(t)) < gap for t in self._fired_times(key)):
+            return 'too soon after the last check-in'
+        if c['presence_entity'] and self.ha is not None:
+            try:
+                if self.ha.state(c['presence_entity']) in ('not_home', 'off', 'away'):
+                    return 'not home'
+            except Exception as e:
+                self.log('persona %s: presence unreadable (%s)' % (key, type(e).__name__))
+        if slot['kind'] == 'random':
+            busy, _ = self.busy_for(key, self.now().date())
+            if any(x <= nm < y for x, y in busy):
+                return 'busy now'
+        return None
+
+    def tick_plan(self, key):
+        """Plan the day if needed, then fire due slots. -> list of times fired."""
+        c, st, now = self.cfg[key], self.stores[key], self.now()
+        day = now.date()
+        dkey, nm = day.isoformat(), now.hour * 60 + now.minute
+        if dkey not in st.state().get('plans', {}):
+            self.make_day_plan(key, day)
+        fired = []
+        for i, sl in enumerate(st.state().get('plans', {}).get(dkey, {}).get('slots', [])):
+            if sl['status'] != 'pending':
+                continue
+            t = to_min(sl['time'])
+            if nm < t:
+                continue
+            if nm > t + CHECKIN_WINDOW_MIN:
+                status, why = 'missed', None
+            else:
+                why = self._skip_reason(key, sl, nm)
+                status = 'skipped' if why else 'sent'
+            def mark(s, i=i, status=status):
+                s['plans'][dkey]['slots'][i]['status'] = status
+            st.update_state(mark)
+            if status == 'sent':
+                self.maybe_intro(key)
+                st.append_event({'type': 'checkin_due', 'planned': sl['time'], 'reason': sl['kind']})
+                self._count_out(key, 'checkin')
+                self._note_fired(key, sl['time'])
+                fired.append(sl['time'])
+            elif why:
+                self.log('persona %s: planned check-in skipped (%s)' % (key, why))
+        return fired
+
+    def parse_date(self, v):
+        today = self.now().date()
+        if v in (None, 'today'):
+            return today
+        if v == 'tomorrow':
+            return today + datetime.timedelta(days=1)
+        try:
+            if isinstance(v, str) and re.match(r'^\d{4}-\d{2}-\d{2}$', v):
+                return datetime.date.fromisoformat(v)
+        except ValueError:
+            pass
+        return None
+
+    def _agree_args(self, key, body):
+        d, t = self.parse_date(body.get('date')), body.get('time')
+        if d is None:
+            return None, None, (400, {'ok': False, 'why': 'date: today, tomorrow or YYYY-MM-DD'})
+        if not isinstance(t, str) or not HHMM.match(t):
+            return None, None, (400, {'ok': False, 'why': 'time: HH:MM'})
+        return d, t, None
+
+    def agree(self, key, body):
+        """Save a time the person and the persona agreed. It goes into that day's plan as an 'agreed' slot."""
+        if not self.cfg[key]['checkin_plan']:
+            return 409, {'ok': False, 'why': 'checkin_plan is off for this persona'}
+        d, t, err = self._agree_args(key, body)
+        if err:
+            return err
+        n = self.now()
+        if d < n.date() or (d == n.date() and to_min(t) + CHECKIN_WINDOW_MIN < n.hour * 60 + n.minute):
+            return 400, {'ok': False, 'why': 'that time has passed'}
+        dkey = d.isoformat()
+        def put(s):
+            ag = [a for a in s.get('agreed', []) if a['date'] >= n.date().isoformat()]
+            if not any(a['date'] == dkey and a['time'] == t for a in ag):
+                if len(ag) >= AGREED_MAX:
+                    return False
+                ag.append({'date': dkey, 'time': t})
+            s['agreed'] = ag
+            pl = s.get('plans', {}).get(dkey)
+            if pl and not any(x['time'] == t for x in pl['slots']):
+                pl['slots'].append({'time': t, 'kind': 'agreed', 'status': 'pending'})
+                pl['slots'].sort(key=lambda x: x['time'])
+            return True
+        if not self.stores[key].update_state(put):
+            return 429, {'ok': False, 'why': 'at most %d agreed times' % AGREED_MAX}
+        self.log('persona %s: agreed time saved' % key)
+        return 200, {'ok': True, 'date': dkey, 'time': t}
+
+    def unagree(self, key, body):
+        d, t, err = self._agree_args(key, body)
+        if err:
+            return err
+        dkey = d.isoformat()
+        def rm(s):
+            before = len(s.get('agreed', []))
+            s['agreed'] = [a for a in s.get('agreed', []) if not (a['date'] == dkey and a['time'] == t)]
+            pl = s.get('plans', {}).get(dkey)
+            if pl:
+                pl['slots'] = [x for x in pl['slots'] if not (x['time'] == t and x['kind'] == 'agreed' and x['status'] == 'pending')]
+            return before - len(s['agreed'])
+        n = self.stores[key].update_state(rm)
+        return 200, {'ok': True, 'removed': n}
+
+    def plan_view(self, key):
+        """Times only: today's plan and the agreed times."""
+        s, dkey = self.stores[key].state(), self._day()
+        pl = s.get('plans', {}).get(dkey)
+        return {'ok': True, 'enabled': self.cfg[key]['checkin_plan'], 'date': dkey,
+                'slots': [{'time': x['time'], 'kind': x['kind'], 'status': x['status']} for x in (pl or {}).get('slots', [])] if pl else None,
+                'agreed': [{'date': a['date'], 'time': a['time']} for a in sorted(s.get('agreed', []), key=lambda a: (a['date'], a['time']))]}
 
     def tick(self, key):
         n = f = 0
@@ -487,7 +747,7 @@ class Assistant:
             s = self.stores[k]
             out[k] = {'live': self.is_live(k), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
-                      'can_tell': len(c['can_tell'])}
+                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan']}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
 
 
@@ -519,6 +779,8 @@ def make_handler(app):
                 except ValueError:
                     return self._send(400, {'ok': False, 'why': 'after and limit are numbers'})
                 return self._send(200, {'ok': True, 'events': app.stores[key].read_inbox(after, limit)})
+            if method == 'GET' and act == 'plan' and len(parts) == 3:
+                return self._send(200, app.plan_view(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method != 'POST':
@@ -545,6 +807,10 @@ def make_handler(app):
                 return self._send(*app.identity(key, body))
             if act == 'event' and len(parts) == 3:
                 return self._send(*app.event(key, body))
+            if act == 'agree' and len(parts) == 3:
+                return self._send(*app.agree(key, body))
+            if act == 'agree' and len(parts) == 4 and parts[3] == 'remove':
+                return self._send(*app.unagree(key, body))
             if act == 'tell' and len(parts) == 4:
                 return self._send(*app.tell(key, parts[3], body))
             if act == 'profile' and len(parts) == 3:
@@ -589,7 +855,7 @@ def main():
         log('timezone %s not available: using UTC' % opts['timezone'])
     for p in problems:
         log('option problem: ' + p)
-    app = Assistant(opts, os.environ.get('IHP_DATA', '/data'), log, tz=tz)
+    app = Assistant(opts, os.environ.get('IHP_DATA', '/data'), log, tz=tz, ha=ihha.HA())
     log('ih_assistant %s starting: mode %s, %d personas (%s), token %s' % (
         VERSION, opts['mode'], len(opts['personas']), ', '.join('%s=%s' % (k, 'live' if app.is_live(k) else 'dry') for k in app.cfg),
         'set' if opts['api_token'] else 'NOT set (all requests refused)'))

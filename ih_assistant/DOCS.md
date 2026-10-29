@@ -26,7 +26,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `mode` | No | `dry` logs what it would do and changes nothing; `live` acts. Default: `dry`. |
 | `api_token` | Yes | Bearer token callers must send. Empty = everything refused. |
 | `timezone` | No | Time zone for check-ins and quiet hours. Default: `Europe/London`. |
-| `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`. |
+| `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, and the optional planner settings... |
 
 ## Troubleshooting
 
@@ -59,13 +59,22 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
 | `POST /persona/<key>/identity` | `{username?, avatar?, nickname?}` changes the persona's own Discord name (2..32 characters, no `discord`, `@`, `#`, `:` or code fence), picture (base64 PNG or JPEG, up to 1 MiB) and server nickname (`""` clears it). Limit: 2 username changes an hour per persona (429 with `retry_after`). The new name is saved in the persona profile. Dry-run only logs lengths |
+| `GET /persona/<key>/plan` | today's planned check-in times (`time`, `kind`, `status`) and the agreed times. Times only |
+| `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
+| `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
 
 ### Tell
 A persona may tell only the keys in its own `can_tell` list (default none; 403 otherwise). Unknown persona 404. Limit 20 a day per pair (429). The add-on writes one event to the target's inbox and reads nothing of the target; the sender's log keeps only the length.
 
 ### Check-ins
-At each time in `checkins` a `checkin_due` event is queued, unless it is within quiet hours, the persona is already at `max_per_day` outgoing messages today, or the time passed more than 30 minutes ago (for example the add-on was off).
+**Fixed times.** At each time in `checkins` a `checkin_due` event is queued (`{slot, planned, reason: "fixed"}`), unless it is within quiet hours, the persona is already at `max_per_day` outgoing messages today, or the time passed more than 30 minutes ago (for example the add-on was off).
+
+**Planned times** (per persona, option `checkin_plan`, default off). The add-on only plans and queues the event; your engine still writes the message. Each day, at the first tick, it builds a plan of `checkins_per_day` times (0 to 4, default 2): times saved with `agree` come first, then random times inside `wake_start`..`wake_end` (default 09:00 to 21:30). Random times avoid timed events in the `calendars` (all-day events never block), meal times, and quiet hours, and are at least `min_gap_h` hours apart (default 3). Meal times are 12:30 to 13:30 and 18:00 to 19:15, or, if `meal_plan_entity` is a sensor whose state is today's eating time (`HH:MM` or a date-time), 60 minutes before to 45 after that time. The plan is stored in the persona's own folder and is made once a day (times already past are not invented). Within 30 minutes after a planned time the event `{type: "checkin_due", planned: "HH:MM", reason: "agreed|random"}` is queued, unless: quiet hours, `max_per_day` reached, the person messaged the persona in the last `quiet_if_messaged_h` hours (default 2; read from the persona's own inbox timestamps), another check-in fired within `min_gap_h` (random only), `presence_entity` says the person is away (random only), or the calendar or meal time has become busy (random only). An agreed time keeps its promise through all the "random only" checks.
+
+Calendars, the meal sensor and the presence entity are read from Home Assistant (`homeassistant_api` is on). If Home Assistant cannot be reached the plan is still made, without calendars, and the log names the error type.
+
+**Not ported from the host script:** the game follow-up question after a gaming session. The Games add-on sends `game_session` events to the persona instead.
 
 ### Dry-run
 A persona sends only when `mode` is `live` **and** its own `live` is true. Reading is not gated: in dry-run the add-on still polls the person's private messages (read-only) into the inbox. Posting, reactions and typing are logged only. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.

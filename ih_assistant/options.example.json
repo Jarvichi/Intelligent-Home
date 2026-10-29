@@ -12,6 +12,15 @@
       "max_per_day": 4,
       "checkins": ["09:30", "18:00"],
       "can_tell": [],
+      "checkin_plan": false,
+      "checkins_per_day": 2,
+      "wake_start": "09:00",
+      "wake_end": "21:30",
+      "min_gap_h": 3,
+      "calendars": [],
+      "meal_plan_entity": "",
+      "presence_entity": "",
+      "quiet_if_messaged_h": 2,
       "live": false
     }
   ]
