@@ -53,9 +53,10 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 |---|---|
 | `GET /healthz` | `ok` |
 | `GET /status` | mode and per-persona counts (no ids, no text) |
-| `GET /persona/<key>/inbox?after=<id>&limit=<n>` | events after an id: `message`, `checkin_due`, `intro_due`, `from_persona` |
+| `GET /persona/<key>/inbox?after=<id>&limit=<n>` | events after an id: `message`, `checkin_due`, `intro_due`, `from_persona`, `reaction`, `still_waiting` |
 | `POST /persona/<key>/reply` | `{text, reply_to?}` sends as that persona's bot (live) or only logs `[DRY] would send N chars` |
-| `POST /persona/<key>/typing` | shows the typing indicator (live) |
+| `POST /persona/<key>/typing` | `{}`: shows the typing indicator once (live). `{msg_id}`: keeps it going every 8 s until the persona has posted after that message or 5 minutes pass, then queues `still_waiting` |
+| `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
 
@@ -66,4 +67,4 @@ A persona may tell only the keys in its own `can_tell` list (default none; 403 o
 At each time in `checkins` a `checkin_due` event is queued, unless it is within quiet hours, the persona is already at `max_per_day` outgoing messages today, or the time passed more than 30 minutes ago (for example the add-on was off).
 
 ### Dry-run
-A persona sends only when `mode` is `live` **and** its own `live` is true. Reading private messages into the inbox works in dry-run. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.
+A persona sends only when `mode` is `live` **and** its own `live` is true. Reading is not gated: in dry-run the add-on still polls the person's private messages (read-only) into the inbox. Posting, reactions and typing are logged only. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.

@@ -1,6 +1,6 @@
 """Minimal Discord REST client for one bot (private messages only). opener / sleep are injectable for tests.
 Honours 429 retry_after. Never logs message text or the token."""
-import json, time, urllib.error, urllib.request
+import json, time, urllib.error, urllib.parse, urllib.request
 
 API = 'https://discord.com/api/v10'
 MAX_RETRY_WAIT = 60.0
@@ -52,6 +52,9 @@ class Discord:
             d['message_reference'] = {'message_id': reply_to, 'fail_if_not_exists': False}
         r = self.call('POST', '/channels/%s/messages' % channel, d)
         return bool(r and r.get('id'))
+
+    def react(self, channel, msg_id, emoji):
+        self.call('PUT', '/channels/%s/messages/%s/reactions/%s/@me' % (channel, msg_id, urllib.parse.quote(emoji)))
 
     def typing(self, channel):
         self.call('POST', '/channels/%s/typing' % channel)

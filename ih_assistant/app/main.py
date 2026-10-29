@@ -3,6 +3,7 @@ The reply text is written elsewhere (the host); this add-on moves messages in an
 SEPARATE datastore per persona. Dry-run by default."""
 import datetime, hmac, json, logging, os, re, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.parse
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -17,7 +18,12 @@ TEXT_MAX = 4000
 TELL_MAX = 2000
 TELL_PER_DAY = 20
 CHECKIN_WINDOW_MIN = 30
-POLL_S = 10
+POLL_S = 8
+TYPING_MAX_S = 300
+ASK_KEEP_S = 86400
+ASK_MAX = 10
+REACT_EVERY_S = 20
+ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 
@@ -187,6 +193,11 @@ class Assistant:
             n = self.tick_poll(key)
         except DiscordError as e:
             self.log('persona %s: poll failed (%s)' % (key, e))
+        for fn in (self.tick_reactions, self.tick_typing):
+            try:
+                fn(key)
+            except DiscordError as e:
+                self.log('persona %s: %s failed (%s)' % (key, fn.__name__, e))
         try:
             f = len(self.tick_checkins(key))
         except StoreError as e:
@@ -204,6 +215,7 @@ class Assistant:
         if not self.is_live(key):
             st.log_outbox({'kind': 'reply', 'chars': len(text), 'mode': 'dry'})
             self._count_out(key, 'reply')
+            st.update_state(lambda s: s.pop('keepers', None))
             self.log('persona %s: [DRY] would send %d chars' % (key, len(text)))
             return 200, {'ok': True, 'sent': False, 'dry': True, 'chars': len(text)}
         if key not in self.discord:
@@ -215,13 +227,26 @@ class Assistant:
             return 502, {'ok': False, 'why': 'discord: %s' % e}
         st.log_outbox({'kind': 'reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
         if ok:
+            st.update_state(lambda s: s.pop('keepers', None))
             self._count_out(key, 'reply')
             if not st.profile()['introduced'] and st.state().get('intro_requested'):
                 st.merge_profile({'introduced': True})
         self.log('persona %s: sent %d chars' % (key, len(text)))
         return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text)}
 
-    def typing(self, key):
+    def typing(self, key, body=None):
+        mid = (body or {}).get('msg_id')
+        if mid is not None:
+            if not MARK_RE.match(str(mid)):
+                return 400, {'ok': False, 'why': 'msg_id must be a message id'}
+            mid, now = str(mid), self.clock()
+            def add(s):
+                ks = [k for k in s.get('keepers', []) if k['msg_id'] != mid][-4:]
+                ks.append({'msg_id': mid, 'start': now}); s['keepers'] = ks
+            self.stores[key].update_state(add)
+            if not self.is_live(key):
+                self.log('persona %s: [DRY] would keep typing up to %d s' % (key, TYPING_MAX_S))
+            return 200, {'ok': True, 'keeping': True, 'dry': not self.is_live(key)}
         if not self.is_live(key) or key not in self.discord:
             self.log('persona %s: [DRY] would show typing' % key)
             return 200, {'ok': True, 'sent': False, 'dry': True}
@@ -230,6 +255,94 @@ class Assistant:
         except DiscordError as e:
             return 502, {'ok': False, 'why': 'discord: %s' % e}
         return 200, {'ok': True, 'sent': True, 'dry': False}
+
+    def ask(self, key, body):
+        """Post a question as the persona with reaction buttons (yes / no / unsure). The user's reactions come back as 'reaction' events."""
+        text = body.get('text')
+        if not isinstance(text, str) or not text.strip() or len(text) > TEXT_MAX:
+            return 400, {'ok': False, 'why': 'text required (1..%d characters)' % TEXT_MAX}
+        opts = body.get('options')
+        if opts is None:
+            opts = list(ASK_EMOJI)
+        if not isinstance(opts, list) or not opts or any(o not in ASK_EMOJI for o in opts):
+            return 400, {'ok': False, 'why': 'options: a list of yes, no, unsure'}
+        st = self.stores[key]
+        if not self.is_live(key):
+            st.log_outbox({'kind': 'ask', 'chars': len(text), 'mode': 'dry', 'options': len(opts)})
+            self._count_out(key, 'reply')
+            self.log('persona %s: [DRY] would ask %d chars with %d reactions' % (key, len(text), len(opts)))
+            return 200, {'ok': True, 'sent': False, 'dry': True, 'chars': len(text)}
+        if key not in self.discord:
+            return 409, {'ok': False, 'why': 'no bot configured'}
+        d = self.discord[key]
+        try:
+            ch = self._channel(key)
+            r = d.call('POST', '/channels/%s/messages' % ch, {'content': text[:1900]})
+            mid = str(r['id'])
+            for o in opts:
+                d.react(ch, mid, ASK_EMOJI[o])
+        except (DiscordError, KeyError, TypeError) as e:
+            self.log('persona %s: ask failed (%s)' % (key, type(e).__name__))
+            return 502, {'ok': False, 'why': 'discord error'}
+        now = self.clock()
+        def add(s):
+            a = [x for x in s.get('asks', []) if now - x['ts'] < ASK_KEEP_S][-(ASK_MAX - 1):]
+            a.append({'msg_id': mid, 'ts': now}); s['asks'] = a
+            s.pop('keepers', None)
+        st.update_state(add)
+        st.log_outbox({'kind': 'ask', 'chars': len(text), 'mode': 'live', 'options': len(opts)})
+        self._count_out(key, 'reply')
+        self.log('persona %s: asked, %d chars' % (key, len(text)))
+        return 200, {'ok': True, 'sent': True, 'dry': False, 'msg_id': mid}
+
+    def tick_reactions(self, key):
+        """Look at the reactions of the person on recent asks; new ones (and re-added ones) become 'reaction' events. -> number added."""
+        if key not in self.discord:
+            return 0
+        st, d, uid, now = self.stores[key], self.discord[key], self.cfg[key]['user_id'], self.clock()
+        s0 = st.state()
+        asks = [a for a in s0.get('asks', []) if now - a['ts'] < ASK_KEEP_S]
+        if not asks or now - s0.get('react_at', 0) < REACT_EVERY_S:
+            return 0
+        st.update_state(lambda s: s.__setitem__('react_at', now))
+        ch = self._channel(key)
+        seen, cur, added = set(s0.get('react_seen', [])), set(), 0
+        for a in asks:
+            m = d.call('GET', '/channels/%s/messages/%s' % (ch, a['msg_id']))
+            for r in (m or {}).get('reactions', []):
+                if r.get('count', 1) - (1 if r.get('me') else 0) <= 0:
+                    continue
+                e = r['emoji']
+                name = e['name'] + (':' + e['id'] if e.get('id') else '')
+                users = d.call('GET', '/channels/%s/messages/%s/reactions/%s?limit=10' % (ch, a['msg_id'], urllib.parse.quote(name))) or []
+                if any(str(u.get('id')) == uid for u in users):
+                    k = '%s:%s' % (a['msg_id'], name)
+                    cur.add(k)
+                    if k not in seen:
+                        st.append_event({'type': 'reaction', 'msg_id': a['msg_id'], 'emoji': e['name']}); added += 1
+        st.update_state(lambda s: s.__setitem__('react_seen', sorted(cur)[-100:]))
+        return added
+
+    def tick_typing(self, key):
+        """Typing keepers: show typing every tick until the persona has posted after msg_id, or TYPING_MAX_S passes (then a still_waiting event)."""
+        st = self.stores[key]
+        ks = st.state().get('keepers', [])
+        if not ks:
+            return 0
+        now, live, keep, done = self.clock(), self.is_live(key) and key in self.discord, [], 0
+        for k in ks:
+            if live:
+                ch = self._channel(key)
+                if any(str(m.get('author', {}).get('id')) != self.cfg[key]['user_id'] for m in self.discord[key].messages_after(ch, k['msg_id'], 20)):
+                    continue   # the persona (or its bot) has answered: stop
+            if now - k['start'] >= TYPING_MAX_S:
+                st.append_event({'type': 'still_waiting', 'msg_id': k['msg_id']}); done += 1
+                continue
+            if live:
+                self.discord[key].typing(self._channel(key))
+            keep.append(k)
+        st.update_state(lambda s: s.__setitem__('keepers', [k for k in s.get('keepers', []) if k in keep]))
+        return done
 
     def tell(self, frm, to, body):
         """Persona-to-persona message: the ONLY cross-persona write. It hands one event to the target's own store and reads nothing of it."""
@@ -318,7 +431,9 @@ def make_handler(app):
             if act == 'reply' and len(parts) == 3:
                 return self._send(*app.reply(key, body))
             if act == 'typing' and len(parts) == 3:
-                return self._send(*app.typing(key))
+                return self._send(*app.typing(key, body))
+            if act == 'ask' and len(parts) == 3:
+                return self._send(*app.ask(key, body))
             if act == 'tell' and len(parts) == 4:
                 return self._send(*app.tell(key, parts[3], body))
             if act == 'profile' and len(parts) == 3:

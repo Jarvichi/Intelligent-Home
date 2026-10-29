@@ -11,4 +11,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Discord transport per persona bot (private messages in, replies and typing out), with rate-limit (429) handling.
 - Check-in events at configured times, outside quiet hours and under a daily limit.
 - Persona-to-persona messages (`tell`), only to keys listed in the sender's `can_tell`, 20 a day per pair.
+- `ask` (question with tick, cross and question reactions; the person's reactions come back as inbox events) and a typing keeper that ends with a `still_waiting` event.
 - Dry-run by default: nothing is sent unless `mode` is `live` and the persona's `live` is true.
