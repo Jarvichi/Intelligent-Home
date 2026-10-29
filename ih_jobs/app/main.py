@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.10.0'
+VERSION = '0.10.1'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -373,6 +373,13 @@ def make_handler(mod):
             if r is None:
                 return
             name, rest = r
+            if rest == ['run']:   # 0.10.1: run a timer plugin now (e.g. 'check email' from a persona); service plugins have their own thread
+                if not mod.plugins or name not in mod.plugins.cfg:
+                    self._reply(409, {'ok': False, 'why': 'plugin not configured'}); return
+                if mod.plugins.schedule(name).get('kind') == 'service':
+                    self._reply(409, {'ok': False, 'why': 'service plugins run on their own'}); return
+                ok = mod.plugins.run(name, trigger='api')
+                self._reply(200, {'ok': ok, 'plugin': name, 'mode': mod.plugins.mode(name)[0]}); return
             if rest != ['import']:
                 self._reply(404, {'ok': False, 'why': 'not found'}); return
             if n > IMPORT_MAX:

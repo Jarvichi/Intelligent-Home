@@ -3,6 +3,10 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.1] - 2026-10-29
+### Added
+- `POST /plugin/<name>/run` (files_token): run a timer plugin now, for example a persona's "check email". Service plugins answer 409.
+
 ## [0.10.0] - 2026-10-29
 ### Added
 - Plugin `mail_inbox` (every 30 minutes): files unread mail from allowed senders that pass the DMARC check into the brain inbox (notes and attachments), marks everything else read, and logs counts only. Dry runs connect read-only and change nothing.
