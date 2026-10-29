@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-10-29
+
+### Added
+- `POST /persona/<key>/identity`: a persona can change its own username, avatar and server nickname (nickname in every server its bot is in). The new username is stored in the persona profile. Username changes are limited to 2 an hour per persona (429 before any Discord call). Dry-run only logs lengths.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added

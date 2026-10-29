@@ -1,7 +1,7 @@
 """Intelligent Home - Assistant - Personas (ih_assistant): transport, schedule and profile for several personas (stdlib only).
 The reply text is written elsewhere (the host); this add-on moves messages in and out, queues check-in events and keeps one
 SEPARATE datastore per persona. Dry-run by default."""
-import datetime, hmac, json, logging, os, re, sys, threading, time
+import base64, binascii, datetime, hmac, json, logging, os, re, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 from urllib.parse import urlparse, parse_qs
@@ -12,8 +12,12 @@ from store import PersonaStore, StoreError, valid_key
 from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
 
-VERSION = '0.1.0'
-MAX_BODY = 64 * 1024
+VERSION = '0.2.0'
+MAX_BODY = 2 * 1024 * 1024   # the identity call carries a base64 avatar (up to 1 MiB)
+NAME_CHANGES_PER_HOUR = 2
+NAME_WINDOW_S = 3600
+AVATAR_MAX = 1024 * 1024
+BAD_NAME = ('discord', '@', '#', ':', '```')
 TEXT_MAX = 4000
 TELL_MAX = 2000
 TELL_PER_DAY = 20
@@ -374,6 +378,73 @@ class Assistant:
         self.log('persona %s: tell to %s, %d chars' % (frm, to, len(text)))
         return 200, {'ok': True, 'id': stored['id']}
 
+    def identity(self, key, body):
+        """Change the persona's own username / avatar / server nickname. A username change is limited to 2 an hour (Discord's rule), counted per persona."""
+        un, av, nick = body.get('username'), body.get('avatar'), body.get('nickname')
+        if un is None and av is None and nick is None:
+            return 400, {'ok': False, 'why': 'give username, avatar or nickname'}
+        if un is not None:
+            un = un.strip() if isinstance(un, str) else None
+            if not un or not 2 <= len(un) <= 32 or any(b in un.lower() for b in BAD_NAME):
+                return 400, {'ok': False, 'why': "username: 2..32 characters, without 'discord', '@', '#', ':' or ```"}
+        raw = None
+        if av is not None:
+            try:
+                if not isinstance(av, str):
+                    raise ValueError
+                raw = base64.b64decode(av.split(',', 1)[1] if av.startswith('data:') else av, validate=True)
+            except (ValueError, binascii.Error, IndexError):
+                return 400, {'ok': False, 'why': 'avatar: base64 PNG or JPEG data'}
+            if len(raw) > AVATAR_MAX:
+                return 400, {'ok': False, 'why': 'avatar: up to 1 MiB'}
+            if raw[:8] == b'\x89PNG\r\n\x1a\n':
+                mime = 'image/png'
+            elif raw[:3] == b'\xff\xd8\xff':
+                mime = 'image/jpeg'
+            else:
+                return 400, {'ok': False, 'why': 'avatar: must be a PNG or JPEG'}
+        if nick is not None:
+            nick = nick.strip() if isinstance(nick, str) else None
+            if nick is None or len(nick) > 32 or any(b in nick.lower() for b in BAD_NAME):
+                return 400, {'ok': False, 'why': "nickname: up to 32 characters (empty clears it), without 'discord', '@', '#', ':' or ```"}
+        st, now = self.stores[key], self.clock()
+        recent = [t for t in st.state().get('name_changes', []) if now - t < NAME_WINDOW_S]
+        if un is not None and len(recent) >= NAME_CHANGES_PER_HOUR:
+            wait = int(NAME_WINDOW_S - (now - min(recent))) + 1
+            return 429, {'ok': False, 'why': 'username changes are limited to %d an hour' % NAME_CHANGES_PER_HOUR, 'retry_after': wait}
+        if not self.is_live(key):
+            st.log_outbox({'kind': 'identity', 'mode': 'dry', 'username': len(un) if un else 0, 'avatar': len(raw) if raw else 0, 'nickname': len(nick) if nick is not None else -1})
+            self.log('persona %s: [DRY] would set username (%d chars) / avatar (%d bytes) / nickname (%d chars)' % (key, len(un or ''), len(raw or b''), len(nick or '')))
+            return 200, {'ok': True, 'dry': True, 'changed': []}
+        if key not in self.discord:
+            return 409, {'ok': False, 'why': 'no bot configured'}
+        d, changed = self.discord[key], []
+        try:
+            if un is not None or raw is not None:
+                patch = {}
+                if un is not None:
+                    patch['username'] = un
+                if raw is not None:
+                    patch['avatar'] = 'data:%s;base64,%s' % (mime, base64.b64encode(raw).decode())
+                d.call('PATCH', '/users/@me', patch)
+                if un is not None:
+                    st.update_state(lambda s: s.__setitem__('name_changes', recent + [now]))
+                    st.merge_profile({'name': un})
+                    changed.append('username')
+                if raw is not None:
+                    changed.append('avatar')
+            if nick is not None:
+                n = 0
+                for g in d.call('GET', '/users/@me/guilds') or []:
+                    d.call('PATCH', '/guilds/%s/members/@me' % g['id'], {'nick': nick or None}); n += 1
+                changed.append('nickname (%d servers)' % n)
+        except (DiscordError, KeyError, TypeError) as e:
+            self.log('persona %s: identity failed (%s)' % (key, type(e).__name__))
+            return 502, {'ok': False, 'why': 'discord error', 'changed': changed}
+        st.log_outbox({'kind': 'identity', 'mode': 'live', 'changed': changed})
+        self.log('persona %s: identity changed (%s)' % (key, ', '.join(changed)))
+        return 200, {'ok': True, 'dry': False, 'changed': changed}
+
     def status(self):
         out = {}
         for k, c in self.cfg.items():
@@ -434,6 +505,8 @@ def make_handler(app):
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:
                 return self._send(*app.ask(key, body))
+            if act == 'identity' and len(parts) == 3:
+                return self._send(*app.identity(key, body))
             if act == 'tell' and len(parts) == 4:
                 return self._send(*app.tell(key, parts[3], body))
             if act == 'profile' and len(parts) == 3:

@@ -58,6 +58,7 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/typing` | `{}`: shows the typing indicator once (live). `{msg_id}`: keeps it going every 8 s until the persona has posted after that message or 5 minutes pass, then queues `still_waiting` |
 | `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
+| `POST /persona/<key>/identity` | `{username?, avatar?, nickname?}` changes the persona's own Discord name (2..32 characters, no `discord`, `@`, `#`, `:` or code fence), picture (base64 PNG or JPEG, up to 1 MiB) and server nickname (`""` clears it). Limit: 2 username changes an hour per persona (429 with `retry_after`). The new name is saved in the persona profile. Dry-run only logs lengths |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
 
 ### Tell
