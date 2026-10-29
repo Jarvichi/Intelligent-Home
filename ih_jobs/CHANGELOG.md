@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.0] - 2026-10-29
+
+### Added
+- Option `files_token` (empty = off, endpoints answer 403). With it, `GET /plugin/<name>/files`, `GET /plugin/<name>/file/<file>` and `POST /plugin/<name>/import` let the host read and seed plugin state files (`.json` / `.jsonl` only, validated, atomic, 1 MiB limit).
+
 ## [0.8.2] - 2026-10-28
 
 ### Fixed

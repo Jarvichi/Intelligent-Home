@@ -22,11 +22,13 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   start_before_min [25], shadow_after_min [25], dm_when_eta_min [15] (only marks 'would_dm' in the log), avg_speed_kmh [35], road_factor [1.25], stale_min [5]
   sweep_start ['07:00'], sweep_end ['09:00'], sweep_km [1.5], sweep_stop (key), promise_stop (key of the promised journey; default sweep_stop)
   vehicle_page_url        page per vehicle with an og:description type text; {veh} = vehicle ref lower case (bustimes style); looked up 1 per second, cached
-  promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change (page rebuild stays on the host). Empty = not posted.
+  promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change. Optional: leave it empty and the host pulls the log instead
+                           (GET /plugin/bus_watch/file/promise_log.jsonl with the files_token option). Empty = not posted.
   keep_days [90]          shadow log rows older than this are dropped once a day
   seconds [90]            pass interval
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
-route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in.
+route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in:
+seeding is done with POST /plugin/bus_watch/import (option files_token, header Authorization: Bearer ...).
 Files in /data/bus_watch/: shadow.jsonl (same rows as the old shadow.jsonl), promise_log.jsonl (same records as the old promise_log.jsonl), sessions.json, vehicle_types.json.
 Dry: fetches the feed (read only) and the type page, logs every decision and every row it would write, writes nothing to disk (a per-process memory copy keeps the logic
 running between passes) and posts nothing."""

@@ -10,7 +10,7 @@ CHILDREN (0.3.0): each job can also run as its own add-on ("Intelligent Home - J
 POST /register (jobs_link.py, shared key option register_key). GET /children lists them; POST /trigger (signed) runs a child's job now. When the scheduler
 fires a job and a child for it is registered and fresh, the parent forwards the run to the child instead of running its own copy. Option
 run_builtin_jobs (default true = same behaviour as 0.2.x) can be turned off once the children are live."""
-import json, os, sys, threading, time, traceback, logging, collections, urllib.request
+import hmac, re, json, os, sys, threading, time, traceback, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.8.2'
+VERSION = '0.9.0'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -34,6 +34,8 @@ START_DELAY_S = 90
 WINDOW_S = 600
 CHILD_FRESH_S = 120     # a child that registered within this many seconds counts as up
 MAX_CHILDREN = 20
+FNAME_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*\.(json|jsonl)$')
+IMPORT_MAX = 1048576   # POST /plugin/<name>/import body limit
 FORWARD_TIMEOUT_S = 120
 
 
@@ -87,7 +89,7 @@ def load_options(path=None):
             'host_info': bool(o.get('host_info', True)),
             'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True)),
             'log_payloads': o.get('log_payloads') is True,
-            'discord_token': str(o.get('discord_token') or '').strip(), 'plugins': pluginhost.parse_plugins_option(o.get('plugins'))}
+            'discord_token': str(o.get('discord_token') or '').strip(), 'files_token': str(o.get('files_token') or '').strip(), 'plugins': pluginhost.parse_plugins_option(o.get('plugins'))}
 
 
 class Module:
@@ -307,8 +309,93 @@ def push(mod, manifest, now=None, opener=None, log=print):
         return False
 
 
+def _bad_file(fname, text):
+    """None if fname/text are acceptable plugin state, else a reason."""
+    if not isinstance(fname, str) or not FNAME_RE.match(fname) or '..' in fname:
+        return 'bad file name'
+    if not isinstance(text, str):
+        return 'file content must be text'
+    try:
+        if fname.endswith('.jsonl'):
+            for ln in text.splitlines():
+                if ln.strip():
+                    json.loads(ln)
+        else:
+            json.loads(text)
+    except ValueError:
+        return 'not valid JSON: ' + fname
+    return None
+
+
 def make_handler(mod):
     class H(BaseHTTPRequestHandler):
+        def _reply(self, code, body, ct='application/json'):
+            if not isinstance(body, bytes):
+                body = json.dumps(body).encode()
+            self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
+
+        def _plugin_files(self, p):
+            """Shared by GET/POST /plugin/<name>/(files|file/<f>|import). Returns (name, rest) after auth + plugin check, or None when already answered."""
+            parts = p.split('/')   # ['', 'plugin', name, ...]
+            tok = mod.opts.get('files_token') or ''
+            if not tok:
+                self._reply(403, {'ok': False, 'why': 'files_token not set'}); return None
+            if not hmac.compare_digest(('Bearer ' + tok).encode(), (self.headers.get('Authorization') or '').encode()):
+                self._reply(401, {'ok': False, 'why': 'unauthorized'}); return None
+            names = mod.plugins.mods if mod.plugins else pluginhost.discover()
+            if len(parts) < 4 or parts[2] not in names:
+                self._reply(404, {'ok': False, 'why': 'unknown plugin'}); return None
+            return parts[2], parts[3:]
+
+        def _get_plugin(self, p):
+            r = self._plugin_files(p)
+            if r is None:
+                return
+            name, rest = r; d = os.path.join(DATA, name)
+            if rest == ['files']:
+                fl = {f: os.path.getsize(os.path.join(d, f)) for f in sorted(os.listdir(d)) if FNAME_RE.match(f) and os.path.isfile(os.path.join(d, f))} if os.path.isdir(d) else {}
+                self._reply(200, {'files': fl})
+            elif len(rest) == 2 and rest[0] == 'file':
+                if not FNAME_RE.match(rest[1]) or '..' in rest[1]:
+                    self._reply(400, {'ok': False, 'why': 'bad file name'}); return
+                try:
+                    with open(os.path.join(d, rest[1]), 'rb') as f:
+                        self._reply(200, f.read(), 'application/octet-stream')
+                except OSError:
+                    self._reply(404, {'ok': False, 'why': 'no such file'})
+            else:
+                self._reply(404, {'ok': False, 'why': 'not found'})
+
+        def _post_import(self, p, n):
+            r = self._plugin_files(p)
+            if r is None:
+                return
+            name, rest = r
+            if rest != ['import']:
+                self._reply(404, {'ok': False, 'why': 'not found'}); return
+            if n > IMPORT_MAX:
+                self._reply(413, {'ok': False, 'why': 'body too large'}); return
+            try:
+                obj = json.loads(self.rfile.read(n) or b'{}'); files = obj['files']; assert isinstance(files, dict)
+            except Exception:
+                self._reply(400, {'ok': False, 'why': 'body must be {"files": {name: text}, "overwrite": bool}'}); return
+            for fn, tx in files.items():
+                why = _bad_file(fn, tx)
+                if why:
+                    self._reply(400, {'ok': False, 'why': why}); return
+            d = os.path.join(DATA, name); os.makedirs(d, exist_ok=True); written, skipped = [], []
+            for fn, tx in files.items():
+                path = os.path.join(d, fn)
+                if os.path.exists(path) and obj.get('overwrite') is not True:
+                    skipped.append(fn); continue
+                tmp = path + '.tmp'
+                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, 'w') as f:
+                    f.write(tx)
+                os.replace(tmp, path); written.append(fn)
+            self._reply(200, {'ok': True, 'written': written, 'skipped': skipped})
+
         def do_GET(self):
             p = self.path.split('?')[0]
             if p == '/healthz':
@@ -317,6 +404,8 @@ def make_handler(mod):
                 code, body, ct = 200, json.dumps(mod.status()).encode(), 'application/json'
             elif p == '/children':
                 code, body, ct = 200, json.dumps(mod.children_view()).encode(), 'application/json'
+            elif p.startswith('/plugin/'):
+                self._get_plugin(p); return
             else:
                 self.send_error(404); return
             self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
@@ -325,6 +414,8 @@ def make_handler(mod):
         def do_POST(self):
             p = self.path.split('?')[0]
             n = int(self.headers.get('Content-Length') or 0)
+            if p.startswith('/plugin/'):
+                self._post_import(p, n); return
             if p not in ('/register', '/trigger') or n > 16384:
                 self.send_error(404 if p not in ('/register', '/trigger') else 413); return
             raw = self.rfile.read(n); sig = self.headers.get(jobs_link.HEADER)
