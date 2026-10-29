@@ -50,8 +50,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `publish_live` | No | False (default) = publishing only logs counts. |
 | `brain_url` | No | Brain add-on MCP address, e.g. `http://HOST:8820/mcp`. Recipe notes are written with `brain_write`; only changed notes are sent (hashes kept in /data). |
 | `brain_token` | No | Bearer token of the Brain add-on (needs its read_only off). |
-| `facts_url` | No | Orchestrator API address (for example `http://<host>:8790`). With `facts_key`, the cook engine writes today's eat time as fact `cooking/eat_time` (`{"date", "eat"}`, expires at local midnight; cleared when the cook stops). Empty = off. A failure never blocks cooking. |
-| `facts_key` | No | This add-on's `fact_clients` key (module `cooking`, write true) in the orchestrator. |
+| `facts_url` | No | Setting `facts_url`. |
+| `facts_key` | No | Setting `facts_key`. |
 
 ## Troubleshooting
 

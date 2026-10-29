@@ -36,7 +36,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `provision_overwrite` | No | Settings hub, see below. Default: `false`. |
 | `provision_interval_min` | No | Settings hub, see below. Default: `10`. |
 | `shared` | No | Settings hub, see below |
-| `fact_clients` | No | One `{module, key, write}` per module that may use the shared facts store (empty = off, `/facts` answers 404), see below |
+| `fact_clients` | No | Setting `fact_clients`. |
 
 ## Troubleshooting
 
@@ -70,14 +70,3 @@ The page tab **Usage** and the line "Used: N today (M failed), last HH:MM" on ea
 - Only counts and times are stored or shown, never log text. Counts are kept per day (14 days) in `/data/usage.json`, so they survive log rotation and restarts; a line is never counted twice.
 - Logs hold only a limited tail, so counts start when this version first ran. Log lines have a time but no date; a quiet spell longer than a day can date very old lines a day late.
 - "Not used in 7 days" is highlighted in the Usage tab: those add-ons are candidates to stop or remove.
-
-## Shared facts (v0.9.0)
-
-Add-ons share small internal facts here instead of using Home Assistant entities. Example: `cooking/eat_time` holds today's meal eat time.
-
-- Each module that uses it gets one `fact_clients` entry: `module` (letters, digits, `_ . -`), a secret `key`, and `write: true` if it may write.
-- Send the key as `Authorization: Bearer <key>` to port 8790. The key says who is calling.
-- `PUT /facts/<module>/<name>` with `{"value": <any JSON>, "ttl_s": 3600}` or `{"value": ..., "expires_at": "2026-10-30T00:00:00+00:00"}`. Only module `<module>` (with `write: true`) may write there. A value is at most 4 KiB; the store holds at most 500 facts.
-- `GET /facts/<module>/<name>` gives `{value, set_at, expires_at}`, or 404 when missing or expired. `GET /facts?module=<m>` lists. Any listed module may read.
-- `DELETE /facts/<module>/<name>` removes a fact (the owner only).
-- Facts are saved in `/data/facts.json`. The status page and `/status` list fact names and times, never values. Values are never logged.

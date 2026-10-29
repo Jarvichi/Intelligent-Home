@@ -26,6 +26,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `mode` | No | `dry` logs what it would do and changes nothing; `live` acts. Default: `dry`. |
 | `api_token` | Yes | Bearer token callers must send. Empty = everything refused. |
 | `timezone` | No | Time zone for check-ins and quiet hours. Default: `Europe/London`. |
+| `facts_url` | No | Setting `facts_url`. |
+| `facts_key` | No | Setting `facts_key`. |
 | `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, and the optional planner settings... |
 
 ## Troubleshooting
@@ -71,8 +73,6 @@ A persona may tell only the keys in its own `can_tell` list (default none; 403 o
 **Fixed times.** At each time in `checkins` a `checkin_due` event is queued (`{slot, planned, reason: "fixed"}`), unless it is within quiet hours, the persona is already at `max_per_day` outgoing messages today, or the time passed more than 30 minutes ago (for example the add-on was off).
 
 **Planned times** (per persona, option `checkin_plan`, default off). The add-on only plans and queues the event; your engine still writes the message. Each day, at the first tick, it builds a plan of `checkins_per_day` times (0 to 4, or a range such as `2-3` picked per date with a seed so the plan is stable; default 2): times saved with `agree` come first, then random times inside `wake_start`..`wake_end` (default 09:00 to 21:30). Random times avoid timed events in the `calendars` (all-day events never block), meal times, `busy_windows` and quiet hours, and are at least `min_gap_h` hours apart (default 3). Meal times are 12:30 to 13:30 and 18:00 to 19:15, or, if `meal_plan_entity` is a sensor whose state is today's eating time (`HH:MM` or a date-time), 60 minutes before to 45 after that time. The plan is stored in the persona's own folder and is made once a day (times already past are not invented). Within 30 minutes after a planned time the event `{type: "checkin_due", planned: "HH:MM", reason: "agreed|random"}` is queued, unless: quiet hours, `max_per_day` reached, the person messaged the persona in the last `quiet_if_messaged_h` hours (default 2; read from the persona's own inbox timestamps), another check-in fired within `min_gap_h` (random only), `presence_entity` says the person is away (random only), or the calendar or meal time has become busy (random only). An agreed time keeps its promise through all the "random only" checks.
-
-**Meal time from the orchestrator** (v0.5.0). Set `facts_url` (the Intelligent Home orchestrator API, for example `http://<host>:8790`), `facts_key` (this add-on's key from the orchestrator option `fact_clients`; read access is enough) and, per persona, `meal_fact` such as `cooking/eat_time`. The planner then reads that fact (5 s timeout) and treats its time like the `meal_plan_entity` eating time; it wins when both are set. The value is `HH:MM` or `{"date": "YYYY-MM-DD", "eat": "HH:MM"}`; a fact for another day is ignored. Missing or unreadable means the default meal windows and one log line. The fact is read again when a check-in falls due.
 
 `busy_windows` and `free_windows` are lists like `mon-fri 09:45-17:45` (days: `mon-fri`, `sat,sun`, `daily`). A free window cancels busy windows and the default meal windows inside it (for example `mon-fri 12:00-13:30` keeps a work-day lunch break open); calendar events and the `meal_plan_entity` eating time always block.
 

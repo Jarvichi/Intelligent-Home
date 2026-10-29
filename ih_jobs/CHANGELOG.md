@@ -3,6 +3,10 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.0] - 2026-10-29
+### Added
+- Plugin `brain_inbox` (service, polls every 10 seconds): files messages from a Discord channel (default `brain-inbox`) sent by allowed users into the brain inbox as notes, with attachments, and reacts with a check mark. Uses the existing `discord_token` option and the existing share folder map. Dry runs only read the channel and log note names and sizes.
+
 ## [0.10.1] - 2026-10-29
 ### Added
 - `POST /plugin/<name>/run` (files_token): run a timer plugin now, for example a persona's "check email". Service plugins answer 409.
