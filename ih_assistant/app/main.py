@@ -28,6 +28,7 @@ EVENT_PER_DAY = 30
 EVENT_FACTS_MAX, EVENT_FACT_LEN, EVENT_SOURCE_LEN, EVENT_TEXT_LEN = 20, 300, 40, 1000
 CHECKIN_WINDOW_MIN = 30
 AGREED_MAX = 20
+PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 8
 TYPING_MAX_S = 300
@@ -35,7 +36,7 @@ ASK_KEEP_S = 86400
 ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
-PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [],
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'busy_windows': [], 'free_windows': [],
                  'meal_plan_entity': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
@@ -74,9 +75,11 @@ def load_options(path):
             except (TypeError, ValueError):
                 return d
         ents = lambda v: [e for e in (v or []) if isinstance(e, str) and ENTITY_RE.match(e)] if isinstance(v, list) else []
+        wins = lambda v: [w.strip().lower() for w in (v or []) if isinstance(w, str) and planner.parse_window(w)] if isinstance(v, list) else []
         ent1 = lambda v: v if isinstance(v, str) and ENTITY_RE.match(v) else ''
         personas.append({
-            'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': int(num(p.get('checkins_per_day'), 0, 4, 2)),
+            'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
+            'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
             'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'presence_entity': ent1(p.get('presence_entity')),
@@ -272,7 +275,13 @@ class Assistant:
                 eat = self._eat_minute(self.ha.state(c['meal_plan_entity']), day)
         except Exception as e:
             self.log('persona %s: meal sensor unreadable (%s)' % (key, type(e).__name__))
-        return sorted(out + planner.meal_windows(eat)), note
+            note = note or 'meal sensor unreadable (%s)' % type(e).__name__
+        # static layers: busy_windows + default meals, minus free_windows (free wins). The eat-time window and calendar events always block.
+        wd = day.weekday()
+        eatwin = (max(0, eat - 60), min(24 * 60, eat + 45)) if eat is not None else None
+        static = planner.windows_for(c['busy_windows'], wd) + [m for m in planner.meal_windows(eat) if m != eatwin]
+        static = planner.subtract(static, planner.windows_for(c['free_windows'], wd))
+        return sorted(out + static + ([eatwin] if eatwin else [])), note
 
     def _eat_minute(self, state, day):
         """Planned eating time of `day` from a sensor state: 'HH:MM' / 'HH:MM:SS' (only for today) or an ISO date-time on that day."""
@@ -293,27 +302,44 @@ class Assistant:
         c = self.cfg[key]
         return lambda t: in_quiet(t, c['quiet_start'], c['quiet_end'])
 
-    def make_day_plan(self, key, day):
-        """Build and store the plan for `day` (once). Agreed times first, then random ones up to checkins_per_day."""
+    def make_day_plan(self, key, day, rebuild=False):
+        """Build and store the plan for `day` (once). Agreed times first, then random ones up to the day's target (a fixed number, or a
+        number from a range such as 2-3 picked with a seed per date, so the plan is stable).
+        rebuild=True (HA was down at plan time): replace only random slots still in the future; agreed and finished slots stay."""
         c, st = self.cfg[key], self.stores[key]
         dkey = day.isoformat()
-        agreed = [a['time'] for a in st.state().get('agreed', []) if a['date'] == dkey]
         busy, note = self.busy_for(key, day)
         n = self.now()
-        floor = n.hour * 60 + n.minute + 10 if day == n.date() else 0
+        nm = n.hour * 60 + n.minute
+        s0 = st.state()
+        old = s0.get('plans', {}).get(dkey)
+        if rebuild:
+            if note:   # still down: try again later
+                st.update_state(lambda s: s['plans'][dkey].__setitem__('tried', self.clock()))
+                return False
+            keep = [x for x in old['slots'] if x['kind'] == 'agreed' or x['status'] != 'pending' or to_min(x['time']) <= nm]
+            target = old['target']
+        else:
+            keep, target = [], planner.pick_target(c['checkins_per_day'], '%s-%s-n' % (key, dkey))
+        agreed = [a['time'] for a in s0.get('agreed', []) if a['date'] == dkey]
+        floor = nm + 10 if day == n.date() else 0
         wake = (to_min(c['wake_start']), to_min(c['wake_end']))
-        slots = planner.make_plan('%s-%s' % (key, dkey), wake, busy, agreed, c['checkins_per_day'], int(c['min_gap_h'] * 60), max(floor, wake[0]), self._quiet_fn(key))
-        plan = {'target': c['checkins_per_day'], 'slots': slots, 'note': note}
+        slots = planner.make_plan('%s-%s%s' % (key, dkey, '-r' if rebuild else ''), wake, busy, agreed, target, int(c['min_gap_h'] * 60), max(floor, wake[0]), self._quiet_fn(key), keep)
+        plan = {'target': target, 'slots': slots, 'note': note, 'tried': self.clock()}
         def put(s):
             ps = s.setdefault('plans', {})
             for k in [k for k in ps if k < (day - datetime.timedelta(days=3)).isoformat()]:
                 del ps[k]
-            ps.setdefault(dkey, plan)
+            if rebuild:
+                ps[dkey] = plan
+            else:
+                ps.setdefault(dkey, plan)
         st.update_state(put)
-        self.log('persona %s: plan for the day made: %d times%s' % (key, len(slots), ' (' + note + ')' if note else ''))
+        self.log('persona %s: plan for the day %s: %d times%s' % (key, 'rebuilt' if rebuild else 'made', len(slots), ' (' + note + ')' if note else ''))
+        return True
 
-    def minutes_since_message(self, key):
-        """Minutes since the person's last message, from the persona's own inbox timestamps (None = none seen)."""
+    def last_message_ts(self, key):
+        """Unix time of the person's last message, from the persona's own inbox timestamps (None = none seen)."""
         last = None
         for ev in self.stores[key].read_inbox(0, 500):
             if ev.get('type') == 'message':
@@ -322,7 +348,16 @@ class Assistant:
                 except (KeyError, ValueError, TypeError):
                     continue
                 last = t if last is None else max(last, t)
-        return None if last is None else (self.clock() - last) / 60
+        return last
+
+    def minutes_since_message(self, key):
+        t = self.last_message_ts(key)
+        return None if t is None else (self.clock() - t) / 60
+
+    def minutes_since_sent(self, key):
+        """Minutes since the persona last sent anything (reply or question), from its own outbox log."""
+        t = self.stores[key].last_outbox_ts(('reply', 'ask'))
+        return None if t is None else (self.clock() - t) / 60
 
     def _skip_reason(self, key, slot, nm):
         c = self.cfg[key]
@@ -333,8 +368,17 @@ class Assistant:
         age = self.minutes_since_message(key)
         if age is not None and age < c['quiet_if_messaged_h'] * 60:
             return 'messaged recently'
+        if not (to_min(c['wake_start']) <= nm <= to_min(c['wake_end'])):
+            return 'outside waking hours'
         if slot['kind'] == 'agreed':
-            return None
+            return None   # an agreed time is exempt from the checks below (gap, spoke recently, unanswered, presence, busy)
+        sent = self.minutes_since_sent(key)
+        if sent is not None and sent < c['quiet_if_messaged_h'] * 60:
+            return 'persona spoke recently'
+        got = self.last_message_ts(key)
+        out_ts = self.stores[key].last_outbox_ts(('reply', 'ask'))
+        if sent is not None and sent < 360 and (got is None or out_ts > got):
+            return 'last message is unanswered'
         gap = c['min_gap_h'] * 60
         if any(abs(nm - to_min(t)) < gap for t in self._fired_times(key)):
             return 'too soon after the last check-in'
@@ -355,8 +399,11 @@ class Assistant:
         c, st, now = self.cfg[key], self.stores[key], self.now()
         day = now.date()
         dkey, nm = day.isoformat(), now.hour * 60 + now.minute
-        if dkey not in st.state().get('plans', {}):
+        pl0 = st.state().get('plans', {}).get(dkey)
+        if pl0 is None:
             self.make_day_plan(key, day)
+        elif pl0.get('note') and self.clock() - pl0.get('tried', 0) >= PLAN_RETRY_S and self.ha is not None:
+            self.make_day_plan(key, day, rebuild=True)
         fired = []
         for i, sl in enumerate(st.state().get('plans', {}).get(dkey, {}).get('slots', [])):
             if sl['status'] != 'pending':

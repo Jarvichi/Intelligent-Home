@@ -165,3 +165,18 @@ class PersonaStore:
     def outbox_count(self):
         with self._lock:
             return len(self._lines('outbox'))
+
+    def last_outbox_ts(self, kinds):
+        """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only timestamps and kinds."""
+        import calendar
+        best = None
+        with self._lock:
+            for ln in self._lines('outbox'):
+                try:
+                    e = json.loads(ln)
+                    if e.get('kind') in kinds:
+                        t = calendar.timegm(time.strptime(e['ts'], '%Y-%m-%dT%H:%M:%SZ'))
+                        best = t if best is None else max(best, t)
+                except (ValueError, KeyError, TypeError):
+                    continue
+        return best

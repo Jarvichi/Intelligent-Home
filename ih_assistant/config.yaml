@@ -37,7 +37,11 @@ schema:
         - str?
       live: bool?
       checkin_plan: bool?
-      checkins_per_day: int(0,4)?
+      checkins_per_day: str?
+      busy_windows:
+        - str?
+      free_windows:
+        - str?
       wake_start: str?
       wake_end: str?
       min_gap_h: float?

@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `POST /persona/<key>/agree` `{date, time}`, `POST /persona/<key>/agree/remove`, `GET /persona/<key>/plan` (times only).
 - Fixed `checkins` keep working; their event now also carries `planned` and `reason: fixed`.
 - `config.yaml` now has `homeassistant_api: true` (needed to read calendars; the owner is asked to approve this at install or update). If Home Assistant cannot be reached the plan is made without calendars and the log names the error type.
+- `checkins_per_day` may be a range such as `2-3` (seeded per date). `busy_windows` / `free_windows` (like `mon-fri 09:45-17:45`) give work-day rules. Random check-ins are also skipped when the persona sent something in the last `quiet_if_messaged_h` hours or its last message is unanswered (from its own outbox and inbox). A plan made while Home Assistant was down is rebuilt (future random times only) once it answers.
 - Not ported: the host game follow-up. The `game_session` events from the Games add-on cover it.
 
 ## [0.3.0] - 2026-10-29
