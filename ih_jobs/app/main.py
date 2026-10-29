@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.9.0'
+VERSION = '0.9.1'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -89,7 +89,8 @@ def load_options(path=None):
             'host_info': bool(o.get('host_info', True)),
             'register_key': str(o.get('register_key') or '').strip(), 'run_builtin_jobs': bool(o.get('run_builtin_jobs', True)),
             'log_payloads': o.get('log_payloads') is True,
-            'discord_token': str(o.get('discord_token') or '').strip(), 'files_token': str(o.get('files_token') or '').strip(), 'plugins': pluginhost.parse_plugins_option(o.get('plugins'))}
+            'discord_token': str(o.get('discord_token') or '').strip(), 'files_token': str(o.get('files_token') or '').strip(),
+            'bods_api_key': str(o.get('bods_api_key') or '').strip(), 'plugins': pluginhost.parse_plugins_option(o.get('plugins'))}
 
 
 class Module:
