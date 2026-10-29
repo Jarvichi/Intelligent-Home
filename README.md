@@ -82,6 +82,12 @@ Nothing is copied by hand between add-ons.
 |---|---|---|---|
 | **Intelligent Home - Brain** (`ih_brain`) | Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default). | nothing else | [DOCS](ih_brain/DOCS.md) |
 
+### Assistant
+
+| Add-on | What it does | Needs | Docs |
+|---|---|---|---|
+| **Intelligent Home - Assistant - Personas** (`ih_assistant`) | Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins and sends replies written elsewhere. | nothing else | [DOCS](ih_assistant/DOCS.md) |
+
 "Needs" lists the add-ons and services a module depends on. `mqtt` is an MQTT broker you run yourself (for example the Mosquitto add-on).
 
 ## Build on first install

@@ -1,0 +1,25 @@
+{
+ "name": "ih_assistant",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins and sends replies written elsewhere. Every persona has a separate datastore. Dry-run by default.",
+ "owner": "local add-on ih_assistant",
+ "start": "Supervisor add-on 32c8114c_ih_assistant (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8830/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8830,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove (this deletes the persona folders in its data). The host chat scripts keep working unchanged.",
+ "requires": []
+}

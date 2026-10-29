@@ -1,0 +1,37 @@
+name: "Intelligent Home - Assistant - Personas"
+version: "0.1.0"
+slug: ih_assistant
+description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself. After install the owner sets: boot auto, watchdog on, auto_update on.
+# watchdog: add  watchdog: http://[HOST]:[PORT:8830]/healthz  once boot is auto.
+boot: manual
+init: false
+ports:
+  8830/tcp: 8830
+ports_description:
+  8830/tcp: "Persona API (bearer api_token); /healthz is open"
+options:
+  mode: "dry"
+  api_token: ""
+  timezone: "Europe/London"
+  personas: []
+schema:
+  mode: list(dry|live)
+  api_token: password
+  timezone: str
+  personas:
+    - key: str
+      user_id: str
+      bot_token: password
+      quiet_start: str?
+      quiet_end: str?
+      max_per_day: int?
+      checkins:
+        - str?
+      can_tell:
+        - str?
+      live: bool?
