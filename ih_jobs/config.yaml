@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs"
-version: "0.9.1"
+version: "0.10.0"
 slug: ih_jobs
 description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps the media and share folders (read-write) for the two photo plugins only; nothing else touches them."
 arch:
@@ -45,6 +45,7 @@ options:
   discord_token: ""
   files_token: ""
   bods_api_key: ""
+  mail_password: ""
   plugins: []
 schema:
   log_payloads: bool?
@@ -74,6 +75,7 @@ schema:
   discord_token: password?
   files_token: password?
   bods_api_key: password?
+  mail_password: password?
   plugins:
     - name: str
       live: bool

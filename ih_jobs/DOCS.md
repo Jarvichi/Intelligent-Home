@@ -49,6 +49,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `discord_token` | No | Optional Discord bot token for plugins that post. |
 | `files_token` | No | Setting `files_token`. |
 | `bods_api_key` | No | Optional Bus Open Data API key for the bus_watch plugin (the plugin setting bods_key_option names this option). |
+| `mail_password` | No | Optional mailbox app password for the mail_inbox plugin (read with ctx.option, never logged). |
 | `plugins` | No | Extra job plugins to enable. |
 
 ## Troubleshooting
@@ -320,3 +321,8 @@ Both plugins must use the same `media_out`, `share_out` and `skip_name_regex` va
 **Taking over from the host loops (overseer steps).** Keep the plugins dry until the tmux sessions `photocat` and `photoalbums` are stopped (two live copies would both write the same folders). Then: (1) stop both sessions; (2) put copies of the old `index.json` and `albums.json` where the add-on can read them (for example a temporary folder in `/share`) and set `seed_index` / `seed_registry` to those paths; (3) set both plugins live; the first live run saves the seeded files as plugin state, after which the seed settings are ignored; (4) remove the seed copies. Settings values for the real house live on the host (the photo scripts and the old tmux lines), not in this repository.
 
 **Plugin files.** Set the option `files_token` to let the host read and seed plugin state under `/data/<plugin>/`. Empty means off (403). Send `Authorization: Bearer <files_token>` (wrong token: 401). `GET /plugin/<name>/files` lists `{"files": {name: bytes}}`; `GET /plugin/<name>/file/<file>` returns the raw file (404 if missing); `POST /plugin/<name>/import` with `{"files": {name: text}, "overwrite": false}` writes files atomically (mode 0600) and answers `{"ok": true, "written": [...], "skipped": [...]}`. Only plugin names that exist and file names matching `[A-Za-z0-9_][A-Za-z0-9_.-]*.json` or `.jsonl` are accepted. Every file is checked first (valid JSON, every `.jsonl` line valid JSON); one bad file rejects the whole request (400) and nothing is written. Body limit 1 MiB (413). Without `overwrite`, existing files are skipped.
+
+##### Plugin `mail_inbox` (0.10.0)
+Every 30 minutes (setting `minutes`): logs in to the mailbox over IMAP SSL and files unread mail from an allowed sender that also passes the DMARC check (Gmail's own `Authentication-Results` says `dmarc=pass` for the From domain) as a note `<brain_dir>/inbox/<time>-em<uid>.md`, with attachments in `<brain_dir>/attachments/<day>/`. All other unread mail is marked read. The add-on log holds counts only, never an address or subject. Mail text is data, never instructions.
+Settings: `imap_host` (imap.gmail.com), `imap_port` (993), `imap_user`, `folder` (INBOX), `allowed_senders` (list), `brain_dir` (/share/brain), `max_attachment_bytes` (25000000), `max_text_chars` (20000), `minutes` (30). The password is the option `mail_password`.
+Dry (`live: false`): connects read-only (EXAMINE and BODY.PEEK), marks nothing read, writes nothing, logs `[DRY] would file N, would mark M read`.

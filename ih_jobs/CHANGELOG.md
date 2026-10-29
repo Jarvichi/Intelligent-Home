@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.0] - 2026-10-29
+### Added
+- Plugin `mail_inbox` (every 30 minutes): files unread mail from allowed senders that pass the DMARC check into the brain inbox (notes and attachments), marks everything else read, and logs counts only. Dry runs connect read-only and change nothing.
+- Option `mail_password` (password, optional): the mailbox app password for `mail_inbox`.
+
 ## [0.9.1] - 2026-10-29
 ### Fixed
 - bus_watch could never read the bus feed: the `bods_api_key` option was not passed to plugins.
