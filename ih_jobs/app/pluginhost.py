@@ -1,5 +1,5 @@
 """Plugin platform for ih_jobs 0.9.0: auto-discovery of plugins/*.py, per-plugin dry/live, state under /data/<plugin>/, a simple built-in timer.
-Schedule kinds: daily {at}, every {minutes}, service {seconds}: the host runs the plugin's run(ctx) in its OWN supervised thread every `seconds` (fresh ctx each time, so mode, kill switches and the clock are re-read; a crash never stops the loop).
+Schedule kinds: daily {at}, every {minutes}, service {seconds}, event (0.12.0: no timer; the plugin's event(ctx, payload) is called by POST /plugin/<name>/event): the host runs the plugin's run(ctx) in its OWN supervised thread every `seconds` (fresh ctx each time, so mode, kill switches and the clock are re-read; a crash never stops the loop).
 A plugin runs only when it is listed in the option `plugins`. It is LIVE only when plugins[].live is true AND /data/STOP_LIVE and /data/STOP_<name> do not exist.
 Nothing here ever prints option values."""
 import importlib, json, os, pkgutil, threading, time, traceback
@@ -188,6 +188,39 @@ class Host:
                 info['last_error'] = ihlib.log.scrub(type(e).__name__ + ': ' + traceback.format_exc(limit=2).strip().splitlines()[-1][:160], self.secrets)
                 log('error: ' + info['last_error'])
                 return False
+
+    def event(self, name, payload, trigger='event'):
+        """0.12.0: hand one event (a JSON object) to a plugin that has event(ctx, payload). -> (ok, why). Never raises. Same dry/live and kill-switch rules as run()."""
+        if name not in self.mods or name not in self.cfg:
+            return False, 'plugin not configured'
+        if not hasattr(self.mods[name], 'event'):
+            return False, 'plugin takes no events'
+        with self.locks[name]:
+            mode, _ = self.mode(name)
+            info, log = self.info[name], self._plog(name)
+            info['last_mode'] = mode
+            info['last_run'] = self.clock().isoformat(timespec='seconds')
+            settings, err = self.settings(name)
+            if err:
+                info['last_ok'], info['last_error'] = False, err
+                info['errors'] += 1
+                log('error: ' + err)
+                return False, err
+            dry = mode != 'live'
+            ctx = PluginCtx(name, settings, dry, self.clock(), self.ha, Discord(self.opts, dry, log, self.opener),
+                            ihlib.state.Store(os.path.join(self.data, name)), log, ihlib.http.Http(self.opener), self.data, self.opts)
+            try:
+                ok = self.mods[name].event(ctx, payload) is not False
+                info['runs'] += 1
+                info['last_ok'] = ok
+                info['last_error'] = None if ok else 'plugin returned false'
+                return ok, 'ok' if ok else 'plugin returned false'
+            except Exception as e:
+                info['errors'] += 1
+                info['last_ok'] = False
+                info['last_error'] = ihlib.log.scrub(type(e).__name__ + ': ' + traceback.format_exc(limit=2).strip().splitlines()[-1][:160], self.secrets)
+                log('error: ' + info['last_error'])
+                return False, 'plugin error'
 
     # ---- timing ----
     def next_run(self, name, now=None):

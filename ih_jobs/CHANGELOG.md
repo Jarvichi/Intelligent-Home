@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.12.0] - 2026-10-30
+### Added
+- Plugin kind `event` (no timer): `POST /plugin/<name>/event` (files_token, JSON object up to 16 KiB) hands one event to a plugin's `event(ctx, payload)`. Same dry/live and kill-switch rules as other plugins. `POST /plugin/<name>/run` answers 409 for event plugins.
+- Plugin `eufy_person` (event): a person at an outdoor Eufy camera -> the event picture and a line of text in a Discord channel (default `camera`), with the host script's rules (5 minutes per camera, fresh-picture checks, duplicate picture check). Uses the existing `discord_token` option, `homeassistant_api` and media map. Dry runs fetch the picture and log `[DRY] would post camera=<key> image=<bytes> bytes` only.
+
 ## [0.11.0] - 2026-10-29
 ### Added
 - Plugin `brain_inbox` (service, polls every 10 seconds): files messages from a Discord channel (default `brain-inbox`) sent by allowed users into the brain inbox as notes, with attachments, and reacts with a check mark. Uses the existing `discord_token` option and the existing share folder map. Dry runs only read the channel and log note names and sizes.

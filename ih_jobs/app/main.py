@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.11.0'
+VERSION = '0.12.0'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')
@@ -35,6 +35,7 @@ WINDOW_S = 600
 CHILD_FRESH_S = 120     # a child that registered within this many seconds counts as up
 MAX_CHILDREN = 20
 FNAME_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*\.(json|jsonl)$')
+EVENT_MAX = 16384     # POST /plugin/<name>/event body limit
 IMPORT_MAX = 1048576   # POST /plugin/<name>/import body limit
 FORWARD_TIMEOUT_S = 120
 
@@ -378,8 +379,21 @@ def make_handler(mod):
                     self._reply(409, {'ok': False, 'why': 'plugin not configured'}); return
                 if mod.plugins.schedule(name).get('kind') == 'service':
                     self._reply(409, {'ok': False, 'why': 'service plugins run on their own'}); return
+                if mod.plugins.schedule(name).get('kind') == 'event':
+                    self._reply(409, {'ok': False, 'why': 'event plugins are triggered by POST /plugin/<name>/event'}); return
                 ok = mod.plugins.run(name, trigger='api')
                 self._reply(200, {'ok': ok, 'plugin': name, 'mode': mod.plugins.mode(name)[0]}); return
+            if rest == ['event']:   # 0.12.0: hand one JSON event to an event plugin (same files_token auth)
+                if n > EVENT_MAX:
+                    self._reply(413, {'ok': False, 'why': 'body too large'}); return
+                try:
+                    obj = json.loads(self.rfile.read(n) or b'{}'); assert isinstance(obj, dict)
+                except Exception:
+                    self._reply(400, {'ok': False, 'why': 'body must be a JSON object'}); return
+                if not mod.plugins or name not in mod.plugins.cfg:
+                    self._reply(409, {'ok': False, 'why': 'plugin not configured'}); return
+                ok, why = mod.plugins.event(name, obj)
+                self._reply(200 if ok else 500, {'ok': ok, 'plugin': name, 'mode': mod.plugins.mode(name)[0], 'why': why}); return
             if rest != ['import']:
                 self._reply(404, {'ok': False, 'why': 'not found'}); return
             if n > IMPORT_MAX:
