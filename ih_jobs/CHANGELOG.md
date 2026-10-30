@@ -3,6 +3,10 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.13.1] - 2026-10-30
+### Changed
+- Plugin `receipt_photos` now needs no paid key. New setting `mode` (default `handoff`): receipt photos from the shopping channel are saved to `/share/receipts/inbox/<message id>/<n>.<ext>` and the acknowledgement is posted; the host reads them on the owner's own Claude subscription, ticks the open items and posts the summary. Dry logs `[DRY] would save receipt N photo(s) B bytes` and writes nothing. The paid API mode is kept (`mode` api, only works when the option `anthropic_key` is set). New setting `inbox_dir`.
+
 ## [0.13.0] - 2026-10-30
 ### Added
 - Plugin `receipt_photos` (every 5 minutes): receipt photos posted in the shopping channel by allowed users are read by the Anthropic API, matching items on the shopping list are ticked, and a summary is posted (port of receipt_check.sh and receipt_apply.py). Dry runs read the channel and download the photos but make no AI call and change nothing; they log counts only.
