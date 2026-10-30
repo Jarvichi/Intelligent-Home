@@ -21,5 +21,8 @@
     {"name": "Fruit", "words": "apple|pear|banana"},
     {"name": "Tins", "words": "beans|soup|tuna"}
   ],
-  "aisle_order": ["Fruit", "Tins"]
+  "aisle_order": ["Fruit", "Tins"],
+  "facts_url": "",
+  "facts_key": "",
+  "fresh_aisles": ["Meat & fish", "Fruit & veg", "Dairy & chilled", "Bakery"]
 }

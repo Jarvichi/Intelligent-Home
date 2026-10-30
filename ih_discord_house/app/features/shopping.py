@@ -167,6 +167,14 @@ class Feature:
     def items(self):
         return [i['summary'] for i in self.c.ha.get_items(self.list)]
 
+    def complete(self, name):
+        """Tick ONE open item by its uid (30 Oct 2026: by name, HA picked an already-ticked twin and the owner's ticks were lost mid-shop)."""
+        items = [i for i in self.c.ha.get_items(self.list) if i.get('uid')]
+        hit = next((i for i in items if i.get('summary') == name), None) or next((i for i in items if (i.get('summary') or '').lower() == name.lower()), None)
+        if hit:
+            self.c.ha.call('todo', 'update_item', {'entity_id': self.list, 'item': hit['uid'], 'status': 'completed'})
+        return bool(hit)
+
     def learned(self):
         return learned(self.root, self.cfg['aisle_order_file'], self.base_order)
 
@@ -249,7 +257,7 @@ class Feature:
                     self.handled.add((m['id'], line))
                     for nm in names:
                         try:
-                            self.c.ha.call('todo', 'update_item', {'entity_id': self.list, 'item': nm, 'status': 'completed'})
+                            self.complete(nm)
                         except Exception:
                             pass
                     lines[n] = f"~~{line}~~ ✓"
@@ -288,7 +296,7 @@ class Feature:
             items = self.items()
             done, unsure, missing = match_got(items, GOT_RE.fullmatch(text).group(2))
             for i in done:
-                self.c.ha.call('todo', 'update_item', {'entity_id': self.list, 'item': i, 'status': 'completed'})
+                self.complete(i)
             reply = got_reply(items, done, unsure, missing)
         elif CHAT_RE.fullmatch(t) or text.endswith('?'):
             reply = CHAT_REPLY_RECEIPT if self.cfg['receipts_dir'] else CHAT_REPLY

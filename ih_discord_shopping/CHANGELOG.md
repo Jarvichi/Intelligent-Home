@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.1] - 2026-10-30
+
+### Fixed
+- Ticks are saved again when the list holds the same name twice (a ticked one from last week and a new open one). Ticks now complete the open item by its id, never by name; before, Home Assistant could pick the already-ticked twin and the tick was lost.
+
+## [0.3.0] - 2026-10-30
+
+### Added
+- Options `facts_url`, `facts_key`, `fresh_aisles`. When the first two are set, the shop checklist reads the orchestrator facts store (5 s limit, any failure = the old output): the aisle order and the item order come from `shopping/aisle_learned` (`{"order": [...], "rank": {...}}`, fallback: the options), and items in a fresh aisle get the date of the first planned meal that uses them from `cooking/fresh_dates`, for example `3️⃣ chicken thighs (Tue 3 Nov)`, so the use-by date to aim for is visible. Names are matched after removing numbers, units and brackets, plural or singular. The date is not part of the item name when you tick it. `fresh_aisles` defaults to Meat & fish, Fruit & veg, Dairy & chilled and Bakery.
+- The module needs its own key: a `fact_clients` entry in the orchestrator (module `shopping`, write false).
+
 ## [0.2.1] - 2026-10-30
 
 ### Added

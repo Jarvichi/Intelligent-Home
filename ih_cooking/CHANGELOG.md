@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-10-30
+
+### Added
+- Fact `cooking/fresh_dates` (same `facts_url` / `facts_key` options, off when either is empty): `{"<ingredient>": "YYYY-MM-DD"}` = for each ingredient of the planned meals in the next 7 days (the weekly plan mon..sun, recipes' `shopping` lines), the date of the first planned meal that uses it. Names are lower case without quantity, unit or brackets (`2 chicken breasts (about 450 g)` becomes `chicken breasts`). The shop checklist (ih_discord_shopping 0.3.0) shows it as a use-by date. Checked every 10 minutes, sent when it changes and at least every 12 hours, expires after 36 hours, cleared when the plan is empty. Over 4 KiB the latest dates are dropped. Sending is in the background; a failure is logged (type only) and retried.
+
 ## [0.4.0] - 2026-10-29
 
 ### Added

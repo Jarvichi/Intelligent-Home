@@ -51,7 +51,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `brain_url` | No | Brain add-on MCP address, e.g. `http://HOST:8820/mcp`. Recipe notes are written with `brain_write`; only changed notes are sent (hashes kept in /data). |
 | `brain_token` | No | Bearer token of the Brain add-on (needs its read_only off). |
 | `facts_url` | No | Setting `facts_url`. |
-| `facts_key` | No | Setting `facts_key`. |
+| `facts_key` | No | This add-on's `fact_clients` key (module `cooking`, write true) in the orchestrator. Also used for `cooking/fresh_dates` (see the changelog, 0.5.0). |
 
 ## Troubleshooting
 

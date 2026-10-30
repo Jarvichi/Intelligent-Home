@@ -1,6 +1,6 @@
 {
  "name": "ih_discord_shopping",
- "version": "0.2.1",
+ "version": "0.3.1",
  "kind": "addon",
  "description": "Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing. Also the iPhone shopping Shortcut endpoint (dry by default).",
  "owner": "local add-on ih_discord_shopping",

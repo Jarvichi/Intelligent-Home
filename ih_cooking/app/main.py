@@ -217,6 +217,7 @@ def main():
     opts = cooking.load_options(os.environ.get('IHA_OPTIONS', '/data/options.json'))
     st = cooking.Store(os.environ.get('IHA_DATA', '/data'), os.path.join(HERE, 'seed_recipes'), opts, log=lg.info)
     en = st.make_engine()
+    st.make_fresh_publisher().start()   # fact cooking/fresh_dates for the shop checklist; does nothing when the facts options are empty
     ok, why = en.guard(force=True)
     lg.info('ih_cooking %s starting: %d recipes; token %s; ha token %s; cook_mode=%s live=%s (%s); discord %s', cooking.VERSION, len(st.recipes()),
             'set' if opts['api_token'] else 'NOT set (all requests refused)', 'set' if opts['ha_token'] else 'not set', opts['cook']['mode'], ok, why,

@@ -10,6 +10,7 @@ a number ticks the item in HA and the line is edited to struck-through).
 The text logic is the shared features/shopping.py (copied by sync_from_service.sh, never edited here); only the Discord part is done with bus ops.
 SHADOW (option, default true): every op is sent with dry=true and logged '[DRY] would ...'; HA writes are logged only. /data/STOP_LIVE forces the same at once.
 stdlib only (paho-mqtt for the real bus). Serves /healthz and /status (no secrets). Pushes its manifest and status to the orchestrator (POST /ingest)."""
+import datetime
 import html
 import json, os, re, sys, threading, time, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,9 +21,10 @@ import core
 import settings as ST
 import shortcut
 import bus_client
+import factsview as FV
 from features import shopping as S
 
-VERSION = '0.2.1'
+VERSION = '0.3.1'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -70,6 +72,8 @@ def load_options(path=None):
             'mqtt_host': _text(o.get('mqtt_host')) or 'core-mosquitto', 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': _text(o.get('mqtt_user')) or DEFAULT_MODULE, 'mqtt_password': str(o.get('mqtt_password') or ''),
             'shortcut_token': _text(o.get('shortcut_token')), 'shortcut_base_url': _text(o.get('shortcut_base_url')).rstrip('/'), 'shortcut_dry': o.get('shortcut_dry') is not False,   # anything but an explicit false = dry
+            'facts_url': _text(o.get('facts_url')).rstrip('/'), 'facts_key': _text(o.get('facts_key')),   # either empty = no facts: the checklist is as before
+            'fresh_aisles': [_text(x) for x in o['fresh_aisles'] if _text(x)] if isinstance(o.get('fresh_aisles'), list) else list(FV.DEFAULT_FRESH),
             'ingest_url': (_text(o.get('ingest_url')) or DEFAULT_INGEST_URL).rstrip('/'), 'ingest_token': _text(o.get('ingest_token'))}
 
 
@@ -121,6 +125,17 @@ class BusShopping(S.Feature):
         self.routed = True
         self.schan = mod.opts['channel_key']
 
+    def facts_on(self):
+        return bool(self.mod.opts.get('facts_url') and self.mod.opts.get('facts_key'))
+
+    def learned(self):
+        """Order and rank from the orchestrator fact shopping/aisle_learned when facts are on and it is set; else the options (as before)."""
+        if self.facts_on():
+            got = FV.learned(self.mod.opts['facts_url'], self.mod.opts['facts_key'], self.base_order, getattr(self.mod, 'facts_opener', None))
+            if got:
+                return got
+        return super().learned()
+
     def ask_scope(self, user_id):
         m = self.mod
         text = (f"{S.ASK_MARK} **Which list?** <@{user_id}> tap one:\n1️⃣ Full list (meal plan + extras)\n2️⃣ Only the extras (not the meal plan)\n"
@@ -145,7 +160,12 @@ class BusShopping(S.Feature):
         if not items:
             return self.send("Nothing on the list apart from the meal plan." if extras_only else "The shopping list is empty.")
         order, rank = self.learned()
-        for text in S.checklist_messages(items, order, rank, self.aisles):
+        texts = S.checklist_messages(items, order, rank, self.aisles)
+        sufs = [{} for _ in texts]
+        if self.facts_on() and m.opts.get('fresh_aisles'):   # use-by dates for fresh things, from the first planned meal that needs them
+            dates = FV.fresh_dates(m.opts['facts_url'], m.opts['facts_key'], getattr(m, 'facts_opener', None))
+            texts, sufs = FV.decorate(texts, S.MARK, set(m.opts['fresh_aisles']), dates, m.today())
+        for text, suf in zip(texts, sufs):
             res = m.bus_post(ch, text, tag='checklist')
             mid = (res or {}).get('discord_id')
             if not (res and res.get('ok') and mid):
@@ -154,7 +174,7 @@ class BusShopping(S.Feature):
             for k in S.KEYS[:n]:
                 m.bus_react(ch, mid, k)
             m.bus_watch(ch, mid, S.KEYS[:n], CHECKLIST_TTL, 'checklist')
-            m.lists[mid] = {'lines': text.split('\n'), 't': self.c.now(), 'renewed': self.c.now()}
+            m.lists[mid] = {'lines': text.split('\n'), 't': self.c.now(), 'renewed': self.c.now(), 'suf': suf}
         m.save_state()
 
 
@@ -175,6 +195,20 @@ class Module:
         except Exception as e:
             self.ha, self.error = None, 'no Home Assistant access: ' + str(e)[:80]
         self.threaded = threaded
+
+    def today(self):
+        return datetime.date.fromtimestamp(self.clock())
+
+    def complete(self, name):
+        """Tick ONE open list item by its uid (30 Oct 2026: ticking by name hit an already-ticked twin of the same name, and the owner's ticks
+        were lost mid-shop). Exact name first, then case-insensitive. -> True when an open item was ticked."""
+        lst = self.feature.list
+        items = [i for i in self.ha.get_items(lst) if i.get('uid')]
+        hit = next((i for i in items if i.get('summary') == name), None) or next((i for i in items if (i.get('summary') or '').lower() == name.lower()), None)
+        if not hit:
+            return False
+        self.ha.call('todo', 'update_item', {'entity_id': lst, 'item': hit['uid'], 'status': 'completed'})
+        return True
 
     def shortcut_ha(self):
         """HA access for the Shortcut endpoint: reads always, writes without the module's dry logger (which would print item text)."""
@@ -338,7 +372,7 @@ class Module:
             items = f.items()
             done, unsure, missing = S.match_got(items, gm.group(2))
             for i in done:
-                self.ha.call('todo', 'update_item', {'entity_id': f.list, 'item': i, 'status': 'completed'})
+                self.complete(i)
             return S.got_reply(items, done, unsure, missing)
         return None
 
@@ -369,13 +403,16 @@ class Module:
             return   # no such line, or it is already struck through
         line = lines[n]
         item = line[len(em) + 1:].strip()
+        suf = (lst.get('suf') or {}).get(str(n))
+        if suf and item.endswith(suf.strip()):
+            item = item[:len(item) - len(suf.strip())].strip()   # the use-by date is not part of the list item
         names = [item]
         bm = S.BATT_LABEL_RE.match(item)
         if bm:
             names = [x for x in self.feature.items() if (S.BATT_RE.match(x) or [None, None, None])[2] == bm.group(1)]
         for nm in names:
             try:
-                self.ha.call('todo', 'update_item', {'entity_id': self.feature.list, 'item': nm, 'status': 'completed'})
+                self.complete(nm)
             except Exception:
                 pass
         lines[n] = f"~~{line}~~ ✓"

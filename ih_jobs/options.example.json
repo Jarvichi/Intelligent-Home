@@ -25,5 +25,6 @@
   "discord_token": "",
   "bods_api_key": "",
   "mail_password": "",
+  "anthropic_key": "",
   "plugins": []
 }

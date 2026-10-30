@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -95,6 +95,14 @@ class Store:
             kw['facts'] = FactsClient(self.opts['facts_url'], self.opts['facts_key'], 'cooking', self.opener)
         self.engine = cookengine.Engine(c, os.path.join(self.data, 'cook'), ha=ha, discord=discord, **kw)
         return self.engine
+
+    def make_fresh_publisher(self, facts=None):
+        """Publisher of fact cooking/fresh_dates (None facts = off: empty facts_url or facts_key)."""
+        import freshdates
+        if facts is None and self.opts.get('facts_url') and self.opts.get('facts_key'):
+            from factsclient import FactsClient
+            facts = FactsClient(self.opts['facts_url'], self.opts['facts_key'], 'cooking', self.opener)
+        return freshdates.Publisher(self, facts, log=self.log)
 
     # --- publish (replaces recipes.py publish). Dry by default: only logs counts. Live: brain notes -> ih_brain (brain_write over HTTP JSON-RPC), www files -> publish_webhook_url.
     def _hash_file(self):

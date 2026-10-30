@@ -44,6 +44,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `meal_plan_script` | No | Script (name without `script.`) run quietly before a list is built. Empty = none |
 | `shop_names` | No | Extra shop names for "I'm at <shop>", words separated by `\ |
 | `aisles` | No | Departments (`name`, `words` separated by `\ |
+| `facts_url` | No | Orchestrator API address (for example `http://<host>:8790`). With `facts_key`: the checklist uses the learned shop order from fact `shopping/aisle_learned` and adds a use-by date, like `(Tue 3 Nov)`, to fresh things from fact `cooking/fresh_dates`. Empty = off, the checklist is as before. Each read waits 5 s at most; a failure gives today's output. |
+| `facts_key` | No | This add-on's `fact_clients` key (module `shopping`, write false) in the orchestrator. |
+| `fresh_aisles` | No | Departments that get a date. Default: Meat & fish, Fruit & veg, Dairy & chilled, Bakery. Empty list = no dates. |
 | `aisle_order` | No | Departments (`name`, `words` separated by `\ |
 
 ## Troubleshooting

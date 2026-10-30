@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Shopping"
-version: "0.2.1"
+version: "0.3.1"
 slug: ih_discord_shopping
 description: "Shopping list commands (add items, shop checklist by aisle with tick reactions, got ...) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Also serves the iPhone shopping Shortcut endpoint (POST /shortcut/<token>, dry by default). Maps no folders."
 arch:
@@ -40,6 +40,13 @@ options:
   shop_names: ""
   aisles: []
   aisle_order: []
+  facts_url: ""
+  facts_key: ""
+  fresh_aisles:
+    - "Meat & fish"
+    - "Fruit & veg"
+    - "Dairy & chilled"
+    - "Bakery"
 schema:
   log_payloads: bool?
   module_name: str
@@ -65,3 +72,7 @@ schema:
       words: str
   aisle_order:
     - str
+  facts_url: str?
+  facts_key: password?
+  fresh_aisles:
+    - str?

@@ -17,7 +17,7 @@ import settings as ST
 import bus_client
 import importlib
 
-VERSION = '0.2.2'
+VERSION = '0.2.3'
 DATA = os.environ.get('IHH_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHH_PORT', '8796'))

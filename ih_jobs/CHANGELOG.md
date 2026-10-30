@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.13.0] - 2026-10-30
+### Added
+- Plugin `receipt_photos` (every 5 minutes): receipt photos posted in the shopping channel by allowed users are read by the Anthropic API, matching items on the shopping list are ticked, and a summary is posted (port of receipt_check.sh and receipt_apply.py). Dry runs read the channel and download the photos but make no AI call and change nothing; they log counts only.
+- Option `anthropic_key` (password, optional): the Anthropic API key for `receipt_photos` (live only).
+
 ## [0.12.0] - 2026-10-30
 ### Added
 - Plugin kind `event` (no timer): `POST /plugin/<name>/event` (files_token, JSON object up to 16 KiB) hands one event to a plugin's `event(ctx, payload)`. Same dry/live and kill-switch rules as other plugins. `POST /plugin/<name>/run` answers 409 for event plugins.
