@@ -40,6 +40,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `shopping_list_entity` | No | The Home Assistant to-do entity. Default: `todo.shopping_list`. |
 | `shortcut_token` | No | Setting `shortcut_token`. |
 | `shortcut_dry` | No | Setting `shortcut_dry`. Default: `true`. |
+| `shortcut_base_url` | No | Setting `shortcut_base_url`. |
 | `meal_plan_script` | No | Script (name without `script.`) run quietly before a list is built. Empty = none |
 | `shop_names` | No | Extra shop names for "I'm at <shop>", words separated by `\ |
 | `aisles` | No | Departments (`name`, `words` separated by `\ |

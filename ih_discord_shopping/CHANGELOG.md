@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.1] - 2026-10-30
+
+### Added
+- Admin-only Ingress page "Shopping Shortcut" (HA sidebar, needs an admin login): shows the full Shortcut address with a copy button. Served on the internal ingress port 8796 to the Supervisor proxy only; never on the open port. New option `shortcut_base_url` (the address the phone uses, e.g. `http://<Home Assistant address>:8795`).
+
 ## [0.2.0] - 2026-10-29
 
 ### Added

@@ -10,6 +10,7 @@ a number ticks the item in HA and the line is edited to struck-through).
 The text logic is the shared features/shopping.py (copied by sync_from_service.sh, never edited here); only the Discord part is done with bus ops.
 SHADOW (option, default true): every op is sent with dry=true and logged '[DRY] would ...'; HA writes are logged only. /data/STOP_LIVE forces the same at once.
 stdlib only (paho-mqtt for the real bus). Serves /healthz and /status (no secrets). Pushes its manifest and status to the orchestrator (POST /ingest)."""
+import html
 import json, os, re, sys, threading, time, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -21,7 +22,7 @@ import shortcut
 import bus_client
 from features import shopping as S
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -68,7 +69,7 @@ def load_options(path=None):
             'cfg': settings_from_options(o),
             'mqtt_host': _text(o.get('mqtt_host')) or 'core-mosquitto', 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': _text(o.get('mqtt_user')) or DEFAULT_MODULE, 'mqtt_password': str(o.get('mqtt_password') or ''),
-            'shortcut_token': _text(o.get('shortcut_token')), 'shortcut_dry': o.get('shortcut_dry') is not False,   # anything but an explicit false = dry
+            'shortcut_token': _text(o.get('shortcut_token')), 'shortcut_base_url': _text(o.get('shortcut_base_url')).rstrip('/'), 'shortcut_dry': o.get('shortcut_dry') is not False,   # anything but an explicit false = dry
             'ingest_url': (_text(o.get('ingest_url')) or DEFAULT_INGEST_URL).rstrip('/'), 'ingest_token': _text(o.get('ingest_token'))}
 
 
@@ -485,6 +486,40 @@ def make_handler(mod):
     return H
 
 
+INGRESS_PORT = int(os.environ.get('IHS_INGRESS_PORT', '8796'))
+INGRESS_PEER = '172.30.32.2'   # the Supervisor ingress proxy: HA login (admin panel) is required to reach it
+
+
+def setup_page(mod):
+    """Admin-only Ingress page: the full Shortcut address with a copy button. Never served on the open port."""
+    tok, base = mod.opts['shortcut_token'], mod.opts['shortcut_base_url']
+    if not tok:
+        body = '<p>The Shortcut endpoint is off (option <code>shortcut_token</code> is empty).</p>'
+    else:
+        url = html.escape('%s/shortcut/%s' % (base or 'http://&lt;Home Assistant address&gt;:8795', tok))
+        body = ('<p>Paste this address into the iPhone Shortcut (action <b>Get contents of URL</b>, method POST, JSON body <code>{"items": [...]}</code>).</p>'
+                '<p><input id="u" readonly value="%s" style="width:100%%;font-size:15px;padding:8px"></p>'
+                '<p><button onclick="var u=document.getElementById(\'u\');u.select();navigator.clipboard.writeText(u.value).then(function(){this.textContent=\'Copied\'}.bind(this))" '
+                'style="font-size:16px;padding:8px 16px">Copy address</button></p>'
+                '<p>Mode: <b>%s</b>. Keep this address private: it is the key.</p>') % (url, 'dry (list not changed)' if mod.opts['shortcut_dry'] else 'live')
+    return ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shopping Shortcut</title></head>'
+            '<body style="font-family:sans-serif;max-width:640px;margin:20px auto;padding:0 12px"><h2>Shopping Shortcut</h2>%s</body></html>' % body).encode()
+
+
+def make_ingress_handler(mod):
+    class I(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.client_address[0] != INGRESS_PEER:
+                self.send_error(403); return
+            b = setup_page(mod)
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b)))
+            self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(b)
+
+        def log_message(self, *a):
+            pass
+    return I
+
+
 def main():
     ring = Ring()
     lg = logging.getLogger('ihshopping'); lg.setLevel(logging.INFO); lg.addHandler(ring)
@@ -513,6 +548,8 @@ def main():
             time.sleep(5)
     threading.Thread(target=pusher, daemon=True).start()
     threading.Thread(target=ticker, daemon=True).start()
+    ing = ThreadingHTTPServer(('0.0.0.0', INGRESS_PORT), make_ingress_handler(mod))
+    threading.Thread(target=ing.serve_forever, daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0', PORT), make_handler(mod)).serve_forever()
 
 
