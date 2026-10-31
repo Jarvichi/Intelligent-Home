@@ -5,8 +5,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import brainlib, mcp, extras
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 MAX_BODY = 512 * 1024
+
+
+def parse_origins(v):
+    """cors_origins: comma separated exact origins (scheme://host:port). Empty = no CORS. A bare * is never accepted."""
+    out = []
+    for x in str(v or '').split(','):
+        x = x.strip().rstrip('/')
+        if x and x != '*' and '://' in x:
+            out.append(x)
+    return out
 
 
 def load_options(path):
@@ -24,7 +34,8 @@ def load_options(path):
             'pocket_cloudflare_token': str(o.get('pocket_cloudflare_token') or ''),
             'pocket_key': str(o.get('pocket_key') or ''),
             'pocket_url': str(o.get('pocket_url') or ''),
-            'scrub_names': str(o.get('scrub_names') or '')}
+            'scrub_names': str(o.get('scrub_names') or ''),
+            'cors_origins': parse_origins(o.get('cors_origins'))}
 
 
 class State:
@@ -81,10 +92,23 @@ class State:
 
 def make_handler(st):
     class H(BaseHTTPRequestHandler):
+        def _cors(self):
+            org = self.headers.get('Origin')
+            if org and org.rstrip('/') in st.opts.get('cors_origins', []):
+                self.send_header('Access-Control-Allow-Origin', org.rstrip('/'))
+                self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+                self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                self.send_header('Access-Control-Max-Age', '600')
+                self.send_header('Vary', 'Origin')
+
+        def do_OPTIONS(self):
+            self.send_response(204 if self.headers.get('Origin', '').rstrip('/') in st.opts.get('cors_origins', []) else 403)
+            self._cors(); self.send_header('Content-Length', '0'); self.end_headers()
+
         def _send(self, code, body, ct='application/json'):
             b = (json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body).encode()
             self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(b)))
-            self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(b)
+            self.send_header('Cache-Control', 'no-store'); self._cors(); self.end_headers(); self.wfile.write(b)
 
         def _gate(self):
             """True if the request may go on (auth, kill switch, rate limit); else the answer is already sent."""

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Brain"
-version: "0.2.0"
+version: "0.2.1"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder."
@@ -31,6 +31,7 @@ options:
   pocket_cloudflare_token: ""
   pocket_key: ""
   scrub_names: ""
+  cors_origins: ""
 schema:
   brain_dir: str
   api_token: password
@@ -45,3 +46,4 @@ schema:
   pocket_cloudflare_token: password
   pocket_key: password
   scrub_names: str?
+  cors_origins: str?

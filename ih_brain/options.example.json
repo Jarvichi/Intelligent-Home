@@ -11,5 +11,6 @@
   "pocket_url": "https://REPLACE_ME.workers.dev",
   "pocket_cloudflare_token": "REPLACE_ME",
   "pocket_key": "REPLACE_ME",
-  "scrub_names": ""
+  "scrub_names": "",
+  "cors_origins": ""
 }

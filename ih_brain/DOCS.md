@@ -34,6 +34,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `pocket_url` | No | Setting `pocket_url`. |
 | `pocket_cloudflare_token` | Yes | Setting `pocket_cloudflare_token`. |
 | `pocket_key` | Yes | Setting `pocket_key`. |
+| `cors_origins` | No | Origins allowed to call the server from a browser page, comma separated (e.g. `http://host:8123`). Default: empty (no CORS). `*` is ignored. |
 | `scrub_names` | No | Names to replace before notes are pushed, as `Name=Replacement,Other=Repl`. Default: empty (no name replacement; IPs, MACs, ids and emails are always scrubbed). |
 
 ## Troubleshooting

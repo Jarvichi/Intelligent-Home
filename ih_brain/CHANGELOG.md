@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.1] - 2026-10-31
+
+### Added
+- Option `cors_origins` (comma separated exact origins, empty = off, `*` never accepted): answers browser preflight (OPTIONS) and adds CORS headers for those origins only (Authorization, Content-Type; POST, OPTIONS). Lets a notes page on another port call /mcp.
+
 ## [0.2.0] - 2026-10-31
 
 ### Added

@@ -172,7 +172,7 @@
   "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder.",
   "kind": "addon",
   "requires": [],
-  "version": "0.2.0",
+  "version": "0.2.1",
   "image": true
  },
  {
