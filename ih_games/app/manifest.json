@@ -1,6 +1,6 @@
 {
  "name": "ih_games",
- "version": "0.6.0",
+ "version": "0.6.1",
  "kind": "addon",
  "description": "Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) into friendly chat: decides what is worth saying and queues messages for the chat bots. Dry-run by default; limits per player per day, quiet at night.",
  "owner": "local add-on ih_games",

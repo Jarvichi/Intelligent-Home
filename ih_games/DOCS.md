@@ -87,3 +87,6 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 3. Implement `run(ctx, player)` accepting context and a player dict.
 4. Compare state using files in `/data/state_<name>_<player>.json` and append new events.
 5. Atomically write feed to `/data/feeds/<name>_<player>.json` keeping the last 50 events. Register the provider in `app/main.py`.
+
+## Home Assistant sensors (0.6.1)
+After each providers run the add-on publishes `sensor.games_library_<player>` (state = number of games, attribute `games`) and `sensor.games_<tool>_<player>` (summary plus tool attributes). Needs `homeassistant_api` (already set). Dry mode only logs. A dashboard can be built from these sensors.

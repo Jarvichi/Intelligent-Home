@@ -6,11 +6,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import schedule_client, orchestrator, library as library_mod, played, todos, tools as tools_mod
+import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -205,6 +205,10 @@ class Module:
                                 PROVIDERS[p_name].run(ctx, player)
                     self.library.refresh()
                     self.todo_sync()
+                    try:
+                        sensors_mod.publish(self, ctx)
+                    except Exception as ex:
+                        self.log("sensor publish failed: " + type(ex).__name__)
                 elif name == "orchestrate":
                     orchestrator.run(ctx)
                 

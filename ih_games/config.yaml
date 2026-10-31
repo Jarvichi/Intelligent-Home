@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.6.0"
+version: "0.6.1"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."

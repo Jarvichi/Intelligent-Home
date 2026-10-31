@@ -148,6 +148,30 @@ def summary(tc, player):
     return head + " Main: %s, power %s, top power %s, %s h on main." % (c[0]["class"], c[0]["power"], top, c[0]["hours"])
 
 
+def sensor(tc, player):
+    """(state, attributes) for the Home Assistant sensor sensor.games_destiny_<player>."""
+    r = resets(tc)
+    d = fetch(tc, player)
+    hour = int(tc.opts.get("destiny_reset_utc_hour", RESET_UTC_HOUR))
+    now = tc.now()
+    attrs = {"weekly_reset": next_weekly(now, hour).isoformat(timespec="minutes"), "weekly_reset_local": r[1]["when"], "weekly_reset_in": r[1]["in"],
+             "next_reset": next_daily(now, hour).isoformat(timespec="minutes"), "daily_reset_local": r[0]["when"], "daily_reset_in": r[0]["in"],
+             "milestones": [], "characters": [], "top_power": None, "error": d.get("error") or ""}
+    if not d.get("error"):
+        seen = set()
+        for m in d.get("milestones", []):
+            k = (m["name"], m["progress"])
+            if k not in seen and len(attrs["milestones"]) < 30:
+                seen.add(k)
+                attrs["milestones"].append({"name": m["name"], "progress": m["progress"]})
+        attrs["characters"] = [{"class": c["class"], "power": c["power"], "hours": c["hours"], "last": (c.get("last") or "")[:10]} for c in d.get("chars", [])]
+        attrs["top_power"] = max([c["power"] or 0 for c in d.get("chars", [])] or [0]) or None
+    state = "Weekly reset in %s" % r[1]["in"]
+    if attrs["top_power"]:
+        state += ", power %s" % attrs["top_power"]
+    return state, attrs
+
+
 def upcoming(tc, player):
     r = resets(tc)
     return [{"when": r[0]["at"], "text": "Daily reset (in %s)" % r[0]["in"]}, {"when": r[1]["at"], "text": "Weekly reset: new weeklies and rotators (in %s)" % r[1]["in"]}]

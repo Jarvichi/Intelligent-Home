@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.1] - 2026-10-31
+
+### Added
+- Home Assistant sensors (REST state publish, after each providers run): `sensor.games_library_<player>` (state = number of games, attribute `games`) and `sensor.games_<tool>_<player>` (summary string plus reset times, milestones, characters for Destiny; needs list for Arc Raiders). Dry mode only logs. Tools may define an optional `sensor(tc, player)`.
+
 ## [0.6.0] - 2026-10-31
 
 ### Fixed

@@ -177,6 +177,20 @@ def summary(tc, player):
     return "Arc Raiders: %d quests done, %d open now, %d item types short for what is open." % (len(s["quests_done"]), len(open_q), len(short))
 
 
+def sensor(tc, player):
+    """(state, attributes) for sensor.games_arc_raiders_<player>: counts and the needs list."""
+    g = game_data(tc)
+    if not g:
+        return "no game data", {"needs": [], "quests_done": 0, "open_quests": 0, "short_types": 0, "error": _nodata()}
+    s = load_state(tc, player)
+    open_q, *_ = compute(g, s)
+    rows = [r for r in need_rows(g, s) if r["status"] != "Enough"]
+    short = [r for r in rows if r["status"] == "NEED"]
+    needs = [{"item": r["item"], "need": r["now"], "have": r["have"], "short": r["short"], "status": r["status"], "for": r["for"]} for r in rows[:40]]
+    return "%d open quests, %d items short" % (len(open_q), len(short)), \
+        {"needs": needs, "quests_done": len(s["quests_done"]), "open_quests": len(open_q), "short_types": len(short), "error": ""}
+
+
 def upcoming(tc, player):
     return []
 
