@@ -1,6 +1,7 @@
 name: "Intelligent Home - Brain"
 version: "0.1.0"
 slug: ih_brain
+image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder."
 arch:
   - aarch64

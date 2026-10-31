@@ -1,6 +1,7 @@
 name: "Intelligent Home - AI Layer - Claude CLI Agent"
 version: "0.1.0"
 slug: ih_ai_layer_claude_cli
+image: "ghcr.io/jarvichi/{arch}-ih_ai_layer_claude_cli"
 description: "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text by running the Claude Code CLI (print mode, all tools off) with a login that the owner creates inside this add-on. No API key. Weekly usage gate and daily cap. Text is scrubbed of personal data first. No Home Assistant access. Maps no folders."
 arch:
   - aarch64
