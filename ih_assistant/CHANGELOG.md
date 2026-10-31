@@ -3,6 +3,21 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-10-31
+
+### Added
+- Behaviour levels per persona (0 to 10): `emoji_level`, `gif_level`, `checkin_level`, `humour_level`, `formality_level`, `verbosity_level`, `banter_level`, `reminders_level`. Values are clamped; the same generic defaults for every persona (emoji 2, gif 5, others 5).
+- Persona option `fixed_rule` (a fixed prompt line) and top-level options `usage_sensor_session`, `usage_sensor_week`, `usage_sensor_session_reset`, `usage_sensor_week_reset`.
+- `GET /persona/<key>/behaviour`: levels, ready-made prompt block, a fresh `gif_ok` decision, emoji cap and check-in cap.
+- Hard gates: `checkin_level` 0 = no check-ins, otherwise scales the daily cap and the planned gap; `emoji_level` caps emoji in each reply.
+
+## [0.6.0] - 2026-10-31
+
+### Added
+- Check-in day rules per persona (for a college student): `checkin_days` (for example `tue`, `fri`; empty = every day) and `closed_dates` (`YYYY-MM-DD` or `YYYY-MM-DD..YYYY-MM-DD`; no check-in on those dates). Applies to fixed `checkins` and planned ones.
+- Check-in texts: `checkin_texts` entries `day|text` (`tue|...`, or `*|...` for any day) put a suggested `text` in the `checkin_due` event (`sent: false`). With `checkin_send: true` and the persona live, the add-on sends the text itself (`sent: true`) so the host does not write one. Dry-run only logs the outbox.
+- Usage auto-reply: with `usage_text` (and `usage_text_notime`) set, a message from the person while Claude usage is out (session or week sensor at 99 percent or more; bad sensors count as not out) gets ONE fallback reply per 10 minutes. `{t}` is the reset time (London time; day name when more than 12 hours away). Needs Home Assistant states. Kill switch: file `STOP_AUTOREPLY` in `/data`. Dry-run logs only.
+
 ## [0.5.1] - 2026-10-29
 
 ### Fixed

@@ -61,10 +61,16 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
 | `POST /persona/<key>/identity` | `{username?, avatar?, nickname?}` changes the persona's own Discord name (2..32 characters, no `discord`, `@`, `#`, `:` or code fence), picture (base64 PNG or JPEG, up to 1 MiB) and server nickname (`""` clears it). Limit: 2 username changes an hour per persona (429 with `retry_after`). The new name is saved in the persona profile. Dry-run only logs lengths |
+| `GET /persona/<key>/behaviour` | the persona's levels, a short `prompt` block for the persona prompt, `gif_ok` (a fresh random decision each call), `emoji_max` and `checkins_per_day_cap` |
 | `GET /persona/<key>/plan` | today's planned check-in times (`time`, `kind`, `status`) and the agreed times. Times only |
 | `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
 | `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
+
+### Behaviour levels (0 to 10)
+Per persona options, all optional: `emoji_level`, `gif_level`, `checkin_level`, `humour_level`, `formality_level`, `verbosity_level`, `banter_level`, `reminders_level`. Whole numbers 0 to 10; anything else is clamped (bad values fall back to the persona's default). Defaults are the same for every persona (emoji 2, gif 5, all others 5); set the persona options to change them. Optional `fixed_rule` (text, up to 300 characters) is added to the prompt block as a fixed line that the levels cannot change. Optional top-level `usage_sensor_session`, `usage_sensor_week`, `usage_sensor_session_reset`, `usage_sensor_week_reset` name the Home Assistant sensors used by the usage auto-reply. 0 = never, 5 = middle, 10 = as much as possible. Full scale: brain note `process/assistant-behaviour-levels`.
+
+Hard gates in the add-on: `checkin_level` 0 sends no check-ins at all; otherwise the daily cap is `max_per_day` scaled by the level (at least 1) and the planned gap `min_gap_h` is stretched (level 5 = twice as long). `emoji_level` caps the emoji in each `reply` (0 removes all; extras are cut from the end). `gif_level`: `GET /behaviour` returns `gif_ok` (0 = always false, 10 = always true, else chance level/10); the engine must send a GIF only when it is true. The other levels shape the persona prompt only: add the `prompt` text from `GET /behaviour` to it. Levels change only in the add-on options (no chat command).
 
 ### Tell
 A persona may tell only the keys in its own `can_tell` list (default none; 403 otherwise). Unknown persona 404. Limit 20 a day per pair (429). The add-on writes one event to the target's inbox and reads nothing of the target; the sender's log keeps only the length.

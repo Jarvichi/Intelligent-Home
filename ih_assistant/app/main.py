@@ -13,8 +13,10 @@ from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
 from ihlib import ha as ihha
 import planner
+import levels
+import random
 
-VERSION = '0.5.1'
+VERSION = '0.7.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -50,9 +52,19 @@ ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'busy_windows': [], 'free_windows': [],
-                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0}
+                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
+                 'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': ''}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
+DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}(\.\.\d{4}-\d{2}-\d{2})?$')
+USAGE_SENSORS = {'session': 'sensor.claude_usage_session_usage', 'week': 'sensor.claude_usage_week_usage',
+                 'session_reset': 'sensor.claude_usage_session_reset_time', 'week_reset': 'sensor.claude_usage_weekly_reset_time'}   # defaults; options usage_sensor_* override
+USAGE_OUT_AT = 99.0       # percent: out of usage when the session or the week sensor is at or over this
+USAGE_MIN_GAP_S = 600     # one automatic reply per persona per 10 minutes
+USAGE_FAR_H = 12          # reset further away than this shows a day name
+USAGE_TEXT_MAX = 400
+CHECKIN_TEXT_MAX = 600
 
 
 def hhmm(v, default):
@@ -91,19 +103,34 @@ def load_options(path):
         wins = lambda v: [w.strip().lower() for w in (v or []) if isinstance(w, str) and planner.parse_window(w)] if isinstance(v, list) else []
         ent1 = lambda v: v if isinstance(v, str) and ENTITY_RE.match(v) else ''
         fact1 = lambda v: v if isinstance(v, str) and FACT_RE.match(v) else ''
+        days = lambda v: sorted({d.strip().lower()[:3] for d in v if isinstance(d, str) and d.strip().lower()[:3] in DAYS}, key=DAYS.index) if isinstance(v, list) else []
+        texts = []
+        for t in (p.get('checkin_texts') or []) if isinstance(p.get('checkin_texts'), list) else []:
+            if isinstance(t, str) and '|' in t:
+                d, _, tx = t.partition('|'); d = d.strip().lower()[:3] if d.strip() != '*' else '*'
+                if (d == '*' or d in DAYS) and tx.strip() and len(tx) <= CHECKIN_TEXT_MAX:
+                    texts.append('%s|%s' % (d, tx.strip()))
+        utext = lambda v: v.strip() if isinstance(v, str) and 0 < len(v.strip()) <= USAGE_TEXT_MAX else ''
         personas.append({
+            'checkin_days': days(p.get('checkin_days')), 'closed_dates': [d.strip() for d in (p.get('closed_dates') or []) if isinstance(d, str) and DATE_RE.match(d.strip())] if isinstance(p.get('closed_dates'), list) else [],
+            'checkin_texts': texts, 'checkin_send': p.get('checkin_send') is True,
+            'usage_text': utext(p.get('usage_text')), 'usage_text_notime': utext(p.get('usage_text_notime')),
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
             'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
+            'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
             'quiet_start': hhmm(p.get('quiet_start'), '22:00'), 'quiet_end': hhmm(p.get('quiet_end'), '08:00'),
             'max_per_day': max(0, mpd),
             'checkins': sorted({c for c in (p.get('checkins') or []) if isinstance(c, str) and HHMM.match(c)}),
             'can_tell': [k for k in (p.get('can_tell') or []) if valid_key(k) and k != p['key']],
             'live': p.get('live') is True})
+    for uk, ak in (('usage_sensor_session', 'session'), ('usage_sensor_week', 'week'), ('usage_sensor_session_reset', 'session_reset'), ('usage_sensor_week_reset', 'week_reset')):
+        if isinstance(o.get(uk), str) and ENTITY_RE.match(o[uk].strip()):
+            USAGE_SENSORS[ak] = o[uk].strip()
     return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'personas': personas}, problems
@@ -117,16 +144,18 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
         self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
+        self.rng = rng or random.random
         self.cfg, self.stores, self.discord = {}, {}, {}
         for p in opts['personas']:
             k = p['key']
             for dk, dv in PLAN_DEFAULTS.items():
                 p.setdefault(dk, list(dv) if isinstance(dv, list) else dv)
+            p.setdefault('levels', levels.resolve(k, p))
             self.cfg[k] = p
             self.stores[k] = PersonaStore(data_dir, k, clock)
             if p['bot_token'] and p['user_id']:
@@ -197,7 +226,27 @@ class Assistant:
                                        for i, a in enumerate((m.get('attachments') or [])[:ATTACH_MAX_N])]})
             added += 1
         st.update_state(lambda s: s.__setitem__('last_seen', newest))
+        if added:
+            try:
+                self.usage_autoreply(key, added)
+            except Exception as e:
+                self.log('persona %s: usage auto-reply error %s' % (key, type(e).__name__))
         return added
+
+    # ---- behaviour levels (0.7.0) ----
+    def lv(self, key):
+        return self.cfg[key]['levels']
+
+    def checkin_cap(self, key):
+        """Check-ins allowed per day = max_per_day scaled by checkin_level (0 = none)."""
+        return levels.checkin_cap(self.cfg[key]['max_per_day'], self.lv(key)['checkin_level'])
+
+    def behaviour(self, key):
+        """The levels, the prompt block for the persona prompt, and a fresh gif decision (random draw each call)."""
+        lv = self.lv(key)
+        roll = self.rng()
+        return {'ok': True, 'levels': dict(lv), 'prompt': levels.prompt_block(lv, key, self.cfg[key].get('fixed_rule')), 'gif_ok': levels.gif_allowed(lv['gif_level'], roll),
+                'emoji_max': levels.emoji_cap(lv['emoji_level']), 'checkins_per_day_cap': self.checkin_cap(key)}
 
     def maybe_intro(self, key):
         """Not introduced yet: put ONE intro_due event first (no name; the host writes the text)."""
@@ -208,11 +257,129 @@ class Assistant:
         st.update_state(lambda s: s.__setitem__('intro_requested', True))
         return True
 
+    # ---- day rules, texts and the shared check-in queue (0.6.0) ----
+    def day_allowed(self, key, now=None):
+        """False on a weekday not in checkin_days (empty = every day) or on a closed date / range (for example college closed)."""
+        c, now = self.cfg[key], now or self.now()
+        if c['checkin_days'] and DAYS[now.weekday()] not in c['checkin_days']:
+            return False
+        d = now.date().isoformat()
+        for r in c['closed_dates']:
+            a, _, b = r.partition('..')
+            if a <= d <= (b or a):
+                return False
+        return True
+
+    def pick_text(self, key, now=None):
+        """A check-in text for today's weekday (entries 'tue|text' or '*|text'; the weekday ones win). '' when none."""
+        c, now = self.cfg[key], now or self.now()
+        wd = DAYS[now.weekday()]
+        mine = [t.partition('|')[2] for t in c['checkin_texts'] if t.startswith(wd + '|')]
+        pool = mine or [t.partition('|')[2] for t in c['checkin_texts'] if t.startswith('*|')]
+        if not pool:
+            return ''
+        return pool[int(self.clock()) // 60 % len(pool)]   # rotates by minute: stable inside a tick, no random needed
+
+    def queue_checkin(self, key, planned, reason, slot=None):
+        """Queue the checkin_due event. With checkin_texts the event carries a suggested text; with checkin_send AND live the add-on sends it itself (sent: true)."""
+        st = self.stores[key]
+        ev = {'type': 'checkin_due', 'planned': planned, 'reason': reason}
+        if slot:
+            ev['slot'] = slot
+        text = self.pick_text(key)
+        if text:
+            ev['text'] = text
+            ev['sent'] = False
+            if self.cfg[key]['checkin_send']:
+                if not self.is_live(key):
+                    st.log_outbox({'kind': 'checkin', 'chars': len(text), 'mode': 'dry'})
+                    self.log('persona %s: [DRY] would send check-in (%d chars)' % (key, len(text)))
+                elif key in self.discord:
+                    try:
+                        ok = self.discord[key].send(self._channel(key), text, None)
+                    except DiscordError as e:
+                        ok = False
+                        self.log('persona %s: check-in send failed (%s)' % (key, e))
+                    st.log_outbox({'kind': 'checkin', 'chars': len(text), 'mode': 'live', 'ok': ok})
+                    ev['sent'] = bool(ok)
+        st.append_event(ev)
+
+    # ---- usage auto-reply (rows 11 and 21) ----
+    def usage_out(self):
+        """(is_out, reset datetime or None). Bad or missing sensors (or no HA) = not out."""
+        if self.ha is None:
+            return False, None
+        num = lambda e: self._num_state(e)
+        try:
+            sv, wv = num(USAGE_SENSORS['session']), num(USAGE_SENSORS['week'])
+        except Exception:
+            return False, None
+        so, wo = sv is not None and sv >= USAGE_OUT_AT, wv is not None and wv >= USAGE_OUT_AT
+        if not (so or wo):
+            return False, None
+        times = []
+        for flag, ent in ((so, USAGE_SENSORS['session_reset']), (wo, USAGE_SENSORS['week_reset'])):
+            if flag:
+                try:
+                    v = (self.ha.state(ent) or {}).get('state')
+                    d = datetime.datetime.fromisoformat(str(v).replace('Z', '+00:00'))
+                    times.append(d if d.tzinfo else d.replace(tzinfo=datetime.timezone.utc))
+                except Exception:
+                    pass
+        return True, (max(times) if times else None)
+
+    def _num_state(self, ent):
+        try:
+            return float((self.ha.state(ent) or {}).get('state'))
+        except (TypeError, ValueError):
+            return None
+
+    def usage_reply_text(self, key, reset):
+        c = self.cfg[key]
+        if not c['usage_text']:
+            return ''
+        if reset is None:
+            return c['usage_text_notime'] or c['usage_text'].replace(' until {t}', '').replace('{t}', 'it resets')
+        loc = reset.astimezone(self.tz) if self.tz else reset
+        far = (reset.timestamp() - self.clock()) > USAGE_FAR_H * 3600
+        return c['usage_text'].replace('{t}', loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M'))
+
+    def usage_autoreply(self, key, n_new):
+        """The person wrote n_new messages and Claude usage is out: ONE fallback reply per USAGE_MIN_GAP_S. -> True if sent (or dry-logged)."""
+        c, st = self.cfg[key], self.stores[key]
+        if n_new <= 0 or not c['usage_text'] or os.path.exists(os.path.join(os.environ.get('IHP_DATA', '/data'), 'STOP_AUTOREPLY')):
+            return False
+        out, reset = self.usage_out()
+        if not out:
+            return False
+        if self.clock() - float(st.state().get('usage_reply_ts') or 0) < USAGE_MIN_GAP_S:
+            return False
+        text = self.usage_reply_text(key, reset)
+        if not text:
+            return False
+        if not self.is_live(key) or key not in self.discord:
+            st.log_outbox({'kind': 'usage_reply', 'chars': len(text), 'mode': 'dry'})
+            self.log('persona %s: [DRY] would send usage auto-reply (%d chars)' % (key, len(text)))
+            return True   # dry never touches the gap clock, like the host script
+        try:
+            ok = self.discord[key].send(self._channel(key), text, None)
+        except DiscordError as e:
+            self.log('persona %s: usage reply failed (%s)' % (key, e)); return False
+        st.log_outbox({'kind': 'usage_reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
+        if ok:
+            st.update_state(lambda s: s.__setitem__('usage_reply_ts', self.clock()))
+            self.log('persona %s: usage auto-reply sent' % key)
+        return bool(ok)
+
     def tick_checkins(self, key):
         """Queue checkin_due events whose time just passed (within CHECKIN_WINDOW_MIN), outside quiet hours, under max_per_day. -> list of times fired."""
         c, st, now = self.cfg[key], self.stores[key], self.now()
         day, nm = now.strftime('%Y-%m-%d'), now.hour * 60 + now.minute
         fired = []
+        if not self.day_allowed(key, now):
+            return fired   # not a check-in day, or a closed date
+        if self.checkin_cap(key) <= 0:
+            return fired   # checkin_level 0 = never start a conversation
         def done_for(s):
             cd = s.setdefault('checkins_done', {})
             if cd.get('day') != day:
@@ -226,12 +393,12 @@ class Assistant:
                 continue
             if delta > CHECKIN_WINDOW_MIN:
                 st.update_state(lambda s, t=t: done_for(s).append(t)); continue   # missed (add-on was off): drop, never fire late
-            skip = in_quiet(nm, c['quiet_start'], c['quiet_end']) or self.out_today(key) >= c['max_per_day']
+            skip = in_quiet(nm, c['quiet_start'], c['quiet_end']) or self.out_today(key) >= self.checkin_cap(key)
             st.update_state(lambda s, t=t: done_for(s).append(t))
             if skip:
                 continue
             self.maybe_intro(key)
-            st.append_event({'type': 'checkin_due', 'slot': t, 'planned': t, 'reason': 'fixed'})
+            self.queue_checkin(key, t, 'fixed', slot=t)
             self._count_out(key, 'checkin')
             self._note_fired(key, t)
             fired.append(t)
@@ -412,7 +579,7 @@ class Assistant:
         c = self.cfg[key]
         if in_quiet(nm, c['quiet_start'], c['quiet_end']):
             return 'quiet hours'
-        if self.out_today(key) >= c['max_per_day']:
+        if self.out_today(key) >= self.checkin_cap(key):
             return 'max per day'
         age = self.minutes_since_message(key)
         if age is not None and age < c['quiet_if_messaged_h'] * 60:
@@ -428,7 +595,7 @@ class Assistant:
         out_ts = self.stores[key].last_outbox_ts(('reply', 'ask'))
         if sent is not None and sent < 360 and (got is None or out_ts > got):
             return 'last message is unanswered'
-        gap = c['min_gap_h'] * 60
+        gap = c['min_gap_h'] * 60 * levels.checkin_gap_factor(c['levels']['checkin_level'])
         if any(abs(nm - to_min(t)) < gap for t in self._fired_times(key)):
             return 'too soon after the last check-in'
         if c['presence_entity'] and self.ha is not None:
@@ -470,7 +637,7 @@ class Assistant:
             st.update_state(mark)
             if status == 'sent':
                 self.maybe_intro(key)
-                st.append_event({'type': 'checkin_due', 'planned': sl['time'], 'reason': sl['kind']})
+                self.queue_checkin(key, sl['time'], sl['kind'])
                 self._count_out(key, 'checkin')
                 self._note_fired(key, sl['time'])
                 fired.append(sl['time'])
@@ -572,6 +739,7 @@ class Assistant:
         text = body.get('text')
         if not isinstance(text, str) or not text.strip() or len(text) > TEXT_MAX:
             return 400, {'ok': False, 'why': 'text required (1..%d characters)' % TEXT_MAX}
+        text = levels.strip_emoji(text, self.lv(key)['emoji_level']) or text   # hard cap on emoji per reply
         rt = body.get('reply_to')
         rt = str(rt) if rt is not None and MARK_RE.match(str(rt)) else None
         st = self.stores[key]
@@ -875,7 +1043,7 @@ class Assistant:
             s = self.stores[k]
             out[k] = {'live': self.is_live(k), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
-                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan']}
+                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels'])}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
 
 
@@ -916,6 +1084,8 @@ def make_handler(app):
                 self.send_response(200); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
                 return
+            if method == 'GET' and act == 'behaviour' and len(parts) == 3:
+                return self._send(200, app.behaviour(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method != 'POST':

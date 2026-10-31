@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.5.1"
+version: "0.7.0"
 slug: ih_assistant
 image: "ghcr.io/jarvichi/{arch}-ih_assistant"
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
@@ -29,6 +29,10 @@ schema:
   timezone: str
   facts_url: str?
   facts_key: password?
+  usage_sensor_session: str?
+  usage_sensor_week: str?
+  usage_sensor_session_reset: str?
+  usage_sensor_week_reset: str?
   personas:
     - key: str
       user_id: str
@@ -56,3 +60,25 @@ schema:
       meal_fact: str?
       presence_entity: str?
       quiet_if_messaged_h: float?
+      checkin_days:
+        - str?
+      closed_dates:
+        - str?
+      checkin_texts:
+        - str?
+      checkin_send: bool?
+      usage_text: str?
+      usage_text_notime: str?
+      emoji_level: int(0,10)?
+      gif_level: int(0,10)?
+      checkin_level: int(0,10)?
+      humour_level: int(0,10)?
+      formality_level: int(0,10)?
+      verbosity_level: int(0,10)?
+      banter_level: int(0,10)?
+      reminders_level: int(0,10)?
+      funny_level: int(0,10)?
+      sarcastic_level: int(0,10)?
+      warm_level: int(0,10)?
+      blunt_level: int(0,10)?
+      fixed_rule: str?

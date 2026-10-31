@@ -63,6 +63,9 @@ It only touches add-ons from its own repository. A `register_key` is generated o
 
 Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of `app/catalogue.json` (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
 
+### Prebuilt image (0.9.1)
+Each add-on card shows "Prebuilt image: yes (tag X)" or "no (built on the Pi)". The answer comes from `app/catalogue.json` (`image: true/false`, written by the export from `tools/prebuilt.txt`); it says the published repo offers a ready image, not that this install has pulled it. The tag is the catalogue version.
+
 ### Usage (0.8.0)
 
 The page tab **Usage** and the line "Used: N today (M failed), last HH:MM" on each Add-ons card show which add-ons are really being used. The background refresher reads the recent log of each installed add-on every 5 minutes and counts invocation lines (`request id=` for `ih_ai_layer`, `ask id=` for the AI providers, `invoke id=` for jobs, games, cooking, discord and the orchestrator itself, and any line with `ok=True` / `ok=False` for other add-ons). The formats are in the table `USAGE_FORMATS` in `app/manager.py`; add a row for a new one.

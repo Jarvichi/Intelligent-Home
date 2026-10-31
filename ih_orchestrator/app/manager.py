@@ -276,7 +276,7 @@ class Manager:
                  "mem_pct": None, "full": (prefix + "_" + s) if i else None, "seen": seen.get(s), "missing_settings": len(settings[s].get("missing") or []) if s in settings else None,
                  "needs": [{"slug": n, "status": dep_status(n, states)} for n in needs.get(s, [])],
                  "needed_by": [{"slug": n, "status": dep_status(n, states)} for n in by.get(s, [])],
-                 "can_act": s != "ih_orchestrator", "used": self.used(s) if i else None}
+                 "image": bool(c.get("image")), "can_act": s != "ih_orchestrator", "used": self.used(s) if i else None}
             if i:
                 self._live(prefix + "_" + s, r)
             out.append(r)
@@ -606,9 +606,10 @@ function cfgLink(full,label){return btn(label||'Open config',function(){goHA([''
 function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
  fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
 function usedTxt(u){if(!u)return null;return u.today+' today'+(u.failed_today?' ('+u.failed_today+' failed)':'')+', last '+(u.last?(u.last_day==u.today_day||!u.last_day?u.last:u.last+' on '+u.last_day.slice(5)):'never seen')}
+function imgTxt(a){return a.image?'yes (tag '+(a.latest||a.version||'?')+')':'no (built on the Pi)'}
 function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
  var k=E('div',null,'card s-'+(a.state||'none'));k.appendChild(E('h3',a.slug));k.appendChild(E('div',a.description,'d'));
- kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['State',a.state||'-',a.state=='started'?'g':'r'],
+ kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['Prebuilt image',imgTxt(a),a.image?'g':''],['State',a.state||'-',a.state=='started'?'g':'r'],
   ['CPU',a.cpu==null?null:a.cpu+' %'],['Mem',a.mem_mb==null?null:a.mem_mb+' MB'],['Seen',age(a.seen)],
   ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',usedTxt(a.used),a.used&&a.used.failed_today?'o':'']]);
  if(a.can_act){var b=E('div',null,'btns');
@@ -619,7 +620,7 @@ function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){
  else if(a.full){var b2=E('div',null,'btns');b2.appendChild(cfgLink(a.full));k.appendChild(b2)}
  c.appendChild(k)});m.appendChild(c)}
 function tabInstall(m,d){var c=E('div',null,'cards'),n=0;d.addons.filter(function(a){return !a.installed&&a.can_act}).forEach(function(a){n++;
- var k=E('div',null,'card');k.appendChild(E('h3',a.name+' ('+a.slug+')'));k.appendChild(E('div',a.description));
+ var k=E('div',null,'card');k.appendChild(E('h3',a.name+' ('+a.slug+')'));k.appendChild(E('div',a.description));kv(k,[['Prebuilt image',imgTxt(a),a.image?'g':'']]);
  var w=E('div',null,'kv');a.needs.forEach(function(x){w.appendChild(E('span','needs '+x.slug+': '+(x.status=='ok'?'ok':'missing ('+x.status+')'),x.status=='ok'?'g':'r'))});if(!a.needs.length)w.appendChild(E('span','needs nothing','d'));k.appendChild(w);
  var b=E('div',null,'btns');b.appendChild(btn('Install '+(a.latest||''),function(){act('install',a.slug)}));k.appendChild(b);c.appendChild(k)});
  m.appendChild(n?c:E('p','Everything in the catalogue is installed.'))}

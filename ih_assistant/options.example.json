@@ -12,12 +12,19 @@
       "quiet_start": "22:00",
       "quiet_end": "08:00",
       "max_per_day": 4,
-      "checkins": ["09:30", "18:00"],
+      "checkins": [
+        "09:30",
+        "18:00"
+      ],
       "can_tell": [],
       "checkin_plan": false,
       "checkins_per_day": "2-3",
-      "busy_windows": ["mon-fri 09:45-17:45"],
-      "free_windows": ["mon-fri 12:00-13:30"],
+      "busy_windows": [
+        "mon-fri 09:45-17:45"
+      ],
+      "free_windows": [
+        "mon-fri 12:00-13:30"
+      ],
       "wake_start": "09:00",
       "wake_end": "21:30",
       "min_gap_h": 3,
@@ -26,7 +33,33 @@
       "meal_fact": "",
       "presence_entity": "",
       "quiet_if_messaged_h": 2,
-      "live": false
+      "live": false,
+      "checkin_days": [
+        "tue",
+        "fri"
+      ],
+      "closed_dates": [
+        "2026-12-21..2027-01-04"
+      ],
+      "checkin_texts": [
+        "tue|How was your day?",
+        "*|Hello"
+      ],
+      "checkin_send": false,
+      "usage_text": "Sorry, I cannot answer right now: out of usage until {t}. I have not lost your message.",
+      "usage_text_notime": "Sorry, I cannot answer right now: out of usage until it resets. I have not lost your message.",
+      "emoji_level": 2,
+      "gif_level": 2,
+      "checkin_level": 5,
+      "humour_level": 5,
+      "formality_level": 4,
+      "verbosity_level": 4,
+      "banter_level": 3,
+      "reminders_level": 5,
+   "funny_level": 5,
+   "sarcastic_level": 2,
+   "warm_level": 6,
+   "blunt_level": 4
     }
   ]
 }

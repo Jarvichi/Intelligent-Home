@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.1] - 2026-10-31
+
+### Added
+- Add-on manager: a "Prebuilt image" line on every add-on card (Add-ons and Install tabs): "yes (tag X)" when the slug is listed in the export's `tools/prebuilt.txt`, otherwise "no (built on the Pi)". The catalogue generator writes `image: true/false` per entry, so no new permissions or Supervisor calls are used.
+
 ## [0.9.0] - 2026-10-29
 
 ### Added
