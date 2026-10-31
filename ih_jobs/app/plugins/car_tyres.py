@@ -8,7 +8,11 @@ Every house value comes from settings (JSON in plugins[].settings):
   target_entity         same for the target pressure, e.g. sensor.car_tire_pressure_target_{pos}   (both sensors in kPa)
   positions             {"front_left": "front left", ...}: key = {pos} in the entity ids, value = words used in the message
   odometer_entity       sensor that changes while the car is driven
-  picture_url           optional URL of a picture (PNG) showing which tyres are low; fetched fresh at send time. NOTE: the old script re-rendered it first.
+  picture_url           optional URL of a picture (PNG) fetched fresh at send time. Empty (default) = the plugin DRAWS the picture itself (_tyrepic.py, pure Python, no Pillow/browser):
+                        top-down car, the four pressures in PSI (amber below 90% of target, red below 80%), 'TARGET n PSI' under it. A failed fetch also falls back to the drawn one.
+  tyre_image_url        optional URL of a transparent top-down car PNG (front at top, e.g. the one a dashboard card uses). When set, the drawn picture puts the four pressures
+                        and the target line on THIS picture instead of the line-art car. A failed fetch or an undecodable file falls back to the line-art car. Empty (default) = line-art car.
+  draw_picture          true (default): draw as above; false: send no picture unless picture_url is set
   recipient_name, car_name, signoff   words used in the message ("Hi <recipient_name>. The <car_name>'s tyres ...", "- <signoff>")
   window_start, window_end   hours of the day when it may send (default 8 and 20)
   low_fraction (0.9), parked_hours (2), cooldown_days (3), drop_psi (2)
@@ -17,12 +21,14 @@ State (plugin state 'tyres'): {"last_sent", "next_ok", "last_psi": {pos: psi}, "
 Dry: logs the message it would send; no DM, no picture fetch, no state change."""
 import datetime as dt
 
+from . import _tyrepic
+
 NAME = 'car_tyres'
 SCHEDULE = {'kind': 'every', 'minutes': 10}
 PSI = 0.1450377   # kPa -> PSI
 DEFAULTS = {'user_id': '', 'token_option': 'discord_token', 'pressure_entity': '', 'target_entity': '', 'odometer_entity': '',
             'positions': {'front_left': 'front left', 'front_right': 'front right', 'rear_left': 'rear left', 'rear_right': 'rear right'},
-            'picture_url': '', 'recipient_name': '', 'car_name': 'car', 'signoff': '', 'window_start': 8, 'window_end': 20,
+            'picture_url': '', 'tyre_image_url': '', 'draw_picture': True, 'recipient_name': '', 'car_name': 'car', 'signoff': '', 'window_start': 8, 'window_end': 20,
             'low_fraction': 0.9, 'parked_hours': 2, 'cooldown_days': 3, 'drop_psi': 2, 'ignore_gates': False}
 
 
@@ -37,6 +43,13 @@ def find_low(s, readings):
         if kpa < s['low_fraction'] * tk:
             low[k] = (round(kpa * PSI), round(tk * PSI))
     return low, now_psi
+
+
+def draw(s, readings, photo=None):
+    """PNG bytes of the car with the pressures (PSI) from readings {pos: (kpa, target_kpa)}. photo = PNG bytes of a car picture to use instead of the line art."""
+    psi = {k: kpa * PSI for k, (kpa, tk) in readings.items()}
+    tgt = {k: tk * PSI for k, (kpa, tk) in readings.items()}
+    return _tyrepic.render_png(psi, next(iter(tgt.values())) if tgt else None, tgt, photo)
 
 
 def message(s, low):
@@ -82,9 +95,24 @@ def run(ctx):
         try:
             file = ('tyres.png', ctx.http.get_bytes(s['picture_url'], timeout=30))
         except Exception as e:
-            ctx.log('picture fetch failed (%s): sending text only' % type(e).__name__)
+            ctx.log('picture fetch failed (%s): drawing it instead' % type(e).__name__)
     elif s['picture_url']:
         ctx.log('[DRY] would attach the picture from picture_url')
+    if file is None and s['draw_picture'] and not (ctx.dry and s['picture_url']):
+        photo = None
+        if s['tyre_image_url'] and not ctx.dry:
+            try:
+                photo = ctx.http.get_bytes(s['tyre_image_url'], timeout=20)
+            except Exception as e:
+                ctx.log('tyre image fetch failed (%s): drawing the line-art car' % type(e).__name__)
+        elif s['tyre_image_url']:
+            ctx.log('[DRY] would put the pressures on the picture from tyre_image_url')
+        try:
+            file = ('tyres.png', draw(s, readings, photo))
+            if ctx.dry:
+                ctx.log('[DRY] would attach a drawn picture (%d bytes)' % len(file[1]))
+        except Exception as e:
+            ctx.log('could not draw the picture (%s): sending text only' % type(e).__name__)
     if not ctx.discord.dm(s['user_id'], text, token_option=s['token_option'], file=file):
         return True   # dry (logged by the helper)
     st.update(last_sent=now.isoformat(), next_ok=(now + dt.timedelta(days=int(s['cooldown_days']))).isoformat(), last_psi=now_psi)

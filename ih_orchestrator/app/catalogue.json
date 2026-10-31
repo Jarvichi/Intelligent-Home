@@ -26,7 +26,8 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.13.1"
+  "version": "0.14.1",
+  "image": true
  },
  {
   "name": "Intelligent Home - Jobs - Backup",

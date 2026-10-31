@@ -197,8 +197,15 @@ class Box:
         self.ctx, self.dry, self.folder = ctx, ctx.dry, ctx.state.folder
         self.mem = _MEM.setdefault(self.folder, {})
 
+    # 31 Oct 2026: the in-progress sessions are kept on disk even in a dry run (file sessions_dry.json), so an add-on restart mid-morning
+    # does not lose the buses already seen (30 Oct 07:47 restart turned a 'kept' morning into a false 'no_info' mismatch). Outcomes stay in memory.
+    def _dry_file(self, name):
+        return 'sessions_dry' if name == 'sessions' else None
+
     def load(self, name, default=None):
         d = {} if default is None else default
+        if self.dry and self._dry_file(name):
+            return self.ctx.state.load(self._dry_file(name), d)
         if self.dry:
             if name in self.mem:
                 return self.mem[name]
@@ -206,7 +213,9 @@ class Box:
         return self.ctx.state.load(name, d)
 
     def save(self, name, obj):
-        if self.dry:
+        if self.dry and self._dry_file(name):
+            self.ctx.state.save(self._dry_file(name), obj)
+        elif self.dry:
             self.mem[name] = obj
         else:
             self.ctx.state.save(name, obj)

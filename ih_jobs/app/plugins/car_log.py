@@ -14,7 +14,9 @@ Every house value comes from settings (JSON in plugins[].settings):
   stall_min        default 60
   offpeak_rate     a rate below this counts as off-peak (default 0.20)
   minutes          run every N minutes (default 10)
-  publish_entity   optional: write a summary (month and week cost, last sessions) to this entity id via the HA state API (live only)
+  publish_entity   optional: write a summary (month and week cost, last sessions) to this entity id via the HA state API (live only). State = month-to-date cost;
+                   attributes rows, last, n, month_label, week (same as the old command_line sensor) + unit GBP, icon, friendly_name.
+                   Written on every live run (10 min). SWAP: set publish_entity to the old sensor's entity id, remove the old command_line sensor, set live.
 State (plugin state 'charges'): {"sessions": [...], "cur": null or {...}, "last_soc": number}. Same shape as the old script's json, so it can be copied in.
 Dry: reads the sensors and logs what it would record; saves nothing."""
 import datetime as dt
@@ -139,5 +141,6 @@ def run(ctx):
     ctx.state.save('charges', d)
     if s['publish_entity']:
         p = summary(d, t)
+        p.update({'unit_of_measurement': 'GBP', 'icon': 'mdi:ev-station', 'friendly_name': 'MINI charging history'})   # the old command_line sensor had these
         ctx.ha.post('states/' + s['publish_entity'], {'state': str(p['mtd']), 'attributes': p})
     return True

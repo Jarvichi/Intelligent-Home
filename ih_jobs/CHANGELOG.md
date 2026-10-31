@@ -3,6 +3,22 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.14.1] - 2026-10-31
+### Fixed
+- `photo_albums` waits out a Home Assistant restart inside the pass (one "not reachable" line, no error).
+- `brain_inbox` treats 429, 5xx and network errors as retry (keeps channel and cursor); refusals log the HTTP code.
+- `bus_watch` dry mode keeps in-progress sessions across an add-on restart.
+### Added
+- `car_tyres` draws its own tyre picture (setting `draw_picture`, default true).
+- `car_tyres` setting `tyre_image_url`: use a transparent top-down car PNG (fetched at send time) under the four pressure labels instead of the drawn line-art car. Pure Python PNG decode (all colour types, bit depths 1-16, all filters); any failure falls back to the drawn car.
+
+## [0.14.0] - 2026-10-31
+### Added
+- Plugin `speed_measure` (every 6 hours): download speed from 4 parallel downloads, published as a sensor (port of the speedtest shell script).
+- Plugin `brain_stats` (hourly): brain size and complexity numbers plus search timing, published as a sensor. Reads the brain folder in share, read-only.
+### Changed
+- `car_log` `publish_entity` now also writes the unit (GBP), icon and name, so it can replace the old command-line sensor.
+
 ## [0.13.1] - 2026-10-30
 ### Changed
 - Plugin `receipt_photos` now needs no paid key. New setting `mode` (default `handoff`): receipt photos from the shopping channel are saved to `/share/receipts/inbox/<message id>/<n>.<ext>` and the acknowledgement is posted; the host reads them on the owner's own Claude subscription, ticks the open items and posts the summary. Dry logs `[DRY] would save receipt N photo(s) B bytes` and writes nothing. The paid API mode is kept (`mode` api, only works when the option `anthropic_key` is set). New setting `inbox_dir`.

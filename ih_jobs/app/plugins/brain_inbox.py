@@ -16,6 +16,7 @@ The first pass only remembers the newest message (older messages are never filed
 Dry: reads the channel (GET only), downloads nothing, writes no file, adds no reaction; logs '[DRY] would file inbox/<name>.md (N bytes), K attachment(s) [sizes]'."""
 import os
 import re
+import urllib.error
 from urllib.parse import quote
 
 import ihlib.discord
@@ -131,9 +132,15 @@ def run(ctx):
         last = (st.get('cursor') or {}).get(key)
         msgs = _api(ctx, token, 'GET', '/channels/%s/messages?limit=20%s' % (chan, '&after=%s' % last if last else '')) or []
     except Exception as e:
+        # 31 Oct 2026: a rate limit (429), a Discord outage (5xx) or a network blip is not a fault: keep the channel and the cursor, try again next pass.
+        # Only a refusal (401/403/404 ...) forgets the channel and counts as an error, and the log now names the HTTP code.
+        code = e.code if isinstance(e, urllib.error.HTTPError) else None
+        if code in (429,) or (code is not None and code >= 500) or (code is None and isinstance(e, (OSError, TimeoutError))):
+            ctx.log('Discord not reachable just now (%s%s), will retry' % (type(e).__name__, ' %s' % code if code else ''))
+            return True
         st.pop('chan', None)
         ctx.state.save('state', st)
-        ctx.log('could not read the channel (%s)' % type(e).__name__)
+        ctx.log('could not read the channel (%s%s)' % (type(e).__name__, ' %s' % code if code else ''))
         return False
     cur = dict(st.get('cursor') or {})
     if last is None:

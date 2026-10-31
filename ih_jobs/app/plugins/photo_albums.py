@@ -26,6 +26,7 @@ import shutil
 import time
 
 from . import _photolib as L
+from ihlib.ha import HAError
 
 NAME = 'photo_albums'
 SCHEDULE = {'kind': 'service', 'seconds': 2}
@@ -33,6 +34,7 @@ DEFAULTS = {'seconds': 2, 'listen_s': 600, 'periodic_s': 60, 'settle_s': 20, 'ma
             'media_out': '/media/albums', 'share_out': '', 'skip_name_regex': L.DEFAULT_SKIP, 'big_px': 1600, 'thumb_px': 400, 'jpeg_quality': 82,
             'share_uid': 1000, 'share_gid': 1000, 'auto_family_seed': [], 'seed_registry': ''}
 MINE = 'my-albums'
+RETRY_HA_S = 5
 _STARTED = set()   # state folders whose first 'refresh' has run in this process
 
 
@@ -470,5 +472,19 @@ def run(ctx):
             if not ctx.dry:
                 post_state(env, reg, None, False)
     ctx.log('listening for %s (%s)' % (ctx.settings['event_type'], 'dry: nothing is written' if ctx.dry else 'live'))
-    ctx.ha.subscribe_events(ctx.settings['event_type'], on_event, max_seconds=L.num_or(ctx.settings['listen_s'], 600), on_idle=on_idle)
-    return True
+    # 31 Oct 2026: Home Assistant restarting (30 Oct 07:42, 31 Oct 07:20) made subscribe_events raise (refused / connection refused) on every pass,
+    # about 50 'errors'. Waiting for HA to come back is normal: retry quietly inside this pass (one log line), give up only when the pass time is up.
+    end = time.time() + L.num_or(ctx.settings['listen_s'], 600)
+    waited = False
+    while True:
+        left = end - time.time()
+        if left <= 0:
+            return True
+        try:
+            ctx.ha.subscribe_events(ctx.settings['event_type'], on_event, max_seconds=left, on_idle=on_idle)
+            return True
+        except (HAError, OSError) as e:
+            if not waited:
+                ctx.log('Home Assistant not reachable (%s), waiting for it to come back' % type(e).__name__)
+                waited = True
+            time.sleep(min(RETRY_HA_S, max(0.0, end - time.time())))

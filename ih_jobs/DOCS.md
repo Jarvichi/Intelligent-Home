@@ -126,6 +126,7 @@ Every house value comes from settings (JSON in plugins[].settings):
   positions             {"front_left": "front left", ...}: key = {pos} in the entity ids, value = words used in the message
   odometer_entity       sensor that changes while the car is driven
   picture_url           optional URL of a picture (PNG) showing which tyres are low; fetched fresh at send time. NOTE: the old script re-rendered it first.
+  tyre_image_url        optional URL of a transparent top-down car PNG (front at top). When set, the picture the plugin draws shows the four pressures and the target line on this image instead of the line-art car (pure Python PNG decode, no Pillow). A failed fetch or undecodable file falls back to the line-art car. Default empty.
   recipient_name, car_name, signoff   words used in the message ("Hi <recipient_name>. The <car_name>'s tyres ...", "- <signoff>")
   window_start, window_end   hours of the day when it may send (default 8 and 20)
   low_fraction (0.9), parked_hours (2), cooldown_days (3), drop_psi (2)
@@ -345,3 +346,12 @@ Default `mode` is `handoff` (no paid key): live, the photos of one receipt are s
 Every 5 minutes (setting `minutes`): reads the shopping channel for photos posted by an allowed user. Photos from messages within 10 minutes of the first one are one receipt; it is read when the newest photo is 2 minutes old. Live: the photos and the open shopping-list items go to the Anthropic Messages API (option `anthropic_key`, setting `model`); the answer is treated as data: only names that are really open on the list are ticked (exactly as written), then a summary is posted in the channel (shop, date, total, ticked, still on the list, up to 4 notes). A receipt that cannot be read gets one apology and is not retried. A short "Got the receipt (N photos)." is posted when the photos are first seen. At most `max_per_day` (10) AI reads a day; photos over `max_photo_bytes` (5000000, the API limit) are skipped.
 Settings: `channel` (shopping), `allowed_users` (list of Discord user ids), `list_entity` (todo.shopping_list), `token_option` (discord_token), `key_option` (anthropic_key), `model`, `merge_s` (600), `settle_s` (120), `max_photos` (20), `max_photo_bytes`, `max_per_day`, `max_age_s` (72000: Discord photo links expire), `receipt_reply`.
 Dry (`live: false`): GET only on Discord, downloads the photos, makes NO AI call (a paid call the old host loop does not make twice), ticks and posts nothing. Logs `[DRY] would read receipt N photo(s) B bytes`. Dry and live keep separate cursors. The log never holds item names, shop names, totals or file names.
+
+##### Plugin `speed_measure` (0.14.0)
+Every 6 hours (setting `minutes`, 360): four parallel downloads of a 100 MB file (`url`, `streams`), each given `max_s` (20) seconds; each must be at least `min_bytes` (90000000) long or the whole run is ignored. Mbit/s = total bytes x 8 / slowest time, rounded down. Live, it writes the whole number to `publish_entity` (`sensor.internet_download_measured`) with unit Mbit/s, state_class measurement. Port of the host shell script. Dry: measures, logs `[DRY] measured N Mbit/s`, publishes nothing. Keeps no state. Swap: remove the old command_line sensor with the same entity id, then set live.
+
+##### Plugin `brain_stats` (0.14.0)
+Every hour (`minutes`, 60): counts the notes in `folder` (`/share/brain`, read-only) and times five fixed searches on its search index (`index_db`, `bench`). Live, it writes the note count to `publish_entity` (`sensor.brain_notes`) with attributes words, links, orphans, areas, density and search_ms. Same counting rules as the host script. Dry: logs the numbers, publishes nothing. Keeps no state. Swap: remove the old command_line sensor with the same entity id, then set live.
+
+##### Plugin `car_log` publish_entity (0.14.0)
+`publish_entity` now also writes unit GBP, icon and friendly name, so it can replace the old command_line sensor (set it to that sensor's entity id). Same attributes as before: rows, last, n, month_label, week.
