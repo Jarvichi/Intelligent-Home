@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.5.0"
+version: "0.6.0"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -14,7 +14,7 @@ homeassistant_api: true
 ports:
   8794/tcp: 8794
 ports_description:
-  8794/tcp: "Health and status (/healthz, /status)"
+  8794/tcp: "Health and status (/healthz, /status); library and game tool API (/library, /games/<id>/..., bearer admin_token)"
 options:
   log_payloads: false
   mode: "dry"
@@ -46,6 +46,11 @@ options:
   assistant_token: ""
   bungie_api_key: ""
   destiny_poll_s: 900
+  admin_token: ""
+  arc_data_dir: ""
+  destiny_reset_utc_hour: 17
+  todo_entity: "todo.claude_to_do"
+  todo_sync: true
 schema:
   log_payloads: bool?
   mode: list(dry|live)
@@ -85,5 +90,8 @@ schema:
   assistant_token: password?
   bungie_api_key: password
   destiny_poll_s: int(60,86400)
-
-
+  admin_token: password?
+  arc_data_dir: str?
+  destiny_reset_utc_hour: int(0,23)?
+  todo_entity: str?
+  todo_sync: bool?

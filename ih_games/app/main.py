@@ -6,11 +6,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import schedule_client, orchestrator
+import schedule_client, orchestrator, library as library_mod, played, todos, tools as tools_mod
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.4.0"
+VERSION = "0.6.0"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -55,6 +55,11 @@ def load_options(path=None):
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
         "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
         "log_payloads": o.get("log_payloads") is True,
+        "admin_token": str(o.get("admin_token") or "").strip(),
+        "arc_data_dir": str(o.get("arc_data_dir") or "").strip(),
+        "destiny_reset_utc_hour": int(o.get("destiny_reset_utc_hour") if o.get("destiny_reset_utc_hour") is not None else 17),
+        "todo_entity": str(o.get("todo_entity") or "todo.claude_to_do").strip(),
+        "todo_sync": o.get("todo_sync") is not False,
     }
 
 def _snip(s, n=200):
@@ -79,6 +84,93 @@ class Module:
         self.runs, self.errors, self.last, self.last_ok = collections.Counter(), collections.Counter(), {}, {}
         self.err_last, self.last_mode, self.last_trigger = {}, {}, {}
         self.sched, self.sched_reason = None, ""
+        self.tool_mods = tools_mod.all_tools()
+        self.library = library_mod.Library(self.data, self.tool_mods, opts.get("players", []))
+
+    def tool_ctx(self):
+        return tools_mod.ToolCtx(self.data, self.opts, opener=self._opener, log=self.log)
+
+    def tool_for(self, entry_or_name):
+        for t in self.tool_mods:
+            if t.NAME == entry_or_name or (isinstance(entry_or_name, dict) and t.matches(entry_or_name)):
+                return t
+        return None
+
+    def api_authorised(self, header):
+        t = self.opts.get("admin_token", "")
+        return bool(t) and hmac.compare_digest(str(header or ""), "Bearer " + t)
+
+    def todo_sync(self):
+        """Create the 'research a tracker' to-dos for games without a tool (live only; dry logs)."""
+        if not self.opts.get("todo_sync"):
+            return [], []
+        live, _ = self.live_mode()
+        ctx = common.Ctx(dry=not live, log=self.log, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
+        ctx.opts = dict(self.opts)
+        return todos.sync(self.library, ctx, entity=self.opts.get("todo_entity") or todos.ENTITY)
+
+    def api(self, method, path, query, body):
+        """The library API. Returns (code, object). Bearer admin_token is checked by the caller."""
+        lib, parts = self.library, [x for x in path.strip("/").split("/") if x]
+        who = lambda: lib.resolve_player((body or {}).get("player") or query.get("player"))
+        if parts == ["library"] and method == "GET":
+            pk = who()
+            if not pk:
+                return 400, {"ok": False, "why": "unknown player"}
+            lib.refresh()
+            return 200, {"ok": True, "player": pk, "games": lib.list(pk, query.get("hidden") == "1")}
+        if parts == ["library", "new-games-without-todo"] and method == "GET":
+            lib.refresh()
+            return 200, {"ok": True, "games": lib.games_without_todo()}
+        if parts == ["library", "sync-todos"] and method == "POST":
+            lib.refresh()
+            made, skipped = self.todo_sync()
+            return 200, {"ok": True, "created": made, "skipped": skipped, "mode": self.mode()}
+        if parts == ["library", "add"] and method == "POST":
+            pk = who()
+            if not pk or not (body or {}).get("title"):
+                return 400, {"ok": False, "why": "player and title required"}
+            e = lib.add(pk, body["title"], body.get("platform"), body.get("tools"))
+            made, _ = [], []
+            try:
+                made, _ = self.todo_sync()
+            except Exception as ex:
+                self.log("todo sync failed: " + type(ex).__name__)
+            return 200, {"ok": True, "game": lib.get(pk, e["id"]), "todo_created": made}
+        if parts == ["library", "hide"] and method == "POST":
+            pk = who()
+            e = pk and lib.hide(pk, str((body or {}).get("id") or (body or {}).get("title") or ""), (body or {}).get("hidden", True) is not False)
+            return (200, {"ok": True, "game": e}) if e else (404, {"ok": False, "why": "not found"})
+        if len(parts) == 3 and parts[0] == "games":
+            pk = who()
+            if not pk:
+                return 400, {"ok": False, "why": "unknown player"}
+            lib.refresh()
+            entry = lib.find(pk, parts[1])
+            tool = self.tool_for(entry or parts[1])
+            if not entry and not tool:
+                return 404, {"ok": False, "why": "game not in library"}
+            if not entry:
+                entry = {"title": parts[1], "platform": None, "tools": [tool.NAME]}
+            tc, what = self.tool_ctx(), parts[2]
+            if what == "summary" and method == "GET":
+                pl = played.played(self.data, pk, entry)
+                text = played.text(entry, pl)
+                if tool:
+                    text += " " + tool.summary(tc, pk)
+                return 200, {"ok": True, "game": entry["title"], "played": pl, "text": text, "tool": tool.NAME if tool else None}
+            if what == "upcoming" and method == "GET":
+                return 200, {"ok": True, "game": entry["title"], "upcoming": tool.upcoming(tc, pk) if tool else []}
+            if what == "cmd" and method == "POST":
+                if not tool:
+                    return 404, {"ok": False, "why": "no tool for this game yet"}
+                name = str((body or {}).get("cmd") or "").strip().lower()
+                fn = tool.commands.get(name)
+                if not fn:
+                    return 404, {"ok": False, "why": "unknown command", "commands": sorted(tool.commands)}
+                args = [str(a) for a in ((body or {}).get("args") or [])]
+                return 200, {"ok": True, "text": fn(tc, pk, args)}
+        return 404, {"ok": False, "why": "no such endpoint"}
 
     def live_mode(self):
         if self.opts.get("mode") != "live":
@@ -111,6 +203,8 @@ class Module:
                         if p_name in PROVIDERS:
                             for player in self.opts.get("players", []):
                                 PROVIDERS[p_name].run(ctx, player)
+                    self.library.refresh()
+                    self.todo_sync()
                 elif name == "orchestrate":
                     orchestrator.run(ctx)
                 
@@ -300,16 +394,48 @@ def make_handler(mod):
                 else:
                     code, body = 200, json.dumps(mod.outbox_pending()).encode()
                 mod.invoke_line("-", "outbox_client", "outbox", 0, len(body), t0, code == 200, "-" if code == 200 else ("outbox_off" if code == 503 else "unauthorized"), "GET /outbox", body.decode("utf-8", "replace"))
+            elif p.startswith("/library") or p.startswith("/games"):
+                code, body = self.library_call("GET")
             else:
                 self.send_error(404)
                 return
             self.send_response(code)
-            self.send_header("Content-Type", "application/json" if p == "/status" else "text/plain")
+            self.send_header("Content-Type", "application/json" if (p == "/status" or p.startswith(("/library", "/games"))) else "text/plain")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
 
+        def library_call(self, method):
+            import urllib.parse
+            u = urllib.parse.urlparse(self.path)
+            q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+            if not mod.opts.get("admin_token"):
+                return 503, b'{"ok": false, "why": "api off: set admin_token"}'
+            if not mod.api_authorised(self.headers.get("Authorization")):
+                return 401, b'{"ok": false, "why": "bearer admin_token required"}'
+            body = {}
+            if method == "POST":
+                try:
+                    n = min(int(self.headers.get("Content-Length") or 0), 65536)
+                    body = json.loads(self.rfile.read(n) or b"{}")
+                except Exception:
+                    return 400, b'{"ok": false, "why": "bad body"}'
+            try:
+                code, obj = mod.api(method, u.path, q, body)
+            except Exception as e:
+                mod.log("api error: " + type(e).__name__)
+                code, obj = 500, {"ok": False, "why": "error"}
+            return code, json.dumps(obj).encode()
+
         def do_POST(self):
+            if self.path.split("?")[0].startswith("/library") or self.path.split("?")[0].startswith("/games"):
+                code, body = self.library_call("POST")
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if self.path.split("?")[0] != "/ack":
                 self.send_error(404)
                 return

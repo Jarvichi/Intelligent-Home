@@ -6,6 +6,22 @@ from zoneinfo import ZoneInfo
 
 NAME = "destiny"
 BASE = "https://www.bungie.net/Platform"
+RESET_UTC_HOUR = 17   # Bungie weekly reset, Tuesday 17:00 UTC. UNCONFIRMED: not verifiable from repo/fixtures.
+
+
+def last_weekly_reset(now):
+    """Most recent Tuesday RESET_UTC_HOUR:00 UTC at or before now (aware datetime)."""
+    u = now.astimezone(datetime.timezone.utc)
+    t = u.replace(hour=RESET_UTC_HOUR, minute=0, second=0, microsecond=0)
+    while t.weekday() != 1 or t > u:
+        t -= datetime.timedelta(days=1)
+    return t
+
+
+def reset_local_hhmm(now, tz):
+    return last_weekly_reset(now).astimezone(tz).strftime("%H:%M")
+
+
 CLASSES = {0: "Titan", 1: "Hunter", 2: "Warlock"}
 MODES = {2: "Story", 3: "Strike", 4: "Raid", 5: "Crucible (PvP)", 6: "Patrol", 7: "Story", 10: "Control", 12: "Clash", 16: "Nightfall",
          18: "Strike", 19: "Iron Banner", 31: "Supremacy", 32: "Private match", 37: "Survival", 38: "Countdown", 39: "Trials", 46: "Nightfall",
@@ -112,17 +128,17 @@ def run(ctx, player, now=None):
                            "text": summarise(pend)})
             st["pending"] = []
             st.setdefault("sessions", []).append({"when": pend_when, "text": events[-1]["text"]})
-    # weekly reset: Tuesday 17:00 UK, once per ISO week (opt in per player with destiny_reset)
+    # weekly reset: Tuesday 17:00 UTC (Bungie; UNCONFIRMED from repo, documented constant), shown in UK time, once per reset
     try:
         tz = ZoneInfo(ctx.opts.get("timezone") or "Europe/London")
     except Exception:
         tz = datetime.timezone.utc
-    local = now.astimezone(tz)
-    tag = local.strftime("%G-%V")
-    if player.get("destiny_reset") and local.weekday() == 1 and local.hour >= 17 and st.get("reset_sent") != tag:
+    last = last_weekly_reset(now)
+    tag = last.strftime("%Y-%m-%d")
+    if player.get("destiny_reset") and now - last < datetime.timedelta(hours=24) and st.get("reset_sent") != tag:
         events.append({"time": now.astimezone().isoformat(timespec="seconds"), "kind": "reset", "tier": None, "count": 0,
                        "game": "Destiny 2", "level_up": False, "level": None, "big": False,
-                       "text": "Destiny weekly reset has just happened (Tuesday 17:00): new weeklies and rotators are up."})
+                       "text": "Destiny weekly reset has just happened (Tuesday %s UK time): new weeklies and rotators are up." % reset_local_hhmm(now, tz)})
         st["reset_sent"] = tag
     playing = bool(st.get("pending"))   # activity in the last 30 min: the session is still open
     st["polled"] = now.isoformat()

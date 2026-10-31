@@ -3,6 +3,19 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-10-31
+
+### Fixed
+- Destiny weekly reset is Tuesday 17:00 UTC (not UK local) in the provider's `reset` event too; shown in UK time (18:00 in BST). Constant is documented as unconfirmed.
+
+### Added
+- Per-player game library (`/data/library.json`) built from the provider feeds, with manual add and hide.
+- HTTP API (bearer `admin_token`): `/library`, `/library/add|hide|sync-todos|new-games-without-todo`, `/games/<id>/summary|upcoming|cmd`.
+- Played summary per game from the feeds.
+- Pluggable game tools in `app/tools/` (auto-discovered, `_template.py` scaffold). Tools: `destiny` (local reset times, characters, power, milestones) and `arc_raiders` (need, maps, inv, state edited by command).
+- A new game without a tool or to-do creates a "research a tracker" to-do on `todo_entity` (live mode only, never duplicates).
+- Options `admin_token`, `arc_data_dir`, `destiny_reset_utc_hour`, `todo_entity`, `todo_sync`.
+
 ## [0.5.0] - 2026-10-31
 
 ### Added
