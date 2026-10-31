@@ -1,0 +1,95 @@
+name: build-images
+# Builds a prebuilt container image per add-on and arch and pushes it to ghcr.io/<owner>/<arch>-<slug>:<version>.
+# Runs when an add-on's `version:` in config.yaml changes on a push to main, or by hand (workflow_dispatch, slug or "all").
+# Uses only the built-in GITHUB_TOKEN (packages: write). No other secrets.
+on:
+  push:
+    branches: [main]
+    paths: ['*/config.yaml']
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Add-on slug (for example ih_games) or "all"'
+        required: true
+        default: 'ih_games'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      any: ${{ steps.m.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: m
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SLUG: ${{ github.event.inputs.slug }}
+        run: |
+          set -eu
+          slugs=""
+          for cfg in */config.yaml; do
+            d=$(dirname "$cfg")
+            ver() { sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -1; }
+            new=$(ver < "$cfg")
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              if [ "$INPUT_SLUG" = "all" ] || [ "$INPUT_SLUG" = "$d" ]; then slugs="$slugs $d"; fi
+            else
+              old=$(git show "HEAD~1:$cfg" 2>/dev/null | ver || true)
+              if [ "$old" != "$new" ]; then slugs="$slugs $d"; fi
+            fi
+          done
+          json="["
+          sep=""
+          for d in $slugs; do
+            ver=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' "$d/config.yaml" | head -1)
+            for a in aarch64 amd64; do
+              if grep -qE "^  - $a\$" "$d/config.yaml"; then
+                json="$json$sep{\"slug\":\"$d\",\"arch\":\"$a\",\"version\":\"$ver\"}"; sep=","
+              fi
+            done
+          done
+          json="$json]"
+          echo "matrix={\"include\":$json}" >> "$GITHUB_OUTPUT"
+          if [ "$sep" = "," ]; then echo "any=true" >> "$GITHUB_OUTPUT"; else echo "any=false" >> "$GITHUB_OUTPUT"; fi
+          echo "$json"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: p
+        run: |
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then echo "platform=linux/arm64" >> "$GITHUB_OUTPUT"; else echo "platform=linux/amd64" >> "$GITHUB_OUTPUT"; fi
+          echo "repo=ghcr.io/$(echo '${{ github.repository_owner }}' | tr 'A-Z' 'a-z')/${{ matrix.arch }}-${{ matrix.slug }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.slug }}
+          file: ${{ matrix.slug }}/Dockerfile
+          platforms: ${{ steps.p.outputs.platform }}
+          push: true
+          provenance: false
+          tags: |
+            ${{ steps.p.outputs.repo }}:${{ matrix.version }}
+            ${{ steps.p.outputs.repo }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ matrix.version }}
