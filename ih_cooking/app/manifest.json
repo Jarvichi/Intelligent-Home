@@ -1,6 +1,6 @@
 {
  "name": "ih_cooking",
- "version": "0.5.0",
+ "version": "0.6.0",
  "kind": "addon",
  "description": "Data owner for recipes and the meal plan, plus the meal-vs-calendar check (dry cook control, recipes page).",
  "owner": "local add-on ih_cooking",

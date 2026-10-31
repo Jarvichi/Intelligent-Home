@@ -24,8 +24,10 @@ import router as R
 import journal as J
 import busside
 import admin
+import identity
+import approvals
 
-VERSION = '0.8.3'
+VERSION = '0.10.0'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
@@ -93,6 +95,8 @@ def load_options(path=None):
             'live_modules': [str(x).strip() for x in (o.get('live_modules') or []) if str(x).strip()],
             'categories': admin.parse_categories(o.get('categories')),                 # S6: category key -> category id (optional)
             'permission_templates': admin.parse_templates(o.get('permission_templates')),   # S6: named templates (optional)
+            'admin_token': str(o.get('admin_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(),
+            'identity_live': o.get('identity_live') is True, 'approvals_live': o.get('approvals_live') is True, 'personas': o.get('personas') or [],
             'deprecated_set': sorted(k for k in DEPRECATED_OPTIONS if o.get(k) not in (None, '', [], {}, False))}
 
 
@@ -125,6 +129,20 @@ class Module:
             self.discord = MappedDiscord(opts['token'], True, {})
         if self.discord is None:
             self.error = 'waiting for discord_token'
+
+    def identity(self):
+        if getattr(self, '_identity', None) is None:
+            o = self.opts
+            self._identity = identity.Identity(o, lambda: bool(o.get('identity_live')) and not os.path.exists(os.path.join(self.data, STOP_FILE)),
+                                               dict(o.get('extra_channels') or {}, **({'house': o['house']} if o.get('house') else {})))
+        return self._identity
+
+    def approvals(self):
+        if getattr(self, '_approvals', None) is None:
+            o = self.opts
+            self._approvals = approvals.Approvals(o.get('token'), (o.get('extra_channels') or {}).get('approvals', ''), os.path.join(self.data, 'approvals_open.json'),
+                                                  lambda: bool(o.get('approvals_live')) and not os.path.exists(os.path.join(self.data, STOP_FILE)))
+        return self._approvals
 
     def bus_live(self, name):
         """(is_live, reason) for a bus module's Discord writes. Needs dry_run off, the module in live_modules and no kill switch file."""
@@ -259,6 +277,8 @@ class Module:
         live = [n for n in (self.opts.get('live_modules') or []) if self.bus_live(n)[0]]
         return {'name': SOURCE, 'version': VERSION, 'bot_name': self.opts['bot_name'], 'mode': 'live' if live else 'dry-run',
                 'dry_run_option': self.opts['dry_run'], 'live_supported': True, 'live_modules_active': live,
+                'identity': {'enabled': bool(self.opts.get('admin_token')), 'live': bool(self.opts.get('identity_live')), 'personas': self.identity().personas()},
+                'approvals': {'live': bool(self.opts.get('approvals_live')), 'channel_set': self.approvals().ready(), 'open': len(self.approvals()._load())},
                 'kill_switch': os.path.exists(os.path.join(self.data, STOP_FILE)), 'uptime_s': int(now - self.started),
                 'token_present': bool(self.opts['token']), 'ingest_configured': bool(self.opts['ingest_token']),
                 'deprecated_options_ignored': list(self.opts.get('deprecated_set') or []),
@@ -311,6 +331,24 @@ def make_handler(mod):
                 self.send_error(404); return
             self.send_response(code); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
+
+        def do_POST(self):
+            p = self.path.split('?')[0].rstrip('/')
+            idn = mod.identity()
+            if not (p.startswith('/identity/') or p.startswith('/approvals/')):
+                self.send_error(404); return
+            if not idn.authed(self.headers.get('Authorization')):
+                code, obj = 401, {'ok': False, 'why': 'bearer admin_token required'}
+            else:
+                try:
+                    n = int(self.headers.get('Content-Length') or 0)
+                    body = json.loads(self.rfile.read(n) or b'{}') if 0 <= n <= 9 * 1024 * 1024 else None
+                except Exception:
+                    body = None
+                code, obj = (400, {'ok': False, 'why': 'bad body'}) if body is None else (mod.approvals() if p.startswith('/approvals/') else idn).run(p.split('/', 2)[2], body)
+            data = json.dumps(obj).encode()
+            self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(data)))
+            self.end_headers(); self.wfile.write(data)
 
         def log_message(self, *a):
             pass

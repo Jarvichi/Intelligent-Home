@@ -1,5 +1,5 @@
 name: "Intelligent Home - Brain"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder."
@@ -23,9 +23,25 @@ options:
   read_only: true
   port: 8820
   rate_per_min: 120
+  apple_notes_dir: "/share/apple_notes_staging"
+  apple_notes_live: false
+  pocket_live: false
+  pocket_interval_min: 0
+  pocket_url: ""
+  pocket_cloudflare_token: ""
+  pocket_key: ""
+  scrub_names: ""
 schema:
   brain_dir: str
   api_token: password
   read_only: bool
   port: int(1024,65535)
   rate_per_min: int(1,6000)
+  apple_notes_dir: str
+  apple_notes_live: bool
+  pocket_live: bool
+  pocket_interval_min: int(0,1440)
+  pocket_url: str
+  pocket_cloudflare_token: password
+  pocket_key: password
+  scrub_names: str?

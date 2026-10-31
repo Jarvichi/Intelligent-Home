@@ -1,6 +1,6 @@
 {
  "name": "ih_ai_layer",
- "version": "0.3.2",
+ "version": "0.3.3",
  "kind": "addon",
  "description": "Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons. No Discord.",
  "owner": "local add-on ih_ai_layer",

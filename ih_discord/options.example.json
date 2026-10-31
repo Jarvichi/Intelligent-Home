@@ -78,5 +78,10 @@
       "rate_per_min": 30,
       "public_words": []
     }
-  ]
+  ],
+  "admin_token": "",
+  "identity_live": false,
+  "approvals_live": false,
+  "giphy_api_key": "",
+  "personas": ""
 }

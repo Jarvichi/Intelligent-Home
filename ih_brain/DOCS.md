@@ -13,7 +13,7 @@ Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outs
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Brain**.
 2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
-3. Open the Configuration tab and set `api_token`.
+3. Open the Configuration tab and set `api_token`, `pocket_cloudflare_token`, `pocket_key`.
 4. Start the add-on and check `/healthz` and the log.
 
 ## Options
@@ -27,6 +27,14 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `read_only` | No | true (default): write tools refuse. false: writes allowed. |
 | `port` | No | Port to listen on. Default 8820 (change the mapped port too). |
 | `rate_per_min` | No | Requests per minute (default 120). |
+| `apple_notes_dir` | No | Setting `apple_notes_dir`. Default: `/share/apple_notes_staging`. |
+| `apple_notes_live` | No | Setting `apple_notes_live`. Default: `false`. |
+| `pocket_live` | No | Setting `pocket_live`. Default: `false`. |
+| `pocket_interval_min` | No | Setting `pocket_interval_min`. Default: `0`. |
+| `pocket_url` | No | Setting `pocket_url`. |
+| `pocket_cloudflare_token` | Yes | Setting `pocket_cloudflare_token`. |
+| `pocket_key` | Yes | Setting `pocket_key`. |
+| `scrub_names` | No | Names to replace before notes are pushed, as `Name=Replacement,Other=Repl`. Default: empty (no name replacement; IPs, MACs, ids and emails are always scrubbed). |
 
 ## Troubleshooting
 

@@ -177,6 +177,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(200 if ok else 422, {'ok': ok} if ok else {'ok': False, 'errors': errs})
             if method == 'POST' and p == '/shop':
                 return self._send(200, recipeadmin.shop(st.data, list(body.get('recipes') or []), list(body.get('groups') or [])))
+            if method == 'POST' and p == '/shop/merge':
+                return self._send(200, recipeadmin.merge(st.data, list(body.get('recipes') or []), list(body.get('groups') or []), [str(h) for h in (body.get('have') or [])], body.get('commit') is True))
             if method == 'POST' and p == '/publish':
                 return self._send(200, st.publish())
             if method == 'POST' and p == '/import':

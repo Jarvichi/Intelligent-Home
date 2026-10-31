@@ -1,6 +1,6 @@
 {
  "name": "ih_jobs_metoffice",
- "version": "0.1.3",
+ "version": "0.1.4",
  "kind": "addon",
  "description": "Child of Intelligent Home - Jobs: Met Office forecast sensors. Dry-run by default.",
  "owner": "local add-on ih_jobs_metoffice",

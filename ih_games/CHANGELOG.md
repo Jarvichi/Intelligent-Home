@@ -3,10 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
-## [0.4.1] - 2026-10-31
+## [0.5.0] - 2026-10-31
 
-### Changed
-- Prebuilt image, no code change.
+### Added
+- Destiny provider: per-player option `destiny_reset` (opt in). Tuesday 17:00 UK, once per week, adds a `reset` event.
+- Destiny provider: writes a characters and recent-sessions note to `/data/notes/destiny_<player>.md` (also in the feed as `current.note_md`). It does not write into the brain: the add-on has no brain access.
 
 ## [0.4.0] - 2026-10-29
 

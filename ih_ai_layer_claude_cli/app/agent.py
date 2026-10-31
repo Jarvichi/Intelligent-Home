@@ -7,7 +7,7 @@ Gates, in order: shadow, daily cap, spend cap/free tier, weekly usage gate (usag
 import json, os, re, shutil, subprocess, tempfile, threading, time, urllib.request
 import jobs_link
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 CAPABILITIES = ['general_qa', 'summarize']
 STOP_FILE = 'STOP'
 MAX_IN = 8000

@@ -2,6 +2,7 @@
 A session = new activities; it ends after 30 minutes with no new activity, then one 'session' event is written.
 Polls Bungie at most every destiny_poll_s (default 900) however often it is called. Ids in the player dict are public Bungie ids."""
 import datetime, json, os, tempfile, urllib.request
+from zoneinfo import ZoneInfo
 
 NAME = "destiny"
 BASE = "https://www.bungie.net/Platform"
@@ -55,6 +56,20 @@ def summarise(sess):
             f"{kills} kills, {deaths} deaths" + (f"; {pvp} PvP" if pvp else "; all PvE"))
 
 
+def ago(iso, now):
+    days = (now - datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))).days
+    return "today" if days == 0 else "yesterday" if days == 1 else f"{days} days ago"
+
+
+def render_note(player, chars, sessions, now, tz):
+    """Markdown block like the host tracker's brain note block (characters + last 5 sessions). Written to /data/notes; never to the brain."""
+    rows = "\n".join(f"- {c['class']}: Power {c['power']}, about {c['hours']} h played, last played {ago(c['last'], now)}" for c in chars)
+    sess = "\n".join(f"- {s['when']}: {s['text']}" for s in sessions[-5:][::-1]) or "- none recorded yet"
+    main = chars[0]["class"] if chars else "?"
+    return (f"## Destiny 2 (live, updated {now.astimezone(tz):%d %b %H:%M})\n"
+            f"Account {player.get('display_name') or player['key']}. Main character is the {main} (most recently played).\n{rows}\n\nRecent sessions:\n{sess}\n")
+
+
 def run(ctx, player, now=None):
     pkey, key = player["key"], (ctx.opts.get("bungie_api_key") or "").strip()
     mtype, mid = player.get("destiny_type"), player.get("destiny_id")
@@ -90,16 +105,38 @@ def run(ctx, player, now=None):
             st["pending"] = st.get("pending", []) + new
             st["seen"] = newest
         pend = st.get("pending", [])
+        pend_when = datetime.datetime.fromisoformat(pend[0]["t"].replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/London")).strftime("%d %b %H:%M") if pend else ""
         if pend and now - datetime.datetime.fromisoformat(pend[-1]["t"].replace("Z", "+00:00")) > datetime.timedelta(minutes=QUIET_MIN):
             events.append({"time": now.astimezone().isoformat(timespec="seconds"), "kind": "session", "tier": None, "count": len(pend),
                            "game": "Destiny 2", "level_up": False, "level": chars[0]["power"] if chars else None, "big": False,
                            "text": summarise(pend)})
             st["pending"] = []
+            st.setdefault("sessions", []).append({"when": pend_when, "text": events[-1]["text"]})
+    # weekly reset: Tuesday 17:00 UK, once per ISO week (opt in per player with destiny_reset)
+    try:
+        tz = ZoneInfo(ctx.opts.get("timezone") or "Europe/London")
+    except Exception:
+        tz = datetime.timezone.utc
+    local = now.astimezone(tz)
+    tag = local.strftime("%G-%V")
+    if player.get("destiny_reset") and local.weekday() == 1 and local.hour >= 17 and st.get("reset_sent") != tag:
+        events.append({"time": now.astimezone().isoformat(timespec="seconds"), "kind": "reset", "tier": None, "count": 0,
+                       "game": "Destiny 2", "level_up": False, "level": None, "big": False,
+                       "text": "Destiny weekly reset has just happened (Tuesday 17:00): new weeklies and rotators are up."})
+        st["reset_sent"] = tag
     playing = bool(st.get("pending"))   # activity in the last 30 min: the session is still open
     st["polled"] = now.isoformat()
     feed = _load(feed_file, {"events": []})
     feed.update({"source": NAME, "player": pkey, "updated": now.astimezone().isoformat(timespec="seconds"),
                  "current": {"characters": chars, "now_playing": "Destiny 2" if playing else None},
                  "events": (feed.get("events", []) + events)[-50:]})
+    try:
+        tzn = ZoneInfo(ctx.opts.get("timezone") or "Europe/London")
+    except Exception:
+        tzn = datetime.timezone.utc
+    note = render_note(player, chars, st.get("sessions", []), now, tzn)
+    feed["current"]["note_md"] = note
+    os.makedirs(os.path.join(ctx.data_dir, "notes"), exist_ok=True)
+    open(os.path.join(ctx.data_dir, "notes", f"{NAME}_{pkey}.md"), "w").write(note)
     _write(feed_file, feed)
     _write(state_file, st)

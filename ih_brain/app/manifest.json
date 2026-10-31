@@ -1,6 +1,6 @@
 {
  "name": "ih_brain",
- "version": "0.1.0",
+ "version": "0.2.0",
  "kind": "addon",
  "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default).",
  "owner": "local add-on ih_brain",
@@ -18,7 +18,9 @@
  "port": 8820,
  "schedules": [],
  "declares_secrets": [
-  "api_token"
+  "api_token",
+  "pocket_cloudflare_token",
+  "pocket_key"
  ],
  "restore": "Stop the add-on. Uninstall to remove. The notes in the shared folder are not touched. Point Claude's MCP config back at the Home Assistant webhook.",
  "requires": []

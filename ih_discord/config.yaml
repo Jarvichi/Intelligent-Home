@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord"
-version: "0.8.3"
+version: "0.10.0"
 slug: ih_discord
 image: "ghcr.io/jarvichi/{arch}-ih_discord"
 description: "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. Since 0.8.0 it can also administer channels for a module that is granted this (all off by default). DRY-RUN by default: a module writes to Discord only when dry_run is off and it is in live_modules. Maps no folders."
@@ -13,7 +13,7 @@ homeassistant_api: true
 ports:
   8791/tcp: 8791
 ports_description:
-  8791/tcp: "Health and status (/healthz, /status)"
+  8791/tcp: "Health and status (/healthz, /status); POST /identity/avatar|nick|say|gif and POST /approvals/ask|step|check|list|delete (bearer admin_token)"
 # DEPRECATED since 0.7.0 (accepted so saved options validate, ignored): live_features, retired_features, old_service_disabled, shopping_list_entity,
 # meal_plan_script, shop_names, aisles, aisle_order, command_event, presence, house_entities, status_device, aliases, brain_webhook_id, brain_url,
 # router_enabled, enable_bus. The router and the bus are always on. The in-process features moved to the ih_discord_house and ih_discord_shopping add-ons.
@@ -69,6 +69,11 @@ options:
   categories: ""
   permission_templates: ""
   modules: []
+  admin_token: ""
+  identity_live: false
+  approvals_live: false
+  giphy_api_key: ""
+  personas: ""
 schema:
   log_payloads: bool?
   discord_token: password
@@ -152,3 +157,8 @@ schema:
       permission_template: str?
       can_delete: bool?
       category_ops: bool?
+  admin_token: password?
+  identity_live: bool?
+  approvals_live: bool?
+  giphy_api_key: password?
+  personas: password?

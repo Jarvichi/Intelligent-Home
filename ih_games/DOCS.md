@@ -43,6 +43,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `assistant_url` | No | str, password |
 | `assistant_token` | No | str, password |
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
+| `players[].destiny_reset` | No | `true` adds a weekly-reset message (Tuesday 17:00 UK, once a week) for that player. |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |
 
 ## Troubleshooting

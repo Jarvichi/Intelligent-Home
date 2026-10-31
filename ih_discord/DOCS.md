@@ -61,6 +61,11 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `categories` | No | Category keys for channel administration, for example `wip=<id>,done=<id>`. |
 | `permission_templates` | No | Named channel permission templates a module may ask for. |
 | `modules` | No | Bus modules and what they are GRANTED: `name`, `signing_key` (secret, one per module), `channels` (channel keys), `ops`, `rate_per_min`, `public_words` |
+| `admin_token` | No | Setting `admin_token`. |
+| `identity_live` | No | Setting `identity_live`. Default: `false`. |
+| `approvals_live` | No | Approvals API (`/approvals/*`): post, and delete, requests for real. Default `false` (dry: reading answers still works). The channel is the `extra_channels` entry with key `approvals`. Uses `admin_token`. |
+| `giphy_api_key` | No | Setting `giphy_api_key`. |
+| `personas` | No | Setting `personas`. |
 
 ## Troubleshooting
 

@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-10-31
+
+### Added
+- `POST /shop/merge` (bearer): the meal-plan shopping merge. Body `{"recipes": [slug], "groups": [staple group], "have": ["items already on the list"], "commit": false}`. Returns `add` (lines not yet on the list, matched on lower case without a `Meals:`/`Staples:` prefix, also within the new lines), `skipped`, `message` (the weekly Discord text) and `ledger_written`. It never touches any shopping list: the caller adds the lines. The meal-plan ledger is only updated when `commit` is true. Existing `POST /shop` is unchanged.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added

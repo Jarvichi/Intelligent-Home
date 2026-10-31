@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')

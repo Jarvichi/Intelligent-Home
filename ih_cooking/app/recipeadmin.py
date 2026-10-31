@@ -83,7 +83,7 @@ def listing(data):
     return out
 
 
-def shop(data, names, groups, now=time.time):
+def shop(data, names, groups, now=time.time, write_ledger=True):
     """Merged shopping list for these recipes (host `recipes.py shop`) and update of the meal-plan ledger meal_items.json."""
     rdir = os.path.join(data, 'recipes')
     want = [os.path.basename(n) for n in names if n and os.path.exists(os.path.join(rdir, os.path.basename(n) + '.json'))]
@@ -98,6 +98,7 @@ def shop(data, names, groups, now=time.time):
     gs = [g for g in groups if g in st]
     staples = [it for g in gs for it in st[g]['items']]
     try:
+        if not write_ledger: raise OSError
         lf = os.path.join(data, 'meal_items.json')
         try: led = json.load(open(lf))
         except (OSError, ValueError): led = {}
@@ -168,3 +169,28 @@ def do_import(data, body):
             else:
                 atomic(f, body[key]); n[key] = 'written'
     return n
+
+
+def _have_key(s):
+    return re.sub(r'^(meals|staples):\s*', '', str(s).lower().strip())
+
+
+def merge(data, names, groups, have, commit=False, now=time.time):
+    """Meal-plan shopping MERGE (port of script.meal_shopping_list minus the HA calls). `have` = summaries already on the list (the caller decides
+    which states count: ticked ones too for the shopping bot "shop" command). Returns the lines to ADD (plain text, exactly as the host script adds them), those skipped and
+    the Discord text. Nothing is written to any list; the ledger meal_items.json is only updated when commit is true. Duplicates are matched on the
+    lower-case name without the Meals:/Staples: prefix, also within the new lines."""
+    res = shop(data, names, groups, now=now, write_ledger=bool(commit))
+    seen = {_have_key(h) for h in have}
+    add, skipped = [], []
+    for lines in (res['items'], res['staples']):
+        for it in lines:
+            k = _have_key(it)
+            if not k or k in seen: skipped.append(it); continue
+            seen.add(k); add.append(it)
+    msg = ''
+    if res['items'] or res['staples']:
+        msg = '**Shopping for the week**'
+        if res['items']: msg += '\n\n**Meals** (%s)\n\n%s' % (', '.join(res['recipes']), '\n'.join('- ' + i for i in res['items']))
+        if res['staples']: msg += '\n\n**Staples** (%s)\n\n%s' % (', '.join(res['groups']), '\n'.join('- ' + i for i in res['staples']))
+    return {'add': add, 'skipped': skipped, 'recipes': res['recipes'], 'groups': res['groups'], 'message': msg, 'ledger_written': bool(commit)}

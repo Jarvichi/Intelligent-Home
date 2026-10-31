@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.0] - 2026-10-31
+
+### Added
+- Approvals API (port of the host approvals.py, CULL row 17): `POST /approvals/ask|step|check|list|delete|hooked` on the health port, bearer `admin_token`. Posts the approval / manual-step embed with tick, cross and question reactions in the channel configured as `extra_channels` key `approvals`, reads answers back (retries Discord 429), keeps `/data/approvals_open.json`. An answered overnight approval is flagged `run_overnight` once so the host shim can run overnight/approve.py. Waiting is done by the caller polling `check`.
+- Option `approvals_live` (default false): dry posts and deletes nothing. `/status` shows `approvals`.
+
+## [0.9.0] - 2026-10-31
+
+### Added
+- Bot identity admin (port of the host set_avatar.py, set_nick.py, say.py, gif.py): `POST /identity/avatar|nick|say|gif` on the health port, bearer `admin_token` (off when empty). One set of personas: `house` = the main bot (`discord_token`), more bots from the `personas` option (secret text `name=token,name2=token2`). Avatar: base64 PNG/JPEG/GIF up to 6 MB, 2 changes per 10 minutes per bot. Nick: all servers, empty resets. Say: channel number or a configured channel key. GIF: GIPHY search (PG only, `giphy_api_key`), optional post of the link.
+- DRY by default: nothing is sent to Discord unless `identity_live` is on and the kill switch file is absent. Tokens and keys are never returned or logged. `/status` shows `identity` (enabled, live, persona names).
+
 ## [0.8.3] - 2026-10-28
 
 ### Changed

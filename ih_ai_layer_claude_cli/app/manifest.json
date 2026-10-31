@@ -1,6 +1,6 @@
 {
  "name": "ih_ai_layer_claude_cli",
- "version": "0.1.0",
+ "version": "0.1.1",
  "kind": "addon",
  "description": "Agent of Intelligent Home - AI Layer: general questions and summaries via the Claude Code CLI (text scrubbed first).",
  "owner": "local add-on ih_ai_layer_claude_cli",

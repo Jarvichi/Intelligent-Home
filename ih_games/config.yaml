@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.4.1"
+version: "0.5.0"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -61,6 +61,7 @@ schema:
       steam_level_entity: str?
       destiny_type: int?
       destiny_id: str?
+      destiny_reset: bool?
       quiet_start: str?
       quiet_end: str?
       max_per_day: int?

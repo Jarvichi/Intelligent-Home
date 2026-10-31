@@ -3,5 +3,13 @@
   "api_token": "",
   "read_only": true,
   "port": 8820,
-  "rate_per_min": 120
+  "rate_per_min": 120,
+  "apple_notes_dir": "/share/apple_notes_staging",
+  "apple_notes_live": false,
+  "pocket_live": false,
+  "pocket_interval_min": 0,
+  "pocket_url": "https://REPLACE_ME.workers.dev",
+  "pocket_cloudflare_token": "REPLACE_ME",
+  "pocket_key": "REPLACE_ME",
+  "scrub_names": ""
 }

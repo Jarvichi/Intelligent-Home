@@ -24,7 +24,7 @@ import bus_client
 import factsview as FV
 from features import shopping as S
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
