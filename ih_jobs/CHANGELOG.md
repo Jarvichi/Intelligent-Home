@@ -3,6 +3,10 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.14.2] - 2026-11-01
+### Fixed
+- Count and log plugin failures when run or event handlers return false.
+
 ## [0.14.1] - 2026-10-31
 ### Fixed
 - `photo_albums` waits out a Home Assistant restart inside the pass (one "not reachable" line, no error).
