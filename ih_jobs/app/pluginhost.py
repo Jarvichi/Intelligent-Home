@@ -181,6 +181,9 @@ class Host:
                 info['runs'] += 1
                 info['last_ok'] = ok
                 info['last_error'] = None if ok else 'plugin returned false'
+                if not ok:
+                    info['errors'] += 1
+                    log('error: ' + info['last_error'])
                 return ok
             except Exception as e:
                 info['errors'] += 1
@@ -214,6 +217,9 @@ class Host:
                 info['runs'] += 1
                 info['last_ok'] = ok
                 info['last_error'] = None if ok else 'plugin returned false'
+                if not ok:
+                    info['errors'] += 1
+                    log('error: ' + info['last_error'])
                 return ok, 'ok' if ok else 'plugin returned false'
             except Exception as e:
                 info['errors'] += 1
