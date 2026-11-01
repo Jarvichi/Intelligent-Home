@@ -11,7 +11,12 @@
   {
    "before": 24,
    "text": "Oven on: 140C fan. Wrap the corn tortillas in foil, ready to warm.",
-   "short": "Oven on (140)"
+   "short": "Oven on (140)",
+   "oven": {
+    "action": "start",
+    "temp": 140,
+    "minutes": 39
+   }
   },
   {
    "before": 22,

@@ -413,6 +413,13 @@ class Engine:
         if not fn: self.log('oven action ignored: %r' % (spec,)); return False
         self.spawn(lambda: self._safe(fn)); return True
 
+    def _fire_oven(self, st, s):
+        """Run the step's oven action at most once per cook (st['oven_fired'])."""
+        if not s.get('oven'): return False
+        key = s['at'] + ' ' + s['text']; fired = st.setdefault('oven_fired', [])
+        if key in fired: return False
+        fired.append(key); return self.oven_action(s['oven'])
+
     def _safe(self, fn):
         try: fn()
         except Exception as e: self.log('oven action error ' + type(e).__name__)
@@ -541,8 +548,7 @@ class Engine:
             elif due:
                 msg += " Let's start with the first step. " + ' And '.join(s['text'].rstrip('.') + '.' for s in due[:3])
                 st['told'] += [s['at'] + ' ' + s['text'] for s in due[:3]]
-                for s in due[:3]:
-                    if s.get('oven'): self.oven_action(s['oven'])
+                for s in due[:3]: self._fire_oven(st, s)
             elif nxt:
                 msg += f" The first step is at {nxt[0]['at']}: {nxt[0]['text']}"
             if msg: self.tell(msg, voice)
@@ -554,10 +560,14 @@ class Engine:
                 late = (datetime.datetime.combine(now.date(), datetime.time.fromisoformat(s['at'])) < now - datetime.timedelta(minutes=10))
                 if not late:
                     self.tell(s['text'], voice)
-                    if s.get('oven'): self.oven_action(s['oven'])
+                    self._fire_oven(st, s)
                 else: self.log('skipped (more than 10 min late): ' + key)
                 st['told'].append(key)
                 if s.get('auto'): st['done'].append(key)
+        for s in plan.get('steps', []):      # 0.6.1: a step ticked DONE before it was announced still runs its oven action once, when its time comes
+            key = s['at'] + ' ' + s['text']
+            if s.get('oven') and key in st['done'] and key not in st.get('told', []) and s['at'] <= hm and key not in st.setdefault('oven_fired', []):
+                self.log('oven action for a step ticked early: ' + key); self._fire_oven(st, s)
         st.setdefault('told_at', {}); st.setdefault('nagged', [])
         for key in st['told']: st['told_at'].setdefault(key, self.ts())
         for s in plan.get('steps', []):
@@ -675,16 +685,21 @@ class Engine:
         keys = self.load('shownext.json', [])
         return keys[row] if 0 <= row < len(keys) else None
 
+    DOUBLE_TAP_S = 30
+
     def done(self, row=0, did=False):
         with self.lock:
             p = self.load('plan.json', None)
             if not p: return {'ok': False, 'why': 'no plan'}
             st = self.load('state.json', {'done': []})
-            if self.ts() - st.get('last_done_ts', 0) < 10:
-                self.log('DONE ignored (within 10 s of the last tap)'); return {'ok': False, 'why': 'double tap'}
+            if self.ts() - st.get('last_done_ts', 0) < self.DOUBLE_TAP_S:
+                self.log('DONE ignored (within %d s of the last tap)' % self.DOUBLE_TAP_S); return {'ok': False, 'why': 'double tap'}
             keys = self.load('shownext.json', [])
             if row < len(keys) and keys[row] not in st['done']:
                 k = keys[row]
+                s0 = next((x for x in p['steps'] if x['at'] + ' ' + x['text'] == k), None)
+                if not (s0 and s0.get('gate')) and k not in st.get('told', []):
+                    self.log('DONE blocked (not announced yet): ' + k); return {'ok': False, 'why': 'not announced yet'}
                 st.setdefault('done_rows', {})[str(row)] = self.ts()
                 st['done'].append(k); st['last_done_ts'] = self.ts(); self.log('done (wall display, did it): ' + k if did else 'done (wall display): ' + k)
                 s = next((x for x in p['steps'] if x['at'] + ' ' + x['text'] == k), None)

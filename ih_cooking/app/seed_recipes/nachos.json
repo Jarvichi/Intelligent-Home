@@ -21,7 +21,12 @@
   {
    "before": 18,
    "text": "Oven on: 200C, 180C fan, gas 6.",
-   "short": "Oven on 180 fan"
+   "short": "Oven on 180 fan",
+   "oven": {
+    "action": "start",
+    "temp": 180,
+    "minutes": 33
+   }
   },
   {
    "before": 17,

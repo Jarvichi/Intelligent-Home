@@ -6,7 +6,12 @@
   {
    "before": 25,
    "text": "Oven on to 220.",
-   "short": "Oven on 220"
+   "short": "Oven on 220",
+   "oven": {
+    "action": "start",
+    "temp": 220,
+    "minutes": 40
+   }
   },
   {
    "before": 15,

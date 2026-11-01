@@ -6,7 +6,12 @@
   {
    "before": 75,
    "text": "Oven on: 200C, 180C fan, gas 6. Peel the potatoes and cut into chunks.",
-   "short": "Oven on (200)"
+   "short": "Oven on (200)",
+   "oven": {
+    "action": "start",
+    "temp": 200,
+    "minutes": 90
+   }
   },
   {
    "before": 70,

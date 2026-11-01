@@ -16,7 +16,12 @@
   {
    "before": 100,
    "text": "Oven on to 180, so it is hot when the chicken goes in.",
-   "short": "Oven on (180)"
+   "short": "Oven on (180)",
+   "oven": {
+    "action": "start",
+    "temp": 180,
+    "minutes": 115
+   }
   },
   {
    "before": 100,
@@ -90,7 +95,11 @@
   {
    "before": 20,
    "text": "Toss the sprouts and potatoes, and turn the oven up to 200 for the last 20 minutes.",
-   "short": "Toss sprouts + potatoes, oven 200"
+   "short": "Toss sprouts + potatoes, oven 200",
+   "oven": {
+    "action": "set",
+    "temp": 200
+   }
   },
   {
    "before": 15,

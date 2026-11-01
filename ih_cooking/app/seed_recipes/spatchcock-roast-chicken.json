@@ -6,7 +6,12 @@
   {
    "before": 90,
    "text": "Oven on to 200C; racks in the middle and just above.",
-   "short": "Oven on 200"
+   "short": "Oven on 200",
+   "oven": {
+    "action": "start",
+    "temp": 200,
+    "minutes": 105
+   }
   },
   {
    "before": 85,

@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.5.0'
+VERSION = '0.6.1'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -174,6 +174,24 @@ class Store:
             dst = os.path.join(self.rdir, os.path.basename(f))
             if not os.path.exists(dst):   # never overwrite /data copies
                 shutil.copy(f, dst)
+            else:
+                self.migrate_oven(f, dst)
+
+    def migrate_oven(self, src, dst):
+        """0.6.1: add the seed's step 'oven' field to an existing /data recipe, matched by step text, only where that step has none. Nothing else is touched."""
+        try:
+            seed = json.load(open(src)); cur = json.load(open(dst))
+            want = {s['text']: s['oven'] for s in seed.get('steps', []) if isinstance(s.get('oven'), dict)}
+            hit = False
+            for s in cur.get('steps', []):
+                if s.get('text') in want and 'oven' not in s:
+                    s['oven'] = dict(want[s['text']]); hit = True
+            if hit:
+                tmp = dst + '.tmp'
+                json.dump(cur, open(tmp, 'w'), indent=1, ensure_ascii=False); os.replace(tmp, dst)
+                self.log('recipe oven fields added: ' + os.path.basename(dst))
+        except Exception as e:
+            self.log('recipe oven migration skipped %s: %s' % (os.path.basename(dst), type(e).__name__))
 
     # --- safety
     def stopped(self):

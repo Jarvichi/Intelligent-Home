@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.1] - 2026-11-01
+
+### Fixed
+- Recipe steps that turn the oven on, up or down now carry an `oven` action (`start`/`set`), so the oven really starts (before, such steps were only spoken). Existing recipes in `/data/recipes` get the field added at start-up by step text; nothing else in them is changed.
+- DONE on a step that has not been announced yet is refused (`not announced yet`), for both DONE and "did it". The first (get-everything-out) step is exempt.
+- The double-tap guard is 30 s (was 10 s).
+- A step ticked DONE early still runs its oven action once when its time comes; oven actions never fire twice (`oven_fired` in state).
+
 ## [0.6.0] - 2026-10-31
 
 ### Added

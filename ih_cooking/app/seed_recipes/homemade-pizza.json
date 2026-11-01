@@ -16,7 +16,12 @@
   {
    "before": 30,
    "text": "Oven on as hot as it goes (230+).",
-   "short": "Oven on 230"
+   "short": "Oven on 230",
+   "oven": {
+    "action": "start",
+    "temp": 230,
+    "minutes": 45
+   }
   },
   {
    "before": 25,

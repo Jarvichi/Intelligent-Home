@@ -21,7 +21,12 @@
   {
    "before": 40,
    "text": "Oven on to 180C.",
-   "short": "Oven on 180"
+   "short": "Oven on 180",
+   "oven": {
+    "action": "start",
+    "temp": 180,
+    "minutes": 55
+   }
   },
   {
    "before": 30,
