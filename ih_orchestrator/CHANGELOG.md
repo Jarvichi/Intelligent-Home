@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.2] - 2026-11-02
+
+### Fixed
+- Make the Traces list and detail stack on phone-width screens, keep the list independently scrollable, and reduce timeline indentation on narrow screens.
+- Update the Traces description to cover requests across IH components.
+
 ## [0.10.1] - 2026-11-02
 
 ### Added
