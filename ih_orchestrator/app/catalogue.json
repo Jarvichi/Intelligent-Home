@@ -172,7 +172,7 @@
   "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder.",
   "kind": "addon",
   "requires": [],
-  "version": "0.2.1",
+  "version": "0.2.2",
   "image": true
  },
  {
@@ -187,13 +187,13 @@
  {
   "name": "Intelligent Home - Discord - Codex",
   "slug": "ih_discord_codex",
-  "description": "Private Codex coding conversations over the signed Discord transport; no Home Assistant API or host configuration mount.",
+  "description": "Private Codex coding conversations over the signed Discord transport, with read-only search of shared Brain notes.",
   "kind": "addon",
   "requires": [
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.1",
+  "version": "0.1.2",
   "image": true
  }
 ]

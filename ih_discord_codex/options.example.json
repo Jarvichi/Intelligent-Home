@@ -7,5 +7,6 @@
   "mqtt_host": "core-mosquitto",
   "mqtt_port": 1883,
   "mqtt_user": "ih_discord_codex",
-  "mqtt_password": ""
+  "mqtt_password": "",
+  "brain_read_token": ""
 }

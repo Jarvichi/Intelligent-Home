@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.2] - 2026-11-02
+
+### Added
+- Separate `/codex-mcp` endpoint and `codex_read_token`; it exposes only search/read over explicitly `share: true` markdown notes. Inbox, private notes, attachments and write tools are unavailable.
+
 ## [0.2.1] - 2026-10-31
 
 ### Added

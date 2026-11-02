@@ -188,6 +188,71 @@ class Brain:
             return "No such note. Use brain_search or brain_list."
         return f.read_text()
 
+    def _shareable_notes(self):
+        """Only explicit share:true markdown notes; inbox and hidden paths stay local."""
+        base = self.base.resolve()
+        out = []
+        for rel, f in self._notes():
+            if (rel == "inbox" or rel.startswith("inbox/") or rel == "attachments"
+                    or rel.startswith("attachments/") or rel.startswith("_")):
+                continue
+            try:
+                resolved = f.resolve(strict=True)
+                if base not in resolved.parents or not resolved.is_file():
+                    continue
+                meta, _ = self._front(resolved.read_text(errors="replace"))
+            except (OSError, RuntimeError):
+                continue
+            if meta.get("share", "").strip().lower() == "true":
+                out.append((rel, resolved))
+        return out
+
+    def t_codex_brain_search(self, a):
+        """Search only notes explicitly marked share:true; never indexes private notes."""
+        q = str(a.get("query") or "").strip()[:500]
+        limit = max(1, min(int(a.get("limit") or 8), 8))
+        if not q:
+            return "Give a query with at least one word."
+        terms = [t.lower() for t in re.findall(r"[A-Za-z0-9_]+", q) if len(t) > 2]
+        if not terms:
+            terms = [t.lower() for t in re.findall(r"[A-Za-z0-9_]+", q)]
+        if not terms:
+            return "Give a query with at least one word."
+        area = str(a.get("area") or "").strip("/")
+        scored = []
+        for rel, f in self._shareable_notes():
+            if area and not _in_area(rel, area):
+                continue
+            raw = f.read_text(errors="replace")
+            meta, body = self._front(raw)
+            title = self._title(rel, raw)
+            low, title_low = body.lower(), title.lower()
+            score = sum(10 * (w in title_low) + 5 * (w in rel.lower()) + min(low.count(w), 5) for w in terms)
+            if not score:
+                continue
+            pos = min((low.find(w) for w in terms if w in low), default=0)
+            snippet = body[max(0, pos - 80):pos + 180].replace("\n", " ")
+            scored.append((-score, rel, title, snippet))
+        rows = sorted(scored)[:limit]
+        if not rows:
+            return "No shareable notes match that query."
+        return "\n".join(f"- {p} — {t}\n    {s}" for _, p, t, s in rows)
+
+    def t_codex_brain_read(self, a):
+        """Read one explicitly share:true markdown note, excluding inbox and hidden paths."""
+        f = self._safe(a.get("path"))
+        try:
+            rel = f.resolve(strict=True).relative_to(self.base.resolve()).as_posix()
+        except (OSError, ValueError, RuntimeError):
+            return "No shareable note at that path. Search first."
+        allowed = {p for p, _ in self._shareable_notes()}
+        if rel not in allowed:
+            return "No shareable note at that path. Search first."
+        text = f.read_text(errors="replace")
+        if len(text) > 24000:
+            return text[:24000] + "\n\n[Note truncated at 24,000 characters.]"
+        return text
+
     IMG_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
                  ".svg": "image/svg+xml"}
 

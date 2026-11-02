@@ -1,5 +1,5 @@
 name: "Intelligent Home - Brain"
-version: "0.2.1"
+version: "0.2.2"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder."
@@ -20,6 +20,7 @@ ports_description:
 options:
   brain_dir: "/share/brain"
   api_token: ""
+  codex_read_token: ""
   read_only: true
   port: 8820
   rate_per_min: 120
@@ -35,6 +36,7 @@ options:
 schema:
   brain_dir: str
   api_token: password
+  codex_read_token: password
   read_only: bool
   port: int(1024,65535)
   rate_per_min: int(1,6000)

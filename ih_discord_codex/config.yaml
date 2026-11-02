@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Codex"
-version: "0.1.1"
+version: "0.1.2"
 image: "ghcr.io/jarvichi/{arch}-ih_discord_codex"
 slug: ih_discord_codex
 description: "A private Codex coding worker connected as a narrowly granted module of the existing signed IH Discord transport. It has no Home Assistant API or host configuration access."
@@ -25,6 +25,7 @@ options:
   mqtt_port: 1883
   mqtt_user: "ih_discord_codex"
   mqtt_password: ""
+  brain_read_token: ""
 schema:
   module_name: str
   signing_key: password
@@ -37,3 +38,4 @@ schema:
   mqtt_port: port
   mqtt_user: str
   mqtt_password: password
+  brain_read_token: password

@@ -24,6 +24,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 |---|---|---|
 | `brain_dir` | No | Folder with the notes. Default `/share/brain`. |
 | `api_token` | Yes | Bearer token callers must send. Empty = everything refused. |
+| `codex_read_token` | No | Separate bearer token for the narrow Codex endpoint. Empty = that endpoint refuses all requests. |
 | `read_only` | No | true (default): write tools refuse. false: writes allowed. |
 | `port` | No | Port to listen on. Default 8820 (change the mapped port too). |
 | `rate_per_min` | No | Requests per minute (default 120). |
@@ -59,6 +60,8 @@ Rate limit: `rate_per_min` (429). Kill switch: file `/data/STOP` (503). A reques
 
 ### Tools
 `brain_help`, `brain_index`, `brain_search` (query, area, limit), `brain_read` (path), `brain_list` (area), `brain_recent` (limit), `brain_links` (path), `brain_graph`, `brain_image`, `brain_text`, `brain_file`, `brain_files`, `brain_write` (path, content, author, summary), `brain_append` (path, text or content, author).
+
+`POST /codex-mcp` uses the separate `codex_read_token` and exposes only `brain_search` and `brain_read`. Both operate only on Markdown notes whose front matter explicitly says `share: true`; notes under `inbox/`, hidden paths, attachments, and all writes are excluded. A missing or invalid token is refused. This is intended for the private Codex Discord worker; note content returned by search/read is sent to its hosted model when used in a turn.
 
 Rules kept from the component: note paths must end in `.md`, may not contain `..` or start with a dot, and must stay inside `brain_dir`; hidden folders are never listed or read; attachments are limited by type and size; writes are refused if they look like they hold a password, token or key, are over 60 KB, keep the old version in `.history/` (last 20) and add a line to `_log.md`; `updated:` front matter is set on save.
 

@@ -14,6 +14,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -24,6 +26,7 @@ WORKSPACE = Path(os.environ.get("CODEX_WORKSPACE", "/config/workspace"))
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", "/config/codex-home"))
 PORT = int(os.environ.get("IHB_PORT", "8804"))
 MAX_REPLY = 1800
+BRAIN_MCP_URL = "http://homeassistant:8820/codex-mcp"
 LOG = logging.getLogger("ih_discord_codex")
 
 sys.path.insert(0, str(HERE))
@@ -54,9 +57,34 @@ def load_options():
         "mqtt_port": int(data.get("mqtt_port", 1883)),
         "mqtt_user": text("mqtt_user", "ih_discord_codex"),
         "mqtt_password": text("mqtt_password"),
+        "brain_read_token": text("brain_read_token"),
         "codex_home": str(CODEX_HOME),
         "workspace": str(WORKSPACE),
     }
+
+
+def brain_readonly_probe(token):
+    """Verify the separately authenticated MCP endpoint exposes exactly two read tools."""
+    try:
+        for rid, method, params in (
+            (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.2"}}),
+            (2, "tools/list", {}),
+        ):
+            body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
+            req = urllib.request.Request(BRAIN_MCP_URL, data=body, method="POST",
+                headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=5) as res:
+                result = json.loads(res.read())
+            if result.get("error") or result.get("id") != rid:
+                return False
+            if method == "tools/list":
+                names = {x.get("name") for x in result.get("result", {}).get("tools", [])}
+                if names != {"brain_search", "brain_read"}:
+                    return False
+        return True
+    except (OSError, ValueError, TypeError, urllib.error.URLError):
+        return False
 
 
 class DurableClient(bus_client.ModuleClient):
@@ -98,8 +126,9 @@ class DurableClient(bus_client.ModuleClient):
 
 
 class CodexProcessRunner:
-    def __init__(self, workspace, codex_home, timeout_s=240):
+    def __init__(self, workspace, codex_home, brain_read_token="", timeout_s=240):
         self.workspace, self.codex_home, self.timeout_s = str(workspace), str(codex_home), timeout_s
+        self.brain_read_token = str(brain_read_token)
         self._lock = threading.Lock()
         self._active = None
 
@@ -114,7 +143,8 @@ class CodexProcessRunner:
 
     def run(self, thread, text, save_thread):
         payload = json.dumps({"thread": thread, "text": text, "workspace": self.workspace,
-                              "codex_home": self.codex_home}).encode("utf-8")
+                              "codex_home": self.codex_home,
+                              "brain_read_token": self.brain_read_token}).encode("utf-8")
         safe_env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ}
         proc = subprocess.Popen([sys.executable, str(HERE / "codex_worker.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -188,7 +218,8 @@ class Service:
         self.bridge = bridge or Bridge(DATA / "bridge.sqlite3", options["channel_keys"], options["users"])
         self.bus = bus
         self.client = None
-        raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"])
+        self.brain_readonly_connected = False
+        raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"], options.get("brain_read_token", ""))
         self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "")
         self.stop = threading.Event()
         self.errors = 0
@@ -244,12 +275,16 @@ class Service:
         auth_file = CODEX_HOME / "auth.json"
         if not auth_file.is_file():
             raise RuntimeError("Codex ChatGPT login is not installed in this add-on")
+        if self.opts.get("brain_read_token"):
+            self.brain_readonly_connected = brain_readonly_probe(self.opts["brain_read_token"])
+            if not self.brain_readonly_connected:
+                raise RuntimeError("read-only shareable Brain MCP unavailable or unexpected tool set")
         os.chmod(auth_file, 0o600)
         self.bus = self.bus or bus_client.PahoBus(self.opts["mqtt_host"], self.opts["mqtt_port"],
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.1", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.2", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"], dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -260,9 +295,11 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.1", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.2", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
+                "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
+                "brain_readonly_connected": self.brain_readonly_connected,
                 "workspace_exists": WORKSPACE.is_dir(), "bus_connected": bool(bus and bus.connected),
                 "bus_active": bool(self.client and self.client.active), "uptime_s": int(time.time()-self.started),
                 "queue": self.bridge.status(), "last_result": self.last_result, "errors": self.errors}

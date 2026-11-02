@@ -1,6 +1,6 @@
 {
   "name": "ih_discord_codex",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "kind": "addon",
   "description": "Private Codex coding worker over the existing signed IH Discord transport",
   "owner": "local add-on ih_discord_codex",
@@ -8,8 +8,8 @@
   "health": [{"type": "http", "url": "http://172.30.32.1:8804/healthz", "timeout": 3, "ok_status": [200]}],
   "port": 8804,
   "schedules": [],
-  "declares_secrets": [],
+  "declares_secrets": ["brain_read_token"],
   "restore": "Stop the add-on. Remove only its private Codex configuration folder to discard its login, thread history and scratch files.",
   "requires": ["ih_discord", "mqtt"],
-  "privacy": {"stores": ["message inbox and replies in private add-on data", "Codex thread history in private add-on config"], "external": ["Codex model service receives submitted prompts and scratch-workspace context"], "never_logs": ["message text", "tokens", "signing keys"]}
+  "privacy": {"stores": ["message inbox and replies in private add-on data", "Codex thread history in private add-on config"], "external": ["Codex model service receives submitted prompts, scratch-workspace context, and any Brain notes retrieved by its read-only shareable-notes MCP"], "never_logs": ["message text", "tokens", "signing keys"]}
 }

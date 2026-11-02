@@ -6,9 +6,9 @@ The module provides a private coding conversation through the existing IH Discor
 
 The transport encrypts private inbound message metadata/content and the module encrypts reply text with AES-GCM before publishing MQTT messages. The per-module signing key is domain-separated through HKDF for encryption. The transport grant must set `encrypt_content: true`; the Codex worker rejects inbound messages without a valid encrypted envelope. MQTT topics, routing identifiers, and message size remain visible.
 
-Configure exactly one Discord channel key and one user ID in both the transport grant and this add-on. Give the transport bot read-history and post access only to the private channel. The add-on has no Home Assistant API, no host configuration mount, and no Brain or MCP connection. Its only mapped directory is its own private add-on configuration folder.
+Configure exactly one Discord channel key and one user ID in both the transport grant and this add-on. Give the transport bot read-history and post access only to the private channel. The add-on has no Home Assistant API or host configuration mount. Its only mapped directory is its own private add-on configuration folder. Its only MCP connection is the separate Brain endpoint restricted server-side to search/read of explicitly `share: true` notes.
 
-Discord prompt text and scratch-workspace context are sent to the Codex model service. Do not use this channel for house secrets or private household data. Codex command network access is disabled; its workspace is writable, escalated requests are denied, and files remain in the add-on's private configuration directory.
+Discord prompt text, scratch-workspace context, and any retrieved `share: true` Brain notes are sent to the Codex model service. The Brain endpoint excludes inbox, private or unmarked notes, attachments, and writes. Do not use this channel for secrets or notes marked `share: false`. Codex command network access is disabled; its workspace is writable, escalated requests are denied, and files remain in the add-on's private configuration directory.
 
 ## Setup
 
