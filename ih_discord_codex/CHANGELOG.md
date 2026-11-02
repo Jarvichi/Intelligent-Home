@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.5] - 2026-11-02
+- Add filtered Home Assistant entity search/state/history tools through a loopback MCP server; only the add-on process handles the Supervisor token.
+- Add one-step light/switch action proposals that execute only after the authorized owner confirms with `/approve CODE`; uncertain requests are never retried automatically.
+- Describe the worker's coding workspace and limited HA capabilities accurately.
+
 ## [0.1.4] - 2026-11-02
 - Auto-approve only the explicitly enabled read-only Brain search and read MCP tools, so the non-interactive worker can use them while all other approvals remain denied.
 

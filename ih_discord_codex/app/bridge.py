@@ -2,13 +2,14 @@
 Transport must authenticate signed events before calling accept(). Explicit ACLs
 are also enforced here. Model calls and posting are dependency-injected.
 """
-import fcntl,json,math,os,sqlite3,threading,time
+import fcntl,json,math,os,sqlite3,threading,time,secrets
 from pathlib import Path
 
 class Bridge:
     def __init__(self,path,channels=(),users=(),clock=time.time):
         self.clock=clock;self.channels=set(channels);self.users=set(users)
         self.lock=threading.RLock()
+        self._active_context=None
         path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
         # One process owns the database for its whole lifetime. Acquire before
         # recovery: another opener must never relabel an active turn as crashed.
@@ -29,6 +30,9 @@ class Bridge:
             CREATE TABLE IF NOT EXISTS threads(channel TEXT PRIMARY KEY, thread TEXT);
             CREATE TABLE IF NOT EXISTS outbox(channel TEXT,message TEXT,part INTEGER,
               text TEXT,state TEXT,receipt TEXT, PRIMARY KEY(channel,message,part));
+            CREATE TABLE IF NOT EXISTS action_plans(id TEXT PRIMARY KEY,channel TEXT NOT NULL,
+              author TEXT NOT NULL,message TEXT NOT NULL,entity_id TEXT NOT NULL,domain TEXT NOT NULL,
+              service TEXT NOT NULL,state TEXT NOT NULL,created REAL NOT NULL,expires REAL NOT NULL);
             ''')
             cutoff=self.clock()-30*86400
             with self.db:
@@ -38,6 +42,7 @@ class Bridge:
             with self.db:
                 self.db.execute("UPDATE jobs SET state='needs_review',reason='interrupted model turn' WHERE state='running'")
                 self.db.execute("UPDATE outbox SET state='needs_review' WHERE state='sending'")
+                self.db.execute("UPDATE action_plans SET state='uncertain' WHERE state='executing'")
         except BaseException:
             if hasattr(self,'db'):self.db.close()
             os.close(self._owner_fd);self._owner_fd=None
@@ -58,7 +63,9 @@ class Bridge:
         with self.lock,self.db:
             allowed=uid in self.users and event.get('bot') is False and isinstance(text,str) and bool(text.strip()) and len(text)<=8000
             reason='authorization or input rejected'
-            control=allowed and text.strip().lower() in ('/help','/status','/new')
+            control=allowed and (text.strip().lower() in ('/help','/status','/new')
+                or text.strip().lower().startswith('/approve ') or text.strip().lower().startswith('/deny ')
+                or text.strip().lower().startswith('/code '))
             if allowed and not control:
                 pending=self.db.execute("SELECT count(*) FROM jobs WHERE channel=? AND state IN ('queued','running','needs_review')",(ch,)).fetchone()[0]
                 if pending>=8:
@@ -80,8 +87,8 @@ class Bridge:
         with self.lock:
             # One in-flight turn per channel; an uncertain turn blocks its followers.
             row=self.db.execute("""SELECT channel,message,text,author FROM jobs j WHERE state='queued'
-             AND (j.text IN ('/help','/status','/new') OR NOT EXISTS(SELECT 1 FROM jobs x WHERE x.channel=j.channel AND x.state IN ('running','needs_review')))
-             AND (j.text IN ('/help','/status','/new') OR NOT EXISTS(SELECT 1 FROM outbox o WHERE o.channel=j.channel AND o.state IN ('sending','needs_review')))
+             AND (j.text IN ('/help','/status','/new') OR j.text LIKE '/approve %' OR j.text LIKE '/deny %' OR j.text LIKE '/code %' OR NOT EXISTS(SELECT 1 FROM jobs x WHERE x.channel=j.channel AND x.state IN ('running','needs_review')))
+             AND (j.text IN ('/help','/status','/new') OR j.text LIKE '/approve %' OR j.text LIKE '/deny %' OR j.text LIKE '/code %' OR NOT EXISTS(SELECT 1 FROM outbox o WHERE o.channel=j.channel AND o.state IN ('sending','needs_review')))
              ORDER BY j.rowid LIMIT 1""").fetchone()
             if not row:return False
             ch,mid,text,author=row
@@ -89,6 +96,7 @@ class Bridge:
                 with self.db:self.db.execute("UPDATE jobs SET state='rejected',reason='authorization revoked',text='' WHERE channel=? AND message=?",(ch,mid))
                 return True
             with self.db:self.db.execute("UPDATE jobs SET state='running' WHERE channel=? AND message=?",(ch,mid))
+            with self.lock:self._active_context={'channel':ch,'message':mid,'author':author}
             def save_thread(thread):
                 if not isinstance(thread,str) or not thread:raise ValueError('invalid thread')
                 with self.db:
@@ -104,6 +112,8 @@ class Bridge:
                     self.db.execute("UPDATE jobs SET state='answered',text='' WHERE channel=? AND message=?",(ch,mid))
             except Exception:
                 with self.db:self.db.execute("UPDATE jobs SET state='needs_review',reason='model outcome uncertain' WHERE channel=? AND message=?",(ch,mid))
+            finally:
+                with self.lock:self._active_context=None
             return True
     def deliver_one(self,sender):
         with self.lock:
@@ -133,6 +143,38 @@ class Bridge:
         with self.lock:
             return {'jobs':dict(self.db.execute('SELECT state,count(*) FROM jobs GROUP BY state')),
                     'delivery':dict(self.db.execute('SELECT state,count(*) FROM outbox GROUP BY state'))}
+    def active_context(self):
+        with self.lock:return dict(self._active_context) if self._active_context else None
+    def create_action_plan(self,context,entity_id,service):
+        with self.lock,self.db:
+            now=self.clock()
+            self.db.execute("UPDATE action_plans SET state='expired' WHERE state='pending' AND expires<=?",(now,))
+            if self.db.execute("SELECT 1 FROM action_plans WHERE channel=? AND state='pending' LIMIT 1",(context['channel'],)).fetchone():
+                raise RuntimeError('another device action is awaiting approval')
+            pid=secrets.token_hex(8).upper()
+            self.db.execute('INSERT INTO action_plans VALUES(?,?,?,?,?,?,?,?,?,?)',
+              (pid,context['channel'],context['author'],context['message'],entity_id,entity_id.split('.',1)[0],service,'pending',now,now+300))
+            return {'id':pid,'entity_id':entity_id,'service':service,'expires':now+300}
+    def action_plans_for(self,message_id):
+        with self.lock:
+            return [dict(zip(('id','entity_id','domain','service','expires'),row)) for row in self.db.execute(
+              "SELECT id,entity_id,domain,service,expires FROM action_plans WHERE message=? AND state='pending' AND expires>? ORDER BY created",(message_id,self.clock()))]
+    def claim_action_plan(self,context,proposal_id):
+        if not context:return None
+        with self.lock,self.db:
+            row=self.db.execute("SELECT id,entity_id,domain,service FROM action_plans WHERE id=? AND channel=? AND author=? AND state='pending' AND expires>?",
+              (str(proposal_id).upper(),context['channel'],context['author'],self.clock())).fetchone()
+            if not row:return None
+            changed=self.db.execute("UPDATE action_plans SET state='executing' WHERE id=? AND state='pending'",(row[0],)).rowcount
+            return dict(zip(('id','entity_id','domain','service'),row)) if changed==1 else None
+    def finish_action_plan(self,proposal_id,state):
+        if state not in ('done','uncertain'):raise ValueError('invalid action outcome')
+        with self.lock,self.db:self.db.execute("UPDATE action_plans SET state=? WHERE id=? AND state='executing'",(state,proposal_id))
+    def reject_action_plan(self,context,proposal_id):
+        if not context:return False
+        with self.lock,self.db:
+            return self.db.execute("UPDATE action_plans SET state='denied' WHERE id=? AND channel=? AND author=? AND state='pending' AND expires>?",
+              (str(proposal_id).upper(),context['channel'],context['author'],self.clock())).rowcount==1
     def clear_thread(self,channel):
         with self.lock,self.db:
             self.db.execute('DELETE FROM threads WHERE channel=?',(channel,))

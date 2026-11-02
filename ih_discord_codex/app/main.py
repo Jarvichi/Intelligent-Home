@@ -8,6 +8,7 @@ holds ambiguous model or delivery outcomes for explicit review.
 import json
 import logging
 import os
+import re
 import selectors
 import signal
 import subprocess
@@ -33,6 +34,9 @@ sys.path.insert(0, str(HERE))
 import bus_client
 import bus_crypto as crypto
 from bridge import Bridge
+from ha_tools import HATools
+from workspace import prepare_workspace, branch_status, branch_diff
+from code_publish import publish_review_branch, PublishError
 
 
 def load_options():
@@ -58,6 +62,7 @@ def load_options():
         "mqtt_user": text("mqtt_user", "ih_discord_codex"),
         "mqtt_password": text("mqtt_password"),
         "brain_read_token": text("brain_read_token"),
+        "github_repo_token": text("github_repo_token"),
         "codex_home": str(CODEX_HOME),
         "workspace": str(WORKSPACE),
     }
@@ -68,7 +73,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.3"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.5"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -193,13 +198,14 @@ class CodexProcessRunner:
 
 
 class CommandRunner:
-    def __init__(self, bridge, codex_runner, channel):
-        self.bridge, self.codex, self.channel = bridge, codex_runner, channel
+    def __init__(self, bridge, codex_runner, channel, ha_tools=None, workspace=None, github_token=""):
+        self.bridge, self.codex, self.channel, self.ha_tools, self.workspace = bridge, codex_runner, channel, ha_tools, workspace
+        self.github_token = github_token
 
     def run(self, thread, text, save_thread):
         command = text.strip().lower()
         if command == "/help":
-            return "Send a coding request here. /status shows queue state; /new starts a fresh thread and clears uncertain pending work."
+            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
         if command == "/status":
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
@@ -208,7 +214,37 @@ class CommandRunner:
         if command == "/new":
             self.bridge.abandon_uncertain(self.channel)
             return "Started a fresh Codex thread. Any interrupted turn or uncertain reply was held and will not be replayed."
-        return self.codex.run(thread, text, save_thread)
+        if command.startswith("/approve"):
+            match = re.fullmatch(r"/approve\s+([A-F0-9]{16})", text.strip(), re.I)
+            if not match:return "Use `/approve CODE` with the 16-character code from the pending action proposal."
+            return self.ha_tools.approve(self.bridge.active_context(), match.group(1))
+        if command.startswith("/deny"):
+            match = re.fullmatch(r"/deny\s+([A-F0-9]{16})", text.strip(), re.I)
+            if not match:return "Use `/deny CODE` with the 16-character code from the pending action proposal."
+            return self.ha_tools.deny(self.bridge.active_context(), match.group(1))
+        if command == "/code status":
+            return branch_status(self.workspace)
+        if command == "/code diff":
+            return branch_diff(self.workspace)
+        if command == "/code submit":
+            if not self.github_token:
+                return "The private IH code branch is ready locally, but GitHub submission is not configured. Add a fine-grained token for `Jarvichi/Intelligent-Home` with Contents read/write and Pull requests read/write, then use `/code submit`."
+            try:
+                result = publish_review_branch(self.workspace, self.github_token)
+                return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed." % (result["url"], result["branch"])
+            except PublishError as exc:
+                return str(exc)
+        if command.startswith("/code "):
+            return "Use `/code status` or `/code diff`. Code stays on the private local review branch and is not merged or deployed."
+        answer = self.codex.run(thread, text, save_thread)
+        context = self.bridge.active_context()
+        plans = self.ha_tools.pending_for(context["message"]) if self.ha_tools and context else []
+        if plans:
+            plan = plans[0]
+            answer += ("\n\nApproval required: I propose %s for `%s`. Nothing has changed yet. "
+                       "Send `/approve %s` to do this one step, or `/deny %s` to cancel. The code expires in five minutes." %
+                       (plan["domain"] + "." + plan["service"], plan["entity_id"], plan["id"], plan["id"]))
+        return answer
 
 
 class Service:
@@ -220,8 +256,9 @@ class Service:
         self.client = None
         self.brain_readonly_connected = False
         self.brain_thread_policy_reset = False
+        self.ha_tools = HATools(self.bridge)
         raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"], options.get("brain_read_token", ""))
-        self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "")
+        self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "", self.ha_tools, options["workspace"], options.get("github_repo_token", ""))
         self.stop = threading.Event()
         self.errors = 0
         self.last_result = None
@@ -276,18 +313,21 @@ class Service:
         auth_file = CODEX_HOME / "auth.json"
         if not auth_file.is_file():
             raise RuntimeError("Codex ChatGPT login is not installed in this add-on")
+        if not self.ha_tools.token:
+            raise RuntimeError("Home Assistant API access is not enabled for this add-on")
+        self.ha_tools.start()
         if self.opts.get("brain_read_token"):
             self.brain_readonly_connected = brain_readonly_probe(self.opts["brain_read_token"])
             if not self.brain_readonly_connected:
                 raise RuntimeError("read-only shareable Brain MCP unavailable or unexpected tool set")
-        context_version = "shareable-brain-readonly-v1" if self.brain_readonly_connected else "scratch-only-v1"
+        context_version = "ha-tools-confirmed-actions-v1"
         self.brain_thread_policy_reset = self.bridge.ensure_context_version(context_version, self.opts["channel_keys"])
         os.chmod(auth_file, 0o600)
         self.bus = self.bus or bus_client.PahoBus(self.opts["mqtt_host"], self.opts["mqtt_port"],
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.4", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.5", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"], dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -298,11 +338,12 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.4", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.5", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
                 "brain_readonly_connected": self.brain_readonly_connected,
+                "ha_tools_enabled": bool(self.ha_tools.token),
                 "thread_policy_reset": self.brain_thread_policy_reset,
                 "workspace_exists": WORKSPACE.is_dir(), "bus_connected": bool(bus and bus.connected),
                 "bus_active": bool(self.client and self.client.active), "uptime_s": int(time.time()-self.started),
@@ -311,6 +352,7 @@ class Service:
     def close(self):
         self.stop.set()
         self.runner.codex.cancel()
+        self.ha_tools.close()
         if self.client:
             self.client.stop()
         self.bridge.close()
@@ -346,6 +388,7 @@ def main():
     DATA.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(DATA, 0o700)
     WORKSPACE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    prepare_workspace(WORKSPACE)
     CODEX_HOME.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(WORKSPACE, 0o700)
     os.chmod(CODEX_HOME, 0o700)

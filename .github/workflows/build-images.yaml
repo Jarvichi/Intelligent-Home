@@ -80,13 +80,21 @@ jobs:
         run: |
           if [ "${{ matrix.arch }}" = "aarch64" ]; then echo "platform=linux/arm64" >> "$GITHUB_OUTPUT"; else echo "platform=linux/amd64" >> "$GITHUB_OUTPUT"; fi
           echo "repo=ghcr.io/$(echo '${{ github.repository_owner }}' | tr 'A-Z' 'a-z')/${{ matrix.arch }}-${{ matrix.slug }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ matrix.slug }}" = "ih_discord_codex" ]; then
+            echo "context=." >> "$GITHUB_OUTPUT"
+            echo "file=ih_discord_codex/Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "context=${{ matrix.slug }}" >> "$GITHUB_OUTPUT"
+            echo "file=${{ matrix.slug }}/Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.slug }}
-          file: ${{ matrix.slug }}/Dockerfile
+          context: ${{ steps.p.outputs.context }}
+          file: ${{ steps.p.outputs.file }}
           platforms: ${{ steps.p.outputs.platform }}
           push: true
           provenance: false
+          build-args: SOURCE_REVISION=${{ github.sha }}
           tags: |
             ${{ steps.p.outputs.repo }}:${{ matrix.version }}
             ${{ steps.p.outputs.repo }}:latest
