@@ -287,7 +287,7 @@ class Service:
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.3", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.4", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"], dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -298,7 +298,7 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.3", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.4", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),

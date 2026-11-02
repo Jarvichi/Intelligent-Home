@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.4] - 2026-11-02
+- Auto-approve only the explicitly enabled read-only Brain search and read MCP tools, so the non-interactive worker can use them while all other approvals remain denied.
+
 ## [0.1.3] - 2026-11-02
 - Start a fresh Codex thread once when the Brain tool-access policy changes, so older thread context cannot retain the previous no-Brain instructions.
 - Mark the shareable Brain MCP server explicitly enabled in Codex configuration.

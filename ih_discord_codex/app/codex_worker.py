@@ -38,6 +38,8 @@ def main():
             'mcp_servers.house_brain_read.enabled=true',
             'mcp_servers.house_brain_read.bearer_token_env_var="BRAIN_READ_TOKEN"',
             'mcp_servers.house_brain_read.enabled_tools=["brain_search","brain_read"]',
+            'mcp_servers.house_brain_read.tools.brain_search.approval_mode="approve"',
+            'mcp_servers.house_brain_read.tools.brain_read.approval_mode="approve"',
             'mcp_servers.house_brain_read.required=true',
             'mcp_servers.house_brain_read.startup_timeout_sec=10',
             'mcp_servers.house_brain_read.tool_timeout_sec=30',
