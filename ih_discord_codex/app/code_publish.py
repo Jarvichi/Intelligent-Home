@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-REPO = "Jarvichi/Intelligent-Home"
+REPO_NAME = "Intelligent-Home"
 MAX_FILE = 2_000_000
 MAX_TOTAL = 8_000_000
 MAX_FILES = 20
@@ -60,6 +60,15 @@ def _git(path, *args):
     return result.stdout
 
 
+def _configured_repo(path):
+    """Resolve the repository owner from the add-on's already-public image config."""
+    config = (Path(path) / "ih_discord_codex" / "config.yaml").read_text(encoding="utf-8")
+    match = re.search(r'^image:\s*"ghcr\.io/([a-z0-9-]+)/\{arch\}-ih_discord_codex"\s*$', config, re.M)
+    if not match:
+        raise PublishError("The IH source repository could not be identified safely")
+    return match.group(1) + "/" + REPO_NAME
+
+
 def _changed_files(path):
     raw = _git(path, "diff", "--no-renames", "--name-status", "-z", "main")
     parts = raw.decode("utf-8", "strict").split("\0")
@@ -107,11 +116,13 @@ def _changed_files(path):
     return files
 
 
-def publish_review_branch(path, token, repo=REPO, opener=None):
+def publish_review_branch(path, token, repo=None, opener=None):
     """Create a new GitHub branch and PR only when the user sends /code submit."""
-    if repo != REPO:
-        raise PublishError("Only the configured IH source repository is allowed")
     path = Path(path).resolve()
+    configured_repo = _configured_repo(path)
+    if repo is not None and repo != configured_repo:
+        raise PublishError("Only the configured IH source repository is allowed")
+    repo = configured_repo
     base_sha = (path / ".codex_source_revision").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
         raise PublishError("Workspace source revision is unknown; refresh the code snapshot before submitting")

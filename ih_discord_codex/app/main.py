@@ -228,7 +228,7 @@ class CommandRunner:
             return branch_diff(self.workspace)
         if command == "/code submit":
             if not self.github_token:
-                return "The private IH code branch is ready locally, but GitHub submission is not configured. Add a fine-grained token for `Jarvichi/Intelligent-Home` with Contents read/write and Pull requests read/write, then use `/code submit`."
+                return "The private IH code branch is ready locally, but GitHub submission is not configured. Add a fine-grained token for the IH add-on source repository with Contents read/write and Pull requests read/write, then use `/code submit`."
             try:
                 result = publish_review_branch(self.workspace, self.github_token)
                 return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed." % (result["url"], result["branch"])
