@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner, manager, facts, consumer_progress
+import healthlib, scheduler, provisioner, manager, facts, consumer_progress, trace_store
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -20,6 +20,7 @@ SCHED_REASON = "not started"
 TOKEN = ""
 FACTS = None  # facts.Facts once options are loaded (v0.9.0; off when fact_clients is empty)
 PROGRESS = None
+TRACES = None
 PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
@@ -308,7 +309,7 @@ def seen_map(now=None):
 def init_manager():
     """Start the ingress-only manager page server on its own port. Never raises."""
     try:
-        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, health=snapshot, log=lambda m: print(m, flush=True))
+        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True))
         threading.Thread(target=mgr.warm, daemon=True).start()
         threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
         return mgr
@@ -317,7 +318,7 @@ def init_manager():
 
 
 def load_options(path=None):
-    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS, FACTS, PROGRESS
+    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS, FACTS, PROGRESS, TRACES
     try:
         o = json.load(open(path or OPTIONS))
     except Exception:
@@ -329,6 +330,7 @@ def load_options(path=None):
     FACTS = facts.build(o, DATA, LOG)
     PROGRESS = consumer_progress.Monitor(os.path.join(DATA, "consumer-progress.json"), stall_after=300,
                                          startup_grace=60, max_snapshot_age=180)
+    TRACES = trace_store.TraceStore(os.path.join(DATA, "traces.json"))
 
 
 def sensor(snap):
@@ -465,6 +467,22 @@ class H(BaseHTTPRequestHandler):
             if n < 0 or n > MAX_BODY:
                 return self._json(413, {"error": "too large"})
             return self._json(*ingest(self.rfile.read(n)))
+        if p == "/trace":
+            if not TOKEN:
+                return self._json(503, {"error": "trace ingest disabled (no ingest_token)"})
+            if not token_ok(self.headers.get("Authorization")):
+                return self._json(401, {"error": "unauthorized"})
+            try:
+                n = int(self.headers.get("Content-Length", ""))
+            except ValueError:
+                return self._json(411, {"error": "length required"})
+            if n < 0 or n > 16384:
+                return self._json(413, {"error": "too large"})
+            try:
+                event = json.loads(self.rfile.read(n) or b"{}")
+            except (ValueError, UnicodeDecodeError):
+                return self._json(400, {"error": "bad json"})
+            return self._json(*(TRACES.record(event) if TRACES else (503, {"error": "trace store unavailable"})))
         if p in ("/provision", "/provision/import"):
             if not TOKEN:
                 return self._json(503, {"error": "disabled (no ingest_token)"})

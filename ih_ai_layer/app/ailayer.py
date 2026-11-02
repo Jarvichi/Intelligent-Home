@@ -2,7 +2,7 @@
 (text + optional capability + optional context), output is an answer from a registered AI agent add-on.
 Request text is never stored or put in /status. Logs hold metadata only (ids, caller, capability, agent, model, sizes, timings, result) unless option log_payloads is true:
 then each log line also carries the first 200 chars of the request and of the answer. Keys, tokens, signatures and headers are never logged."""
-import collections, json, os, re, threading, time, urllib.request
+import collections, json, os, re, threading, time, urllib.request, uuid
 import jobs_link
 import providers as provmod
 
@@ -13,7 +13,9 @@ ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
-VERSION = '0.3.3'
+TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
+SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
+VERSION = '0.4.0'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -285,8 +287,19 @@ class Layer:
             return 400, {'ok': False, 'error': 'bad capability'}
         if not cap and not model:
             cap, classified = classify(text), True
+        trace_id = obj.get('trace_id') if isinstance(obj.get('trace_id'), str) and TRACE_ID_RE.fullmatch(obj.get('trace_id')) else None
+        parent_span_id = obj.get('parent_span_id') if isinstance(obj.get('parent_span_id'), str) and SPAN_ID_RE.fullmatch(obj.get('parent_span_id')) else None
+        trace_spans, route_span_id = [], uuid.uuid4().hex[:16]
         self.counts['requests'] += 1
         caller = obj.get('caller') or (ctx or {}).get('caller')
+
+        def finish_trace(ok, reason=None, skipped=False):
+            if not trace_id:
+                return
+            safe_reason = re.sub(r'[^A-Za-z0-9_.-]', '_', str(reason or ''))[:48]
+            trace_spans.append({'span_id': route_span_id, 'parent_span_id': parent_span_id, 'component': 'ih_ai_layer',
+                                'operation': 'request', 'status': 'skipped' if skipped else ('ok' if ok else 'error'),
+                                'reason': safe_reason, 'started_at': t0, 'duration_ms': max(0, int((self.clock() - t0) * 1000))})
 
         def out(ok, answer, agent=None, extra=None, why=None):
             r = {'ok': ok, 'answer': answer, 'agent': agent, 'capability': cap, 'classified': classified,
@@ -296,6 +309,9 @@ class Layer:
             self._usage(caller, agent, cap, r.get('model') or m.get('model') or model, ok, r['took_ms'])
             self._logline('request', rid, caller, agent, cap, r.get('model') or m.get('model') or model, text, ok, answer, r['took_ms'],
                           why or r.get('error') or ('shadow' if r.get('mode') == 'dry' else None), m.get('free'))
+            finish_trace(ok, why or r.get('error'), skipped=r.get('mode') == 'dry')
+            if trace_id:
+                r['trace_id'], r['trace_spans'] = trace_id, list(trace_spans)
             return 200, r
 
         if model:
@@ -306,12 +322,16 @@ class Layer:
                 self.counts['model_not_available'] += 1
                 self._logline('request', rid, caller, None, cap, model, text, False, '', (self.clock() - t0) * 1000, 'model_not_available', None)
                 self._usage(caller, None, cap, model, False, (self.clock() - t0) * 1000)
-                return 404, {'ok': False, 'error': 'model_not_available', 'answer': "No live agent serves model '%s'." % model,
-                             'model': model, 'request_id': rid}
+                r = {'ok': False, 'error': 'model_not_available', 'answer': "No live agent serves model '%s'." % model,
+                     'model': model, 'request_id': rid}
+                finish_trace(False, 'model_not_available')
+                if trace_id:
+                    r['trace_id'], r['trace_spans'] = trace_id, list(trace_spans)
+                return 404, r
             if self.opts['shadow']:
                 return out(True, "[dry] shadow mode: would ask agent '%s' for model '%s'. No agent was called." % (owners[0], model), owners[0], {'mode': 'dry', 'model': model})
             a0 = self.clock()
-            ans = self._ask(owners[0], text, cap, ctx or {}, rid, model, caller)
+            ans = self._ask(owners[0], text, cap, ctx or {}, rid, model, caller, trace_spans if trace_id else None, route_span_id)
             ok = ans is not None
             if cap:
                 self._record(cap, owners[0], ok, (self.clock() - a0) * 1000)
@@ -337,7 +357,7 @@ class Layer:
         for name in order[:self.opts['max_tries']]:
             tried += 1
             a0 = self.clock()
-            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller)
+            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller, trace_spans if trace_id else None, route_span_id)
             ms = (self.clock() - a0) * 1000
             self._record(cap, name, ans is not None, ms)
             if ans is not None:
@@ -350,7 +370,7 @@ class Layer:
         w = self.agent_why.pop(rid, None)
         return out(False, "The agents for '%s' did not answer (%d tried)." % (cap, tried), None, {'error': w} if w else None)
 
-    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None):
+    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None, trace_spans=None, parent_span_id=None):
         """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only. Logs one 'try' line per call."""
         a = self.table().get(name)
         if a is None:
@@ -390,7 +410,14 @@ class Layer:
             why = type(e).__name__
             return None
         finally:
-            self._logline('try', rid, caller, name, cap, meta.get('model') or model, text, ok, ans, (self.clock() - t0) * 1000, why, meta.get('free'))
+            ms = max(0, int((self.clock() - t0) * 1000))
+            self._logline('try', rid, caller, name, cap, meta.get('model') or model, text, ok, ans, ms, why, meta.get('free'))
+            if trace_spans is not None:
+                safe_name = name if NAME_RE.fullmatch(str(name or '')) else 'agent'
+                safe_why = re.sub(r'[^A-Za-z0-9_.-]', '_', str(why or ''))[:48]
+                trace_spans.append({'span_id': uuid.uuid4().hex[:16], 'parent_span_id': parent_span_id,
+                                    'component': safe_name, 'operation': 'ask', 'status': 'ok' if ok else 'error',
+                                    'reason': safe_why, 'started_at': t0, 'duration_ms': ms})
 
     def status(self):
         now = self.clock()

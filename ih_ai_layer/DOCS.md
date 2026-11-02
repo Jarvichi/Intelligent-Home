@@ -58,7 +58,7 @@ All except `/healthz` and `/register` need the header `Authorization: Bearer <ap
 
 | Call | Meaning |
 |---|---|
-| `POST /request` | Body `{text, capability (optional), context (optional object), model (optional string), request_id}`. With `model`: no classifier or scoring, the request goes only to the live agent that lists that model (agents register a `models` list), with no fallback to other agents; none = HTTP 404 `model_not_available`. Shadow mode, STOP, rate limit and auth apply as usual. If the agent refuses because of its `spend_cap`, the reply has `error: spend_cap`. Returns `{ok, answer, agent, capability, classified, took_ms, request_id}`. |
+| `POST /request` | Body `{text, capability (optional), context (optional object), model (optional string), request_id, trace_id (optional 32-hex opaque ID), parent_span_id (optional 16-hex ID)}`. With `model`: no classifier or scoring, the request goes only to the live agent that lists that model (agents register a `models` list), with no fallback to other agents; none = HTTP 404 `model_not_available`. Shadow mode, STOP, rate limit and auth apply as usual. If the agent refuses because of its `spend_cap`, the reply has `error: spend_cap`. Trace-enabled requests also return `trace_id` and `trace_spans` containing component, operation, outcome, duration and reason code only; they never include request/response text. |
 | `POST /feedback` | Body `{request_id, score}`; a score above 0 is a thumbs up, otherwise a thumbs down. Counts for the agent that answered that request (the last 500 requests are remembered). |
 | `GET /agents` | Registered agents and their capabilities. |
 | `GET /status` | Mode, counts, agents, score table. Never contains request text. |

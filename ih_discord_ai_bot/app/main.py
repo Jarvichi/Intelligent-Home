@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_discord_ai_bot 0.1.1: answers Discord messages with the AI layer, as a signed bus MODULE of the ih_discord transport.
+"""ih_discord_ai_bot 0.2.0: answers Discord messages with the AI layer, as a signed bus MODULE of the ih_discord transport.
 The AI layer knows nothing about Discord. This module takes a message from a granted channel key, sends its text to the AI layer HTTP API
 (POST /request, bearer api_token) and posts the answer back with a `post` op (reply to the message). It holds no Discord token, no channel number
 and no AI key. Every detail (channel keys, allowed user ids, URL, token) comes from the add-on options, none from code.
@@ -9,14 +9,14 @@ If the AI layer is in shadow, down, refused the token or gave no answer, ONE sho
 Message text and answers are never written to the log or /status.
 SHADOW (option, default true): the AI layer IS asked, but the post op is sent with dry=true and logged '[DRY] would post'.
 V1 = transport channels only: DMs and private channels are not on the bus. No Home Assistant access. stdlib only (paho-mqtt for the real bus)."""
-import json, os, re, sys, threading, time, logging, collections, urllib.request, urllib.error
+import json, os, re, sys, threading, time, logging, collections, urllib.request, urllib.error, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.1.3'
+VERSION = '0.2.0'
 MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
@@ -111,11 +111,12 @@ class Ring(logging.Handler):
             self.would_lines.append(time.strftime('%H:%M:%S ') + t[:300])
 
 
-def ask_ai(opts, text, rid, opener=None, timeout=None):
-    """POST the text to the AI layer. -> (kind, text): ('answer', answer) | ('error', short plain message). Never raises, never logs."""
+def ask_ai(opts, text, rid, opener=None, timeout=None, trace_id=None, parent_span_id=None):
+    """Ask AI Layer and return the answer plus its content-free trace spans."""
+    empty = []
     if not opts['ai_layer_url']:
-        return 'error', MSG_DOWN
-    body = {'text': text, 'request_id': rid}
+        return 'error', MSG_DOWN, empty, 'not_configured'
+    body = {'text': text, 'request_id': rid, 'trace_id': trace_id, 'parent_span_id': parent_span_id}
     if opts['capability']:
         body['capability'] = opts['capability']
     req = urllib.request.Request(opts['ai_layer_url'] + '/request', data=json.dumps(body).encode(), method='POST',
@@ -125,25 +126,21 @@ def ask_ai(opts, text, rid, opener=None, timeout=None):
             raw = x.read(200000)
         r = json.loads(raw)
     except urllib.error.HTTPError as e:
-        if e.code == 401:
-            return 'error', MSG_AUTH
-        if e.code == 429:
-            return 'error', 'The AI layer is busy (rate limit). Try again in a minute.'
-        if e.code == 503:
-            return 'error', 'The AI layer is stopped (kill switch).'
-        return 'error', MSG_DOWN
+        return 'error', MSG_AUTH if e.code == 401 else ('The AI layer is busy (rate limit). Try again in a minute.' if e.code == 429 else ('The AI layer is stopped (kill switch).' if e.code == 503 else MSG_DOWN)), empty, ('unauthorized' if e.code == 401 else 'rate_limit' if e.code == 429 else 'stopped' if e.code == 503 else 'http_error')
     except Exception:
-        return 'error', MSG_DOWN
+        return 'error', MSG_DOWN, empty, 'network_error'
     if not isinstance(r, dict):
-        return 'error', MSG_NONE
+        return 'error', MSG_NONE, empty, 'invalid_response'
+    spans = r.get('trace_spans') if isinstance(r.get('trace_spans'), list) and r.get('trace_id') == trace_id else []
+    spans = spans[:30]
     ans = r.get('answer')
     if r.get('mode') == 'dry' or (isinstance(ans, str) and ans.startswith('[dry]')):
-        return 'error', MSG_SHADOW
+        return 'error', MSG_SHADOW, spans, 'shadow'
     if not r.get('ok') or not isinstance(ans, str) or not ans.strip():
-        # the layer's own failure text is short and plain ('No agent is available for ...'); cap it
         msg = ans.strip()[:200] if isinstance(ans, str) and ans.strip() else MSG_NONE
-        return 'error', msg
-    return 'answer', ans.strip()
+        why = r.get('error') if isinstance(r.get('error'), str) and re.fullmatch(r'[A-Za-z0-9_.-]{1,48}', r.get('error')) else 'no_answer'
+        return 'error', msg, spans, why
+    return 'answer', ans.strip(), spans, ''
 
 
 class Module:
@@ -282,19 +279,66 @@ class Module:
                     self.busy += 1
                     self.reply(ck, mid, MSG_BUSY, error=True)
                 return
-            threading.Thread(target=self._work, args=(ck, mid, text, True), daemon=True).start()
+            threading.Thread(target=self._work, args=(ck, mid, text, True, trace_id, root_span_id, root_started), daemon=True).start()
         else:
-            self._work(ck, mid, text, False)
+            self._work(ck, mid, text, False, trace_id, root_span_id, root_started)
 
-    def _work(self, ck, mid, text, release):
+    @staticmethod
+    def _span(component, operation, status, started, parent=None, reason='', span_id=None):
+        return {'span_id': span_id or uuid.uuid4().hex[:16], 'parent_span_id': parent, 'component': component,
+                'operation': operation, 'status': status, 'reason': reason,
+                'started_at': started, 'duration_ms': max(0, int((time.time() - started) * 1000))}
+
+    def send_trace(self, trace_id, spans):
+        if not self.opts['ingest_url'] or not self.opts['ingest_token'] or not spans:
+            return False
         try:
-            kind, out = ask_ai(self.opts, text, 'dc' + mid, opener=self.opener)
+            req = urllib.request.Request(self.opts['ingest_url'] + '/trace', data=json.dumps({'trace_id': trace_id, 'spans': spans}).encode(), method='POST',
+                                         headers={'Authorization': 'Bearer ' + self.opts['ingest_token'], 'Content-Type': 'application/json'})
+            with (self.opener or urllib.request.urlopen)(req, timeout=3) as response:
+                return response.status == 200
+        except Exception as e:
+            self.lg.info('trace upload failed (%s)', type(e).__name__)
+            return False
+
+    def _work(self, ck, mid, text, release, trace_id=None, root_span_id=None, root_started=None):
+        trace_id = trace_id or uuid.uuid4().hex
+        root_span_id = root_span_id or uuid.uuid4().hex[:16]
+        root_started = root_started or time.time()
+        spans, ai_started, ai_span_id = [], time.time(), uuid.uuid4().hex[:16]
+        ai_status, ai_reason, delivery_status, delivery_reason = 'error', 'internal_error', 'error', 'not_attempted'
+        try:
+            kind, out, child_spans, ai_reason = ask_ai(self.opts, text, trace_id, opener=self.opener,
+                                                       trace_id=trace_id, parent_span_id=ai_span_id)
+            spans.extend(child_spans)
+            ai_status = 'ok' if kind == 'answer' else ('skipped' if ai_reason == 'shadow' else 'error')
+            spans.append(self._span('ih_discord_ai_bot', 'ai_layer_request', ai_status, ai_started,
+                                    parent=root_span_id, reason=ai_reason, span_id=ai_span_id))
             with self.lock:
                 self.apply_mode()
-                self.reply(ck, mid, out, error=(kind != 'answer'))
+                posting_dry = self.dry_now()
+                post_started = time.time()
+                sent = self.reply(ck, mid, out, error=(kind != 'answer'))
+                delivery_status = 'skipped' if posting_dry else ('ok' if sent else 'error')
+                delivery_reason = 'shadow' if posting_dry else ('' if sent else 'transport_error')
+                spans.append(self._span('ih_discord', 'post_reply', delivery_status, post_started,
+                                        parent=root_span_id, reason=delivery_reason))
         except Exception as e:
             self.lg.info('work failed (%s)', type(e).__name__)
+            ai_reason = type(e).__name__
+            delivery_reason = type(e).__name__
+            if not any(s.get('span_id') == ai_span_id for s in spans):
+                spans.append({'span_id': ai_span_id, 'parent_span_id': root_span_id, 'component': 'ih_discord_ai_bot',
+                              'operation': 'ai_layer_request', 'status': 'error', 'reason': 'internal_error',
+                              'started_at': ai_started, 'duration_ms': max(0, int((time.time() - ai_started) * 1000))})
         finally:
+            root_status = delivery_status if delivery_status == 'error' else (ai_status if ai_status != 'ok' else delivery_status)
+            root_reason = delivery_reason if delivery_status == 'error' else (ai_reason if ai_status == 'error' else '')
+            spans.append({'span_id': root_span_id, 'parent_span_id': None, 'component': 'ih_discord_ai_bot',
+                          'operation': 'discord_ai_request', 'status': root_status,
+                          'reason': root_reason, 'started_at': root_started,
+                          'duration_ms': max(0, int((time.time() - root_started) * 1000))})
+            self.send_trace(trace_id, spans)
             if release:
                 self.sem.release()
 
@@ -316,6 +360,7 @@ class Module:
             self.errors_posted += 1
         else:
             self.answered += 1
+        return res is not None and bool(res.get('ok'))
 
     def tick(self):
         with self.lock:

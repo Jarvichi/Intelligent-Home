@@ -14,7 +14,8 @@ The hub of Intelligent Home. It shows a status page for the other add-ons and se
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home**.
 2. Set `ingest_token` to a long random text. Other add-ons use it to push their status.
 3. Start the add-on and open **Intelligent Home** in the sidebar.
-4. Optional: turn on `provision` to let the settings hub fill shared keys of the other add-ons (see More details).
+4. The **Traces** tab shows correlated Discord AI requests when the bot has an `ingest_token`. It stores component names, safe operation/status codes and timings only; no request or response content. Entries expire after 7 days and are capped at 5,000 spans.
+5. Optional: turn on `provision` to let the settings hub fill shared keys of the other add-ons (see More details).
 
 ## Options
 
@@ -69,6 +70,9 @@ Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only th
 
 ### Prebuilt image (0.9.1)
 Each add-on card shows "Prebuilt image: yes (tag X)" or "no (built on the Pi)". The answer comes from `app/catalogue.json` (`image: true/false`, written by the export from `tools/prebuilt.txt`); it says the published repo offers a ready image, not that this install has pulled it. The tag is the catalogue version.
+
+### Request traces (0.10.0)
+The manager accepts metadata-only trace batches at `POST /trace`, authenticated with the existing `ingest_token`. The Discord AI Bot submits one trace for each accepted request: bot intake, AI Layer call, AI Layer/provider spans, and Discord transport reply. The trace API rejects free-form message fields and stores only bounded identifiers, component/operation names, status/reason codes, timings and parent relationships. Traces remain on the Orchestrator's `/data`, expire after 7 days, and are capped at 5,000 spans. The ingress manager exposes recent traces at `/api/traces` and individual timelines at `/api/trace/<trace_id>`.
 
 ### Usage (0.8.0)
 

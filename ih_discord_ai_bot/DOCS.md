@@ -4,6 +4,8 @@
 
 Discord AI bot: answers messages from allow-listed users on chosen channel keys (bus module of ih_discord) by asking the AI layer API and posting the reply. Shadow mode by default: logs what it would post, posts nothing. Module of the `ih_discord` transport.
 
+Accepted requests produce metadata-only trace spans in the Orchestrator Traces tab when `ingest_token` is configured. The trace has a random ID; Discord IDs and message text are not stored.
+
 ## Requires
 
 - `ih_discord` add-on
