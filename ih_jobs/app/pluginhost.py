@@ -112,7 +112,7 @@ class Host:
         self.ha = ihlib.ha.HA(token=token, opener=opener, connect=connect)
         self.opener = opener
         self.locks = {n: threading.Lock() for n in self.mods}
-        self.info = {n: {'last_run': None, 'last_ok': None, 'last_error': None, 'last_mode': None, 'runs': 0, 'errors': 0} for n in self.mods}
+        self.info = {n: {'last_run': None, 'last_ok': None, 'last_error': None, 'last_mode': None, 'last_success': None, 'last_success_mode': None, 'runs': 0, 'errors': 0} for n in self.mods}
         self.thread = None
         self.stop_evt = threading.Event()
         self.service_threads = {}
@@ -181,6 +181,9 @@ class Host:
                 info['runs'] += 1
                 info['last_ok'] = ok
                 info['last_error'] = None if ok else 'plugin returned false'
+                if ok:
+                    info['last_success'] = self.clock().isoformat(timespec='seconds')
+                    info['last_success_mode'] = mode
                 if not ok:
                     info['errors'] += 1
                     log('error: ' + info['last_error'])
@@ -217,6 +220,9 @@ class Host:
                 info['runs'] += 1
                 info['last_ok'] = ok
                 info['last_error'] = None if ok else 'plugin returned false'
+                if ok:
+                    info['last_success'] = self.clock().isoformat(timespec='seconds')
+                    info['last_success_mode'] = mode
                 if not ok:
                     info['errors'] += 1
                     log('error: ' + info['last_error'])
@@ -325,6 +331,7 @@ class Host:
             nxt = self.next_run(name) if name in self.cfg else None
             out[name] = {'mode': mode, 'why': why, 'schedule': self.schedule(name), 'runs': i['runs'], 'errors': i['errors'], 'last_run': i['last_run'],
                          'last_ok': i['last_ok'], 'last_mode': i['last_mode'], 'last_error': i['last_error'],
+                         'last_success': i['last_success'], 'last_success_mode': i['last_success_mode'],
                          'next_run': nxt.isoformat(timespec='seconds') if nxt else None}
         for name in self.cfg:
             if name not in self.mods:

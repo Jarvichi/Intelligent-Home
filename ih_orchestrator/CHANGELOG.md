@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.2] - 2026-11-02
+
+### Fixed
+- Return a retryable error when a facts write or delete cannot persist; preserve the prior value instead of acknowledging a lost change.
+
+### Added
+- Show plugin error counts, last result, last successful completion and its mode. Counters describe the current process lifetime.
+
 ## [0.9.1] - 2026-10-31
 
 ### Added

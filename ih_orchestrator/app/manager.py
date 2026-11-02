@@ -509,7 +509,8 @@ class Manager:
             out.append({"name": n, "live": r.get("live") is True, "settings_keys": self._setting_keys(r.get("settings")),
                         "mode": st.get("mode"), "schedule": st.get("schedule"), "next_run": st.get("next_run"),
                         "last_run": st.get("last_run"), "last_error": str(st["last_error"])[:200] if st.get("last_error") else None,
-                        "runs": st.get("runs")})
+                        "runs": st.get("runs"), "errors": st.get("errors"), "last_ok": st.get("last_ok"),
+                        "last_success": st.get("last_success"), "last_success_mode": st.get("last_success_mode")})
         return 200, {"installed": True, "running": isinstance(live, dict), "plugins": out}
 
     def plugin_set(self, name, live):
@@ -628,9 +629,10 @@ function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/p
  if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
  if(!j.installed){m.appendChild(E('p','The ih_jobs add-on is not installed.'));return}
  if(!j.running)m.appendChild(E('p','The jobs add-on did not answer: live details are missing.','o'));
+ m.appendChild(E('p','Results are since jobs started. Success includes expected skips and dry runs; it does not confirm delivery.'));
  if(!j.plugins.length)m.appendChild(E('p','No plugins are listed in the ih_jobs configuration.'));
  var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
-  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Last error',p.last_error,p.last_error?'r':''],
+  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Errors',p.errors],['Last result',p.last_ok===true?'Succeeded':p.last_ok===false?'Failed':'Unknown',p.last_ok===false?'r':''],['Last success',T(p.last_success)],['Success mode',p.last_success_mode],['Last error',p.last_error,p.last_error?'r':''],
    ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
   var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){var me=this;
    ask(me,(p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.',function(){

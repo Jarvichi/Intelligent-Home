@@ -2,7 +2,7 @@
 Home Assistant entities. A fact is /facts/<module>/<name> = a JSON value (<= 4 KiB, at most 500 in total) with set_at, expires_at and the writer.
 Option fact_clients: [{module, key, write}]. A bearer key identifies the calling module. Any known client may read; only module X (with write true)
 writes or deletes /facts/X/*. Stored in /data/facts.json (atomic write). Values are never logged: log lines name module/name only. stdlib only."""
-import datetime, hmac, json, os, re, threading, time
+import datetime, hmac, json, os, re, tempfile, threading, time
 
 NAME_RE = re.compile(r"^[a-z0-9_.-]{1,64}$")
 VALUE_MAX = 4096        # bytes of the JSON-encoded value
@@ -82,16 +82,33 @@ class Facts:
             del self.items[k]
         return bool(dead)
 
-    def _save(self, now):
-        self._prune(now)
+    def _save(self, now, items=None):
+        """Persist a candidate snapshot; failure never acknowledges a mutation.
+        Caller holds self.lock. PUT/DELETE commit memory only after True.
+        """
+        source = self.items if items is None else items
+        snapshot = {k: v for k, v in source.items()
+                    if v.get("expires_at") is None or v["expires_at"] > now}
+        tmp = None
         try:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w") as f:
-                json.dump(self.items, f)
+            folder = os.path.dirname(self.path)
+            os.makedirs(folder, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(prefix=".facts-", suffix=".tmp", dir=folder)
+            with os.fdopen(fd, "w") as f:
+                json.dump(snapshot, f)
+                f.flush()
+                os.fsync(f.fileno())
             os.replace(tmp, self.path)
         except OSError:
             self.log("facts: could not save facts.json")
+            return False
+        finally:
+            if tmp is not None:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+        return True
 
     def auth(self, header):
         """The calling client dict for an Authorization header, or None. Compares against every key (constant time each)."""
@@ -127,11 +144,14 @@ class Facts:
             return 400, {"error": err}
         key = module + "/" + name
         with self.lock:
-            self._prune(now)
-            if key not in self.items and len(self.items) >= MAX_FACTS:
+            candidate = {k: v for k, v in self.items.items()
+                         if v.get("expires_at") is None or v["expires_at"] > now}
+            if key not in candidate and len(candidate) >= MAX_FACTS:
                 return 429, {"error": "store full (%d facts)" % MAX_FACTS}
-            self.items[key] = {"value": body["value"], "set_at": now, "expires_at": exp, "writer": caller["module"]}
-            self._save(now)
+            candidate[key] = {"value": body["value"], "set_at": now, "expires_at": exp, "writer": caller["module"]}
+            if not self._save(now, candidate):
+                return 503, {"error": "facts storage unavailable"}
+            self.items = candidate
         self.log("facts: put %s" % key)
         return 200, {"ok": True, "set_at": iso(now), "expires_at": iso(exp)}
 
@@ -162,8 +182,14 @@ class Facts:
             return 403, {"error": "not allowed to delete here"}
         now = self.clock()
         with self.lock:
-            gone = self.items.pop(module + "/" + name, None)
-            self._save(now)
+            candidate = {k: v for k, v in self.items.items()
+                         if v.get("expires_at") is None or v["expires_at"] > now}
+            gone = candidate.pop(module + "/" + name, None)
+            if gone is None:
+                return 404, {"error": "not found"}
+            if not self._save(now, candidate):
+                return 503, {"error": "facts storage unavailable"}
+            self.items = candidate
         if gone:
             self.log("facts: delete %s/%s" % (module, name))
         return (200, {"ok": True}) if gone else (404, {"error": "not found"})

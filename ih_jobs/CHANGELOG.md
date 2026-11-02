@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.14.3] - 2026-11-02
+
+### Added
+- Report last successful plugin completion and mode, preserving that evidence after a later failure. Success includes dry runs and expected skips; it is not a delivery acknowledgement.
+
 ## [0.14.2] - 2026-11-01
 ### Fixed
 - Count and log plugin failures when run or event handlers return false.
