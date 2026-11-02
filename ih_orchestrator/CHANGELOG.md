@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1] - 2026-11-02
+
+### Added
+- Provision the existing Orchestrator ingest token to `ih_assistant` only, allowing its metadata-only Clara DM traces to reach the trace store. Existing non-empty Assistant tokens are preserved.
+
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 

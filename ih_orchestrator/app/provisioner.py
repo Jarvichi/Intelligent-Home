@@ -224,7 +224,12 @@ class Provisioner:
         for slug in slugs:
             suf = self.suffix(prefix, slug)
             try:
-                st["addons"][suf] = self._one(slug, suf, g, family_view(suf, a), overwrite)
+                addon_options = family_view(suf, a)
+                # Assistant DM traces use the Orchestrator's existing metadata-ingest
+                # endpoint. Scope this token to that one consumer; never log its value.
+                if suf == "ih_assistant" and empty(addon_options.get("ingest_token")):
+                    addon_options["ingest_token"] = o.get("ingest_token")
+                st["addons"][suf] = self._one(slug, suf, g, addon_options, overwrite)
                 if st["addons"][suf].get("halt"):
                     st["errors"].append("stopped: %s did not restart" % suf)
                     self.log("provision: stopped, %s did not reach started" % suf)
