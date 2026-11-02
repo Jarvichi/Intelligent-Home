@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.5] - 2026-11-02
+
+### Changed
+- Rebuilt the Orchestrator ingress panel as a responsive control room with a live service overview, clearer navigation, and refreshed add-on cards.
+- Preserved all existing manager actions, API routes, and two-tap confirmations for consequential operations.
+
 ## [0.9.4] - 2026-11-02
 
 ### Added
