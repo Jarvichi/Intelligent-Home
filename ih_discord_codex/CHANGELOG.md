@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.3] - 2026-11-02
+- Start a fresh Codex thread once when the Brain tool-access policy changes, so older thread context cannot retain the previous no-Brain instructions.
+- Mark the shareable Brain MCP server explicitly enabled in Codex configuration.
+
 ## [0.1.2] - 2026-11-02
 - Add an optional authenticated Brain MCP connection, restricted server-side to search/read of explicitly share:true notes. No Brain writes, inbox, private notes, attachments, or general Home Assistant access.
 

@@ -35,6 +35,7 @@ def main():
     if brain_token:
         overrides.extend((
             'mcp_servers.house_brain_read.url="http://homeassistant:8820/codex-mcp"',
+            'mcp_servers.house_brain_read.enabled=true',
             'mcp_servers.house_brain_read.bearer_token_env_var="BRAIN_READ_TOKEN"',
             'mcp_servers.house_brain_read.enabled_tools=["brain_search","brain_read"]',
             'mcp_servers.house_brain_read.required=true',

@@ -10,6 +10,8 @@ Configure exactly one Discord channel key and one user ID in both the transport 
 
 Discord prompt text, scratch-workspace context, and any retrieved `share: true` Brain notes are sent to the Codex model service. The Brain endpoint excludes inbox, private or unmarked notes, attachments, and writes. Do not use this channel for secrets or notes marked `share: false`. Codex command network access is disabled; its workspace is writable, escalated requests are denied, and files remain in the add-on's private configuration directory.
 
+When the Brain access policy changes, the worker drops the saved thread pointer once and starts a new thread. This ensures a conversation created before the Brain tools were enabled does not retain stale instructions or tool context.
+
 ## Setup
 
 The worker needs an existing Codex ChatGPT login in its private add-on configuration. It uses the official Codex SDK and does not use an API key.

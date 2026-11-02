@@ -136,6 +136,19 @@ class Bridge:
     def clear_thread(self,channel):
         with self.lock,self.db:
             self.db.execute('DELETE FROM threads WHERE channel=?',(channel,))
+    def ensure_context_version(self,version,channels=()):
+        """Start a fresh model thread once when its available tools/policy change."""
+        with self.lock:
+            self.db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+            row=self.db.execute('SELECT value FROM settings WHERE key=?',('context_version',)).fetchone()
+            if row and row[0]==str(version):return False
+            with self.db:
+                selected=[str(ch) for ch in channels if isinstance(ch,str) and ch]
+                if selected:
+                    marks=','.join('?' for _ in selected)
+                    self.db.execute('DELETE FROM threads WHERE channel IN ('+marks+')',selected)
+                self.db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('context_version',str(version)))
+            return True
     def abandon_uncertain(self,channel):
         """Explicit owner command: retain receipts but clear ambiguous content and unblock a fresh thread."""
         with self.lock,self.db:

@@ -68,7 +68,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.2"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.3"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -219,6 +219,7 @@ class Service:
         self.bus = bus
         self.client = None
         self.brain_readonly_connected = False
+        self.brain_thread_policy_reset = False
         raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"], options.get("brain_read_token", ""))
         self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "")
         self.stop = threading.Event()
@@ -279,12 +280,14 @@ class Service:
             self.brain_readonly_connected = brain_readonly_probe(self.opts["brain_read_token"])
             if not self.brain_readonly_connected:
                 raise RuntimeError("read-only shareable Brain MCP unavailable or unexpected tool set")
+        context_version = "shareable-brain-readonly-v1" if self.brain_readonly_connected else "scratch-only-v1"
+        self.brain_thread_policy_reset = self.bridge.ensure_context_version(context_version, self.opts["channel_keys"])
         os.chmod(auth_file, 0o600)
         self.bus = self.bus or bus_client.PahoBus(self.opts["mqtt_host"], self.opts["mqtt_port"],
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.2", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.3", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"], dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -295,11 +298,12 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.2", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.3", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
                 "brain_readonly_connected": self.brain_readonly_connected,
+                "thread_policy_reset": self.brain_thread_policy_reset,
                 "workspace_exists": WORKSPACE.is_dir(), "bus_connected": bool(bus and bus.connected),
                 "bus_active": bool(self.client and self.client.active), "uptime_s": int(time.time()-self.started),
                 "queue": self.bridge.status(), "last_result": self.last_result, "errors": self.errors}
