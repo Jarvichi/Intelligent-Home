@@ -1,8 +1,10 @@
 # Codex Discord module
 
-The module provides a private coding conversation through the existing IH Discord transport. It does not hold a Discord token, Home Assistant API token or model API key. The module receives signed events over MQTT and can only reply through its configured channel grant.
+The module provides a private coding conversation through the existing IH Discord transport. It does not hold a Discord token, Home Assistant API token or model API key. The module receives signed and encrypted private-message events over MQTT and can only reply through its configured channel grant.
 
 ## Access and privacy
+
+The transport encrypts private inbound message metadata/content and the module encrypts reply text with AES-GCM before publishing MQTT messages. The per-module signing key is domain-separated through HKDF for encryption. The transport grant must set `encrypt_content: true`; the Codex worker rejects inbound messages without a valid encrypted envelope. MQTT topics, routing identifiers, and message size remain visible.
 
 Configure exactly one Discord channel key and one user ID in both the transport grant and this add-on. Give the transport bot read-history and post access only to the private channel. The add-on has no Home Assistant API, no host configuration mount, and no Brain or MCP connection. Its only mapped directory is its own private add-on configuration folder.
 

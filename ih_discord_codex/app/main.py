@@ -28,6 +28,7 @@ LOG = logging.getLogger("ih_discord_codex")
 
 sys.path.insert(0, str(HERE))
 import bus_client
+import bus_crypto as crypto
 from bridge import Bridge
 
 
@@ -60,6 +61,14 @@ def load_options():
 
 class DurableClient(bus_client.ModuleClient):
     """ModuleClient with ACK-after-durable-receipt for this persistent worker."""
+    def _publish(self, kind, topic, body):
+        # Protect generated replies on MQTT as well as inbound channel content.
+        safe = dict(body)
+        if kind == "out" and safe.get("op") in ("post", "reply", "edit") and "text" in safe:
+            safe["text_encrypted"] = crypto.encrypt_field(
+                self.key, self.module, topic, safe, "text", safe.pop("text"))
+        return super()._publish(kind, topic, safe)
+
     def _on_in(self, topic, raw):
         parsed = bus_client.parse_topic(topic)
         code, event = bus_client.open_message(self.key, "in", self.module, topic, raw,
@@ -67,6 +76,12 @@ class DurableClient(bus_client.ModuleClient):
         if code != "ok":
             self._reject(code, topic)
             return
+        if event.get("type") == "message":
+            try:
+                event = crypto.decrypt_private_event(self.key, self.module, topic, event)
+            except ValueError:
+                self._reject("encrypted_content_invalid", topic)
+                return
         handler = self.handlers.get(parsed[2]) if parsed else None
         if handler is None:
             return
@@ -234,7 +249,7 @@ class Service:
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.0", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.1", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"], dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -245,7 +260,7 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.0", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.1", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "workspace_exists": WORKSPACE.is_dir(), "bus_connected": bool(bus and bus.connected),

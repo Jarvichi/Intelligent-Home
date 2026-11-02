@@ -8,6 +8,7 @@ import json, os, re, time, threading, collections
 from urllib.parse import quote
 import bus_client as B
 import admin as A
+import bus_crypto as C
 
 DEFAULT_OPS = ('post', 'reply', 'react', 'unreact', 'edit', 'delete', 'typing', 'watch', 'unwatch')
 MAX_TEXT = 1900
@@ -34,10 +35,11 @@ def _tag(v, default='-'):
 
 
 class Grant:
-    def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None):
+    def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None, encrypt_content=False):
         self.name, self.key, self.channels, self.ops, self.rate, self.public = name, key, set(channels), set(ops), rate, set(public)
         self.admin = admin or A.AdminCfg()   # S6: channel-admin rights, ALL OFF unless the module row sets them
         self.shadow = bool(shadow)   # S2: gets COPIES of what the live claimants get; every op it sends is forced dry here
+        self.encrypt_content = bool(encrypt_content)
 
 
 def parse_modules(raw, reserved=()):
@@ -55,7 +57,8 @@ def parse_modules(raw, reserved=()):
         except (TypeError, ValueError):
             rate = 30
         out[name] = Grant(name, str(m.get('signing_key') or '').strip(), [str(c).strip() for c in (m.get('channels') or []) if B.KEY_RE.match(str(c).strip())],
-                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True, admin=A.parse_cfg(m))
+                          ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True,
+                          admin=A.parse_cfg(m), encrypt_content=m.get('encrypt_content') is True)
     return out
 
 
@@ -224,7 +227,12 @@ class BusTransport:
         if not p:
             return
         p['sent'] = self.clock()
-        self._pub('in', module, B.topic_in(module, p['ck']), dict(p['body'], attempt=p['attempt']))
+        topic = B.topic_in(module, p['ck'])
+        body = dict(p['body'], attempt=p['attempt'])
+        grant = self.grants.get(module)
+        if grant and grant.encrypt_content and body.get('type') == 'message':
+            body = C.encrypt_private_event(grant.key, module, topic, body)
+        self._pub('in', module, topic, body)
 
     def deliver_message(self, module, entry, allowed):
         pid = 'm:' + str(entry['id'])
@@ -298,6 +306,18 @@ class BusTransport:
             self._count_reject(module, code); return
         if code != 'ok':
             self._count_reject(module, code); return
+        if g.encrypt_content:
+            if d.get('op') in ('post', 'reply', 'edit'):
+                if 'text' in d or 'text_encrypted' not in d:
+                    self._count_reject(module, 'unencrypted_content'); return
+                try:
+                    d['text'] = C.decrypt_field(g.key, module, topic, d, 'text', d.pop('text_encrypted'))
+                except ValueError:
+                    self._count_reject(module, 'encrypted_content_invalid'); return
+                if not isinstance(d['text'], str):
+                    self._count_reject(module, 'encrypted_content_invalid'); return
+            elif 'text' in d or 'text_encrypted' in d:
+                self._count_reject(module, 'unencrypted_content'); return
         oid = d.get('op_id')
         if not isinstance(oid, str) or not oid or len(oid) > 100:
             self._count_reject(module, 'malformed'); return
@@ -338,7 +358,8 @@ class BusTransport:
             back = res.get('text') if isinstance(res.get('text'), str) else ''
             f = ['invoke', 'id=' + _tag(d.get('op_id')), 'src=' + _tag(module), 'what=%s:%s' % (_tag(op), _tag(d.get('channel_key'))), 'in=%d' % len(txt),
                  'out=%d' % len(back), 'ms=%d' % int((time.time() - t0) * 1000), 'ok=%s' % bool(res.get('ok')), 'why=' + _tag(res.get('code') if not res.get('ok') else res.get('detail'))]
-            if self.log_payloads:
+            grant = self.grants.get(module)
+            if self.log_payloads and not (grant and grant.encrypt_content):
                 f += ['req="%s"' % _snip(txt), 'ans="%s"' % _snip(back)]
             self.log(' '.join(f))
         except Exception:

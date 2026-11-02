@@ -10,7 +10,7 @@ All off by default; new OPTIONAL keys: `categories` ("key=id,key=id"), `permissi
 can_create_channels, allowed_parent_categories, name_pattern, max_channels, max_creates_per_hour, permission_template, can_delete, category_ops.
 Kill switches /data/STOP_ADMIN, /data/STOP_ADMIN_<module>; /data/ADMIN_LOCK_<module> after 3 limit hits in an hour.
 A module writes to Discord only when dry_run is off AND it is in live_modules AND /data/STOP_LIVE (or STOP_LIVE_<module>) does not exist.
-stdlib only (+ paho-mqtt for the bus). core.py and settings.py are COPIES (see sync_from_service.sh).
+stdlib plus paho-mqtt and cryptography for the bus. core.py and settings.py are COPIES (see sync_from_service.sh).
 Serves /healthz and /status (no secrets). Pushes its manifest and status to the Intelligent Home add-on (POST /ingest)."""
 import json, os, sys, threading, time, traceback, logging, collections, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,7 +27,7 @@ import admin
 import identity
 import approvals
 
-VERSION = '0.10.0'
+VERSION = '0.10.1'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
