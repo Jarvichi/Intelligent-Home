@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+- Metadata-only traces for Clara-style direct messages: Discord intake, persona inbox queue, elapsed external processing interval, and successful Discord reply. Trace IDs are random; message text, Discord IDs, and reply contents are not uploaded. Uses the existing Orchestrator `ingest_token` provisioned by the settings hub; tracing is disabled if it is blank.
+
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 

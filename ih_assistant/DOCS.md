@@ -97,3 +97,5 @@ Calendars, the meal sensor and the presence entity are read from Home Assistant 
 
 ### Dry-run
 A persona sends only when `mode` is `live` **and** its own `live` is true. Reading is not gated: in dry-run the add-on still polls the person's private messages (read-only) into the inbox. Posting, reactions and typing are logged only. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.
+# Request traces (0.9.0)
+When `ingest_token` is populated, each newly received direct message creates a content-free trace. The settings hub provisions the existing Orchestrator `ingest_token`; the URL defaults to the existing facts URL or the local Orchestrator address. A successful reply linked with `reply_to` adds the external processing interval and Discord send. Message text, Discord IDs and reply text are never uploaded. This shows the host Claude bridge as one external-processing interval; it does not expose Claude's internal tool/model steps. Tracing is best-effort and off when the token is blank.

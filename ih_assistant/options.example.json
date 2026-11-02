@@ -4,6 +4,8 @@
   "timezone": "Europe/London",
   "facts_url": "",
   "facts_key": "",
+  "trace_url": "",
+  "ingest_token": "",
   "personas": [
     {
       "key": "persona_a",

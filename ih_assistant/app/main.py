@@ -1,7 +1,7 @@
 """Intelligent Home - Assistant - Personas (ih_assistant): transport, schedule and profile for several personas (stdlib only).
 The reply text is written elsewhere (the host); this add-on moves messages in and out, queues check-in events and keeps one
 SEPARATE datastore per persona. Dry-run by default."""
-import base64, binascii, datetime, hmac, json, logging, os, re, sys, threading, time
+import base64, binascii, datetime, hmac, json, logging, os, re, secrets, sys, threading, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.error, urllib.parse, urllib.request
 from urllib.parse import urlparse, parse_qs
@@ -16,7 +16,7 @@ import planner
 import levels
 import random
 
-VERSION = '0.8.0'
+VERSION = '0.9.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -133,6 +133,8 @@ def load_options(path):
             USAGE_SENSORS[ak] = o[uk].strip()
     return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
+            'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
+            'ingest_token': str(o.get('ingest_token') or '').strip(),
             'personas': personas}, problems
 
 
@@ -188,6 +190,32 @@ class Assistant:
         self.stores[key].update_state(lambda s: s.__setitem__('dm_channel', ch))
         return ch
 
+    def trace_batch(self, trace_id, spans):
+        """Best-effort metadata-only trace upload. Message text and Discord IDs never leave the add-on."""
+        if not self.opts.get('trace_url') or not self.opts.get('ingest_token') or not spans:
+            return
+        req = urllib.request.Request(self.opts['trace_url'] + '/trace',
+            data=json.dumps({'trace_id': trace_id, 'spans': spans}).encode(), method='POST',
+            headers={'Authorization': 'Bearer ' + self.opts['ingest_token'], 'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=3) as r:
+                if not 200 <= r.status < 300:
+                    self.log('trace upload failed (http_error)')
+        except Exception as e:
+            self.log('trace upload failed (%s)' % type(e).__name__)
+
+    def trace_message(self, key, ev):
+        """Create a trace at the Discord-to-persona inbox boundary and retain local correlation metadata."""
+        tid, root, queued = uuid.uuid4().hex, secrets.token_hex(8), secrets.token_hex(8)
+        started = self.clock()
+        ev['trace'] = {'id': tid, 'root': root, 'queued': queued, 'started': started}
+        self.trace_batch(tid, [
+            {'span_id': root, 'parent_span_id': None, 'component': 'discord', 'operation': 'direct_message',
+             'status': 'ok', 'reason': '', 'started_at': started, 'duration_ms': 0},
+            {'span_id': queued, 'parent_span_id': root, 'component': 'ih_assistant', 'operation': 'inbox_queue',
+             'status': 'ok', 'reason': '', 'started_at': started, 'duration_ms': 0}
+        ])
+
     def _count_out(self, key, kind):
         day = self._day()
         def f(s):
@@ -222,10 +250,12 @@ class Assistant:
             if str(m.get('author', {}).get('id')) != uid:
                 continue
             self.maybe_intro(key)
-            st.append_event({'type': 'message', 'msg_id': m['id'], 'text': str(m.get('content') or ''),
+            ev = {'type': 'message', 'msg_id': m['id'], 'text': str(m.get('content') or ''),
                              'attachments': len(m.get('attachments') or []),
                              'files': [{'n': i, 'name': safe_name(a.get('filename')), 'size': int(a.get('size') or 0), 'type': str(a.get('content_type') or '')}
-                                       for i, a in enumerate((m.get('attachments') or [])[:ATTACH_MAX_N])]})
+                                       for i, a in enumerate((m.get('attachments') or [])[:ATTACH_MAX_N])]}
+            self.trace_message(key, ev)
+            st.append_event(ev)
             added += 1
         st.update_state(lambda s: s.__setitem__('last_seen', newest))
         if added:
@@ -808,6 +838,7 @@ class Assistant:
             completed = False
             if rt:
                 try:
+                    self.trace_reply(key, rt)
                     completed = st.complete_message(msg_id=rt)
                     self.publish_reply_progress(key, force=True)
                 except Exception as e:
@@ -816,6 +847,27 @@ class Assistant:
                 st.merge_profile({'introduced': True})
         self.log('persona %s: sent %d chars' % (key, len(text)))
         return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed)}
+
+    def trace_reply(self, key, msg_id):
+        """Close the external Claude bridge and Discord send spans for a replied-to DM."""
+        try:
+            ev = next((e for e in reversed(self.stores[key].read_inbox(0, 500))
+                       if e.get('type') == 'message' and str(e.get('msg_id')) == str(msg_id)), None)
+            info = (ev or {}).get('trace') or {}
+            tid, root, queued, started = info.get('id'), info.get('root'), info.get('queued'), float(info.get('started'))
+            if not tid or not root or not queued:
+                return
+            now = self.clock()
+            elapsed = max(0, min(3600000, int((now - started) * 1000)))
+            bridge, sent = secrets.token_hex(8), secrets.token_hex(8)
+            self.trace_batch(tid, [
+                {'span_id': bridge, 'parent_span_id': queued, 'component': 'claude_bridge', 'operation': 'external_processing',
+                 'status': 'ok', 'reason': 'reply_received', 'started_at': started, 'duration_ms': elapsed},
+                {'span_id': sent, 'parent_span_id': bridge, 'component': 'discord', 'operation': 'reply_sent',
+                 'status': 'ok', 'reason': '', 'started_at': now, 'duration_ms': 0}
+            ])
+        except Exception as e:
+            self.log('trace correlation failed (%s)' % type(e).__name__)
 
     def typing(self, key, body=None):
         mid = (body or {}).get('msg_id')
