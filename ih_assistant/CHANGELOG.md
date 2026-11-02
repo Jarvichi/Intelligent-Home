@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-11-02
+
+### Added
+- Content-free direct-message outcome watermarks, published to the existing orchestrator facts store. A reply is acknowledged only after Discord confirms the send; handled bridge commands can record their completed outcome. This does not replay or resend messages.
+- Completion receipts are per persona and ordered; inconsistent inbox/watermark state is reported as unknown.
+- Facts snapshots expire after five minutes and are refreshed periodically. The assistant fact client needs write access only to its own namespace.
+
 ## [0.7.0] - 2026-10-31
 
 ### Added

@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner, manager, facts
+import healthlib, scheduler, provisioner, manager, facts, consumer_progress
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -19,6 +19,7 @@ SCHED = None
 SCHED_REASON = "not started"
 TOKEN = ""
 FACTS = None  # facts.Facts once options are loaded (v0.9.0; off when fact_clients is empty)
+PROGRESS = None
 PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
@@ -134,7 +135,40 @@ def snapshot(manifests=None, status=None, now=None):
     snap["schedule"] = SCHED.status(now) if SCHED else scheduler.off_status(m, SCHED_REASON, now)
     snap["settings"] = PROV.get_status() if PROV else None   # names only, never values
     snap["facts"] = FACTS.status() if FACTS else None        # fact names and times only, never values
+    snap["consumer_progress"] = consumer_progress_rows(now)
     return snap
+
+
+def consumer_progress_rows(now=None):
+    """Return validated, content-free direct-message outcome status for the manager."""
+    if not PROGRESS:
+        return []
+    now = time.time() if now is None else now
+    found, rows = set(), []
+    if FACTS:
+        try:
+            code, result = FACTS.list("assistant")
+            if code == 200:
+                for row in result.get("facts", []):
+                    name = row.get("name", "") if isinstance(row, dict) else ""
+                    if not name.startswith("progress_"):
+                        continue
+                    consumer = name[len("progress_"):]
+                    if not consumer_progress.KEY.fullmatch(consumer):
+                        continue
+                    found.add(consumer)
+                    value = row.get("value")
+                    status = PROGRESS.sample(consumer, value, now, enabled=not (isinstance(value, dict) and value.get("enabled") is False))
+                    rows.append({"consumer": consumer, **status})
+        except Exception:
+            pass
+    try:
+        for consumer in PROGRESS.store.load():
+            if consumer not in found:
+                rows.append({"consumer": consumer, "status": "unknown", "reason": "snapshot_missing"})
+    except Exception:
+        rows.append({"consumer": "assistant", "status": "unknown", "reason": "checkpoint_unavailable"})
+    return sorted(rows, key=lambda row: row["consumer"])
 
 
 def all_manifests():
@@ -283,7 +317,7 @@ def init_manager():
 
 
 def load_options(path=None):
-    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS, FACTS
+    global TOKEN, ENABLE_BROKER, LOG_PAYLOADS, FACTS, PROGRESS
     try:
         o = json.load(open(path or OPTIONS))
     except Exception:
@@ -293,6 +327,8 @@ def load_options(path=None):
     ENABLE_BROKER = bool(o.get("enable_broker", False))
     LOG_PAYLOADS = o.get("log_payloads") is True
     FACTS = facts.build(o, DATA, LOG)
+    PROGRESS = consumer_progress.Monitor(os.path.join(DATA, "consumer-progress.json"), stall_after=300,
+                                         startup_grace=60, max_snapshot_age=180)
 
 
 def sensor(snap):

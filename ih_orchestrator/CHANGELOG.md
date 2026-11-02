@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.4] - 2026-11-02
+
+### Added
+- Health tab shows per-persona direct-message outcome progress: idle, waiting, catching up, stalled, disabled, or unknown; counts and ages only, no message content.
+- Progress uses durable completion receipts from IH Assistant. A service heartbeat alone does not count as consumer progress. Missing, stale or inconsistent snapshots show unknown.
+- Checkpoint state is persisted across orchestrator restarts. No automatic replay, restart, notification or message send is performed.
+
 ## [0.9.3] - 2026-11-02
 
 ### Fixed

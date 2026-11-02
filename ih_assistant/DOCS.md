@@ -57,6 +57,7 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `GET /status` | mode and per-persona counts (no ids, no text) |
 | `GET /persona/<key>/inbox?after=<id>&limit=<n>` | events after an id: `message`, `checkin_due`, `intro_due`, `from_persona`, `reaction`, `still_waiting` |
 | `POST /persona/<key>/reply` | `{text, reply_to?}` sends as that persona's bot (live) or only logs `[DRY] would send N chars` |
+| `POST /persona/<key>/complete` | `{event_id}` records a completed bridge-command outcome for a tracked direct message; it never sends or replays. A normal reply is recorded only after Discord confirms a send that includes the matching `reply_to`. |
 | `POST /persona/<key>/typing` | `{}`: shows the typing indicator once (live). `{msg_id}`: keeps it going every 8 s until the persona has posted after that message or 5 minutes pass, then queues `still_waiting` |
 | `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
@@ -66,6 +67,10 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
 | `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
+
+### Outcome progress
+
+The add-on publishes only per-persona counters, timestamps, an opaque stream epoch, and whether that persona is live to `assistant/progress_<key>` in the orchestrator facts store. It does not publish message text, Discord IDs, or credentials. Configure the existing `assistant` fact client with `write: true`; the key remains scoped to the `assistant/*` namespace. Facts expire after five minutes and are refreshed every minute. A reply counts only after Discord confirms the send and the request includes the matching `reply_to`. The host bridge records a command outcome after its handler succeeds. Reading an inbox event alone never advances the completion watermark.
 
 ### Behaviour levels (0 to 10)
 Per persona options, all optional: `emoji_level`, `gif_level`, `checkin_level`, `humour_level`, `formality_level`, `verbosity_level`, `banter_level`, `reminders_level`. Whole numbers 0 to 10; anything else is clamped (bad values fall back to the persona's default). Defaults are the same for every persona (emoji 2, gif 5, all others 5); set the persona options to change them. Optional `fixed_rule` (text, up to 300 characters) is added to the prompt block as a fixed line that the levels cannot change. Optional top-level `usage_sensor_session`, `usage_sensor_week`, `usage_sensor_session_reset`, `usage_sensor_week_reset` name the Home Assistant sensors used by the usage auto-reply. 0 = never, 5 = middle, 10 = as much as possible. Full scale: brain note `process/assistant-behaviour-levels`.

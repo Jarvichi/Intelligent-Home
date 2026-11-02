@@ -1,4 +1,4 @@
-"""Add-on manager page (v0.9.3: light/dark theme support; tabs Add-ons, Install, Plugins, Settings, Health, Usage). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
+"""Add-on manager page (v0.9.4: consumer outcome progress; tabs Add-ons, Install, Plugins, Settings, Health, Usage). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import hashlib, json, os, re, threading, time, urllib.request, urllib.error
@@ -562,7 +562,8 @@ class Manager:
         svc = [{"name": r.get("name"), "state": r.get("state"), "kind": r.get("kind"), "version": r.get("version"),
                 "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or [] if isinstance(c, dict)]}
                for r in snap.get("services") or []]
-        return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s")}
+        return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s"),
+                     "consumer_progress": snap.get("consumer_progress") or []}
 
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Intelligent Home</title>
@@ -654,7 +655,14 @@ function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/hea
  var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
  j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
   [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
- w.appendChild(t);m.appendChild(w)})}
+ w.appendChild(t);m.appendChild(w);
+ m.appendChild(E('h3','Consumer progress'));
+ var p=j.consumer_progress||[];
+ if(!p.length){m.appendChild(E('p','No consumer outcome streams reported yet.','d'));return}
+ var pw=E('div',null,'w'),pt=E('table'),ph=E('tr');['Consumer','State','Pending','Oldest pending','No progress','Reason'].forEach(function(z){ph.appendChild(E('th',z))});pt.appendChild(ph);
+ p.forEach(function(s){var r=E('tr'),state=s.status||'unknown',tone=state=='idle'?'g':state=='stalled'?'r':state=='disabled'?'d':'o';
+  [s.consumer,state,s.pending==null?'—':String(s.pending),s.oldest_pending_age_s==null?'—':String(Math.floor(s.oldest_pending_age_s))+' s',s.no_progress_s==null?'—':String(Math.floor(s.no_progress_s))+' s',s.reason||''].forEach(function(v,i){r.appendChild(E('td',v,i==1?tone:''))});pt.appendChild(r)});
+ pw.appendChild(pt);m.appendChild(pw)})}
 function tabUsage(m){m.appendChild(E('p','Loading usage...'));fetch(U('api/usage')).then(J).then(function(x){m.textContent='';var j=x[1];
  if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
  m.appendChild(E('p','Invocations per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are highlighted.','d'));

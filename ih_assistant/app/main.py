@@ -16,7 +16,7 @@ import planner
 import levels
 import random
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -150,6 +150,7 @@ class Assistant:
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
         self.rng = rng or random.random
+        self.progress_publish_at = {}
         self.cfg, self.stores, self.discord = {}, {}, {}
         for p in opts['personas']:
             k = p['key']
@@ -158,6 +159,7 @@ class Assistant:
             p.setdefault('levels', levels.resolve(k, p))
             self.cfg[k] = p
             self.stores[k] = PersonaStore(data_dir, k, clock)
+            self.stores[k].ensure_reply_progress()
             if p['bot_token'] and p['user_id']:
                 self.discord[k] = Discord(p['bot_token'], opener, sleep)
 
@@ -732,7 +734,50 @@ class Assistant:
             f = len(self.tick_checkins(key))
         except StoreError as e:
             self.log('persona %s: checkin failed (%s)' % (key, e))
+        try:
+            self.publish_reply_progress(key)
+        except Exception as e:
+            self.log('persona %s: progress publish failed (%s)' % (key, type(e).__name__))
         return n, f
+
+    def publish_reply_progress(self, key, force=False):
+        """Publish counts/timestamps only to the existing orchestrator facts store."""
+        url, token = self.opts.get('facts_url'), self.opts.get('facts_key')
+        if not (url and token):
+            return False
+        now = float(self.clock())
+        if not force and now - self.progress_publish_at.get(key, 0) < 60:
+            return False
+        self.progress_publish_at[key] = now
+        snap = self.stores[key].reply_progress_snapshot(now)
+        if snap is None:
+            return False
+        snap['enabled'] = bool(self.is_live(key))
+        req = urllib.request.Request('%s/facts/assistant/progress_%s' % (url.rstrip('/'), key),
+                                     data=json.dumps({'value': snap, 'ttl_s': 300}).encode(),
+                                     headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+                                     method='PUT')
+        try:
+            with (self.facts_opener or urllib.request.urlopen)(req, timeout=FACT_TIMEOUT_S) as r:
+                return 200 <= getattr(r, 'status', 200) < 300
+        except Exception as e:
+            self.log('persona %s: progress publish unavailable (%s)' % (key, type(e).__name__))
+            return False
+
+    def complete_message(self, key, body):
+        """Record a completed bridge command outcome; this endpoint never sends or replays."""
+        event_id = body.get('event_id')
+        if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id < 1:
+            return 400, {'ok': False, 'why': 'positive event_id required'}
+        try:
+            done = self.stores[key].complete_message(event_id=event_id)
+        except Exception as e:
+            self.log('persona %s: completion receipt failed (%s)' % (key, type(e).__name__))
+            return 503, {'ok': False, 'why': 'completion receipt unavailable'}
+        if not done:
+            return 404, {'ok': False, 'why': 'tracked message not found'}
+        self.publish_reply_progress(key, force=True)
+        return 200, {'ok': True, 'completed': True}
 
     # ---- API actions (return (http code, body)) ----
     def reply(self, key, body):
@@ -760,10 +805,17 @@ class Assistant:
         if ok:
             st.update_state(lambda s: s.pop('keepers', None))
             self._count_out(key, 'reply')
+            completed = False
+            if rt:
+                try:
+                    completed = st.complete_message(msg_id=rt)
+                    self.publish_reply_progress(key, force=True)
+                except Exception as e:
+                    self.log('persona %s: reply sent; completion receipt unavailable (%s)' % (key, type(e).__name__))
             if not st.profile()['introduced'] and st.state().get('intro_requested'):
                 st.merge_profile({'introduced': True})
         self.log('persona %s: sent %d chars' % (key, len(text)))
-        return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text)}
+        return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed)}
 
     def typing(self, key, body=None):
         mid = (body or {}).get('msg_id')
@@ -1104,6 +1156,8 @@ def make_handler(app):
                 return self._send(400, {'ok': False, 'why': 'JSON object required'})
             if act == 'reply' and len(parts) == 3:
                 return self._send(*app.reply(key, body))
+            if act == 'complete' and len(parts) == 3:
+                return self._send(*app.complete_message(key, body))
             if act == 'typing' and len(parts) == 3:
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:

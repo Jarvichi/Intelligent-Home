@@ -38,6 +38,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `shared` | No | Settings hub, see below |
 | `fact_clients` | No | Setting `fact_clients`. |
 
+## Consumer progress
+
+The Health tab shows content-free outcome progress for IH Assistant direct messages: idle, waiting, catching up, stalled, disabled, or unknown. It distinguishes a live service heartbeat from completed replies. Stale or inconsistent data is shown as unknown. The monitor does not send, replay, restart, or notify. Its durable checkpoint is stored under `/data` and is included in normal add-on backups.
+
 ## Troubleshooting
 
 - **Other add-ons do not appear.** They must push with the same `ingest_token`; check their `ingest_url`.
