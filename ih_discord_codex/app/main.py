@@ -51,6 +51,9 @@ def load_options():
         return value.strip() if isinstance(value, str) else default
     channel_keys = data.get("channel_keys")
     user_ids = data.get("allowed_user_ids")
+    review_channel_key = text("review_channel_key")
+    if review_channel_key not in ("", "claude_review"):
+        raise ValueError("review_channel_key must be empty or the fixed claude_review channel key")
     return {
         "module": text("module_name", "ih_discord_codex"),
         "key": text("signing_key"),
@@ -63,6 +66,7 @@ def load_options():
         "mqtt_password": text("mqtt_password"),
         "brain_read_token": text("brain_read_token"),
         "github_repo_token": text("github_repo_token"),
+        "review_channel_key": review_channel_key,
         "codex_home": str(CODEX_HOME),
         "workspace": str(WORKSPACE),
     }
@@ -73,7 +77,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.6"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.7"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -131,9 +135,10 @@ class DurableClient(bus_client.ModuleClient):
 
 
 class CodexProcessRunner:
-    def __init__(self, workspace, codex_home, brain_read_token="", timeout_s=240):
+    def __init__(self, workspace, codex_home, brain_read_token="", claude_review_enabled=False, timeout_s=240):
         self.workspace, self.codex_home, self.timeout_s = str(workspace), str(codex_home), timeout_s
         self.brain_read_token = str(brain_read_token)
+        self.claude_review_enabled = bool(claude_review_enabled)
         self._lock = threading.Lock()
         self._active = None
 
@@ -149,7 +154,8 @@ class CodexProcessRunner:
     def run(self, thread, text, save_thread):
         payload = json.dumps({"thread": thread, "text": text, "workspace": self.workspace,
                               "codex_home": self.codex_home,
-                              "brain_read_token": self.brain_read_token}).encode("utf-8")
+                              "brain_read_token": self.brain_read_token,
+                              "claude_review_enabled": self.claude_review_enabled}).encode("utf-8")
         safe_env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ}
         proc = subprocess.Popen([sys.executable, str(HERE / "codex_worker.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -198,9 +204,10 @@ class CodexProcessRunner:
 
 
 class CommandRunner:
-    def __init__(self, bridge, codex_runner, channel, ha_tools=None, workspace=None, github_token=""):
+    def __init__(self, bridge, codex_runner, channel, ha_tools=None, workspace=None, github_token="", review_channel_key=""):
         self.bridge, self.codex, self.channel, self.ha_tools, self.workspace = bridge, codex_runner, channel, ha_tools, workspace
         self.github_token = github_token
+        self.review_channel_key = review_channel_key
 
     def run(self, thread, text, save_thread):
         command = text.strip().lower()
@@ -210,7 +217,8 @@ class CommandRunner:
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
             delivery = ", ".join("%s %s" % (count, name) for name, count in sorted(state["delivery"].items())) or "no replies pending"
-            return "Codex status: %s. Replies: %s." % (jobs, delivery)
+            handoffs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["claude_handoffs"].items())) or "no Claude handoffs"
+            return "Codex status: %s. Replies: %s. Review handoffs: %s." % (jobs, delivery, handoffs)
         if command == "/new":
             self.bridge.abandon_uncertain(self.channel)
             return "Started a fresh Codex thread. Any interrupted turn or uncertain reply was held and will not be replayed."
@@ -231,7 +239,12 @@ class CommandRunner:
                 return "The private IH code branch is ready locally, but GitHub submission is not configured. Add a fine-grained token for the IH add-on source repository with Contents read/write and Pull requests read/write, then use `/code submit`."
             try:
                 result = publish_review_branch(self.workspace, self.github_token)
-                return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed." % (result["url"], result["branch"])
+                if self.review_channel_key:
+                    state = self.bridge.queue_claude_handoff(self.bridge.active_context(), "Review and finish this public IH code change.", result["url"])
+                    notice = " Claude review handoff: %s." % ("queued" if state == "pending" else state)
+                else:
+                    notice = " Claude handoff is not configured."
+                return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed.%s" % (result["url"], result["branch"], notice)
             except PublishError as exc:
                 return str(exc)
         if command.startswith("/code "):
@@ -244,6 +257,9 @@ class CommandRunner:
             answer += ("\n\nApproval required: I propose %s for `%s`. Nothing has changed yet. "
                        "Send `/approve %s` to do this one step, or `/deny %s` to cancel. The code expires in five minutes." %
                        (plan["domain"] + "." + plan["service"], plan["entity_id"], plan["id"], plan["id"]))
+        handoffs = self.bridge.claude_handoffs_for(context["message"]) if context else []
+        if handoffs:
+            answer += "\n\nClaude handoff queued for this IH code task."
         return answer
 
 
@@ -256,9 +272,9 @@ class Service:
         self.client = None
         self.brain_readonly_connected = False
         self.brain_thread_policy_reset = False
-        self.ha_tools = HATools(self.bridge)
-        raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"], options.get("brain_read_token", ""))
-        self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "", self.ha_tools, options["workspace"], options.get("github_repo_token", ""))
+        self.ha_tools = HATools(self.bridge, review_enabled=bool(options.get("review_channel_key")))
+        raw_runner = CodexProcessRunner(options["workspace"], options["codex_home"], options.get("brain_read_token", ""), bool(options.get("review_channel_key")))
+        self.runner = CommandRunner(self.bridge, raw_runner, options["channel_keys"][0] if options["channel_keys"] else "", self.ha_tools, options["workspace"], options.get("github_repo_token", ""), options.get("review_channel_key", ""))
         self.stop = threading.Event()
         self.errors = 0
         self.last_result = None
@@ -300,6 +316,17 @@ class Service:
                     return None
                 if self.bridge.deliver_one(sender):
                     continue
+                def review_sender(text):
+                    if self.client is None or not self.opts.get("review_channel_key"):
+                        return None
+                    result = self.client.post(self.opts["review_channel_key"], text, tag="codex-review")
+                    if isinstance(result, dict) and result.get("code") == "dry":
+                        return "dry"
+                    if isinstance(result, dict) and result.get("ok") and result.get("discord_id"):
+                        return str(result["discord_id"])
+                    return None
+                if self.bridge.deliver_claude_handoff(review_sender):
+                    continue
             except Exception as exc:
                 self.errors += 1
                 LOG.info("outbox step failed (%s)", type(exc).__name__)
@@ -320,15 +347,15 @@ class Service:
             self.brain_readonly_connected = brain_readonly_probe(self.opts["brain_read_token"])
             if not self.brain_readonly_connected:
                 raise RuntimeError("read-only shareable Brain MCP unavailable or unexpected tool set")
-        context_version = "ha-tools-confirmed-actions-v1"
+        context_version = "ha-tools-claude-review-handoff-v1"
         self.brain_thread_policy_reset = self.bridge.ensure_context_version(context_version, self.opts["channel_keys"])
         os.chmod(auth_file, 0o600)
         self.bus = self.bus or bus_client.PahoBus(self.opts["mqtt_host"], self.opts["mqtt_port"],
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.6", log=lambda msg: LOG.info("%s", msg), threaded=True,
-             ops_needed=["reply"], dry=self.opts["shadow"])
+             version="0.1.7", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             ops_needed=["reply"] + (["post"] if self.opts.get("review_channel_key") else []), dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
         if not self.client.start():
@@ -338,12 +365,13 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.6", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.7", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
                 "brain_readonly_connected": self.brain_readonly_connected,
                 "ha_tools_enabled": bool(self.ha_tools.token),
+                "claude_review_handoff_enabled": bool(self.opts.get("review_channel_key")),
                 "thread_policy_reset": self.brain_thread_policy_reset,
                 "workspace_exists": WORKSPACE.is_dir(), "bus_connected": bool(bus and bus.connected),
                 "bus_active": bool(self.client and self.client.active), "uptime_s": int(time.time()-self.started),

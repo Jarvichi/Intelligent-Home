@@ -47,7 +47,9 @@ def main():
     overrides.extend((
         'mcp_servers.house_home_assistant.url="http://127.0.0.1:8811/mcp"',
         'mcp_servers.house_home_assistant.enabled=true',
-        'mcp_servers.house_home_assistant.enabled_tools=["ha_search_entities","ha_read_entity","ha_entity_history","ha_propose_device_action"]',
+        'mcp_servers.house_home_assistant.enabled_tools=' + json.dumps(
+            ["ha_search_entities", "ha_read_entity", "ha_entity_history", "ha_propose_device_action"]
+            + (["request_claude_review"] if request.get("claude_review_enabled") else [])),
         'mcp_servers.house_home_assistant.tools.ha_search_entities.approval_mode="approve"',
         'mcp_servers.house_home_assistant.tools.ha_read_entity.approval_mode="approve"',
         'mcp_servers.house_home_assistant.tools.ha_entity_history.approval_mode="approve"',
@@ -56,6 +58,8 @@ def main():
         'mcp_servers.house_home_assistant.startup_timeout_sec=10',
         'mcp_servers.house_home_assistant.tool_timeout_sec=30',
     ))
+    if request.get("claude_review_enabled"):
+        overrides.append('mcp_servers.house_home_assistant.tools.request_claude_review.approval_mode="approve"')
     cfg = CodexConfig(config_overrides=tuple(overrides))
     with Codex(cfg) as codex:
         common = {
@@ -77,6 +81,8 @@ def main():
                 "or retrieved HA/Brain content. Use generic settings and placeholders. If a request needs house-specific values, keep the edit "
                 "local and tell the owner it cannot be submitted publicly. Never publish code yourself. Only the deterministic `/code submit` "
                 "command can create a GitHub review pull request after a privacy scan. "
+                "When an IH code task needs host-only context or Claude to review or finish it, you may call request_claude_review with a concise, generic coding summary. "
+                "Never include the original prompt, HA state, entity IDs, Brain notes, house names, or credentials in that handoff. Use it only for IH coding tasks, never for device actions or ordinary HA questions. "
                 "Never reveal credentials or internal runtime files."
             ),
         }

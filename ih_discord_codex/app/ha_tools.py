@@ -41,13 +41,16 @@ TOOLS = [
     {"name": "ha_propose_device_action", "description": "Prepare one light or switch action for the authorized owner to review. This does not operate the device. The service call happens only after the owner sends the exact /approve code in the authorized Discord channel.",
      "inputSchema": {"type": "object", "properties": {"entity_id": {"type": "string"}, "service": {"type": "string", "enum": ["turn_on", "turn_off", "toggle"]}}, "required": ["entity_id", "service"]}},
 ]
+CLAUDE_REVIEW_TOOL = {"name": "request_claude_review", "description": "Ask the authorized Claude reviewer to take over or finish an IH code task. Send only a concise generic coding summary; never include the original prompt, Home Assistant states or entity IDs, Brain notes, room or device names, or credentials. Do not use this for device actions or ordinary HA questions.",
+    "inputSchema": {"type": "object", "properties": {"summary": {"type": "string", "maxLength": 900}}, "required": ["summary"]}}
 
 
 class HATools:
-    def __init__(self, bridge, token=None, base="http://supervisor/core/api/"):
+    def __init__(self, bridge, token=None, base="http://supervisor/core/api/", review_enabled=False):
         self.bridge = bridge
         self.token = token if token is not None else __import__("os").environ.get("SUPERVISOR_TOKEN", "")
         self.base = base.rstrip("/") + "/"
+        self.tools = TOOLS + ([CLAUDE_REVIEW_TOOL] if review_enabled else [])
         self.server = None
         self.thread = None
 
@@ -170,6 +173,12 @@ class HATools:
         return json.dumps({"proposal_id": plan["id"], "entity_id": entity, "service": domain + "." + service,
                            "expires_in_seconds": 300, "physical_action_taken": False})
 
+    def t_request_claude_review(self, args):
+        context = self.bridge.active_context()
+        state = self.bridge.queue_claude_handoff(context, args.get("summary"))
+        return json.dumps({"queued": state == "pending", "state": state,
+                           "message": "A code-only handoff is queued for Claude." if state == "pending" else "A handoff for this task already exists."})
+
     def call(self, message):
         if isinstance(message, list):
             return [item for item in (self.call(x) for x in message) if item is not None] or None
@@ -186,11 +195,11 @@ class HATools:
         if method == "notifications/initialized" or method == "ping":
             return {"jsonrpc": "2.0", "id": mid, "result": {}}
         if method == "tools/list":
-            return {"jsonrpc": "2.0", "id": mid, "result": {"tools": TOOLS}}
+            return {"jsonrpc": "2.0", "id": mid, "result": {"tools": self.tools}}
         if method == "tools/call":
             name = params.get("name")
             fn = getattr(self, "t_" + str(name), None)
-            if not fn or name not in {x["name"] for x in TOOLS}:
+            if not fn or name not in {x["name"] for x in self.tools}:
                 return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": "unknown tool"}}
             try:
                 output = fn(params.get("arguments") or {})

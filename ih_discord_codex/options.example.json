@@ -9,5 +9,6 @@
   "mqtt_user": "ih_discord_codex",
   "mqtt_password": "",
   "brain_read_token": "",
-  "github_repo_token": ""
+  "github_repo_token": "",
+  "review_channel_key": ""
 }

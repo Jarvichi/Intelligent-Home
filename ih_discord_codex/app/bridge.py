@@ -2,7 +2,7 @@
 Transport must authenticate signed events before calling accept(). Explicit ACLs
 are also enforced here. Model calls and posting are dependency-injected.
 """
-import fcntl,json,math,os,sqlite3,threading,time,secrets
+import fcntl,json,math,os,re,sqlite3,threading,time,secrets
 from pathlib import Path
 
 class Bridge:
@@ -33,16 +33,20 @@ class Bridge:
             CREATE TABLE IF NOT EXISTS action_plans(id TEXT PRIMARY KEY,channel TEXT NOT NULL,
               author TEXT NOT NULL,message TEXT NOT NULL,entity_id TEXT NOT NULL,domain TEXT NOT NULL,
               service TEXT NOT NULL,state TEXT NOT NULL,created REAL NOT NULL,expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS claude_handoffs(message TEXT PRIMARY KEY,summary TEXT NOT NULL,
+              url TEXT,state TEXT NOT NULL,created REAL NOT NULL,receipt TEXT);
             ''')
             cutoff=self.clock()-30*86400
             with self.db:
                 self.db.execute("DELETE FROM outbox WHERE state IN ('sent','abandoned') AND EXISTS (SELECT 1 FROM jobs j WHERE j.channel=outbox.channel AND j.message=outbox.message AND j.created<?)",(cutoff,))
                 self.db.execute("DELETE FROM jobs WHERE created<? AND state IN ('answered','rejected','abandoned')",(cutoff,))
+                self.db.execute("DELETE FROM claude_handoffs WHERE created<?",(cutoff,))
             # Process crashes cannot establish whether tools or Discord sends ran.
             with self.db:
                 self.db.execute("UPDATE jobs SET state='needs_review',reason='interrupted model turn' WHERE state='running'")
                 self.db.execute("UPDATE outbox SET state='needs_review' WHERE state='sending'")
                 self.db.execute("UPDATE action_plans SET state='uncertain' WHERE state='executing'")
+                self.db.execute("UPDATE claude_handoffs SET state='needs_review' WHERE state='sending'")
         except BaseException:
             if hasattr(self,'db'):self.db.close()
             os.close(self._owner_fd);self._owner_fd=None
@@ -142,7 +146,51 @@ class Bridge:
     def status(self):
         with self.lock:
             return {'jobs':dict(self.db.execute('SELECT state,count(*) FROM jobs GROUP BY state')),
-                    'delivery':dict(self.db.execute('SELECT state,count(*) FROM outbox GROUP BY state'))}
+                    'delivery':dict(self.db.execute('SELECT state,count(*) FROM outbox GROUP BY state')),
+                    'claude_handoffs':dict(self.db.execute('SELECT state,count(*) FROM claude_handoffs GROUP BY state'))}
+    def queue_claude_handoff(self,context,summary,url=None):
+        if not context or not isinstance(context.get('message'),str):
+            raise ValueError('handoff needs an active authorized task')
+        if not isinstance(summary,str) or not summary.strip() or len(summary)>900:
+            raise ValueError('handoff summary must be between 1 and 900 characters')
+        summary=' '.join(summary.split())
+        private_shapes=(r'\b(?:192\.168\.|10\.\d{1,3}\.|172\.(?:1[6-9]|2\d|3[01])\.)\d{1,3}\.\d{1,3}\b',
+                        r'\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b',r'\b\d{17,20}\b',
+                        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b',
+                        r'\b(?:password|secret|api[_-]?token|signing[_-]?key)\s*[:=]',
+                        r'\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b',
+                        r'(?i)(?:/homeassistant|/config|/share/|brain/|secrets\.yaml)',
+                        r'\b(?:light|switch|sensor|binary_sensor|climate|cover|lock)\.[a-z0-9_]+\b')
+        if any(re.search(pattern,summary,re.I) for pattern in private_shapes):
+            raise ValueError('handoff summary contains a private-looking value or Home Assistant entity ID')
+        if url is not None and (not isinstance(url,str) or not url.startswith('https://github.com/') or len(url)>300):
+            raise ValueError('invalid review URL')
+        with self.lock,self.db:
+            self.db.execute("INSERT OR IGNORE INTO claude_handoffs(message,summary,url,state,created) VALUES(?,?,?,'pending',?)",
+                            (context['message'],summary,url,self.clock()))
+            row=self.db.execute('SELECT state FROM claude_handoffs WHERE message=?',(context['message'],)).fetchone()
+            return row[0] if row else 'unknown'
+    def deliver_claude_handoff(self,sender):
+        with self.lock:
+            row=self.db.execute("SELECT message,summary,url FROM claude_handoffs WHERE state='pending' ORDER BY created LIMIT 1").fetchone()
+            if not row:return False
+            message,summary,url=row
+            with self.db:self.db.execute("UPDATE claude_handoffs SET state='sending' WHERE message=? AND state='pending'",(message,))
+        text='Codex asks Claude to review or finish this IH code task: ' + summary
+        if url:text+=' Public source PR: ' + url
+        text+=' No Home Assistant state, entity IDs, or Brain content was forwarded.'
+        try:
+            receipt=sender(text)
+            if receipt=='dry': state='dry'
+            elif isinstance(receipt,str) and receipt: state='sent'
+            else: raise ValueError('delivery receipt required')
+            with self.lock,self.db:self.db.execute('UPDATE claude_handoffs SET state=?,receipt=? WHERE message=? AND state=\'sending\'',(state,str(receipt)[:128],message))
+        except Exception:
+            with self.lock,self.db:self.db.execute("UPDATE claude_handoffs SET state='needs_review' WHERE message=? AND state='sending'",(message,))
+        return True
+    def claude_handoffs_for(self,message_id):
+        with self.lock:
+            return [row[0] for row in self.db.execute("SELECT state FROM claude_handoffs WHERE message=?",(message_id,))]
     def active_context(self):
         with self.lock:return dict(self._active_context) if self._active_context else None
     def create_action_plan(self,context,entity_id,service):

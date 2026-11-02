@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Codex"
-version: "0.1.6"
+version: "0.1.7"
 image: "ghcr.io/jarvichi/{arch}-ih_discord_codex"
 slug: ih_discord_codex
 description: "A private Codex worker with filtered Home Assistant tools and a private IH code review branch, connected through the signed Discord transport."
@@ -28,6 +28,7 @@ options:
   mqtt_password: ""
   brain_read_token: ""
   github_repo_token: ""
+  review_channel_key: ""
 schema:
   module_name: str
   signing_key: password
@@ -42,3 +43,4 @@ schema:
   mqtt_password: password
   brain_read_token: password
   github_repo_token: password
+  review_channel_key: str?

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.7] - 2026-11-02
+- Add a durable, one-way Claude handoff for code tasks that need host context or a final pass; send a concise code-only summary and optional public PR URL.
+- Keep uncertain handoff sends from replaying automatically and expose handoff state in status.
+
 ## [0.1.6] - 2026-11-02
 - Re-trigger image publishing after the first 0.1.5 workflow skipped its build matrix because the version bump was in an earlier commit in the same push.
 - Keep repository ownership derived from the add-on image configuration so generic public source passes the house privacy scan.
