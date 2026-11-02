@@ -26,10 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - id: m
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
           INPUT_SLUG: ${{ github.event.inputs.slug }}
         run: |
           set -eu
@@ -41,7 +42,7 @@ jobs:
             if [ "$EVENT" = "workflow_dispatch" ]; then
               if [ "$INPUT_SLUG" = "all" ] || [ "$INPUT_SLUG" = "$d" ]; then slugs="$slugs $d"; fi
             else
-              old=$(git show "HEAD~1:$cfg" 2>/dev/null | ver || true)
+              old=$(git show "$BEFORE:$cfg" 2>/dev/null | ver || true)
               if [ "$old" != "$new" ]; then slugs="$slugs $d"; fi
             fi
           done

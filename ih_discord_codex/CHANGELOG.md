@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.6] - 2026-11-02
+- Re-trigger image publishing after the first 0.1.5 workflow skipped its build matrix because the version bump was in an earlier commit in the same push.
+- Keep repository ownership derived from the add-on image configuration so generic public source passes the house privacy scan.
+
 ## [0.1.5] - 2026-11-02
 - Add filtered Home Assistant entity search/state/history tools through a loopback MCP server; only the add-on process handles the Supervisor token.
 - Add one-step light/switch action proposals that execute only after the authorized owner confirms with `/approve CODE`; uncertain requests are never retried automatically.
