@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.3] - 2026-11-02
+
+### Fixed
+- Make the Intelligent Home manager follow the device's light/dark color scheme, with readable panel surfaces, borders, controls, and status colors in both modes.
+
 ## [0.9.2] - 2026-11-02
 
 ### Fixed

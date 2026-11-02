@@ -1,4 +1,4 @@
-"""Add-on manager page (v0.8.0: tabs Add-ons, Install, Plugins, Settings, Health, Usage). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
+"""Add-on manager page (v0.9.3: light/dark theme support; tabs Add-ons, Install, Plugins, Settings, Health, Usage). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import hashlib, json, os, re, threading, time, urllib.request, urllib.error
@@ -566,17 +566,19 @@ class Manager:
 
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Intelligent Home</title>
-<style>body{font:15px system-ui;margin:0;padding:0 10px 20px}h2{margin:10px 0 4px}
-nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid #8886;position:sticky;top:0;background:Canvas;color:CanvasText;padding:6px 0;z-index:2}
-nav a{cursor:pointer;user-select:none;padding:6px 12px;border-radius:14px;text-decoration:none;color:inherit;border:1px solid #8886;white-space:nowrap}nav a.on{background:#1976d2;color:#fff;border-color:#1976d2}
+<style>:root{color-scheme:light dark;--ih-bg:#fff;--ih-fg:#202124;--ih-card:#f7f8fa;--ih-line:#d7dbe0;--ih-muted:#5f6368;--ih-ok:#1b5e20;--ih-bad:#b71c1c;--ih-warn:#a65300;--ih-warn-bg:#fff3e0;--ih-blue:#1565c0;--ih-empty-bar:#c6cbd2}
+@media(prefers-color-scheme:dark){:root{--ih-bg:#111418;--ih-fg:#e6e8eb;--ih-card:#1b2027;--ih-line:#3a414a;--ih-muted:#aab2bd;--ih-ok:#81c784;--ih-bad:#ef9a9a;--ih-warn:#ffcc80;--ih-warn-bg:#3b2d19;--ih-blue:#64b5f6;--ih-empty-bar:#424a55}}
+body{font:15px system-ui;margin:0;padding:0 10px 20px;background:var(--ih-bg);color:var(--ih-fg)}h2{margin:10px 0 4px}
+nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--ih-line);position:sticky;top:0;background:var(--ih-bg);color:var(--ih-fg);padding:6px 0;z-index:2}
+nav a{cursor:pointer;user-select:none;padding:6px 12px;border-radius:14px;text-decoration:none;color:inherit;border:1px solid var(--ih-line);white-space:nowrap}nav a.on{background:var(--ih-blue);color:#fff;border-color:var(--ih-blue)}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:10px}
-.card{border:1px solid #8886;border-left:6px solid #888;border-radius:8px;padding:8px 10px;min-width:0}.card.s-started{border-left-color:#2e7d32}.card.s-stopped,.card.s-error{border-left-color:#c62828}
-.card h3{margin:0 0 2px;font-size:16px;word-break:break-all}.d{font-size:12px;opacity:.7}.r{color:#c62828;font-weight:bold}.g{color:#2e7d32}.o{color:#ef6c00;font-weight:bold}
+.card{border:1px solid var(--ih-line);border-left:6px solid var(--ih-muted);border-radius:8px;padding:8px 10px;min-width:0;background:var(--ih-card)}.card.s-started{border-left-color:var(--ih-ok)}.card.s-stopped,.card.s-error{border-left-color:var(--ih-bad)}
+.card h3{margin:0 0 2px;font-size:16px;word-break:break-all}.d{font-size:12px;color:var(--ih-muted)}.r{color:var(--ih-bad);font-weight:bold}.g{color:var(--ih-ok)}.o{color:var(--ih-warn);font-weight:bold}
 .kv{display:flex;flex-wrap:wrap;gap:2px 12px;margin:4px 0;font-size:13px}.btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-button,a.b{padding:6px 10px;border:1px solid #8888;border-radius:6px;background:#8881;color:inherit;font:inherit;text-decoration:none;cursor:pointer}
-pre{background:#8882;padding:6px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}
-#msg{padding:6px;border:1px solid #8886;margin:6px 0;display:none}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid #8884;vertical-align:top}.w{overflow-x:auto}
-.chip{display:inline-block;margin:4px 4px 4px 0;padding:4px 12px;border:1px solid #8886;border-radius:14px;cursor:pointer}.chip.on{background:#1976d2;color:#fff}</style>
+button,a.b{padding:6px 10px;border:1px solid var(--ih-line);border-radius:6px;background:var(--ih-bg);color:var(--ih-fg);font:inherit;text-decoration:none;cursor:pointer}
+pre{background:var(--ih-bg);border:1px solid var(--ih-line);padding:6px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}
+#msg{padding:6px;border:1px solid var(--ih-line);margin:6px 0;display:none;background:var(--ih-card)}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left;border-bottom:1px solid var(--ih-line);vertical-align:top}.w{overflow-x:auto}
+.chip{display:inline-block;margin:4px 4px 4px 0;padding:4px 12px;border:1px solid var(--ih-line);border-radius:14px;cursor:pointer}.chip.on{background:var(--ih-blue);color:#fff;border-color:var(--ih-blue)}</style>
 <h2>Intelligent Home</h2>
 <nav id=nav><a data-t=addons>Add-ons</a><a data-t=install>Install</a><a data-t=plugins>Plugins</a><a data-t=settings>Settings</a><a data-t=health>Health</a><a data-t=usage>Usage</a></nav>
 <div id=msg></div><div id=main>Loading (the first load after a restart can take about 30 seconds)...</div>
@@ -658,10 +660,10 @@ function tabUsage(m){m.appendChild(E('p','Loading usage...'));fetch(U('api/usage
  m.appendChild(E('p','Invocations per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are highlighted.','d'));
  var mx=1;j.addons.forEach(function(a){a.per_day.forEach(function(n){if(n>mx)mx=n})});
  var w=E('div',null,'w'),t=E('table'),h=E('tr');['Add-on','7 days','Total','Failed','Last'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
- j.addons.forEach(function(a){var r=E('tr'),dead=a.total==0;if(dead)r.style.background='#ef6c0030';
+ j.addons.forEach(function(a){var r=E('tr'),dead=a.total==0;if(dead)r.style.background='var(--ih-warn-bg)';
   r.appendChild(E('td',a.slug+(a.state=='started'?'':' ('+(a.state||'stopped')+')')+(a.unreadable?' (log unreadable)':'')));
   var c=E('td'),bars=E('span');bars.style.cssText='display:inline-flex;align-items:flex-end;gap:2px;height:22px';
-  a.per_day.forEach(function(n,i){var b=E('span');b.title=j.days[i]+': '+n;b.style.cssText='display:inline-block;width:8px;background:'+(n?'#1976d2':'#8884')+';height:'+(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(b)});c.appendChild(bars);r.appendChild(c);
+  a.per_day.forEach(function(n,i){var b=E('span');b.title=j.days[i]+': '+n;b.style.cssText='display:inline-block;width:8px;background:var('+(n?'--ih-blue':'--ih-empty-bar')+');height:'+(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(b)});c.appendChild(bars);r.appendChild(c);
   r.appendChild(E('td',dead?'not used in 7 days':String(a.total),dead?'o':''));r.appendChild(E('td',String(a.failed),a.failed?'r':''));
   r.appendChild(E('td',a.last?(a.last+(a.last_day?' '+a.last_day.slice(5):'')):'-'));t.appendChild(r)});
  w.appendChild(t);m.appendChild(w)})}
