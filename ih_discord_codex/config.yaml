@@ -1,0 +1,38 @@
+name: "Intelligent Home - Discord - Codex"
+version: "0.1.0"
+slug: ih_discord_codex
+description: "A private Codex coding worker connected as a narrowly granted module of the existing signed IH Discord transport. It has no Home Assistant API or host configuration access."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+map:
+  - addon_config:rw
+ports:
+  8804/tcp: 8804
+ports_description:
+  8804/tcp: "Private module health and status"
+options:
+  module_name: "ih_discord_codex"
+  signing_key: ""
+  shadow: true
+  channel_keys: []
+  allowed_user_ids: []
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: "ih_discord_codex"
+  mqtt_password: ""
+schema:
+  module_name: str
+  signing_key: password
+  shadow: bool
+  channel_keys:
+    - str
+  allowed_user_ids:
+    - str
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str
+  mqtt_password: password

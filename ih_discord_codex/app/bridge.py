@@ -1,0 +1,168 @@
+"""Offline Codex/IH bridge candidate. No default credentials, channels or service.
+Transport must authenticate signed events before calling accept(). Explicit ACLs
+are also enforced here. Model calls and posting are dependency-injected.
+"""
+import fcntl,json,math,os,sqlite3,threading,time
+from pathlib import Path
+
+class Bridge:
+    def __init__(self,path,channels=(),users=(),clock=time.time):
+        self.clock=clock;self.channels=set(channels);self.users=set(users)
+        self.lock=threading.RLock()
+        path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+        # One process owns the database for its whole lifetime. Acquire before
+        # recovery: another opener must never relabel an active turn as crashed.
+        self._owner_fd=os.open(str(path)+'.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+        os.fchmod(self._owner_fd,0o600)
+        try:
+            fcntl.flock(self._owner_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            fd=os.open(path,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+            try:os.fchmod(fd,0o600)
+            finally:os.close(fd)
+            self.db=sqlite3.connect(path,check_same_thread=False)
+            self.db.execute('PRAGMA synchronous=FULL')
+            self.db.execute('PRAGMA foreign_keys=ON')
+            self.db.executescript('''
+            CREATE TABLE IF NOT EXISTS jobs(channel TEXT, message TEXT, author TEXT,
+              text TEXT, state TEXT, created REAL, thread TEXT, reason TEXT,
+              PRIMARY KEY(channel,message));
+            CREATE TABLE IF NOT EXISTS threads(channel TEXT PRIMARY KEY, thread TEXT);
+            CREATE TABLE IF NOT EXISTS outbox(channel TEXT,message TEXT,part INTEGER,
+              text TEXT,state TEXT,receipt TEXT, PRIMARY KEY(channel,message,part));
+            ''')
+            cutoff=self.clock()-30*86400
+            with self.db:
+                self.db.execute("DELETE FROM outbox WHERE state IN ('sent','abandoned') AND EXISTS (SELECT 1 FROM jobs j WHERE j.channel=outbox.channel AND j.message=outbox.message AND j.created<?)",(cutoff,))
+                self.db.execute("DELETE FROM jobs WHERE created<? AND state IN ('answered','rejected','abandoned')",(cutoff,))
+            # Process crashes cannot establish whether tools or Discord sends ran.
+            with self.db:
+                self.db.execute("UPDATE jobs SET state='needs_review',reason='interrupted model turn' WHERE state='running'")
+                self.db.execute("UPDATE outbox SET state='needs_review' WHERE state='sending'")
+        except BaseException:
+            if hasattr(self,'db'):self.db.close()
+            os.close(self._owner_fd);self._owner_fd=None
+            raise
+    def close(self):
+        with self.lock:
+            if self._owner_fd is not None:
+                try:self.db.close()
+                finally:
+                    os.close(self._owner_fd);self._owner_fd=None
+    def accept(self,event):
+        if not isinstance(event,dict):return False
+        ch,uid,mid=event.get('channel'),event.get('author'),event.get('id')
+        text=event.get('text')
+        if (not isinstance(ch,str) or ch not in self.channels
+            or not isinstance(mid,str) or not mid or len(mid)>128
+            or not isinstance(uid,str) or not uid):return False
+        with self.lock,self.db:
+            allowed=uid in self.users and event.get('bot') is False and isinstance(text,str) and bool(text.strip()) and len(text)<=8000
+            reason='authorization or input rejected'
+            control=allowed and text.strip().lower() in ('/help','/status','/new')
+            if allowed and not control:
+                pending=self.db.execute("SELECT count(*) FROM jobs WHERE channel=? AND state IN ('queued','running','needs_review')",(ch,)).fetchone()[0]
+                if pending>=8:
+                    allowed=False;reason='queue limit'
+            cur=self.db.execute('INSERT OR IGNORE INTO jobs VALUES(?,?,?,?,?,?,?,?)',
+              (ch,mid,uid,text if allowed else '', 'queued' if allowed else 'rejected',self.clock(),None,
+               None if allowed else reason))
+            if cur.rowcount==1 and reason=='queue limit':
+                self.db.execute('INSERT OR IGNORE INTO outbox VALUES(?,?,?,?,?,?)',
+                  (ch,mid,0,'The Codex queue is full. Send /status or /new to continue.','pending',None))
+            # The signed transport event is durably represented before ACK. A
+            # duplicate Discord ID is also safe to ACK because its first copy
+            # is already persisted.
+            return cur.rowcount==1 or self.db.execute('SELECT 1 FROM jobs WHERE channel=? AND message=?',(ch,mid)).fetchone() is not None
+    def thread(self,ch):
+        r=self.db.execute('SELECT thread FROM threads WHERE channel=?',(ch,)).fetchone()
+        return r[0] if r else None
+    def run_one(self,runner):
+        with self.lock:
+            # One in-flight turn per channel; an uncertain turn blocks its followers.
+            row=self.db.execute("""SELECT channel,message,text,author FROM jobs j WHERE state='queued'
+             AND (j.text IN ('/help','/status','/new') OR NOT EXISTS(SELECT 1 FROM jobs x WHERE x.channel=j.channel AND x.state IN ('running','needs_review')))
+             AND (j.text IN ('/help','/status','/new') OR NOT EXISTS(SELECT 1 FROM outbox o WHERE o.channel=j.channel AND o.state IN ('sending','needs_review')))
+             ORDER BY j.rowid LIMIT 1""").fetchone()
+            if not row:return False
+            ch,mid,text,author=row
+            if ch not in self.channels or author not in self.users:
+                with self.db:self.db.execute("UPDATE jobs SET state='rejected',reason='authorization revoked',text='' WHERE channel=? AND message=?",(ch,mid))
+                return True
+            with self.db:self.db.execute("UPDATE jobs SET state='running' WHERE channel=? AND message=?",(ch,mid))
+            def save_thread(thread):
+                if not isinstance(thread,str) or not thread:raise ValueError('invalid thread')
+                with self.db:
+                    self.db.execute('INSERT OR REPLACE INTO threads VALUES(?,?)',(ch,thread))
+                    self.db.execute('UPDATE jobs SET thread=? WHERE channel=? AND message=?',(thread,ch,mid))
+            try:
+                answer=runner.run(self.thread(ch),text,save_thread)
+                if not isinstance(answer,str) or not answer.strip():raise ValueError('empty answer')
+                if len(answer)>18000:raise ValueError('answer exceeds bounded outbox')
+                with self.db:
+                    for part,offset in enumerate(range(0,len(answer),1800)):
+                        self.db.execute('INSERT INTO outbox VALUES(?,?,?,?,?,?)',(ch,mid,part,answer[offset:offset+1800],'pending',None))
+                    self.db.execute("UPDATE jobs SET state='answered',text='' WHERE channel=? AND message=?",(ch,mid))
+            except Exception:
+                with self.db:self.db.execute("UPDATE jobs SET state='needs_review',reason='model outcome uncertain' WHERE channel=? AND message=?",(ch,mid))
+            return True
+    def deliver_one(self,sender):
+        with self.lock:
+            row=self.db.execute("""SELECT o.channel,o.message,o.part,o.text,j.author FROM outbox o JOIN jobs j ON j.channel=o.channel AND j.message=o.message WHERE o.state='pending'
+            AND NOT EXISTS(SELECT 1 FROM outbox x WHERE x.channel=o.channel AND
+              (x.state IN ('sending','needs_review') OR (x.message=o.message AND x.part<o.part AND x.state!='sent')))
+            ORDER BY o.rowid LIMIT 1""").fetchone()
+            if not row:return False
+            ch,mid,part,text,author=row
+            if ch not in self.channels or author not in self.users:
+                with self.db:
+                    self.db.execute("UPDATE outbox SET state='needs_review' WHERE channel=? AND message=? AND part=?",(ch,mid,part))
+                    self.db.execute("UPDATE jobs SET reason='delivery authorization revoked' WHERE channel=? AND message=?",(ch,mid))
+                return True
+            with self.db:self.db.execute("UPDATE outbox SET state='sending' WHERE channel=? AND message=? AND part=?",(ch,mid,part))
+        try:
+            receipt=sender(ch,text,reply_to=mid,dedupe_key=ch+':'+mid+':'+str(part))
+            if receipt=='dry':
+                with self.lock,self.db:self.db.execute("UPDATE outbox SET state='dry',text='' WHERE channel=? AND message=? AND part=?",(ch,mid,part))
+                return True
+            if not isinstance(receipt,str) or not receipt:raise ValueError('receipt required')
+            with self.lock,self.db:self.db.execute("UPDATE outbox SET state='sent',receipt=?,text='' WHERE channel=? AND message=? AND part=?",(receipt,ch,mid,part))
+        except Exception:
+            with self.lock,self.db:self.db.execute("UPDATE outbox SET state='needs_review' WHERE channel=? AND message=? AND part=?",(ch,mid,part))
+        return True
+    def status(self):
+        with self.lock:
+            return {'jobs':dict(self.db.execute('SELECT state,count(*) FROM jobs GROUP BY state')),
+                    'delivery':dict(self.db.execute('SELECT state,count(*) FROM outbox GROUP BY state'))}
+    def clear_thread(self,channel):
+        with self.lock,self.db:
+            self.db.execute('DELETE FROM threads WHERE channel=?',(channel,))
+    def abandon_uncertain(self,channel):
+        """Explicit owner command: retain receipts but clear ambiguous content and unblock a fresh thread."""
+        with self.lock,self.db:
+            self.db.execute("UPDATE jobs SET state='abandoned',text='',reason='owner started a new thread' WHERE channel=? AND state='needs_review'",(channel,))
+            self.db.execute("UPDATE outbox SET state='abandoned',text='' WHERE channel=? AND state='needs_review'",(channel,))
+            self.db.execute('DELETE FROM threads WHERE channel=?',(channel,))
+
+
+def usage_view(result):
+    """Allowlist account-limit metadata only; unknown/unavailable is not zero use."""
+    if not isinstance(result,dict):return {'available':False,'limits':[]}
+    buckets=result.get('rateLimitsByLimitId')
+    if not isinstance(buckets,dict):buckets={'default':result.get('rateLimits')}
+    out=[]
+    for key,bucket in buckets.items():
+        if not isinstance(bucket,dict):continue
+        row={'limit':str(key)[:60]}
+        for name in ('primary','secondary'):
+            window=bucket.get(name)
+            if isinstance(window,dict):
+                used=window.get('usedPercent')
+                if (not isinstance(used,(int,float)) or isinstance(used,bool)
+                    or not math.isfinite(used) or not 0<=used<=100):continue
+                row[name]={'usedPercent':used}
+                for field in ('windowDurationMins','resetsAt'):
+                    value=window.get(field)
+                    if isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) and value>=0:
+                        row[name][field]=value
+        if len(row)>1:out.append(row)
+    return {'available':bool(out),'limits':out}

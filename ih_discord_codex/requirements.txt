@@ -1,0 +1,2 @@
+paho-mqtt==1.6.1
+openai-codex==0.163.0

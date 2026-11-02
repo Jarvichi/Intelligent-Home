@@ -1,0 +1,11 @@
+{
+  "module_name": "ih_discord_codex",
+  "signing_key": "",
+  "shadow": true,
+  "channel_keys": ["codex"],
+  "allowed_user_ids": ["1234"],
+  "mqtt_host": "core-mosquitto",
+  "mqtt_port": 1883,
+  "mqtt_user": "ih_discord_codex",
+  "mqtt_password": ""
+}

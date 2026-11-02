@@ -183,5 +183,17 @@
   "requires": [],
   "version": "0.7.0",
   "image": true
+ },
+ {
+  "name": "Intelligent Home - Discord - Codex",
+  "slug": "ih_discord_codex",
+  "description": "Private Codex coding conversations over the signed Discord transport; no Home Assistant API or host configuration mount.",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.1.0",
+  "image": false
  }
 ]
