@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.8] - 2026-11-02
+- Default the code-only Claude handoff to the fixed `claude_review` channel key so enabling it does not depend on adding an option to an already-installed add-on schema.
+
 ## [0.1.7] - 2026-11-02
 - Add a durable, one-way Claude handoff for code tasks that need host context or a final pass; send a concise code-only summary and optional public PR URL.
 - Keep uncertain handoff sends from replaying automatically and expose handoff state in status.

@@ -10,5 +10,5 @@
   "mqtt_password": "",
   "brain_read_token": "",
   "github_repo_token": "",
-  "review_channel_key": ""
+  "review_channel_key": "claude_review"
 }
