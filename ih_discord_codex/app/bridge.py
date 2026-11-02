@@ -159,10 +159,9 @@ class Bridge:
                         r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b',
                         r'\b(?:password|secret|api[_-]?token|signing[_-]?key)\s*[:=]',
                         r'\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b',
-                        r'(?i)(?:/homeassistant|/config|/share/|brain/|secrets\.yaml)',
-                        r'\b(?:light|switch|sensor|binary_sensor|climate|cover|lock)\.[a-z0-9_]+\b')
+                        r'(?i)(?:/homeassistant|/config|/share/|brain/|secrets\.yaml)')
         if any(re.search(pattern,summary,re.I) for pattern in private_shapes):
-            raise ValueError('handoff summary contains a private-looking value or Home Assistant entity ID')
+            raise ValueError('handoff summary contains a private address, identifier, credential, or host path')
         if url is not None and (not isinstance(url,str) or not url.startswith('https://github.com/') or len(url)>300):
             raise ValueError('invalid review URL')
         with self.lock,self.db:
@@ -176,9 +175,9 @@ class Bridge:
             if not row:return False
             message,summary,url=row
             with self.db:self.db.execute("UPDATE claude_handoffs SET state='sending' WHERE message=? AND state='pending'",(message,))
-        text='Codex asks Claude to review or finish this IH code task: ' + summary
+        text='Codex is handing this task to Claude because it cannot complete it with its available access. Please take over and finish the user-requested task, following the usual house approval rules. Task summary: ' + summary
         if url:text+=' Public source PR: ' + url
-        text+=' No Home Assistant state, entity IDs, or Brain content was forwarded.'
+        text+=' The summary comes from the user request; no HA tool results or Brain content were forwarded.'
         try:
             receipt=sender(text)
             if receipt=='dry': state='dry'

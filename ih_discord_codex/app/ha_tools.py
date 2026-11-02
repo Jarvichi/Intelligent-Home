@@ -21,6 +21,7 @@ SAFE_DOMAINS = {
 ACTION_DOMAINS = {"light", "switch"}
 ACTION_SERVICES = {"turn_on", "turn_off", "toggle"}
 ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+CLAUDE_TODO_ENTITY = "todo.claude_to_do"
 PRIVATE_HINTS = ("person", "tracker", "location", "gps", "phone", "calendar", "contact",
                  "health", "weight", "blood", "heart_rate", "sleep", "steps", "private",
                  "password", "token", "address")
@@ -38,10 +39,12 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {"entity_id": {"type": "string"}}, "required": ["entity_id"]}},
     {"name": "ha_entity_history", "description": "Read state-change times for one ordinary Home Assistant entity, up to seven days. Attribute payloads and private domains are excluded.",
      "inputSchema": {"type": "object", "properties": {"entity_id": {"type": "string"}, "hours": {"type": "integer"}}, "required": ["entity_id"]}},
+    {"name": "ha_read_claude_todo", "description": "Read the explicitly approved Home Assistant list todo.claude_to_do. Read-only: it cannot add, edit, complete, or remove tasks. Returns summaries, status, due dates, and descriptions.",
+     "inputSchema": {"type": "object", "properties": {"include_completed": {"type": "boolean"}}}},
     {"name": "ha_propose_device_action", "description": "Prepare one light or switch action for the authorized owner to review. This does not operate the device. The service call happens only after the owner sends the exact /approve code in the authorized Discord channel.",
      "inputSchema": {"type": "object", "properties": {"entity_id": {"type": "string"}, "service": {"type": "string", "enum": ["turn_on", "turn_off", "toggle"]}}, "required": ["entity_id", "service"]}},
 ]
-CLAUDE_REVIEW_TOOL = {"name": "request_claude_review", "description": "Ask the authorized Claude reviewer to take over or finish an IH code task. Send only a concise generic coding summary; never include the original prompt, Home Assistant states or entity IDs, Brain notes, room or device names, or credentials. Do not use this for device actions or ordinary HA questions.",
+CLAUDE_HANDOFF_TOOL = {"name": "handoff_to_claude", "description": "Hand off a user-requested HA, Brain, host, or IH task that you cannot complete with your available access. Include a concise summary derived only from the user's request; preserve user-provided entity IDs or device/area names when Claude needs them. Never include HA tool results, Brain content, credentials, private addresses, or the full conversation.",
     "inputSchema": {"type": "object", "properties": {"summary": {"type": "string", "maxLength": 900}}, "required": ["summary"]}}
 
 
@@ -50,7 +53,7 @@ class HATools:
         self.bridge = bridge
         self.token = token if token is not None else __import__("os").environ.get("SUPERVISOR_TOKEN", "")
         self.base = base.rstrip("/") + "/"
-        self.tools = TOOLS + ([CLAUDE_REVIEW_TOOL] if review_enabled else [])
+        self.tools = TOOLS + ([CLAUDE_HANDOFF_TOOL] if review_enabled else [])
         self.server = None
         self.thread = None
 
@@ -155,6 +158,32 @@ class HATools:
                             "last_updated": row.get("last_updated")})
         return json.dumps({"entity_id": entity, "hours": hours, "history": history}, ensure_ascii=False)
 
+    def t_ha_read_claude_todo(self, args):
+        include_completed = args.get("include_completed", False)
+        if not isinstance(include_completed, bool):
+            raise ValueError("include_completed must be a boolean")
+        statuses = ["needs_action", "completed"] if include_completed else ["needs_action"]
+        result = self._request("POST", "services/todo/get_items?return_response",
+                               {"entity_id": CLAUDE_TODO_ENTITY, "status": statuses}, timeout=20)
+        response = result.get("service_response") if isinstance(result, dict) else None
+        entity_result = response.get(CLAUDE_TODO_ENTITY) if isinstance(response, dict) else None
+        items = entity_result.get("items") if isinstance(entity_result, dict) else None
+        if not isinstance(items, list):
+            raise RuntimeError("Home Assistant returned no todo item list")
+        clean = []
+        for item in items[:500]:
+            if not isinstance(item, dict):
+                continue
+            row = {}
+            for key, limit in (("summary", 400), ("status", 32), ("due", 100), ("description", 600)):
+                value = item.get(key)
+                if isinstance(value, str) and value.strip():
+                    row[key] = value.strip()[:limit]
+            if row:
+                clean.append(row)
+        return json.dumps({"entity_id": CLAUDE_TODO_ENTITY, "count": len(clean),
+                           "truncated": len(items) > 500, "items": clean}, ensure_ascii=False)
+
     def t_ha_propose_device_action(self, args):
         entity = args.get("entity_id")
         if not isinstance(entity, str) or not ENTITY_RE.fullmatch(entity):
@@ -173,11 +202,11 @@ class HATools:
         return json.dumps({"proposal_id": plan["id"], "entity_id": entity, "service": domain + "." + service,
                            "expires_in_seconds": 300, "physical_action_taken": False})
 
-    def t_request_claude_review(self, args):
+    def t_handoff_to_claude(self, args):
         context = self.bridge.active_context()
         state = self.bridge.queue_claude_handoff(context, args.get("summary"))
         return json.dumps({"queued": state == "pending", "state": state,
-                           "message": "A code-only handoff is queued for Claude." if state == "pending" else "A handoff for this task already exists."})
+                           "message": "A task handoff is queued for Claude." if state == "pending" else "A handoff for this task already exists."})
 
     def call(self, message):
         if isinstance(message, list):
@@ -191,7 +220,7 @@ class HATools:
         if method == "initialize":
             return {"jsonrpc": "2.0", "id": mid, "result": {"protocolVersion": params.get("protocolVersion", "2025-03-26"),
                 "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "ih-codex-home-assistant", "version": "0.1.0"},
-                "instructions": "Filtered Home Assistant reads are available. Device actions are proposals only; they require the authorized owner's separate /approve command in Discord."}}
+                "instructions": "Filtered Home Assistant reads include the explicitly approved read-only todo.claude_to_do list. Device actions are proposals only and require the authorized owner's separate /approve command. Tasks outside this worker's access can be handed to Claude using only a concise summary derived from the user's request, without HA or Brain tool results."}}
         if method == "notifications/initialized" or method == "ping":
             return {"jsonrpc": "2.0", "id": mid, "result": {}}
         if method == "tools/list":
