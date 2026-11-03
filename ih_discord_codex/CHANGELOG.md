@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.25] - 2026-11-03
+- Use the Codex bundled Bubblewrap with the corrected AppArmor transition. System Bubblewrap 0.13.1 uses an error format that prevents Codex 0.163.0 from recognizing restricted-container proc mount failures and invoking its recovery path.
+
 ## [0.1.24] - 2026-11-03
 - Correct Bubblewrap AppArmor transitions to the fully qualified loaded child profile; nested relative transitions failed with profile transition not found.
 
