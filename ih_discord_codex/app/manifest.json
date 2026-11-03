@@ -1,6 +1,6 @@
 {
   "name": "ih_discord_codex",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "kind": "addon",
   "description": "Private Codex coding worker over the existing signed IH Discord transport",
   "owner": "local add-on ih_discord_codex",

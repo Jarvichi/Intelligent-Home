@@ -9,10 +9,11 @@ profile ih_discord_codex flags=(attach_disconnected,mediate_deleted) {
   unix,
   signal,
 
-  # Bubblewrap alone transitions to the profile with namespace/mount/network rights.
-  /usr/bin/bwrap cx -> bwrap,
+  # The Codex sandbox helper needs SYS_ADMIN for its namespace capability checks,
+  # but it must not mount or pivot the filesystem itself.
+  /usr/local/lib/python3.12/site-packages/codex_cli_bin/bin/codex cx -> codex_sandbox,
 
-  profile bwrap flags=(attach_disconnected,mediate_deleted) {
+  profile codex_sandbox flags=(attach_disconnected,mediate_deleted) {
     #include <abstractions/base>
 
     file,
@@ -20,9 +21,27 @@ profile ih_discord_codex flags=(attach_disconnected,mediate_deleted) {
     unix,
     signal,
     capability sys_admin,
-    capability net_admin,
-    mount,
-    umount,
-    pivot_root,
+    deny mount,
+    deny umount,
+    deny pivot_root,
+
+    # Bubblewrap alone transitions to the profile with mount/namespace rights.
+    /usr/bin/bwrap cx -> bwrap,
+
+    profile bwrap flags=(attach_disconnected,mediate_deleted) {
+      #include <abstractions/base>
+
+      file,
+      network,
+      unix,
+      signal,
+      capability sys_admin,
+      capability net_admin,
+      capability sys_ptrace,
+      capability setpcap,
+      mount,
+      umount,
+      pivot_root,
+    }
   }
 }

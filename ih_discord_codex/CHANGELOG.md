@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.19] - 2026-11-03
+- Allow the Codex sandbox helper's namespace capability checks while keeping its mount operations denied; grant `SYS_PTRACE` and `SETPCAP` only inside the Bubblewrap child AppArmor profile.
+
 ## [0.1.18] - 2026-11-03
 - Allow Bubblewrap's isolated network namespace to configure loopback by granting `NET_ADMIN` only in the Bubblewrap child AppArmor profile; command networking remains disabled.
 
