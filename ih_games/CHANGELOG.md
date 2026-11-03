@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.4] - 2026-11-03
+
+### Added
+- Player-by-player ingress game hub backed by the existing private API; API credentials remain server-side.
+- Complete Destiny milestone and character details, plus full Arc Raiders quests, needs, maps and inventory advice.
+- Read-only game details endpoint for the ingress UI.
+
 ## [0.6.3] - 2026-11-03
 
 ### Added

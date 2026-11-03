@@ -11,7 +11,7 @@ import schedule_client, orchestrator, sensors as sensors_mod, library as library
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.6.2"
+VERSION = "0.6.4"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -161,6 +161,13 @@ class Module:
                 if tool:
                     text += " " + tool.summary(tc, pk)
                 return 200, {"ok": True, "game": entry["title"], "played": pl, "text": text, "tool": tool.NAME if tool else None}
+            if what == "details" and method == "GET":
+                details = getattr(tool, "details", None) if tool else None
+                if details:
+                    data = details(tc, pk)
+                else:
+                    data = {"summary": tool.summary(tc, pk) if tool else "", "upcoming": tool.upcoming(tc, pk) if tool else []}
+                return 200, {"ok": True, "game": entry["title"], "tool": tool.NAME if tool else None, "details": data}
             if what == "upcoming" and method == "GET":
                 return 200, {"ok": True, "game": entry["title"], "upcoming": tool.upcoming(tc, pk) if tool else []}
             if what == "cmd" and method == "POST":

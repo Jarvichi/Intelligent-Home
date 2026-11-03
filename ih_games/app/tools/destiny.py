@@ -172,6 +172,24 @@ def sensor(tc, player):
     return state, attrs
 
 
+def details(tc, player):
+    """Complete cached Destiny view for the authenticated Games ingress UI.
+
+    Unlike the compact HA sensor, this keeps every milestone so the UI never
+    substitutes an “and more” summary for the actual list.
+    """
+    d = fetch(tc, player)
+    r = resets(tc)
+    return {
+        "fetched": d.get("fetched"),
+        "stale": bool(d.get("stale", False)),
+        "error": d.get("error") or "",
+        "resets": r,
+        "characters": d.get("chars", []),
+        "milestones": d.get("milestones", []),
+    }
+
+
 def upcoming(tc, player):
     r = resets(tc)
     return [{"when": r[0]["at"], "text": "Daily reset (in %s)" % r[0]["in"]}, {"when": r[1]["at"], "text": "Weekly reset: new weeklies and rotators (in %s)" % r[1]["in"]}]

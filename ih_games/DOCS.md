@@ -17,6 +17,7 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 3. Open the Configuration tab and set `ingest_token`, `outbox_token`, `bungie_api_key` (skip any the settings hub fills).
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `mode` to `live`.
+6. Open the add-on's **Open Web UI** page to browse each player's game library and open complete game details. The UI uses the existing `admin_token` on the server; it is not sent to the browser.
 
 ## Options
 

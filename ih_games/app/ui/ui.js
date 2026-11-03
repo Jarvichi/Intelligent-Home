@@ -1,1 +1,157 @@
-const base=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';async function refresh(){const s=document.querySelector('#status'),d=document.querySelector('#dot'),u=document.querySelector('#updated');try{const r=await fetch(base+'api/status',{cache:'no-store'}),j=await r.json();s.textContent=j.healthy?'Available':'Unavailable';d.className='ih-status-dot '+(j.healthy?'ok':'bad');u.textContent='Checked '+new Date(j.checked_at).toLocaleTimeString()+(j.detail?' · '+j.detail:'')}catch(e){s.textContent='Status unavailable';d.className='ih-status-dot bad';u.textContent='Could not reach the add-on status endpoint'}}document.querySelector('#check').addEventListener('click',refresh);refresh();setInterval(refresh,30000);
+(function () {
+  'use strict';
+  const root = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]*$/, '');
+  const playersEl = document.getElementById('players');
+  const libraryEl = document.getElementById('library');
+  const statusEl = document.getElementById('service-status');
+  let players = [];
+  let selected = '';
+  const detailCache = new Map();
+
+  function el(tag, text, cls) {
+    const n = document.createElement(tag);
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    if (cls) n.className = cls;
+    return n;
+  }
+  function fmtDate(value) {
+    if (!value) return 'Not recorded';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  }
+  async function request(path) {
+    const r = await fetch(root + path, { cache: 'no-store', headers: { Accept: 'application/json' } });
+    let data;
+    try { data = await r.json(); } catch (_) { throw new Error('The Games service returned an unreadable response.'); }
+    if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The Games service could not load this data.');
+    return data;
+  }
+  function showError(target, message) {
+    target.replaceChildren(el('p', message, 'notice notice-error'));
+  }
+  function renderTabs() {
+    playersEl.replaceChildren();
+    players.forEach(function (p, i) {
+      const b = el('button', p.name, 'player-tab');
+      b.type = 'button'; b.id = 'player-tab-' + i; b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(p.key === selected));
+      b.setAttribute('aria-controls', 'library'); b.tabIndex = p.key === selected ? 0 : -1;
+      b.addEventListener('click', function () { selectPlayer(p.key); });
+      b.addEventListener('keydown', function (event) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const next = (i + (event.key === 'ArrowRight' ? 1 : players.length - 1)) % players.length;
+        playersEl.children[next].focus();
+      });
+      playersEl.appendChild(b);
+    });
+  }
+  function row(label, value) {
+    const r = el('div', null, 'detail-row'); r.append(el('dt', label), el('dd', value)); return r;
+  }
+  function section(title, content) {
+    const s = el('section', null, 'ih-card data-card');
+    s.append(el('h2', title));
+    if (Array.isArray(content) && content.length) {
+      const dl = el('dl', null, 'detail-list'); content.forEach(function (x) { dl.appendChild(x); }); s.appendChild(dl);
+    } else if (content instanceof Node) s.appendChild(content);
+    else s.appendChild(el('p', Array.isArray(content) ? 'No entries.' : (content || 'No entries.'), 'ih-muted'));
+    return s;
+  }
+  function dataTable(columns, rows) {
+    if (!rows || !rows.length) return el('p', 'No entries.', 'ih-muted');
+    const wrap = el('div', null, 'table-wrap'), table = el('table');
+    const head = el('thead'), tr = el('tr'); columns.forEach(function (c) { tr.appendChild(el('th', c.label, null)); });
+    head.appendChild(tr); table.appendChild(head);
+    const body = el('tbody');
+    rows.forEach(function (item) {
+      const line = el('tr'); columns.forEach(function (c) { line.appendChild(el('td', c.value(item))); }); body.appendChild(line);
+    });
+    table.appendChild(body); wrap.appendChild(table); return wrap;
+  }
+  function detailsContent(payload) {
+    const data = payload.details || {};
+    const wrap = el('div', null, 'details-content');
+    if (data.error) wrap.appendChild(el('p', data.error, 'notice notice-warning'));
+    if (data.stale) wrap.appendChild(el('p', 'Showing the last saved Destiny data; the provider has not refreshed successfully.', 'notice notice-warning'));
+    if (data.fetched) wrap.appendChild(el('p', 'Data refreshed ' + fmtDate(data.fetched), 'ih-muted'));
+    if (data.resets) wrap.appendChild(section('Reset schedule', data.resets.map(function (x) { return row(x.kind === 'weekly' ? 'Weekly reset' : 'Daily reset', x.when + ' · ' + x.in); })));
+    if (data.characters) wrap.appendChild(section('Characters', dataTable([
+      { label: 'Class', value: x => x.class }, { label: 'Power', value: x => x.power == null ? 'Unknown' : x.power },
+      { label: 'Hours', value: x => x.hours }, { label: 'Last played', value: x => fmtDate(x.last) }
+    ], data.characters)));
+    if (data.milestones) wrap.appendChild(section('All milestones (' + data.milestones.length + ')', dataTable([
+      { label: 'Character', value: x => x.class }, { label: 'Milestone', value: x => x.name }, { label: 'Progress', value: x => x.progress }
+    ], data.milestones)));
+    if (data.open_quests) wrap.appendChild(section('Open quests (' + data.open_quests.length + ')', dataTable([
+      { label: 'Quest', value: x => x.name }, { label: 'Maps', value: x => (x.maps || []).join(', ') || 'Any map' }
+    ], data.open_quests)));
+    if (data.needs) wrap.appendChild(section('Needs and materials (' + data.needs.length + ')', dataTable([
+      { label: 'Item', value: x => x.item }, { label: 'Now', value: x => x.now }, { label: 'Later', value: x => x.later },
+      { label: 'Have', value: x => x.have }, { label: 'Status', value: x => x.status }, { label: 'For', value: x => x.for }
+    ], data.needs)));
+    if (data.maps) wrap.appendChild(section('Quest maps (' + data.maps.length + ')', dataTable([
+      { label: 'Map', value: x => x.map }, { label: 'Quests', value: x => x.count }, { label: 'Quest names', value: x => (x.quests || []).join(', ') }
+    ], data.maps)));
+    if (data.inventory) wrap.appendChild(section('Inventory advice (' + data.inventory.length + ')', dataTable([
+      { label: 'Item', value: x => x.item }, { label: 'Surplus', value: x => x.surplus }, { label: 'Advice', value: x => x.action }, { label: 'Value', value: x => x.gain }
+    ], data.inventory)));
+    if (data.summary) wrap.appendChild(section('Summary', data.summary));
+    if (data.upcoming) wrap.appendChild(section('Coming up', dataTable([
+      { label: 'When', value: x => fmtDate(x.when) }, { label: 'Event', value: x => x.text }
+    ], data.upcoming)));
+    if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
+    return wrap;
+  }
+  function gameCard(game, player) {
+    const card = el('article', null, 'ih-card game-card');
+    const top = el('div', null, 'game-heading');
+    const title = el('div'); title.append(el('p', game.platform || 'GAME', 'ih-eyebrow'), el('h2', game.title));
+    top.appendChild(title); card.appendChild(top);
+    const facts = el('dl', null, 'game-facts');
+    facts.append(row('Last seen', fmtDate(game.last_seen)), row('Play time', game.playtime_min == null ? 'Not known yet' : Math.floor(game.playtime_min / 60) + ' h ' + (game.playtime_min % 60) + ' min'));
+    card.appendChild(facts);
+    if (game.tools && game.tools.length) card.appendChild(el('p', 'Tools: ' + game.tools.join(', '), 'ih-muted'));
+    const toggle = el('button', 'View full details', 'ih-button details-toggle');
+    toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
+    const detail = el('div', null, 'game-details'); detail.hidden = true;
+    toggle.addEventListener('click', async function () {
+      const opening = detail.hidden;
+      detail.hidden = !opening; toggle.setAttribute('aria-expanded', String(opening));
+      toggle.textContent = opening ? 'Hide details' : 'View full details';
+      if (!opening || detail.dataset.loaded) return;
+      detail.replaceChildren(el('p', 'Loading complete game details…', 'ih-muted'));
+      try {
+        const cacheKey = player + '/' + game.id;
+        const payload = detailCache.has(cacheKey) ? detailCache.get(cacheKey) : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
+        detailCache.set(cacheKey, payload); detail.replaceChildren(detailsContent(payload)); detail.dataset.loaded = 'true';
+      } catch (e) { showError(detail, e.message); }
+    });
+    card.append(toggle, detail);
+    return card;
+  }
+  async function selectPlayer(key) {
+    selected = key; renderTabs(); libraryEl.setAttribute('aria-busy', 'true');
+    libraryEl.replaceChildren(el('p', 'Loading game library…', 'ih-muted'));
+    try {
+      const data = await request('api/library?player=' + encodeURIComponent(key));
+      const wrap = el('div', null, 'library-grid');
+      const games = data.games || [];
+      if (!games.length) wrap.appendChild(el('section', 'No games are listed for this player yet.', 'ih-card empty-state'));
+      else games.forEach(function (game) { wrap.appendChild(gameCard(game, key)); });
+      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'library-title'), wrap);
+    } catch (e) { showError(libraryEl, e.message); }
+    libraryEl.setAttribute('aria-busy', 'false');
+  }
+  async function start() {
+    try {
+      const [p, h] = await Promise.all([request('api/players'), request('api/status')]);
+      players = p.players || [];
+      statusEl.textContent = h.healthy ? 'Games service available' : 'Games service unavailable';
+      statusEl.classList.toggle('status-bad', !h.healthy);
+      if (!players.length) throw new Error('No players are configured for Games yet.');
+      selected = players[0].key; renderTabs(); await selectPlayer(selected);
+    } catch (e) { statusEl.textContent = 'Could not connect to Games'; showError(libraryEl, e.message); libraryEl.setAttribute('aria-busy', 'false'); }
+  }
+  start();
+}());

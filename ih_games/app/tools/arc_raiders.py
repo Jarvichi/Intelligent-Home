@@ -177,6 +177,22 @@ def summary(tc, player):
     return "Arc Raiders: %d quests done, %d open now, %d item types short for what is open." % (len(s["quests_done"]), len(open_q), len(short))
 
 
+def details(tc, player):
+    """Return complete read-only progress for the authenticated Games UI."""
+    g = game_data(tc)
+    if not g:
+        return {"error": _nodata()}
+    s = load_state(tc, player)
+    open_q, *_ = compute(g, s)
+    return {
+        "quests_completed": len(s["quests_done"]),
+        "open_quests": [{"name": _en(q.get("name")), "maps": [g["maps"].get(mid, mid) for mid in (q.get("map") or [])]} for q in open_q],
+        "needs": need_rows(g, s),
+        "maps": map_rows(g, s),
+        "inventory": inv_rows(g, s),
+    }
+
+
 def sensor(tc, player):
     """(state, attributes) for sensor.games_arc_raiders_<player>: counts and the needs list."""
     g = game_data(tc)

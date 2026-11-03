@@ -1,13 +1,14 @@
 {
   "title": "Games",
-  "purpose": "Collects game activity and player milestones for Intelligent Home dashboards and messages.",
-  "description": "Game activity facts feeds and chat message orchestrator. DRY-RUN by default.",
+  "purpose": "Browse each player's game library and inspect complete game progress.",
+  "description": "Per-player game hub with full Destiny milestones and Arc Raiders progress, backed by the local Games API.",
   "health_port": 8794,
   "health_path": "/healthz",
   "navigation": [
-    "Player activity",
-    "provider status",
-    "game library APIs"
+    "Player libraries",
+    "Game details and progress",
+    "Complete Destiny milestones",
+    "Arc Raiders quests and inventory"
   ],
   "access": "Home Assistant authenticated ingress only"
 }
