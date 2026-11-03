@@ -72,7 +72,7 @@
     const r = el('div', null, 'detail-row'); r.append(el('dt', label), el('dd', value)); return r;
   }
   function section(title, content) {
-    const s = el('section', null, 'ih-card data-card');
+    const s = el('ih-card', null, 'data-card');
     s.append(el('h2', title));
     if (Array.isArray(content) && content.length) {
       const dl = el('dl', null, 'detail-list'); content.forEach(function (x) { dl.appendChild(x); }); s.appendChild(dl);
@@ -87,7 +87,7 @@
     head.appendChild(tr); table.appendChild(head);
     const body = el('tbody');
     rows.forEach(function (item) {
-      const line = el('tr'); columns.forEach(function (c) { line.appendChild(el('td', c.value(item))); }); body.appendChild(line);
+      const line = el('tr'); columns.forEach(function (c) { const cell = el('td', c.value(item)); cell.setAttribute('data-label', c.label); line.appendChild(cell); }); body.appendChild(line);
     });
     table.appendChild(body); wrap.appendChild(table); return wrap;
   }
@@ -126,12 +126,20 @@
     return wrap;
   }
   function gameCard(game, player) {
-    const card = el('article', null, 'ih-card game-card');
-    const top = el('div', null, 'game-heading');
-    const title = el('div'); title.append(el('p', game.platform || 'GAME', 'ih-eyebrow'), el('h2', game.title));
-    top.appendChild(title); card.appendChild(top);
-    const artRow = el('div', null, 'art-row');
+    const card = el('ih-card', null, 'game-card');
+    card.setAttribute('role', 'article'); card.setAttribute('aria-label', game.title);
+    const cover = el('div', null, 'game-cover');
+    const fallback = el('div', null, 'game-cover-fallback');
+    fallback.append(el('span', 'GAME LIBRARY', 'cover-kicker'), el('strong', game.title.split(/\s+/).map(x => x[0]).join('').slice(0, 3).toUpperCase(), 'cover-monogram'));
     const art = el('img', null, 'game-art'); art.alt = 'Official cover art for ' + game.title; art.loading = 'lazy'; art.hidden = true;
+    cover.append(fallback, art);
+    const main = el('div', null, 'game-main');
+    const top = el('div', null, 'game-heading');
+    top.append(el('span', game.platform || 'GAME', 'platform-pill'), el('h2', game.title));
+    main.appendChild(top);
+    const facts = el('dl', null, 'game-facts');
+    facts.append(row('Last seen', fmtDate(game.last_seen)), row('Play time', game.playtime_min == null ? 'Not known yet' : Math.floor(game.playtime_min / 60) + ' h ' + (game.playtime_min % 60) + ' min'));
+    main.appendChild(facts);
     const artControls = el('div', null, 'art-controls');
     const artButton = el('button', artSearchAvailable ? 'Find official box art' : 'Art search not configured', 'ih-button art-button');
     artButton.type = 'button'; artButton.disabled = !artSearchAvailable;
@@ -139,14 +147,18 @@
     function useArtwork(metadata) {
       art.alt = 'Official cover art for ' + game.title;
       art.hidden = false;
+      fallback.hidden = true;
+      cover.classList.add('has-art');
       art.src = root + 'api/art/' + encodeURIComponent(game.id) + '?v=' + Date.now();
       artButton.textContent = 'Refresh official box art';
       artStatus.replaceChildren(el('span', 'Using saved art from ' + (metadata.source_title || 'an official source') + '. '));
       const source = el('a', 'Source'); source.href = metadata.source_url; source.target = '_blank'; source.rel = 'noopener noreferrer'; artStatus.appendChild(source);
     }
-    art.addEventListener('load', function () { art.hidden = false; });
+    art.addEventListener('load', function () { art.hidden = false; fallback.hidden = true; cover.classList.add('has-art'); });
     art.addEventListener('error', function () {
       art.hidden = true;
+      fallback.hidden = false;
+      cover.classList.remove('has-art');
       artStatus.textContent = 'Saved box art could not be loaded. Try refreshing it.';
     });
     request('api/art-meta/' + encodeURIComponent(game.id)).then(function (saved) {
@@ -160,11 +172,9 @@
       } catch (e) { artButton.textContent = 'Try official art search again'; artStatus.textContent = e.message; }
       artButton.disabled = false;
     });
-    artControls.append(artButton, artStatus); artRow.append(art, artControls); card.appendChild(artRow);
-    const facts = el('dl', null, 'game-facts');
-    facts.append(row('Last seen', fmtDate(game.last_seen)), row('Play time', game.playtime_min == null ? 'Not known yet' : Math.floor(game.playtime_min / 60) + ' h ' + (game.playtime_min % 60) + ' min'));
-    card.appendChild(facts);
-    if (game.tools && game.tools.length) card.appendChild(el('p', 'Tools: ' + game.tools.join(', '), 'ih-muted'));
+    artControls.append(artButton, artStatus);
+    main.appendChild(artControls);
+    if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.join(', '), 'game-tools'));
     const toggle = el('button', 'View full details', 'ih-button details-toggle');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     const detail = el('div', null, 'game-details'); detail.hidden = true;
@@ -180,7 +190,8 @@
         detailCache.set(cacheKey, payload); detail.replaceChildren(detailsContent(payload)); detail.dataset.loaded = 'true';
       } catch (e) { showError(detail, e.message); }
     });
-    card.append(toggle, detail);
+    main.appendChild(toggle);
+    card.append(cover, main, detail);
     return card;
   }
   async function selectPlayer(key) {
@@ -191,12 +202,12 @@
       const wrap = el('div', null, 'library-grid');
       const games = data.games || [];
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
-      const playtimeKnown = games.filter(g => g.playtime != null).length;
+      const playtimeKnown = games.filter(g => g.playtime_min != null).length;
       const stats = el('div', null, 'library-stats');
       [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'with a tracker'], [playtimeKnown, 'with playtime']].forEach(function (item) {
-        const box = el('div', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
+        const box = el('ih-metric', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
       });
-      if (!games.length) wrap.appendChild(el('section', 'No games are listed for this player yet.', 'ih-card empty-state'));
+      if (!games.length) wrap.appendChild(el('ih-empty', 'No games are listed for this player yet.', 'empty-state'));
       else games.forEach(function (game) { wrap.appendChild(gameCard(game, key)); });
       libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'library-title'), stats, wrap);
     } catch (e) { showError(libraryEl, e.message); }
@@ -208,7 +219,7 @@
     try {
       const data = await request('api/research');
       const items = data.items || [];
-      const section = el('section', null, 'ih-card research-card');
+      const section = el('ih-card', null, 'research-card');
       section.append(el('p', 'RESEARCH QUEUE', 'ih-eyebrow'), el('h2', 'Ideas to explore'));
       section.append(el('p', items.length + ' open ' + (items.length === 1 ? 'idea' : 'ideas'), 'research-count'));
       if (!data.available) section.append(el('p', 'The Home Assistant Games to-do list is temporarily unavailable.', 'notice notice-warning'));
@@ -233,6 +244,7 @@
       artSearchAvailable = p.art_search_available === true;
       statusEl.textContent = h.healthy ? 'Games service available' : 'Games service unavailable';
       statusEl.classList.toggle('status-bad', !h.healthy);
+      statusEl.setAttribute('status', h.healthy ? 'ok' : 'error');
       if (!players.length) throw new Error('No players are configured for Games yet.');
       const parts = location.pathname.split('/').filter(Boolean);
       const requested = requestedRoute || (parts.length >= 3 ? parts[parts.length - 1] : '');
