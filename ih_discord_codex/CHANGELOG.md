@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.26] - 2026-11-03
+- Add `/code refresh` for clean, unchanged workspaces whose source snapshot is stale. It refuses dirty workspaces and branches with commits, reseeds from the bundled IH source, and preserves the prior workspace as a local backup.
+
 ## [0.1.25] - 2026-11-03
 - Use the Codex bundled Bubblewrap with the corrected AppArmor transition. System Bubblewrap 0.13.1 uses an error format that prevents Codex 0.163.0 from recognizing restricted-container proc mount failures and invoking its recovery path.
 

@@ -1,7 +1,9 @@
 """Seed a private local IH source branch from the public, generic add-on repo."""
 import os
+import secrets
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 SOURCE_ROOT = Path(os.environ.get("CODEX_SOURCE_ROOT", "/opt/ih-source"))
@@ -42,6 +44,59 @@ def prepare_workspace(path):
             raise RuntimeError("could not prepare the isolated IH code branch (%s)" % args[0])
     os.chmod(target, 0o700)
     return source_revision(target)
+
+
+def refresh_workspace(path):
+    """Refresh a clean, unchanged workspace while preserving its old snapshot."""
+    target = Path(path).resolve()
+    if not (target / ".git").is_dir():
+        raise RuntimeError("the IH code workspace is not initialized")
+
+    def git(*args):
+        return subprocess.run(("git",) + args, cwd=target, capture_output=True,
+                              text=True, timeout=10,
+                              env=dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0"))
+
+    branch = git("branch", "--show-current")
+    if branch.returncode or branch.stdout.strip() != "codex/work":
+        raise RuntimeError("refresh is allowed only from the codex/work branch")
+    status = git("status", "--porcelain", "--untracked-files=all")
+    if status.returncode or status.stdout.strip():
+        raise RuntimeError("workspace has uncommitted or untracked files; preserve them before refreshing")
+    ahead = git("rev-list", "--count", "main..codex/work")
+    if ahead.returncode or ahead.stdout.strip() != "0":
+        raise RuntimeError("workspace branch contains commits; preserve them before refreshing")
+
+    old_revision = source_revision(target)
+    try:
+        new_revision = SOURCE_REVISION_FILE.read_text(encoding="utf-8").strip()[:40]
+    except OSError:
+        new_revision = ""
+    if not new_revision or new_revision == "unknown":
+        raise RuntimeError("the bundled IH source revision is unavailable")
+    if new_revision == old_revision:
+        return "The IH code workspace already uses the latest bundled source (%s)." % new_revision[:12]
+    if not (SOURCE_ROOT / "ih_discord_codex" / "config.yaml").is_file():
+        raise RuntimeError("the bundled public IH source is missing; workspace was not changed")
+
+    parent = target.parent
+    temporary = parent / (".%s-refresh-%s" % (target.name, secrets.token_hex(6)))
+    backup = parent / ("%s-previous-%s-%s" % (target.name, old_revision[:8], time.strftime("%Y%m%d%H%M%S")))
+    try:
+        prepare_workspace(temporary)
+        os.replace(target, backup)
+        try:
+            os.replace(temporary, target)
+        except Exception:
+            os.replace(backup, target)
+            raise
+    except Exception:
+        if temporary.exists():
+            shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    os.chmod(target, 0o700)
+    return "Refreshed the IH code workspace to source %s. The previous clean workspace is saved as `%s` if you need it." % (
+        new_revision[:12], backup.name)
 
 
 def branch_status(path):

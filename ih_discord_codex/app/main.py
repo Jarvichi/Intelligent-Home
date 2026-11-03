@@ -83,7 +83,7 @@ import bus_client
 import bus_crypto as crypto
 from bridge import Bridge
 from ha_tools import HATools
-from workspace import prepare_workspace, branch_status, branch_diff
+from workspace import prepare_workspace, refresh_workspace, branch_status, branch_diff
 from code_publish import publish_review_branch, PublishError
 
 
@@ -272,7 +272,7 @@ class CommandRunner:
     def run(self, thread, text, save_thread):
         command = text.strip().lower()
         if command == "/help":
-            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
+            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, `/code refresh` safely refreshes a clean branch from bundled IH source, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
         if command == "/status":
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
@@ -294,6 +294,13 @@ class CommandRunner:
             return branch_status(self.workspace)
         if command == "/code diff":
             return branch_diff(self.workspace)
+        if command == "/code refresh":
+            try:
+                return refresh_workspace(self.workspace)
+            except RuntimeError as exc:
+                return "Could not refresh the IH code workspace: %s." % str(exc)
+            except (OSError, subprocess.SubprocessError):
+                return "Could not refresh the IH code workspace safely. The previous workspace was preserved; check the add-on logs."
         if command == "/code submit":
             if not self.github_token:
                 return "The private IH code branch is ready locally, but GitHub submission is not configured. Add a fine-grained token for the IH add-on source repository with Contents read/write and Pull requests read/write, then use `/code submit`."
@@ -308,7 +315,7 @@ class CommandRunner:
             except PublishError as exc:
                 return str(exc)
         if command.startswith("/code "):
-            return "Use `/code status` or `/code diff`. Code stays on the private local review branch and is not merged or deployed."
+            return "Use `/code status`, `/code diff`, or `/code refresh`. Code stays on the private local review branch and is not merged or deployed."
         answer = self.codex.run(thread, text, save_thread)
         context = self.bridge.active_context()
         plans = self.ha_tools.pending_for(context["message"]) if self.ha_tools and context else []
