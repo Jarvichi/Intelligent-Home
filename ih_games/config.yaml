@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.6.1"
+version: "0.6.2"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -10,6 +10,11 @@ arch:
 startup: application
 boot: manual
 init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Games"
+panel_icon: mdi:home-circle
+panel_admin: true
 homeassistant_api: true
 ports:
   8794/tcp: 8794

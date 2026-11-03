@@ -1,0 +1,61 @@
+/* Canonical Intelligent Home UI tokens. Keep all page CSS on these variables. */
+:root {
+  color-scheme: light dark;
+  --ih-bg: #f3f5ef;
+  --ih-surface: #ffffff;
+  --ih-surface-raised: #e9eee5;
+  --ih-text: #172019;
+  --ih-muted: #657267;
+  --ih-line: #d9e0d6;
+  --ih-accent: #a8f06b;
+  --ih-accent-ink: #17310b;
+  --ih-link: #326b4d;
+  --ih-ok: #26734b;
+  --ih-warn: #9a650e;
+  --ih-danger: #c34639;
+  --ih-info: #326b4d;
+  --ih-space-1: 4px; --ih-space-2: 8px; --ih-space-3: 12px; --ih-space-4: 16px;
+  --ih-space-5: 20px; --ih-space-6: 24px; --ih-space-8: 32px; --ih-space-10: 40px;
+  --ih-radius-control: 8px; --ih-radius-nested: 12px; --ih-radius-panel: 16px;
+  --ih-shadow: 0 10px 28px rgb(22 36 24 / 8%);
+  --ih-font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ih-bg: #101511; --ih-surface: #171f19; --ih-surface-raised: #202a22;
+    --ih-text: #edf4ed; --ih-muted: #9eaea0; --ih-line: #303d32;
+    --ih-accent: #b4f77d; --ih-accent-ink: #17240f; --ih-link: #9ddc91;
+    --ih-ok: #93dfa5; --ih-warn: #ffd17e; --ih-danger: #ff978a; --ih-info: #9ddc91;
+    --ih-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+  }
+}
+* { box-sizing: border-box; }
+html { background: var(--ih-bg); color: var(--ih-text); font: 15px/1.5 var(--ih-font); }
+body { margin: 0; min-width: 320px; background: var(--ih-bg); color: var(--ih-text); }
+button, input, select { color: inherit; font: inherit; }
+a { color: var(--ih-link); }
+:focus-visible { outline: 3px solid var(--ih-link); outline-offset: 3px; }
+ih-app { display: block; width: min(1280px, 100%); margin: 0 auto; padding: clamp(16px, 4vw, 40px); }
+ih-header { display: block; margin-bottom: var(--ih-space-6); }
+ih-header h1 { margin: 4px 0; font-size: clamp(26px, 4vw, 34px); line-height: 1.12; letter-spacing: -.035em; }
+ih-header p { margin: 0; color: var(--ih-muted); }
+.ih-kicker { color: var(--ih-muted); font-size: 12px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+ih-tabs { display: flex; gap: var(--ih-space-2); overflow-x: auto; padding: 2px 2px 10px; margin: 0 0 var(--ih-space-4); }
+ih-tabs button, ih-button { min-height: 44px; border: 1px solid var(--ih-line); border-radius: var(--ih-radius-control); padding: 9px 14px; background: var(--ih-surface); cursor: pointer; }
+ih-tabs button[aria-selected="true"], ih-button[variant="primary"] { border-color: transparent; color: var(--ih-accent-ink); background: var(--ih-accent); font-weight: 750; }
+ih-card { display: block; min-width: 0; padding: var(--ih-space-5); border: 1px solid var(--ih-line); border-radius: var(--ih-radius-panel); background: var(--ih-surface); box-shadow: var(--ih-shadow); }
+ih-card h2 { margin: 0 0 var(--ih-space-3); font-size: 18px; }
+ih-status, ih-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; background: var(--ih-surface-raised); color: var(--ih-muted); font-size: 12px; font-weight: 700; }
+ih-status[status="ok"], ih-badge[tone="ok"] { color: var(--ih-ok); }
+ih-status[status="warn"], ih-badge[tone="warn"] { color: var(--ih-warn); }
+ih-status[status="error"], ih-badge[tone="error"] { color: var(--ih-danger); }
+ih-metric { display: block; font-size: 28px; font-weight: 780; line-height: 1.2; }
+ih-metric small { display: block; color: var(--ih-muted); font-size: 12px; font-weight: 600; }
+ih-field { display: block; }
+ih-field label { display: block; margin-bottom: 5px; color: var(--ih-muted); font-size: 13px; font-weight: 700; }
+ih-field input { width: 100%; min-height: 44px; border: 1px solid var(--ih-line); border-radius: var(--ih-radius-control); padding: 9px 12px; background: var(--ih-bg); }
+ih-empty, ih-loading, ih-error { display: block; padding: var(--ih-space-6); color: var(--ih-muted); text-align: center; }
+ih-error { color: var(--ih-danger); }
+ih-dialog { display: block; }
+@media (max-width: 760px) { ih-app { padding: 16px; } ih-card { padding: 16px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

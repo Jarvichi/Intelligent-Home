@@ -1,0 +1,13 @@
+{
+  "title": "Discord Task Channels",
+  "purpose": "Routes task requests and review handoffs through Discord channels.",
+  "description": "One private Discord channel per task, as a module of the ih_discord transport: commands new / done / reopen / list in a commands channel, goal as channel topic, Work in Progress and Done categories, daily cleanup of old done channels. It asks the transport (signed MQTT bus) to administer channels and never holds a Discord token. SHADOW mode by default: it creates nothing. No Home Assistant access. Maps no folders.",
+  "health_port": 8797,
+  "health_path": "/healthz",
+  "navigation": [
+    "Task routing",
+    "review flow",
+    "module health"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

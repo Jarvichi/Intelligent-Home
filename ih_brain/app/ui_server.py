@@ -62,8 +62,8 @@ def make_handler(brain):
             query = parse_qs(parts.query, keep_blank_values=True)
             if path == "/" or path == "/index.html":
                 return self._file("index.html")
-            if path in ("/ih-ui.css", "/ih-ui.js", "/ui.css", "/ui.js", "/ui.json"):
-                return self._file(path[1:])
+            if path in ("/ih-ui.css", "/ih-ui.js", "/ui.css", "/ui.js", "/ui.json", "/force-graph.min.js"):
+                return self._file("vendor/force-graph-1.43.5.min.js" if path == "/force-graph.min.js" else path[1:])
             if not path.startswith("/api/"):
                 return self._send(404, {"error": "Not found"})
             try:
@@ -122,8 +122,8 @@ def make_handler(brain):
                 return self._send(503, {"error": "Brain data is temporarily unavailable"})
 
         def _file(self, name):
-            file = UI_DIR / name
-            if not file.is_file() or file.parent != UI_DIR:
+            file = (UI_DIR / name).resolve()
+            if UI_DIR not in file.parents or not file.is_file():
                 return self._send(404, {"error": "Not found"})
             return self._send(200, file.read_text(encoding="utf-8"), mimetypes.guess_type(name)[0] or "text/plain")
 

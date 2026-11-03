@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - AI Trust Test"
-version: "0.1.4"
+version: "0.1.5"
 slug: ih_jobs_trust
 image: "ghcr.io/jarvichi/{arch}-ih_jobs_trust"
 description: "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent."
@@ -11,6 +11,11 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8810]/healthz  once boot is auto; the Supervisor then restarts the add-on if /healthz stops answering.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Jobs Trust"
+panel_icon: mdi:home-circle
+panel_admin: true
 homeassistant_api: true
 ports:
   8810/tcp: 8810

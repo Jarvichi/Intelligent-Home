@@ -1,6 +1,11 @@
 {
   "title": "House Brain",
   "purpose": "Browse, search, read, and map connections between House Brain notes.",
-  "navigation": ["Browse all notes", "Search every note", "Recently changed", "Interactive connection map"],
+  "navigation": [
+    "Browse with mobile progressive reveal",
+    "Search every note",
+    "Recently changed with mobile progressive reveal",
+    "Interactive Canvas connection map with touch navigation"
+  ],
   "access": "Home Assistant authenticated ingress only; read-only browser interface"
 }

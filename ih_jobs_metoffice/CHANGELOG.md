@@ -23,3 +23,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Met Office forecast sensors as a child of the Jobs add-on. Dry-run by default.
+
+## 0.1.5
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

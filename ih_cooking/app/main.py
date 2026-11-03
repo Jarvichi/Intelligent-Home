@@ -57,7 +57,7 @@ def start_cook(st, name, eat):
 
 
 def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
-    page = os.path.join(HERE, 'index.html')
+    page = os.path.join(HERE, 'ui', 'index.html')
 
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ct='application/json'):
@@ -91,6 +91,10 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             p = re.sub(r'/+', '/', urlparse(self.path).path)
             if method == 'GET' and p in ('/', '/index.html'):
                 return self._send(200, open(page, 'rb').read(), 'text/html')
+            assets = {'/ih-ui.css': ('ui/ih-ui.css', 'text/css'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript')}
+            if method == 'GET' and p in assets:
+                name, kind = assets[p]
+                return self._send(200, open(os.path.join(HERE, name), 'rb').read(), kind)
             if not p.startswith('/api/'):
                 return self._send(404, {'error': 'not found'})
             self._logit = True

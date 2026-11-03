@@ -1,0 +1,13 @@
+{
+  "title": "Jobs · Backup",
+  "purpose": "Publishes backup storage status and handles signed backup run requests.",
+  "description": "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent.",
+  "health_port": 8798,
+  "health_path": "/healthz",
+  "navigation": [
+    "Disk and drive status",
+    "signed run requests",
+    "dry/live mode"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

@@ -539,8 +539,8 @@ def setup_page(mod):
                 '<p><button onclick="var u=document.getElementById(\'u\');u.select();navigator.clipboard.writeText(u.value).then(function(){this.textContent=\'Copied\'}.bind(this))" '
                 'style="font-size:16px;padding:8px 16px">Copy address</button></p>'
                 '<p>Mode: <b>%s</b>. Keep this address private: it is the key.</p>') % (url, 'dry (list not changed)' if mod.opts['shortcut_dry'] else 'live')
-    return ('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shopping Shortcut</title></head>'
-            '<body style="font-family:sans-serif;max-width:640px;margin:20px auto;padding:0 12px"><h2>Shopping Shortcut</h2>%s</body></html>' % body).encode()
+    template = open(os.path.join(os.path.dirname(__file__), 'ui', 'index.html'), encoding='utf-8').read()
+    return template.replace('<!--shortcut-content-->', body).encode('utf-8')
 
 
 def make_ingress_handler(mod):
@@ -548,6 +548,16 @@ def make_ingress_handler(mod):
         def do_GET(self):
             if self.client_address[0] != INGRESS_PEER:
                 self.send_error(403); return
+            path = urlparse(self.path).path
+            assets = {'/ih-ui.css': ('ui/ih-ui.css', 'text/css; charset=utf-8'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript; charset=utf-8')}
+            if path in assets:
+                rel, kind = assets[path]
+                try: b = open(os.path.join(os.path.dirname(__file__), rel), 'rb').read()
+                except OSError: self.send_error(404); return
+                self.send_response(200); self.send_header('Content-Type', kind); self.send_header('Content-Length', str(len(b)))
+                self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(b); return
+            if path not in ('/', '/index.html'):
+                self.send_error(404); return
             b = setup_page(mod)
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b)))
             self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(b)

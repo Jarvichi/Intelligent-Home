@@ -12,3 +12,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Agent for the AI layer running the Claude Code CLI with all tools off, with a weekly usage gate.
+
+## 0.1.2
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

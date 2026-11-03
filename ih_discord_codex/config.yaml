@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Codex"
-version: "0.1.9"
+version: "0.1.10"
 image: "ghcr.io/jarvichi/{arch}-ih_discord_codex"
 slug: ih_discord_codex
 description: "A private Codex worker with filtered Home Assistant tools and a private IH code review branch, connected through the signed Discord transport."
@@ -10,6 +10,11 @@ arch:
 startup: application
 boot: manual
 init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Discord Codex"
+panel_icon: mdi:home-circle
+panel_admin: true
 map:
   - addon_config:rw
 ports:

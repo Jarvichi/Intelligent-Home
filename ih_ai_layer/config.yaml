@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer"
-version: "0.4.0"
+version: "0.4.1"
 slug: ih_ai_layer
 image: "ghcr.io/jarvichi/{arch}-ih_ai_layer"
 description: "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. SHADOW mode by default: nothing is called. No Home Assistant access. Maps no folders."
@@ -12,6 +12,11 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8801]/healthz  once boot is auto; the Supervisor then restarts the add-on if /healthz stops answering.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · AI Layer"
+panel_icon: mdi:home-circle
+panel_admin: true
 ports:
   8801/tcp: 8801
 ports_description:

@@ -1,23 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recipes</title>
+<title>Recipes · Intelligent Home</title><link rel="stylesheet" href="ih-ui.css"><script defer src="ih-ui.js"></script>
 <style>
-:root{--bg:#f6f6f4;--card:#fff;--ink:#1c1c1c;--muted:#727272;--line:rgba(127,127,127,.3);--accent:#1b4fd8;--ok:#43a047;--bad:#db4437}
-@media (prefers-color-scheme:dark){:root{--bg:#111;--card:#1c1c1c;--ink:#e6e6e6;--muted:#9a9a9a;--accent:#7ea2ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
-main{max-width:900px;margin:0 auto;padding:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
-input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
-input.s{border-radius:20px}textarea{min-height:90px}
-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--muted);display:block;margin:10px 0 3px}
-button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:8px 14px;cursor:pointer}
-button.p{background:var(--accent);border-color:var(--accent);color:#fff}
-.item{display:flex;justify-content:space-between;gap:8px;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
-.item:last-child{border:0}.m{color:var(--muted);font-size:.8rem;white-space:nowrap}
-.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:110px}
-.st{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.st b{min-width:62px;color:var(--accent)}
-#msg{min-height:1.3em;font-size:.9rem}.err{color:var(--bad)}.good{color:var(--ok)}
-h2{font-size:1.2rem;margin:0 0 6px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+:root{--bg:var(--ih-bg);--card:var(--ih-surface);--ink:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--accent:var(--ih-link);--ok:var(--ih-ok);--bad:var(--ih-danger)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--ih-font)}main{max-width:960px;margin:0 auto;padding:clamp(12px,3vw,24px)}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--ih-radius-panel);padding:16px;margin-bottom:12px;box-shadow:var(--ih-shadow)}input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--ih-radius-control);padding:10px 12px;width:100%}input.s{border-radius:999px}textarea{min-height:90px}label{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);display:block;margin:10px 0 3px}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--ih-radius-control);padding:9px 14px;cursor:pointer;min-height:44px}button.p{background:var(--ih-accent);border-color:var(--ih-accent);color:var(--ih-accent-ink);font-weight:700}.item{display:flex;justify-content:space-between;gap:8px;padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer}.item:last-child{border:0}.m{color:var(--muted);font-size:.85rem;white-space:nowrap}.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:110px}.st{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}.st b{min-width:62px;color:var(--accent)}#msg{min-height:1.3em;font-size:.9rem}.err{color:var(--bad)}.good{color:var(--ok)}h2{font-size:1.2rem;margin:0 0 6px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 </style></head><body><main>
 <div id="list"><div class="card"><div class="row" style="align-items:center"><div style="flex:4"><input class="s" id="q" placeholder="Find a recipe..." autocomplete="off"></div><div style="flex:0 0 auto;min-width:0"><button class="p" id="new">New recipe</button></div></div><div id="items" style="margin-top:8px"></div></div></div>
 <div id="view" hidden></div>

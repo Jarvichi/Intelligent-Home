@@ -1,0 +1,9 @@
+{
+  "title": "Shopping Shortcut",
+  "purpose": "Set up and verify the iPhone Shortcut that adds items to the household shopping list.",
+  "navigation": [
+    "Copy Shortcut endpoint",
+    "Review dry or live mode"
+  ],
+  "access": "Home Assistant admin ingress only; endpoint URL contains a secret token"
+}

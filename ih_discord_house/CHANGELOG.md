@@ -22,3 +22,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - House status commands as a module of the Discord transport. Shadow mode by default.
+
+## 0.2.5
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

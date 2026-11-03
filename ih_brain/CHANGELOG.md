@@ -33,3 +33,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - MCP server over HTTP (JSON-RPC 2.0, `POST /mcp`, bearer token) with the same 14 tools as the House Brain component: help, index, search, read, list, recent, links, graph, image, text, file, files, write, append.
 - `read_only` option (default on): write tools refuse with a clear message.
 - `/healthz` and `/status` (note count, last index time, no note content).
+
+## 0.2.4
+- Improve the Brain UI on phones with progressive note lists and a separate reader view.
+- Restore the canvas-based ForceGraph connection view and native touch navigation.

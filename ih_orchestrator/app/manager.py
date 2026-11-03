@@ -2,6 +2,7 @@
 Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import hashlib, json, os, re, threading, time, urllib.request, urllib.error
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 import provisioner
@@ -285,7 +286,11 @@ class Manager:
 
     def _live(self, full, r):
         try:
-            r["boot"] = (self.sup("GET", "/addons/%s/info" % full) or {}).get("boot")
+            info = self.sup("GET", "/addons/%s/info" % full) or {}
+            r["boot"] = info.get("boot")
+            # Keep the ingress token/URL inside Supervisor. The UI only needs to know
+            # whether Home Assistant's authenticated /app/<slug> route is available.
+            r["ingress"] = bool(info.get("ingress_url") or info.get("ingress_entry"))
             if r["state"] == "started":
                 st = self.sup("GET", "/addons/%s/stats" % full) or {}
                 r["cpu"] = st.get("cpu_percent")
@@ -576,144 +581,7 @@ class Manager:
                      "consumer_progress": snap.get("consumer_progress") or []}
 
 
-PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=theme-color content='#101511'><title>Intelligent Home</title>
-<style>:root{color-scheme:light dark;--bg:#f3f5ef;--panel:#fff;--panel2:#e9eee5;--ink:#172019;--muted:#657267;--line:#d9e0d6;--accent:#a8f06b;--accent-ink:#17310b;--blue:#326b4d;--ok:#26734b;--bad:#c34639;--warn:#9a650e;--warn-bg:#fff1d5;--shadow:0 12px 36px #1720190b;--empty:#d7ded5}
-@media(prefers-color-scheme:dark){:root{--bg:#101511;--panel:#171f19;--panel2:#202a22;--ink:#edf4ed;--muted:#9eaea0;--line:#303d32;--accent:#b4f77d;--accent-ink:#17240f;--blue:#9ddc91;--ok:#93dfa5;--bad:#ff978a;--warn:#ffd17e;--warn-bg:#3a3020;--shadow:0 16px 42px #0005;--empty:#3a473b}}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 82% -12%,#a8f06b20,transparent 35%),var(--bg);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}#shell{max-width:1440px;margin:auto;padding:26px clamp(16px,3vw,44px) 60px}.brand{display:flex;align-items:center;gap:13px;margin:0 0 27px}.mark{width:42px;height:42px;border-radius:15px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-size:23px;font-weight:900;box-shadow:0 6px 22px #a8f06b33}.brand h1{font-size:15px;line-height:1.15;margin:0;letter-spacing:.12em;text-transform:uppercase}.brand small{display:block;margin-top:5px;color:var(--muted);font-size:12px;letter-spacing:0;text-transform:none}.topline{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:17px}.eyebrow{color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.15em;text-transform:uppercase}h2{font-size:clamp(27px,4vw,42px);line-height:1.06;letter-spacing:-.04em;margin:5px 0 8px}.lead{margin:0;color:var(--muted);max-width:680px}.livepill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:12px;color:var(--muted)}.livepill:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:8px;box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent)}
-nav{display:flex;gap:5px;overflow:auto;position:sticky;top:0;z-index:4;padding:8px;margin:25px -8px 22px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(18px)}nav a{cursor:pointer;user-select:none;padding:9px 15px;border-radius:11px;text-decoration:none;color:var(--muted);font-size:13px;font-weight:650;white-space:nowrap;transition:.18s}nav a:hover{background:var(--panel2);color:var(--ink)}nav a.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 4px 14px #a8f06b26}
-#msg{padding:11px 14px;border:1px solid var(--line);border-radius:12px;margin:0 0 16px;display:none;background:var(--panel);box-shadow:var(--shadow)}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:13px;margin-top:16px}.card{border:1px solid var(--line);border-radius:17px;padding:17px;min-width:0;background:var(--panel);box-shadow:var(--shadow);transition:transform .18s,border-color .18s}.card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--blue) 55%,var(--line))}.card.s-started{border-top:2px solid var(--ok)}.card.s-stopped,.card.s-error{border-top:2px solid var(--bad)}.card h3{margin:0 0 5px;font-size:15px;letter-spacing:-.01em;overflow-wrap:anywhere}.d{font-size:12px;color:var(--muted)}.r{color:var(--bad);font-weight:700}.g{color:var(--ok);font-weight:650}.o{color:var(--warn);font-weight:700}.kv{display:flex;flex-wrap:wrap;gap:8px 14px;margin:14px 0 3px;font-size:12px}.kv>span{min-width:calc(50% - 14px)}.btns{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}button,a.b{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--ink);font:inherit;font-size:12px;font-weight:650;text-decoration:none;cursor:pointer;transition:.15s}button:hover,a.b:hover{border-color:var(--blue);transform:translateY(-1px)}button:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:2px}.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:24px;padding:clamp(22px,4vw,38px);background:linear-gradient(120deg,var(--panel),color-mix(in srgb,var(--panel2) 70%,var(--panel)));box-shadow:var(--shadow)}.hero:after{content:"IH";position:absolute;right:4%;top:50%;transform:translateY(-50%);font-size:clamp(100px,20vw,230px);font-weight:900;letter-spacing:-.1em;color:color-mix(in srgb,var(--blue) 8%,transparent);pointer-events:none}.hero>*{position:relative;z-index:1}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0 26px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:17px;box-shadow:var(--shadow)}.stat b{display:block;font-size:clamp(25px,4vw,34px);letter-spacing:-.05em;line-height:1.1}.stat span{display:block;margin-top:6px;color:var(--muted);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.1em}.sectionhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:25px 0 10px}.sectionhead h3{margin:0;font-size:17px;letter-spacing:-.02em}.quietlink{border:0;background:none;color:var(--blue);padding:4px;font-size:12px}.servicegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px}.service{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;cursor:pointer;text-align:left;min-width:0}.service:hover{border-color:var(--blue)}.service .dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent)}.service.off .dot{background:var(--bad);box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 14%,transparent)}.service .svcname{font-size:13px;font-weight:700;overflow-wrap:anywhere}.service .svcmeta{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}.shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.shortcut{padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--panel);cursor:pointer;text-align:left;color:var(--ink);font:inherit}.shortcut strong{display:block;font-size:13px}.shortcut span{display:block;color:var(--muted);font-size:11px;margin-top:4px}.shortcut:hover{border-color:var(--blue)}pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase}.w{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:15px}.chip{display:inline-block;margin:4px 5px 8px 0;padding:7px 13px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:12px;color:var(--muted)}.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.trace-layout{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:14px;align-items:start}.trace-list,.trace-detail{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}.trace-search{width:100%;padding:10px 12px;margin-bottom:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}.trace-row{display:flex;width:100%;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;background:var(--bg);margin:0 0 7px;padding:11px}.trace-row.selected{border-color:var(--blue);box-shadow:inset 3px 0 var(--blue)}.trace-id{font:11px ui-monospace,SFMono-Regular,monospace;color:var(--muted);overflow-wrap:anywhere}.trace-timeline{position:relative;margin:18px 0 0 8px;padding-left:24px}.trace-timeline:before{content:"";position:absolute;left:6px;top:7px;bottom:7px;width:2px;background:var(--line)}.trace-span{position:relative;padding:12px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.trace-dot{position:absolute;left:-24px;top:17px;width:12px;height:12px;border-radius:50%;background:var(--blue);border:3px solid var(--panel);box-sizing:content-box}.trace-span.trace-ok .trace-dot{background:var(--ok)}.trace-span.trace-error .trace-dot{background:var(--bad)}.trace-span-head{display:flex;align-items:center;gap:9px;justify-content:space-between}.trace-span-head strong{font-size:13px}.trace-status{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.trace-status.ok{color:var(--ok)}.trace-status.error{color:var(--bad)}.trace-status.skipped,.trace-status.unknown{color:var(--warn)}.trace-reason{font-size:11px;color:var(--warn);margin-top:4px}.trace-detail h3{margin:7px 0;font-size:14px}.trace-detail time{display:block;margin-top:5px;font-size:10px}
-@media(max-width:700px){#shell{padding:18px 14px 38px}.brand{margin-bottom:22px}.topline{align-items:flex-start}.livepill{font-size:0;padding:10px}.livepill:before{margin:0}.stats{grid-template-columns:repeat(2,1fr);gap:9px}.stat{padding:14px}.shortcuts{grid-template-columns:repeat(2,1fr)}nav{margin-top:17px}td,th{padding:9px 8px}}@media(max-width:700px){.trace-layout{grid-template-columns:minmax(0,1fr)}.trace-list{max-height:36vh;max-height:36dvh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}.trace-detail{scroll-margin-top:12px}.trace-timeline{margin-left:0;padding-left:20px}.trace-dot{left:-20px}.trace-span{padding:12px;min-width:0}.trace-span-head{align-items:flex-start;flex-wrap:wrap}.trace-span-head strong{min-width:0;overflow-wrap:anywhere}.trace-status{flex-shrink:0}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
-</style><div id=shell><header class=brand><div class=mark>✳</div><h1>Intelligent Home<small>Operations console · Home Assistant</small></h1></header><div class=topline><div><div class=eyebrow>Control room</div><h2 id=pagetitle>Good to see you.</h2><p class=lead id=pagesub>One clear view of your home services and their health.</p></div><div class=livepill>Connected</div></div>
-<nav id=nav><a data-t=overview>Overview</a><a data-t=addons>Add-ons</a><a data-t=install>Catalogue</a><a data-t=plugins>Jobs</a><a data-t=traces>Traces</a><a data-t=settings>Settings</a><a data-t=health>Health</a><a data-t=usage>Usage</a></nav>
-<div id=msg></div><div id=main>Loading your control room…</div></div>
-<script>
-var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
-var TABS=['overview','addons','install','plugins','traces','settings','health','usage'],TAB='overview',FILT='All',OPEN={},DATA=null;
-function U(p){return B+p}
-function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
-function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
-function btn(label,fn){var b=E('button',label);b.type='button';b.onclick=fn;return b}
-/* No confirm(): the HA phone app can crash on dialogs inside the panel frame (28 Oct 2026). Two taps instead. */
-function ask(b,text,fn){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label;fn();return}b.dataset.label=b.textContent;b.dataset.armed=1;b.textContent='Tap again to confirm';say(text);setTimeout(function(){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label}},5000)}
-function T(x){if(!x)return null;var d=new Date(typeof x=='number'?x*1000:x);return isNaN(d)?String(x):d.toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
-function kv(card,pairs){var d=E('div',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;var s=E('span');s.appendChild(E('span',p[0]+' ','d'));s.appendChild(E('span',String(p[1]),p[2]));d.appendChild(s)});card.appendChild(d)}
-function J(r){return r.json().then(function(j){return[r.status,j]})}
-function post(path){return fetch(U(path),{method:'POST'}).then(J)}
-function act(a,s,extra){say(a+' '+s+' ...');post('api/action/'+a+'/'+s+(extra||'')).then(function(x){var c=x[0],j=x[1];
- if(c==202)return poll(j.job);
- if(c==409&&j.warning){if(j.installable&&j.installable.length){say(j.warning);var m=document.getElementById('msg');m.appendChild(E('br'));m.appendChild(btn('Install those first, then '+s,function(){act(a,s,'?with_requires=1')}));return}say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
- say(j.error||j.warning||('failed '+c))}).catch(function(e){say('error: '+e)})}
-function poll(id){fetch(U('api/job/'+id)).then(function(r){return r.json()}).then(function(j){
- say(j.label+': '+j.state+(j.steps.length?' ('+j.steps[j.steps.length-1]+')':'')+(j.error?' ERROR '+j.error:''));
- if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else show()})}
-function age(x){if(!x||x.age_s==null)return '-';var a=x.age_s;return (x.state||'')+' '+(a<90?a+'s':a<5400?Math.round(a/60)+'m':Math.round(a/3600)+'h')}
-/* HA navigation without a page load (the old /hassio/addon path is a 404 since the apps rename). */
-function goHA(path){try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
-function cfgLink(full,label){return btn(label||'Open config',function(){goHA(['','config','app',full,'config'].join('/'))})}
-function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
- fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
-function usedTxt(u){if(!u)return null;return u.today+' today'+(u.failed_today?' ('+u.failed_today+' failed)':'')+', last '+(u.last?(u.last_day==u.today_day||!u.last_day?u.last:u.last+' on '+u.last_day.slice(5)):'never seen')}
-function imgTxt(a){return a.image?'yes (tag '+(a.latest||a.version||'?')+')':'no (built on the Pi)'}
-function jump(t){TAB=t;DATA=null;say('');show()}
-function tabOverview(m){m.appendChild(E('div','Reading live add-on and health data…','d'));Promise.all([fetch(U('api/addons')).then(function(r){return r.json()}),fetch(U('api/health')).then(function(r){return r.json()})]).then(function(x){var d=x[0],h=x[1];m.textContent='';if(d.error)throw Error(d.error);DATA=d;
- var installed=d.addons.filter(function(a){return a.installed}),started=installed.filter(function(a){return a.state=='started'}),updates=installed.filter(function(a){return a.update}),cn=h.counts||{},fails=cn.FAIL||0;
- var hero=E('section',null,'hero');hero.appendChild(E('div','YOUR HOME, AT A GLANCE','eyebrow'));hero.appendChild(E('h2',fails?fails+' service'+(fails==1?' needs':'s need')+' attention':'Everything in its place.'));hero.appendChild(E('p',fails?'A health check found an issue. Open Health to see what needs attention.':'Your services are running and the system is keeping watch.','lead'));var hb=E('div',null,'btns');hb.appendChild(btn('Open health overview →',function(){jump('health')}));hb.appendChild(btn('Manage add-ons',function(){jump('addons')}));hero.appendChild(hb);m.appendChild(hero);
- var stats=E('div',null,'stats');[[started.length,'Running'],[installed.length,'Installed'],[updates.length,'Updates available'],[fails,(h.stale?'Health checks · stale':'Health checks failing')]].forEach(function(a,i){var s=E('div',null,'stat');s.appendChild(E('b',String(a[0]),i==3&&a[0]?'r':''));s.appendChild(E('span',a[1]));stats.appendChild(s)});m.appendChild(stats);
- var sh=E('div',null,'sectionhead');sh.appendChild(E('h3','Your services'));sh.appendChild(btn('View all →',function(){jump('addons')}));m.appendChild(sh);var grid=E('div',null,'servicegrid');installed.slice(0,12).forEach(function(a){var b=btn('');b.className='service'+(a.state=='started'?'':' off');b.appendChild(E('i',null,'dot'));var wrap=E('span');wrap.appendChild(E('span',a.slug,'svcname'));wrap.appendChild(E('span',(a.state||'unknown')+(a.version?' · v'+a.version:'')+(a.update?' · update':''),'svcmeta'));b.appendChild(wrap);b.onclick=function(){jump('addons')};grid.appendChild(b)});if(!installed.length)grid.appendChild(E('p','No IH add-ons are installed yet.','d'));m.appendChild(grid);
- var hh=E('div',null,'sectionhead');hh.appendChild(E('h3','Common tasks'));m.appendChild(hh);var shortcuts=E('div',null,'shortcuts');[['Install an add-on','Browse the IH catalogue','install'],['Review scheduled jobs','See runs, mode and recent results','plugins'],['Trace a request','Follow a Discord AI request through IH','traces'],['Check shared settings','Find missing configuration','settings'],['Inspect usage','See recent invocation trends','usage']].forEach(function(a){var b=btn('');b.className='shortcut';b.appendChild(E('strong',a[0]+' ↗'));b.appendChild(E('span',a[1]));b.onclick=function(){jump(a[2])};shortcuts.appendChild(b)});m.appendChild(shortcuts)
- }).catch(function(e){m.textContent='';m.appendChild(E('p','Could not load the overview: '+e,'r'));m.appendChild(btn('Try again',function(){show()}))})}
-function tabAddons(m,d){var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
- var k=E('div',null,'card s-'+(a.state||'none'));k.appendChild(E('h3',a.slug));k.appendChild(E('div',a.description,'d'));
- kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['Prebuilt image',imgTxt(a),a.image?'g':''],['State',a.state||'-',a.state=='started'?'g':'r'],
-  ['CPU',a.cpu==null?null:a.cpu+' %'],['Mem',a.mem_mb==null?null:a.mem_mb+' MB'],['Seen',age(a.seen)],
-  ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',usedTxt(a.used),a.used&&a.used.failed_today?'o':'']]);
- if(a.can_act){var b=E('div',null,'btns');
-  if(a.state=='started')b.appendChild(btn('Stop',function(){act('stop',a.slug)}));else b.appendChild(btn('Start',function(){act('start',a.slug)}));
-  b.appendChild(btn('Restart',function(){act('restart',a.slug)}));
-  if(a.update)b.appendChild(btn('Update to '+a.latest,function(){act('update',a.slug)}));
-  b.appendChild(btn('Logs',function(){logs(a.slug,k)}));if(a.full)b.appendChild(cfgLink(a.full));k.appendChild(b)}
- else if(a.full){var b2=E('div',null,'btns');b2.appendChild(cfgLink(a.full));k.appendChild(b2)}
- c.appendChild(k)});m.appendChild(c)}
-function tabInstall(m,d){var c=E('div',null,'cards'),n=0;d.addons.filter(function(a){return !a.installed&&a.can_act}).forEach(function(a){n++;
- var k=E('div',null,'card');k.appendChild(E('h3',a.name+' ('+a.slug+')'));k.appendChild(E('div',a.description));kv(k,[['Prebuilt image',imgTxt(a),a.image?'g':'']]);
- var w=E('div',null,'kv');a.needs.forEach(function(x){w.appendChild(E('span','needs '+x.slug+': '+(x.status=='ok'?'ok':'missing ('+x.status+')'),x.status=='ok'?'g':'r'))});if(!a.needs.length)w.appendChild(E('span','needs nothing','d'));k.appendChild(w);
- var b=E('div',null,'btns');b.appendChild(btn('Install '+(a.latest||''),function(){act('install',a.slug)}));k.appendChild(b);c.appendChild(k)});
- m.appendChild(n?c:E('p','Everything in the catalogue is installed.'))}
-function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/plugins')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- if(!j.installed){m.appendChild(E('p','The ih_jobs add-on is not installed.'));return}
- if(!j.running)m.appendChild(E('p','The jobs add-on did not answer: live details are missing.','o'));
- m.appendChild(E('p','Results are since jobs started. Success includes expected skips and dry runs; it does not confirm delivery.'));
- if(!j.plugins.length)m.appendChild(E('p','No plugins are listed in the ih_jobs configuration.'));
- var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
-  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Errors',p.errors],['Last result',p.last_ok===true?'Succeeded':p.last_ok===false?'Failed':'Unknown',p.last_ok===false?'r':''],['Last success',T(p.last_success)],['Success mode',p.last_success_mode],['Last error',p.last_error,p.last_error?'r':''],
-   ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
-  var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){var me=this;
-   ask(me,(p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.',function(){
-   say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'dry')+'; ih_jobs restarted':(y[1].error||'failed'));show()})})}));
-  k.appendChild(b);c.appendChild(k)});m.appendChild(c)})}
-function tabSettings(m){m.appendChild(E('p','Loading settings...'));fetch(U('api/settings')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- var t=E('div',null,'btns');t.appendChild(btn('Fill now',function(){var me=this;ask(me,'Run the settings hub now? It fills empty options of the add-ons.',function(){say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')})})}));
- t.appendChild(cfgLink(j.config_slug,'Shared settings list (orchestrator config)'));m.appendChild(t);
- if(!j.provisioner)m.appendChild(E('p','The settings hub is off. Turn on provision in the orchestrator configuration.','o'));
- var c=E('div',null,'cards');j.addons.forEach(function(a){var k=E('div',null,'card s-'+(a.missing.length?'stopped':'started'));k.appendChild(E('h3',a.slug));
-  k.appendChild(E('div',a.missing.length?'Missing: '+a.missing.join(', '):'All settings filled',a.missing.length?'o':'g'));if(a.optional_empty&&a.optional_empty.length)k.appendChild(E('div','Optional, not set: '+a.optional_empty.join(', '),'d'));if(a.error)k.appendChild(E('div',a.error,'r'));
-  if(a.full){var b=E('div',null,'btns');b.appendChild(cfgLink(a.full));k.appendChild(b)}c.appendChild(k)});m.appendChild(c)})}
-function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/health')).then(J).then(function(x){m.textContent='';var j=x[1];
- var cn=j.counts||{};m.appendChild(E('p',(cn.OK||0)+' OK, '+(cn.FAIL||0)+' FAIL, '+(cn.UNKNOWN||0)+' unknown'+(j.stale?' (STALE data)':''),j.stale||cn.FAIL?'o':'g'));
- ['All','FAIL','OK'].forEach(function(f){var c=E('span',f,'chip'+(FILT==f?' on':''));c.onclick=function(){FILT=f;show()};m.appendChild(c)});
- var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
- j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
-  [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
- w.appendChild(t);m.appendChild(w);
- m.appendChild(E('h3','Consumer progress'));
- var p=j.consumer_progress||[];
- if(!p.length){m.appendChild(E('p','No consumer outcome streams reported yet.','d'));return}
- var pw=E('div',null,'w'),pt=E('table'),ph=E('tr');['Consumer','State','Pending','Oldest pending','No progress','Reason'].forEach(function(z){ph.appendChild(E('th',z))});pt.appendChild(ph);
- p.forEach(function(s){var r=E('tr'),state=s.status||'unknown',tone=state=='idle'?'g':state=='stalled'?'r':state=='disabled'?'d':'o';
-  [s.consumer,state,s.pending==null?'—':String(s.pending),s.oldest_pending_age_s==null?'—':String(Math.floor(s.oldest_pending_age_s))+' s',s.no_progress_s==null?'—':String(Math.floor(s.no_progress_s))+' s',s.reason||''].forEach(function(v,i){r.appendChild(E('td',v,i==1?tone:''))});pt.appendChild(r)});
- pw.appendChild(pt);m.appendChild(pw)})}
-function tabUsage(m){m.appendChild(E('p','Loading usage...'));fetch(U('api/usage')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- m.appendChild(E('p','Invocations per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are highlighted.','d'));
- var mx=1;j.addons.forEach(function(a){a.per_day.forEach(function(n){if(n>mx)mx=n})});
- var w=E('div',null,'w'),t=E('table'),h=E('tr');['Add-on','7 days','Total','Failed','Last'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
- j.addons.forEach(function(a){var r=E('tr'),dead=a.total==0;if(dead)r.style.background='var(--warn-bg)';
-  r.appendChild(E('td',a.slug+(a.state=='started'?'':' ('+(a.state||'stopped')+')')+(a.unreadable?' (log unreadable)':'')));
-  var c=E('td'),bars=E('span');bars.style.cssText='display:inline-flex;align-items:flex-end;gap:2px;height:22px';
-  a.per_day.forEach(function(n,i){var b=E('span');b.title=j.days[i]+': '+n;b.style.cssText='display:inline-block;width:8px;background:var('+(n?'--blue':'--empty')+');height:'+(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(b)});c.appendChild(bars);r.appendChild(c);
-  r.appendChild(E('td',dead?'not used in 7 days':String(a.total),dead?'o':''));r.appendChild(E('td',String(a.failed),a.failed?'r':''));
-  r.appendChild(E('td',a.last?(a.last+(a.last_day?' '+a.last_day.slice(5):'')):'-'));t.appendChild(r)});
- w.appendChild(t);m.appendChild(w)})}
-function tabTraces(m){m.appendChild(E('p','Loading recent request traces…','d'));fetch(U('api/traces')).then(J).then(function(x){m.textContent='';if(x[0]!=200){m.appendChild(E('p',x[1].error||'Could not load traces','r'));return}var rows=x[1].traces||[];
- var intro=E('p','Follow a request across the components that handled it. Traces contain component names, timing and outcomes only; message text and Discord IDs are never stored. Traces are kept locally for up to 7 days.','d');m.appendChild(intro);
- var layout=E('div',null,'trace-layout'),left=E('div',null,'trace-list'),right=E('div',null,'trace-detail');layout.appendChild(left);layout.appendChild(right);m.appendChild(layout);
- var search=E('input');search.type='search';search.placeholder='Filter by trace ID';search.setAttribute('aria-label','Filter traces by ID');search.className='trace-search';left.appendChild(search);var items=E('div');left.appendChild(items);var selectedId='';
- function choose(id){selectedId=id;Array.prototype.forEach.call(items.querySelectorAll('button'),function(b){b.className='trace-row'+(b.dataset.id==id?' selected':'')});right.textContent='Loading trace…';fetch(U('api/trace/'+id)).then(J).then(function(y){right.textContent='';if(y[0]!=200){right.appendChild(E('p',y[1].error||'Could not load trace','r'));return}var tr=y[1];right.appendChild(E('div','REQUEST TRACE','eyebrow'));right.appendChild(E('h3',tr.trace_id,'trace-id'));right.appendChild(E('p',tr.spans.length+' steps · content-free metadata','d'));
-  var line=E('div',null,'trace-timeline'),by={};tr.spans.forEach(function(s){by[s.span_id]=s});tr.spans.forEach(function(s){var depth=0,p=s.parent_span_id,seen={};while(p&&by[p]&&!seen[p]&&depth<5){seen[p]=1;depth++;p=by[p].parent_span_id}var node=E('article',null,'trace-span '+(s.status=='error'?'trace-error':s.status=='ok'?'trace-ok':''));node.style.marginLeft=Math.min(depth,4)*(window.matchMedia('(max-width:700px)').matches?8:18)+'px';node.appendChild(E('i',null,'trace-dot'));var head=E('div',null,'trace-span-head');head.appendChild(E('strong',s.operation));head.appendChild(E('span',s.status,'trace-status '+s.status));node.appendChild(head);node.appendChild(E('div',s.component+' · '+s.duration_ms+' ms','d'));if(s.reason)node.appendChild(E('div','Reason: '+s.reason,'trace-reason'));node.appendChild(E('time',T(s.started_at),'d'));line.appendChild(node)});right.appendChild(line)
- })}
-function render(){items.textContent='';var q=search.value.toLowerCase().trim(),hit=rows.filter(function(r){return !q||r.trace_id.indexOf(q)>=0});if(!hit.length){selectedId='';items.appendChild(E('p',rows.length?'No trace IDs match.':'No traces yet. Traces appear after a supported request reaches IH.','d'));right.textContent='';return}hit.forEach(function(r){var b=btn('');b.type='button';b.className='trace-row';b.dataset.id=r.trace_id;b.appendChild(E('strong',r.root+' · '+r.spans+' steps'));b.appendChild(E('span',r.trace_id,'trace-id'));b.appendChild(E('span',T(r.started_at)+' · '+r.status,'d'));b.onclick=function(){choose(r.trace_id)};items.appendChild(b)});if(!hit.some(function(r){return r.trace_id==selectedId}))selectedId='';if(!selectedId)choose(hit[0].trace_id)}
- search.oninput=render;render()
- }).catch(function(e){m.textContent='';m.appendChild(E('p','Could not load traces: '+e,'r'))})}
-function show(){var m=document.getElementById('main');var titles={overview:['Good to see you.','One clear view of your home services and their health.'],traces:['Request traces','See how a request moved through IH, step by step.'],addons:['Your add-ons','Start, update and inspect the services that make up Intelligent Home.'],install:['Add to your home','Browse available IH modules and install what you need.'],plugins:['House jobs','Review scheduled work, recent runs and operating mode.'],settings:['Shared settings','See which add-ons are configured and what still needs attention.'],health:['System health','Check service status and consumer progress.'],usage:['Usage trends','See how often your add-ons have been called over the last week.']};var title=titles[TAB]||titles.overview;document.getElementById('pagetitle').textContent=title[0];document.getElementById('pagesub').textContent=title[1];
- Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.dataset.t==TAB?'on':''});
- if(TAB=='overview'){m.textContent='';tabOverview(m);return}
- if(TAB=='plugins'){m.textContent='';tabPlugins(m);return}
- if(TAB=='settings'){m.textContent='';tabSettings(m);return}
- if(TAB=='health'){m.textContent='';tabHealth(m);return}
- if(TAB=='traces'){m.textContent='';tabTraces(m);return}
- if(TAB=='usage'){m.textContent='';tabUsage(m);return}
- fetch(U('api/addons')).then(function(r){return r.json()}).then(function(d){
-  if(d.error){say(d.error);return}
-  var keep=m.querySelectorAll('pre').length;if(keep&&TAB=='addons'&&DATA)return;
-  m.textContent='';DATA=d;(TAB=='install'?tabInstall:tabAddons)(m,d)}).catch(function(e){say('error: '+e)})}
-/* Tabs switch in JS: no hash links (the HA phone app treats link taps in the panel frame as navigation). #name on first load still works. */
-if(TABS.indexOf(location.hash.slice(1))>=0)TAB=location.hash.slice(1);
-Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.setAttribute('role','button');a.onclick=function(){jump(a.dataset.t)}});show();
-setInterval(function(){if(!document.hidden&&(TAB=='addons'||TAB=='install'))show()},30000);
-</script>"""
+PAGE = (Path(__file__).parent / "ui" / "index.html").read_text(encoding="utf-8")
 
 
 def make_handler(mgr):
@@ -737,6 +605,10 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+                if p in ("/ih-ui.css", "/ih-ui.js"):
+                    name = "ih-ui.css" if p.endswith(".css") else "ih-ui.js"
+                    body = (Path(__file__).parent / "ui" / name).read_bytes()
+                    return self._send(200, body, "text/css; charset=utf-8" if name.endswith(".css") else "text/javascript; charset=utf-8")
                 if p == "/api/plugins":
                     return self._json(*mgr.plugins())
                 if p == "/api/settings":

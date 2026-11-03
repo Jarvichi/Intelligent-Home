@@ -152,3 +152,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Status page for the other modules.
+
+## 0.10.3
+- Align the ingress interface with the shared Intelligent Home UI design tokens and components.
+
+## 0.10.4
+- Add an Open UI action to each installed add-on card, routed through Home Assistant app navigation.

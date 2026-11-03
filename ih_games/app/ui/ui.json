@@ -1,0 +1,13 @@
+{
+  "title": "Games",
+  "purpose": "Collects game activity and player milestones for Intelligent Home dashboards and messages.",
+  "description": "Game activity facts feeds and chat message orchestrator. DRY-RUN by default.",
+  "health_port": 8794,
+  "health_path": "/healthz",
+  "navigation": [
+    "Player activity",
+    "provider status",
+    "game library APIs"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

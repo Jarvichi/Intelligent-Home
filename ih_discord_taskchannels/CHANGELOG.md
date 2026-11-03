@@ -12,3 +12,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - One private channel per task as a module of the Discord transport. Shadow mode by default.
+
+## 0.1.4
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

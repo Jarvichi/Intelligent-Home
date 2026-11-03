@@ -137,3 +137,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Initial release: backup storage sensors and Met Office forecast, dry-run by default.
+
+## 0.14.4
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

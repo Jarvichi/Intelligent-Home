@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Met Office"
-version: "0.1.4"
+version: "0.1.5"
 slug: ih_jobs_metoffice
 image: "ghcr.io/jarvichi/{arch}-ih_jobs_metoffice"
 description: "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent."
@@ -11,6 +11,11 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8799]/healthz  once boot is auto; the Supervisor then restarts the add-on if /healthz stops answering.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Jobs Met Office"
+panel_icon: mdi:home-circle
+panel_admin: true
 homeassistant_api: true
 ports:
   8799/tcp: 8799

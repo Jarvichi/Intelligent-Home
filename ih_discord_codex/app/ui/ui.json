@@ -1,0 +1,13 @@
+{
+  "title": "Discord Codex",
+  "purpose": "Provides the Discord interface for Codex requests and task status.",
+  "description": "A private Codex worker with filtered Home Assistant tools and a private IH code review branch, connected through the signed Discord transport.",
+  "health_port": 8804,
+  "health_path": "/healthz",
+  "navigation": [
+    "Worker health",
+    "task handoff",
+    "workspace status"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

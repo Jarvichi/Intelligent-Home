@@ -41,3 +41,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Routes AI requests to registered agent add-ons and remembers which agent answers best.
+
+## 0.4.1
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

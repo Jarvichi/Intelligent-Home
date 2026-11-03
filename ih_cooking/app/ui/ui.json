@@ -1,0 +1,11 @@
+{
+  "title": "Cooking",
+  "purpose": "Manage recipes, meal plans, and cooking sessions.",
+  "navigation": [
+    "Recipe library",
+    "Search recipes",
+    "Create and edit recipes",
+    "Start cooking mode"
+  ],
+  "access": "Home Assistant authenticated ingress; mutations follow the configured cook mode"
+}

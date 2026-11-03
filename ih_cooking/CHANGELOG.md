@@ -64,3 +64,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Recipes and meal plan data, plus the weekly meal-vs-calendar check (read-only).
+
+## 0.6.2
+- Align the ingress interface with the shared Intelligent Home UI design tokens and components.

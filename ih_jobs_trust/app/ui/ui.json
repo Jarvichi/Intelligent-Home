@@ -1,0 +1,13 @@
+{
+  "title": "Jobs · Trust",
+  "purpose": "Publishes house trust and service availability checks.",
+  "description": "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent.",
+  "health_port": 8810,
+  "health_path": "/healthz",
+  "navigation": [
+    "Trust checks",
+    "latest job status",
+    "service health"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

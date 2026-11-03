@@ -17,3 +17,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Answers allow-listed users on chosen channels through the AI layer. Shadow mode by default.
+
+## 0.2.1
+- Add a shared-style, Supervisor-ingress add-on console with live health status and capability summary.

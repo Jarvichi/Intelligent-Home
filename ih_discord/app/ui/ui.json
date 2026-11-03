@@ -1,0 +1,13 @@
+{
+  "title": "Discord Transport",
+  "purpose": "Connects Intelligent Home modules to Discord and routes house messages.",
+  "description": "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. Since 0.8.0 it can also administer channels for a module that is granted this (all off by default). DRY-RUN by default: a module writes to Discord only when dry_run is off and it is in live_modules. Maps no folders.",
+  "health_port": 8791,
+  "health_path": "/healthz",
+  "navigation": [
+    "Transport health",
+    "module connectivity",
+    "message routing"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}
