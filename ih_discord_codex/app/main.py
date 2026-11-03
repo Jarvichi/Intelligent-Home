@@ -6,6 +6,7 @@ channel allowlist. It stores the event before ACK, never logs message text, and
 holds ambiguous model or delivery outcomes for explicit review.
 """
 import json
+import base64
 import logging
 import os
 import re
@@ -29,6 +30,53 @@ PORT = int(os.environ.get("IHB_PORT", "8815"))
 MAX_REPLY = 1800
 BRAIN_MCP_URL = "http://homeassistant:8820/codex-mcp"
 LOG = logging.getLogger("ih_discord_codex")
+IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def fetch_discord_images(items):
+    """Fetch only bounded images from Discord's attachment CDN; never follow redirects."""
+    images, total = [], 0
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+    for item in items[:3] if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        url, mime = item.get("url"), item.get("mime")
+        try:
+            from urllib.parse import urlsplit
+            parsed = urlsplit(url if isinstance(url, str) else "")
+            port = parsed.port
+            advertised = int(item.get("size", 0))
+        except (TypeError, ValueError):
+            continue
+        if (parsed.scheme != "https" or parsed.hostname not in ("cdn.discordapp.com", "media.discordapp.net")
+                or port not in (None, 443) or parsed.fragment or len(url) > 4096
+                or not parsed.path.startswith("/attachments/") or parsed.username or parsed.password
+                or mime not in IMAGE_MIMES or advertised <= 0 or advertised > MAX_IMAGE_BYTES):
+            continue
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "IH-Discord-Codex/1"})
+            with opener.open(request, timeout=5) as response:
+                if response.status != 200 or response.headers.get_content_type() != mime:
+                    continue
+                data = response.read(MAX_IMAGE_BYTES + 1)
+            if len(data) > MAX_IMAGE_BYTES or total + len(data) > 8 * 1024 * 1024:
+                continue
+            signatures = {"image/jpeg": data.startswith(b"\xff\xd8\xff"),
+                          "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+                          "image/webp": len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"}
+            if not signatures.get(mime):
+                continue
+            images.append({"mime": mime, "data": data})
+            total += len(data)
+        except (OSError, ValueError, urllib.error.URLError):
+            continue
+    return images
 
 sys.path.insert(0, str(HERE))
 import bus_client
@@ -77,7 +125,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.12"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.13"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -152,7 +200,15 @@ class CodexProcessRunner:
                 pass
 
     def run(self, thread, text, save_thread):
-        payload = json.dumps({"thread": thread, "text": text, "workspace": self.workspace,
+        return self._run(thread, text, [], save_thread)
+
+    def run_with_images(self, thread, text, images, save_thread):
+        return self._run(thread, text, images, save_thread)
+
+    def _run(self, thread, text, images, save_thread):
+        encoded_images = [{"mime": item["mime"], "data": base64.b64encode(item["data"]).decode("ascii")}
+                          for item in images[:3] if item.get("mime") in IMAGE_MIMES and isinstance(item.get("data"), bytes)]
+        payload = json.dumps({"thread": thread, "text": text, "images": encoded_images, "workspace": self.workspace,
                               "codex_home": self.codex_home,
                               "brain_read_token": self.brain_read_token,
                               "claude_review_enabled": self.claude_review_enabled}).encode("utf-8")
@@ -262,6 +318,23 @@ class CommandRunner:
             answer += "\n\nClaude task handoff queued."
         return answer
 
+    def run_with_images(self, thread, text, images, save_thread):
+        command = text.strip().lower()
+        if command.startswith("/"):
+            return self.run(thread, text, save_thread)
+        answer = self.codex.run_with_images(thread, text, images, save_thread)
+        context = self.bridge.active_context()
+        plans = self.ha_tools.pending_for(context["message"]) if self.ha_tools and context else []
+        if plans:
+            plan = plans[0]
+            answer += ("\n\nApproval required: I propose %s for `%s`. Nothing has changed yet. "
+                       "Send `/approve %s` to do this one step, or `/deny %s` to cancel. The code expires in five minutes." %
+                       (plan["domain"] + "." + plan["service"], plan["entity_id"], plan["id"], plan["id"]))
+        handoffs = self.bridge.claude_handoffs_for(context["message"]) if context else []
+        if handoffs:
+            answer += "\n\nClaude task handoff queued."
+        return answer
+
 
 class Service:
     def __init__(self, options, bridge=None, bus=None):
@@ -285,8 +358,17 @@ class Service:
         ck = str(event.get("channel_key") or "")
         uid = str(event.get("author_id") or "")
         content = event.get("content")
+        if not isinstance(content, str):
+            content = ""
+        image_items = event.get("images") if (uid in self.opts["users"] and ck in self.opts["channel_keys"]
+                                                and not event.get("author_bot") and not event.get("is_bot")) else []
+        images = fetch_discord_images(image_items)
+        attachments = event.get("attachments") if isinstance(event.get("attachments"), dict) else {}
+        if attachments.get("image_count", 0) and not images:
+            notice = "[An attached image could not be safely fetched. Supported formats are JPEG, PNG, and WebP.]"
+            content = (content + "\n\n" + notice) if content.strip() else notice
         safe = {"channel": ck, "author": uid, "id": str(event.get("msg_id") or ""),
-                "text": content, "bot": False if not event.get("author_bot") and not event.get("is_bot") else True}
+                "text": content, "images": images, "bot": False if not event.get("author_bot") and not event.get("is_bot") else True}
         return self.bridge.accept(safe)
 
     def run_loop(self):
@@ -354,7 +436,7 @@ class Service:
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.12", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.13", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"] + (["post"] if self.opts.get("review_channel_key") else []), dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -365,7 +447,7 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.12", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.13", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),

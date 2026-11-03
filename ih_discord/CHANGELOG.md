@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - metadata-only trace spans for bus intake and delivery (shared ihlib.trace); off without an ingest token.
 
+## [0.10.4] - 2026-11-03
+
+### Added
+- Add opt-in per-module Discord image attachment forwarding, only when that grant also enables encrypted content. Image URLs are omitted from the local transport journal.
+
 ## [0.10.1] - 2026-11-02
 
 ### Security

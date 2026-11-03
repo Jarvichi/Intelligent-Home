@@ -23,11 +23,14 @@ class Bridge:
             self.db=sqlite3.connect(path,check_same_thread=False)
             self.db.execute('PRAGMA synchronous=FULL')
             self.db.execute('PRAGMA foreign_keys=ON')
+            self.db.execute('PRAGMA secure_delete=ON')
             self.db.executescript('''
             CREATE TABLE IF NOT EXISTS jobs(channel TEXT, message TEXT, author TEXT,
               text TEXT, state TEXT, created REAL, thread TEXT, reason TEXT,
               PRIMARY KEY(channel,message));
             CREATE TABLE IF NOT EXISTS threads(channel TEXT PRIMARY KEY, thread TEXT);
+            CREATE TABLE IF NOT EXISTS job_images(channel TEXT NOT NULL,message TEXT NOT NULL,position INTEGER NOT NULL,mime TEXT NOT NULL,data BLOB NOT NULL,
+              PRIMARY KEY(channel,message,position),FOREIGN KEY(channel,message) REFERENCES jobs(channel,message) ON DELETE CASCADE);
             CREATE TABLE IF NOT EXISTS outbox(channel TEXT,message TEXT,part INTEGER,
               text TEXT,state TEXT,receipt TEXT, PRIMARY KEY(channel,message,part));
             CREATE TABLE IF NOT EXISTS action_plans(id TEXT PRIMARY KEY,channel TEXT NOT NULL,
@@ -44,6 +47,7 @@ class Bridge:
             # Process crashes cannot establish whether tools or Discord sends ran.
             with self.db:
                 self.db.execute("UPDATE jobs SET state='needs_review',reason='interrupted model turn' WHERE state='running'")
+                self.db.execute("DELETE FROM job_images WHERE EXISTS (SELECT 1 FROM jobs j WHERE j.channel=job_images.channel AND j.message=job_images.message AND j.state='needs_review')")
                 self.db.execute("UPDATE outbox SET state='needs_review' WHERE state='sending'")
                 self.db.execute("UPDATE action_plans SET state='uncertain' WHERE state='executing'")
                 self.db.execute("UPDATE claude_handoffs SET state='needs_review' WHERE state='sending'")
@@ -65,7 +69,17 @@ class Bridge:
             or not isinstance(mid,str) or not mid or len(mid)>128
             or not isinstance(uid,str) or not uid):return False
         with self.lock,self.db:
-            allowed=uid in self.users and event.get('bot') is False and isinstance(text,str) and bool(text.strip()) and len(text)<=8000
+            images=event.get('images') if isinstance(event.get('images'),list) else []
+            valid_images=[]
+            total_image_bytes=0
+            for image in images[:3]:
+                if (isinstance(image,dict) and image.get('mime') in ('image/jpeg','image/png','image/webp')
+                        and isinstance(image.get('data'),bytes) and 0 < len(image['data']) <= 4*1024*1024
+                        and total_image_bytes + len(image['data']) <= 8*1024*1024):
+                    valid_images.append(image)
+                    total_image_bytes += len(image['data'])
+            allowed=uid in self.users and event.get('bot') is False and isinstance(text,str) and (bool(text.strip()) or bool(valid_images)) and len(text)<=8000
+            if allowed and not text.strip(): text='Please inspect the attached image.'
             reason='authorization or input rejected'
             control=allowed and (text.strip().lower() in ('/help','/status','/new')
                 or text.strip().lower().startswith('/approve ') or text.strip().lower().startswith('/deny ')
@@ -74,9 +88,12 @@ class Bridge:
                 pending=self.db.execute("SELECT count(*) FROM jobs WHERE channel=? AND state IN ('queued','running','needs_review')",(ch,)).fetchone()[0]
                 if pending>=8:
                     allowed=False;reason='queue limit'
-            cur=self.db.execute('INSERT OR IGNORE INTO jobs VALUES(?,?,?,?,?,?,?,?)',
+            cur=self.db.execute('INSERT OR IGNORE INTO jobs(channel,message,author,text,state,created,thread,reason) VALUES(?,?,?,?,?,?,?,?)',
               (ch,mid,uid,text if allowed else '', 'queued' if allowed else 'rejected',self.clock(),None,
                None if allowed else reason))
+            if cur.rowcount == 1 and allowed:
+                for position,image in enumerate(valid_images):
+                    self.db.execute('INSERT INTO job_images VALUES(?,?,?,?,?)',(ch,mid,position,image['mime'],image['data']))
             if cur.rowcount==1 and reason=='queue limit':
                 self.db.execute('INSERT OR IGNORE INTO outbox VALUES(?,?,?,?,?,?)',
                   (ch,mid,0,'The Codex queue is full. Send /status or /new to continue.','pending',None))
@@ -96,6 +113,8 @@ class Bridge:
              ORDER BY j.rowid LIMIT 1""").fetchone()
             if not row:return False
             ch,mid,text,author=row
+            image_rows=self.db.execute('SELECT mime,data FROM job_images WHERE channel=? AND message=? ORDER BY position',(ch,mid)).fetchall()
+            images=[{'mime':mime,'data':data} for mime,data in image_rows]
             if ch not in self.channels or author not in self.users:
                 with self.db:self.db.execute("UPDATE jobs SET state='rejected',reason='authorization revoked',text='' WHERE channel=? AND message=?",(ch,mid))
                 return True
@@ -107,15 +126,21 @@ class Bridge:
                     self.db.execute('INSERT OR REPLACE INTO threads VALUES(?,?)',(ch,thread))
                     self.db.execute('UPDATE jobs SET thread=? WHERE channel=? AND message=?',(thread,ch,mid))
             try:
-                answer=runner.run(self.thread(ch),text,save_thread)
+                if images and hasattr(runner,'run_with_images'):
+                    answer=runner.run_with_images(self.thread(ch),text,images,save_thread)
+                else:
+                    answer=runner.run(self.thread(ch),text,save_thread)
                 if not isinstance(answer,str) or not answer.strip():raise ValueError('empty answer')
                 if len(answer)>18000:raise ValueError('answer exceeds bounded outbox')
                 with self.db:
                     for part,offset in enumerate(range(0,len(answer),1800)):
                         self.db.execute('INSERT INTO outbox VALUES(?,?,?,?,?,?)',(ch,mid,part,answer[offset:offset+1800],'pending',None))
                     self.db.execute("UPDATE jobs SET state='answered',text='' WHERE channel=? AND message=?",(ch,mid))
+                    self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
             except Exception:
-                with self.db:self.db.execute("UPDATE jobs SET state='needs_review',reason='model outcome uncertain' WHERE channel=? AND message=?",(ch,mid))
+                with self.db:
+                    self.db.execute("UPDATE jobs SET state='needs_review',reason='model outcome uncertain' WHERE channel=? AND message=?",(ch,mid))
+                    self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
             finally:
                 with self.lock:self._active_context=None
             return True

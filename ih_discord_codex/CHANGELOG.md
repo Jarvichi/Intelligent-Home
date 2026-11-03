@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.13] - 2026-11-03
+- Accept up to three bounded JPEG, PNG, or WebP attachments over the encrypted Discord bus and pass them to Codex as tool-level image input.
+- Validate Discord CDN URLs, response MIME and file signatures; cap each image at 4 MiB and total data at 8 MiB. Store bytes only in the private local queue until the turn ends.
+
 ## [0.1.12] - 2026-11-03
 - Move the ingress UI to port 8812 so it cannot race the loopback Home Assistant MCP server on port 8811.
 - Run the health UI and worker as supervised child processes so a worker startup failure stops the add-on instead of leaving a misleading live UI process.

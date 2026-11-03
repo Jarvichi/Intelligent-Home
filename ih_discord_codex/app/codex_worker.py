@@ -2,6 +2,7 @@
 the persistent thread id before doing model work so the caller can checkpoint it.
 """
 import json
+import base64
 import os
 import sys
 from pathlib import Path
@@ -93,8 +94,17 @@ def main():
         else:
             thread = codex.thread_start(**common)
         emit({"type": "thread", "id": thread.id})
+        content = [{"type": "input_text", "text": request["text"]}]
+        for item in request.get("images", [])[:3]:
+            mime = item.get("mime") if isinstance(item, dict) else None
+            if mime not in ("image/jpeg", "image/png", "image/webp"):
+                continue
+            raw = base64.b64decode(item.get("data", ""), validate=True)
+            if not raw or len(raw) > 4 * 1024 * 1024:
+                continue
+            content.append({"type": "input_image", "image_url": "data:%s;base64,%s" % (mime, item["data"])})
         result = thread.run(
-            ExternalMessage(tool_name="discord_message", content=request["text"]),
+            ExternalMessage(tool_name="discord_message", content=content if len(content) > 1 else request["text"]),
             cwd=workspace,
             sandbox=Sandbox.workspace_write,
             approval_mode=ApprovalMode.deny_all,

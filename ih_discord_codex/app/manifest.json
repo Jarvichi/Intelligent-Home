@@ -1,6 +1,6 @@
 {
   "name": "ih_discord_codex",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "kind": "addon",
   "description": "Private Codex coding worker over the existing signed IH Discord transport",
   "owner": "local add-on ih_discord_codex",
@@ -11,5 +11,5 @@
   "declares_secrets": ["brain_read_token", "github_repo_token"],
   "restore": "Stop the add-on. Remove only its private Codex configuration folder to discard its login, thread history and scratch files.",
   "requires": ["ih_discord", "mqtt"],
-  "privacy": {"stores": ["message inbox and replies in private add-on data", "Codex thread history and IH source workspace in private add-on config", "read-only summaries from todo.claude_to_do", "proposed device action IDs and outcomes in the private inbox database", "task handoff summaries, optional public IH pull request links, and delivery state"], "external": ["Codex model service receives submitted prompts, isolated IH source code context, filtered Home Assistant state/history returned by tools, the explicitly approved todo.claude_to_do list, and any Brain notes retrieved by its read-only shareable-notes MCP", "Claude receives a concise task summary based on the user's request and an optional public pull request URL in the configured private review channel; HA tool results and Brain content are excluded"], "never_logs": ["message text", "tokens", "signing keys", "unfiltered Home Assistant attributes"]}
+  "privacy": {"stores": ["message inbox and replies in private add-on data", "Codex thread history and IH source workspace in private add-on config", "read-only summaries from todo.claude_to_do", "proposed device action IDs and outcomes in the private inbox database", "task handoff summaries, optional public IH pull request links, and delivery state", "Discord image bytes temporarily in the mode-0600 private inbox database until the Codex turn ends"], "external": ["Codex model service receives submitted prompts, isolated IH source code context, filtered Home Assistant state/history returned by tools, the explicitly approved todo.claude_to_do list, any Brain notes retrieved by its read-only shareable-notes MCP, and image attachments when encrypted image forwarding is enabled", "Claude receives a concise task summary based on the user's request and an optional public pull request URL in the configured private review channel; HA tool results and Brain content are excluded"], "never_logs": ["message text", "tokens", "signing keys", "unfiltered Home Assistant attributes"]}
 }

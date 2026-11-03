@@ -52,7 +52,7 @@ def decrypt_field(signing_key, module, topic, body, field, envelope):
 
 def encrypt_private_event(signing_key, module, topic, body):
     out = dict(body)
-    names = ("author_id", "author_name", "content", "msg_ts", "age_s", "reply_to", "attachments")
+    names = ("author_id", "author_name", "content", "msg_ts", "age_s", "reply_to", "attachments", "images")
     private = {name: out.pop(name) for name in names if name in out}
     out["private_encrypted"] = encrypt_field(signing_key, module, topic, out, "private", private)
     return out
@@ -63,7 +63,7 @@ def decrypt_private_event(signing_key, module, topic, body):
     if "private_encrypted" not in out:
         raise ValueError("missing_envelope")
     private = decrypt_field(signing_key, module, topic, out, "private", out.pop("private_encrypted"))
-    if not isinstance(private, dict) or set(private) - {"author_id", "author_name", "content", "msg_ts", "age_s", "reply_to", "attachments"}:
+    if not isinstance(private, dict) or set(private) - {"author_id", "author_name", "content", "msg_ts", "age_s", "reply_to", "attachments", "images"}:
         raise ValueError("bad_payload")
     out.update(private)
     return out

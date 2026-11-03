@@ -36,11 +36,12 @@ def _tag(v, default='-'):
 
 
 class Grant:
-    def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None, encrypt_content=False):
+    def __init__(self, name, key, channels, ops, rate, public, shadow=False, admin=None, encrypt_content=False, allow_images=False):
         self.name, self.key, self.channels, self.ops, self.rate, self.public = name, key, set(channels), set(ops), rate, set(public)
         self.admin = admin or A.AdminCfg()   # S6: channel-admin rights, ALL OFF unless the module row sets them
         self.shadow = bool(shadow)   # S2: gets COPIES of what the live claimants get; every op it sends is forced dry here
         self.encrypt_content = bool(encrypt_content)
+        self.allow_images = bool(allow_images and encrypt_content)
 
 
 def parse_modules(raw, reserved=()):
@@ -59,7 +60,8 @@ def parse_modules(raw, reserved=()):
             rate = 30
         out[name] = Grant(name, str(m.get('signing_key') or '').strip(), [str(c).strip() for c in (m.get('channels') or []) if B.KEY_RE.match(str(c).strip())],
                           ops, rate, [str(w).strip().lower() for w in (m.get('public_words') or []) if str(w).strip()], shadow=m.get('shadow') is True,
-                          admin=A.parse_cfg(m), encrypt_content=m.get('encrypt_content') is True)
+                          admin=A.parse_cfg(m), encrypt_content=m.get('encrypt_content') is True,
+                          allow_images=m.get('allow_images') is True)
     return out
 
 
@@ -245,6 +247,9 @@ class BusTransport:
                 'author_name': entry.get('author_name', ''), 'allowed': bool(allowed), 'content': str(entry.get('content', ''))[:2000],
                 'msg_ts': entry.get('msg_ts'), 'age_s': int(max(0, self.clock() - (entry.get('msg_ts') or self.clock()))),
                 'reply_to': entry.get('reply_to'), 'attachments': entry.get('attachments') or {'count': 0, 'kinds': []}}
+        grant = self.grants.get(module)
+        if grant and grant.allow_images:
+            body['images'] = entry.get('images') or []
         sent = self._send_in(module, entry['channel_key'], body, pid)
         self.stats['in_sent' if sent else 'in_held'] += 1
         if not sent:

@@ -9,6 +9,7 @@ Reactions are not routed here: only the module that owns a watched message recei
 Delivery order per message: journal write -> cursor moves -> route -> journal "done". A crash in between is repaired by recover().
 Start: no cursor = start at the NEWEST message (nothing old is answered). Messages older than max_age_s are skipped (and journaled as skipped)."""
 import re, time, threading, collections
+from urllib.parse import urlsplit
 
 EPOCH_MS = 1420070400000
 
@@ -156,9 +157,24 @@ class Router:
         atts = m.get('attachments') or []
         kinds = sorted({(x.get('content_type') or 'file').split('/')[0] for x in atts})
         ref = (m.get('message_reference') or {}).get('message_id')
+        images = []
+        for attachment in atts:
+            if len(images) >= 3 or not isinstance(attachment, dict):
+                continue
+            mime = str(attachment.get('content_type') or '').lower().split(';', 1)[0]
+            url = attachment.get('url') or attachment.get('proxy_url')
+            try:
+                parsed = urlsplit(str(url or ''))
+                size = int(attachment.get('size') or 0)
+            except (TypeError, ValueError):
+                continue
+            if (parsed.scheme == 'https' and parsed.hostname in ('cdn.discordapp.com', 'media.discordapp.net')
+                    and parsed.path.startswith('/attachments/') and mime in ('image/jpeg', 'image/png', 'image/webp')
+                    and 0 < size <= 4 * 1024 * 1024):
+                images.append({'url': str(url), 'mime': mime, 'size': size})
         return {'id': mid, 'channel_key': key, 'author_id': str(a.get('id', '')), 'author_name': str(a.get('username', ''))[:60],
                 'content': str(m.get('content') or '')[:2000], 'msg_ts': int(snowflake_ts(mid)), 'reply_to': ref,
-                'attachments': {'count': len(atts), 'kinds': kinds}}
+                'attachments': {'count': len(atts), 'kinds': kinds, 'image_count': len(images)}, 'images': images}
 
     def raw_for(self, entry):
         """A Discord-shaped message rebuilt from a journal entry (recovery after a crash)."""

@@ -70,7 +70,9 @@ class Journal:
 
     def append(self, entry):
         """Write one line (flushed to disk). Returns when it is safe to move the cursor. Raises OSError if the write failed."""
-        e = dict(entry); e.setdefault('t', int(self.clock()))
+        # Discord image URLs are signed bearer links. Keep them in memory only;
+        # the opted-in module receives them over the encrypted bus.
+        e = dict(entry); e.pop('images', None); e.setdefault('t', int(self.clock()))
         with self.lock:
             with open(self.path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(e, ensure_ascii=False, sort_keys=True) + '\n')
