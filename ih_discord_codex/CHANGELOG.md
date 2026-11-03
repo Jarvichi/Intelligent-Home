@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.14] - 2026-11-03
+- Install the distribution `bubblewrap` package used by Codex workspace-write sandboxing on Linux, instead of relying on the bundled user-namespace helper.
+
 ## [0.1.13] - 2026-11-03
 - Accept up to three bounded JPEG, PNG, or WebP attachments over the encrypted Discord bus and pass them to Codex as tool-level image input.
 - Validate Discord CDN URLs, response MIME and file signatures; cap each image at 4 MiB and total data at 8 MiB. Store bytes only in the private local queue until the turn ends.
