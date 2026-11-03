@@ -1,15 +1,9 @@
-# IH Discord Codex module
+# Intelligent Home - Discord - Codex
 
-This add-on adds a private Home Assistant and coding worker to the existing signed Discord transport. The add-on process uses the Supervisor API token behind a loopback-only MCP server; the Codex subprocess never receives that token. MCP exposes filtered entity search/state/history, read-only access to the explicitly approved `todo.claude_to_do` list, and a proposal tool for basic light and switch actions. It cannot call arbitrary HA APIs. The Brain endpoint remains restricted server-side to search/read of markdown notes explicitly marked `share: true`.
+Private Codex coding worker over the existing signed IH Discord transport.
 
-The worker uses OpenAI's Python Codex SDK with ChatGPT sign-in, a persistent private thread, a persistent isolated checkout of the public IH add-on source on local branch `codex/work`, workspace-write sandbox, denied escalations, and command-network access disabled. The source checkout contains generic public code only, not the private Home Assistant configuration or local private git history. Retrieved shared Brain notes, filtered HA results, and code opened by the worker are sent to the hosted Codex model when used in a turn.
-
-Device actions are limited to `light` and `switch` `turn_on`, `turn_off`, and `toggle`. The MCP tool only creates a five-minute, single-use proposal. The authorized owner must separately send `/approve CODE` with its 16-character code in the configured channel. `/deny CODE` cancels it. Ambiguous HA responses are held as uncertain and never retried. Other domains and arbitrary service data are unavailable.
-
-Code changes remain on the private local `codex/work` branch until the authorized owner sends `/code submit`. Submission publishes only changed files below public `ih_*` add-on folders, rejects private-address/identifier/secret-like patterns, creates a new GitHub branch, and opens a review pull request. It never merges or deploys. The optional `github_repo_token` must be a fine-grained token restricted to the IH add-on source repository with Contents read/write and Pull requests read/write; it is used only by the add-on process and never passed to Codex. Without it, code work remains local.
-
-With the default `review_channel_key` of `claude_review`, and the transport mapping and granting `post` for that channel, Codex can hand off a HA, Brain, host, or IH task it cannot complete with its available access. It queues a concise summary derived from the user request and preserves user-provided entity IDs or device/area names when needed. It never forwards HA tool results, Brain content, credentials, private addresses, or the full conversation. `/code submit` also queues the public pull request URL. Codex does not read messages from the review channel. Set the option to an empty string to disable handoffs. Before acting on a todo item, Codex checks Brain and current code and asks the owner to confirm the item is still valid.
-
-Messages are stored before the signed transport ACK. Codex input is passed as untrusted external content. A turn interrupted by process failure is held for review; Discord sends with an uncertain receipt are not replayed automatically. Logs and status contain counts and state only, never prompts, replies, or credentials. The first release runs in shadow mode until a real private-channel comparison is approved.
-
-The add-on configuration directory must contain a private `codex-home/auth.json` created from the authorized existing Codex login, and `workspace/` is the only work area. Keep the auth file mode 0600. Do not put this file in the public repository, options examples, backups, Brain notes, logs, or Discord messages.
+- **Family:** Discord. Module of the `ih_discord` transport.
+- **Needs:** `ih_discord`, mqtt
+- **Starts safe:** shadow mode, answers and posts nothing until you switch it on
+- Set-up, options and troubleshooting: [DOCS.md](DOCS.md)
+- Version history: [CHANGELOG.md](CHANGELOG.md)

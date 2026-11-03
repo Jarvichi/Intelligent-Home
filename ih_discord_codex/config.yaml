@@ -1,7 +1,7 @@
 name: "Intelligent Home - Discord - Codex"
-version: "0.1.10"
-image: "ghcr.io/jarvichi/{arch}-ih_discord_codex"
+version: "0.1.11"
 slug: ih_discord_codex
+image: "ghcr.io/jarvichi/{arch}-ih_discord_codex"
 description: "A private Codex worker with filtered Home Assistant tools and a private IH code review branch, connected through the signed Discord transport."
 homeassistant_api: true
 arch:
@@ -18,9 +18,9 @@ panel_admin: true
 map:
   - addon_config:rw
 ports:
-  8804/tcp: 8804
+  8815/tcp: 8815
 ports_description:
-  8804/tcp: "Private module health and status"
+  8815/tcp: "Private module health and status"
 options:
   module_name: "ih_discord_codex"
   signing_key: ""

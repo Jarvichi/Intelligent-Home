@@ -25,7 +25,7 @@ DATA = Path(os.environ.get("IHB_DATA", "/data"))
 OPTIONS = DATA / "options.json"
 WORKSPACE = Path(os.environ.get("CODEX_WORKSPACE", "/config/workspace"))
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", "/config/codex-home"))
-PORT = int(os.environ.get("IHB_PORT", "8804"))
+PORT = int(os.environ.get("IHB_PORT", "8815"))
 MAX_REPLY = 1800
 BRAIN_MCP_URL = "http://homeassistant:8820/codex-mcp"
 LOG = logging.getLogger("ih_discord_codex")
@@ -217,7 +217,7 @@ class CommandRunner:
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
             delivery = ", ".join("%s %s" % (count, name) for name, count in sorted(state["delivery"].items())) or "no replies pending"
-            handoffs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["claude_handoffs"].items())) or "no Claude handoffs"
+            handoffs = ", ".join("%s %s" % (count, name) for name, count in sorted(state.get("claude_handoffs", {}).items())) or "no Claude handoffs"
             return "Codex status: %s. Replies: %s. Claude task handoffs: %s." % (jobs, delivery, handoffs)
         if command == "/new":
             self.bridge.abandon_uncertain(self.channel)

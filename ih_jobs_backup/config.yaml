@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Backup"
-version: "0.1.5"
+version: "0.1.6"
 slug: ih_jobs_backup
 image: "ghcr.io/jarvichi/{arch}-ih_jobs_backup"
 description: "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent."

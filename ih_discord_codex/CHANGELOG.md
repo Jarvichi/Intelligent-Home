@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11] - 2026-11-03
+
+### Changed
+- Health and status port moved from 8804 to 8815 (8804 belongs to the Gemini AI agent).
+
+### Fixed
+- Make `/status` tolerate older or stub status data without `claude_handoffs`; the command reports “no Claude handoffs” instead of raising `KeyError`.
+
 ## [0.1.9] - 2026-11-02
 - Add a read-only tool for the explicitly approved live `todo.claude_to_do` list.
 - Allow access-limited HA, Brain, host, and IH task requests to be handed off to Claude with a concise user-request summary.
