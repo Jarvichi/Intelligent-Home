@@ -6,6 +6,7 @@
   const statusEl = document.getElementById('service-status');
   let players = [];
   let selected = '';
+  let artSearchAvailable = false;
   const detailCache = new Map();
 
   function el(tag, text, cls) {
@@ -19,8 +20,8 @@
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
   }
-  async function request(path) {
-    const r = await fetch(root + path, { cache: 'no-store', headers: { Accept: 'application/json' } });
+  async function request(path, method) {
+    const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
     let data;
     try { data = await r.json(); } catch (_) { throw new Error('The Games service returned an unreadable response.'); }
     if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The Games service could not load this data.');
@@ -108,6 +109,28 @@
     const top = el('div', null, 'game-heading');
     const title = el('div'); title.append(el('p', game.platform || 'GAME', 'ih-eyebrow'), el('h2', game.title));
     top.appendChild(title); card.appendChild(top);
+    const artRow = el('div', null, 'art-row');
+    const art = el('img', null, 'game-art'); art.alt = 'Official cover art for ' + game.title; art.loading = 'lazy'; art.hidden = true;
+    art.addEventListener('load', function () { art.hidden = false; });
+    art.addEventListener('error', function () { art.hidden = true; });
+    art.src = root + 'api/art/' + encodeURIComponent(game.id);
+    const artControls = el('div', null, 'art-controls');
+    const artButton = el('button', artSearchAvailable ? 'Find official box art' : 'Art search not configured', 'ih-button art-button');
+    artButton.type = 'button'; artButton.disabled = !artSearchAvailable;
+    const artStatus = el('p', artSearchAvailable ? 'Search uses the IH AI Layer provider quota.' : 'An administrator must configure the scoped AI Layer connection.', 'ih-muted art-status');
+    artButton.addEventListener('click', async function () {
+      artButton.disabled = true; artButton.textContent = 'Searching official sources…'; artStatus.textContent = 'Asking the IH AI Layer to find publisher or official store art.';
+      try {
+        const result = await request('api/games/' + encodeURIComponent(game.id) + '/art?player=' + encodeURIComponent(player), 'POST');
+        art.src = root + 'api/art/' + encodeURIComponent(game.id) + '?v=' + Date.now();
+        art.hidden = false;
+        artStatus.replaceChildren(el('span', 'Saved locally from ' + (result.artwork.source_title || 'an official source') + '. '));
+        const source = el('a', 'Source'); source.href = result.artwork.source_url; source.target = '_blank'; source.rel = 'noopener noreferrer'; artStatus.appendChild(source);
+        artButton.textContent = 'Refresh official box art';
+      } catch (e) { artButton.textContent = 'Try official art search again'; artStatus.textContent = e.message; }
+      artButton.disabled = false;
+    });
+    artControls.append(artButton, artStatus); artRow.append(art, artControls); card.appendChild(artRow);
     const facts = el('dl', null, 'game-facts');
     facts.append(row('Last seen', fmtDate(game.last_seen)), row('Play time', game.playtime_min == null ? 'Not known yet' : Math.floor(game.playtime_min / 60) + ' h ' + (game.playtime_min % 60) + ' min'));
     card.appendChild(facts);
@@ -147,6 +170,7 @@
     try {
       const [p, h] = await Promise.all([request('api/players'), request('api/status')]);
       players = p.players || [];
+      artSearchAvailable = p.art_search_available === true;
       statusEl.textContent = h.healthy ? 'Games service available' : 'Games service unavailable';
       statusEl.classList.toggle('status-bad', !h.healthy);
       if (!players.length) throw new Error('No players are configured for Games yet.');

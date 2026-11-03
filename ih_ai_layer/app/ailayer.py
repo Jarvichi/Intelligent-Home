@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.0'
+VERSION = '0.4.2'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -60,7 +60,7 @@ def load_options(path):
             return max(lo, min(hi, int(o.get(k, d))))
         except (TypeError, ValueError):
             return d
-    return {'api_token': str(o.get('api_token') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
+    return {'api_token': str(o.get('api_token') or '').strip(), 'games_art_token': str(o.get('games_art_token') or '').strip(), 'register_key': str(o.get('register_key') or '').strip(),
             'shadow': bool(o.get('shadow', True)), 'agent_timeout_s': num('agent_timeout_s', 20, 1, 60),
             'rate_per_min': num('rate_per_min', 30, 1, 600), 'max_tries': num('max_tries', 2, 1, 5),
             'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes'),
@@ -166,12 +166,20 @@ class Layer:
     def stopped(self):
         return os.path.exists(os.path.join(self.data, STOP_FILE))
 
-    def auth_ok(self, header):
-        tok = self.opts.get('api_token')
-        if not tok:
-            return False
+    def auth_scope(self, header):
+        """Admin token has full API access; the optional Games token can only search game art."""
         import hmac
-        return hmac.compare_digest(str(header or ''), 'Bearer ' + tok)
+        value = str(header or '')
+        admin = self.opts.get('api_token')
+        if admin and hmac.compare_digest(value, 'Bearer ' + admin):
+            return 'admin'
+        games_art = self.opts.get('games_art_token')
+        if games_art and hmac.compare_digest(value, 'Bearer ' + games_art):
+            return 'games_art'
+        return ''
+
+    def auth_ok(self, header):
+        return self.auth_scope(header) == 'admin'
 
     def rate_ok(self):
         now = self.clock()

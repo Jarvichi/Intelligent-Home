@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.5] - 2026-11-03
+
+### Added
+- Request official box art through a Games-only, capability-limited IH AI Layer token.
+- Validate official store/publisher source pages, download images securely, and persist them under `/data/artwork` for local UI display.
+- Add a per-game “Find official box art” action; it uses the configured SerpApi search quota only when requested.
+
 ## [0.6.4] - 2026-11-03
 
 ### Added

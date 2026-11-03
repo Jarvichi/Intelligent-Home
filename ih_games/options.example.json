@@ -33,6 +33,8 @@
   "outbox_token": "",
   "assistant_url": "",
   "assistant_token": "",
+  "ai_layer_url": "http://172.30.32.1:8801",
+  "ai_layer_art_token": "",
   "bungie_api_key": "REPLACE_ME",
   "destiny_poll_s": 900,
   "admin_token": "",

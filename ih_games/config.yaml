@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.6.4"
+version: "0.6.5"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -49,6 +49,8 @@ options:
   outbox_token: ""
   assistant_url: ""
   assistant_token: ""
+  ai_layer_url: "http://172.30.32.1:8801"
+  ai_layer_art_token: ""
   bungie_api_key: ""
   destiny_poll_s: 900
   admin_token: ""
@@ -93,6 +95,8 @@ schema:
   outbox_token: password
   assistant_url: str?
   assistant_token: password?
+  ai_layer_url: str
+  ai_layer_art_token: password?
   bungie_api_key: password
   destiny_poll_s: int(60,86400)
   admin_token: password?

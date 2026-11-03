@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
 OPTIONS=Path(os.environ.get('IHG_OPTIONS','/data/options.json'))
 API_PORT=int(os.environ.get('IHG_PORT','8794'))
+DATA=Path(os.environ.get('IHG_DATA','/data'))
 ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
@@ -25,32 +26,57 @@ class Handler(BaseHTTPRequestHandler):
   except OSError:return self.send_error(404)
   typ='text/html; charset=utf-8' if name.endswith('.html') else 'text/css; charset=utf-8' if name.endswith('.css') else 'text/javascript; charset=utf-8'
   self.reply(200,body,typ)
- def game_api(self,path):
+ def do_POST(self):
+  if self.client_address[0]!=PEER: return self.send_error(403)
+  path=self.path.split('?',1)[0]
+  if not re.fullmatch(r'/api/games/[A-Za-z0-9_-]{1,120}/art',path):
+   return self.send_error(404)
+  return self.game_api(path,'POST')
+ def game_api(self,path,method='GET'):
   try:
    opts=json.loads(OPTIONS.read_text())
   except (OSError,ValueError):
    return self.reply(503,json.dumps({'ok':False,'error':'Game data is not available yet.'}).encode(),'application/json; charset=utf-8')
   players=opts.get('players') or []
   query=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+  art_match=re.fullmatch(r'/api/art/([A-Za-z0-9_-]{1,120})',path)
+  if art_match and method=='GET':
+   gid=art_match.group(1); meta_path=DATA/'artwork'/(gid+'.json')
+   try:
+    meta=json.loads(meta_path.read_text()); name=meta.get('file','')
+    if name!=os.path.basename(name) or not name.startswith(gid+'.') or not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name): raise ValueError()
+    data=(DATA/'artwork'/name).read_bytes()
+    if len(data)>6*1024*1024: raise ValueError()
+    return self.reply(200,data,meta.get('content_type','application/octet-stream'))
+   except (OSError,ValueError,TypeError):
+    return self.reply(404,b'{"ok":false,"error":"No saved cover art."}','application/json; charset=utf-8')
   if path=='/api/players':
    rows=[{'key':str(p.get('key') or ''),'name':str(p.get('display_name') or p.get('key') or 'Player')} for p in players if p.get('key')]
-   return self.reply(200,json.dumps({'ok':True,'players':rows}).encode(),'application/json; charset=utf-8')
+   return self.reply(200,json.dumps({'ok':True,'players':rows,'art_search_available':bool(opts.get('ai_layer_art_token'))}).encode(),'application/json; charset=utf-8')
   player=(query.get('player') or [''])[0]
   if not player or player not in {str(p.get('key') or '') for p in players}:
    return self.reply(400,json.dumps({'ok':False,'error':'Choose a configured player.'}).encode(),'application/json; charset=utf-8')
   token=str(opts.get('admin_token') or '').strip()
   if not token:
    return self.reply(503,json.dumps({'ok':False,'error':'The Games API is not configured.'}).encode(),'application/json; charset=utf-8')
-  if path=='/api/library':
+  art_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art',path)
+  if art_request and method=='POST':
+   upstream='/games/'+art_request.group(1)+'/art?'+urllib.parse.urlencode({'player':player})
+   request_body=b'{}'
+  elif path=='/api/library' and method=='GET':
    upstream='/library?'+urllib.parse.urlencode({'player':player})
-  else:
+   request_body=None
+  elif method=='GET':
    match=re.fullmatch(r'/api/games/([A-Za-z0-9_-]+)/details',path)
    if not match:
     return self.send_error(404)
    upstream='/games/'+match.group(1)+'/details?'+urllib.parse.urlencode({'player':player})
-  req=urllib.request.Request('http://127.0.0.1:%d%s'%(API_PORT,upstream),headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+   request_body=None
+  else:
+   return self.send_error(404)
+  req=urllib.request.Request('http://127.0.0.1:%d%s'%(API_PORT,upstream),data=request_body,method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'})
   try:
-   with urllib.request.urlopen(req,timeout=8) as response:
+   with urllib.request.urlopen(req,timeout=45 if method=='POST' else 8) as response:
     data=response.read(2*1024*1024+1)
     if len(data)>2*1024*1024:
      return self.reply(502,json.dumps({'ok':False,'error':'Game details are too large to display safely.'}).encode(),'application/json; charset=utf-8')

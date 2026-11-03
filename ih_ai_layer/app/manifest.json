@@ -1,6 +1,6 @@
 {
  "name": "ih_ai_layer",
- "version": "0.4.0",
+ "version": "0.4.2",
  "kind": "addon",
  "description": "Intelligent Home - AI Layer: routes AI requests to AI providers (built in) and agent add-ons. No Discord.",
  "owner": "local add-on ih_ai_layer",
@@ -19,6 +19,7 @@
  "schedules": [],
  "declares_secrets": [
   "register_key",
+  "games_art_token",
   "gemini_key",
   "groq_key",
   "openrouter_key",

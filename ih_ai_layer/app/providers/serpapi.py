@@ -10,7 +10,7 @@ SERP_URL = 'https://serpapi.com/search.json'
 
 class SerpApi(Provider):
     NAME, LABEL, VERSION = 'serpapi', 'SerpApi', '0.1.4'
-    CAPABILITIES = ['showtimes', 'web_search']
+    CAPABILITIES = ['showtimes', 'web_search', 'game_art_search']
     HAS_MODELS = False
     KEY_OPTION = 'serpapi_key'
     DEFAULT_DAILY_CAP = 5
@@ -76,17 +76,25 @@ class SerpApi(Provider):
             film = str(ctx.get('film') or '').strip()
             if cinema or film:
                 return ('%s showtimes %s' % (film, cinema)).strip()
+        if cap == 'game_art_search':
+            return (text[:220] + ' official video game box art cover').strip()
         return text[:300]
 
     def build_answer(self, cap, data, ctx):
         if cap == 'showtimes':
             txt = sp.format_showtimes(sp.parse_showtimes(data, str(ctx.get('film') or '') or None))
             return txt or 'No showtimes found in the SerpApi response (the layout may differ from what the parser expects).'
+        if cap == 'game_art_search':
+            rows = sp.parse_images(data, limit=3)
+            return json.dumps(rows, ensure_ascii=False, separators=(',', ':')) if rows else '[]'
         return sp.format_organic(sp.parse_organic(data)) or 'No results found.'
 
     def search(self, q, timeout=None):
         """The ONLY network call. Key goes into the URL here and nowhere else."""
-        url = SERP_URL + '?' + urllib.parse.urlencode({'engine': 'google', 'q': q, 'gl': 'uk', 'hl': 'en', 'api_key': self.opts['key']})
+        params = {'engine': 'google', 'q': q, 'gl': 'uk', 'hl': 'en', 'api_key': self.opts['key']}
+        if q.endswith('official video game box art cover'):
+            params['tbm'] = 'isch'
+        url = SERP_URL + '?' + urllib.parse.urlencode(params)
         with self.opener(urllib.request.Request(url), timeout=min(30, timeout) if timeout else 30) as x:
             return json.loads(x.read(2000000))
 

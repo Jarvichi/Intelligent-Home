@@ -7,11 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod
+import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod, artwork
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.6.4"
+VERSION = "0.6.5"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -53,6 +53,8 @@ def load_options(path=None):
         "outbox_token": str(o.get("outbox_token") or "").strip(),
         "assistant_url": str(o.get("assistant_url") or "").strip().rstrip("/"),
         "assistant_token": str(o.get("assistant_token") or "").strip(),
+        "ai_layer_url": str(o.get("ai_layer_url") or "http://172.30.32.1:8801").strip().rstrip("/"),
+        "ai_layer_art_token": str(o.get("ai_layer_art_token") or "").strip(),
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
         "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
         "log_payloads": o.get("log_payloads") is True,
@@ -168,6 +170,12 @@ class Module:
                 else:
                     data = {"summary": tool.summary(tc, pk) if tool else "", "upcoming": tool.upcoming(tc, pk) if tool else []}
                 return 200, {"ok": True, "game": entry["title"], "tool": tool.NAME if tool else None, "details": data}
+            if what == "art" and method == "POST":
+                try:
+                    art = artwork.find_and_store(self.opts, self.data, entry, opener=self._opener)
+                    return 200, {"ok": True, "artwork": art}
+                except artwork.ArtError as ex:
+                    return 404, {"ok": False, "why": str(ex)}
             if what == "upcoming" and method == "GET":
                 return 200, {"ok": True, "game": entry["title"], "upcoming": tool.upcoming(tc, pk) if tool else []}
             if what == "cmd" and method == "POST":

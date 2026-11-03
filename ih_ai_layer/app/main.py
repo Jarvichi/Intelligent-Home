@@ -50,8 +50,11 @@ def make_handler(layer):
             raw = self.rfile.read(n)
             if p == '/register':
                 code, r = layer.register(raw, self.headers.get(ailayer.jobs_link.HEADER)); self._send(code, r); return
-            if not self._authed():
-                return
+            scope = layer.auth_scope(self.headers.get('Authorization'))
+            if not scope:
+                self._send(401, {'ok': False, 'error': 'unauthorized'}); return
+            if scope == 'games_art' and p != '/request':
+                self._send(403, {'ok': False, 'error': 'forbidden'}); return
             if layer.stopped():
                 self._send(503, {'ok': False, 'error': 'stopped (kill switch)'}); return
             if not layer.rate_ok():
@@ -62,6 +65,11 @@ def make_handler(layer):
                     raise ValueError
             except ValueError:
                 self._send(400, {'ok': False, 'error': 'bad json'}); return
+            if scope == 'games_art':
+                if obj.get('capability') != 'game_art_search' or obj.get('model'):
+                    self._send(403, {'ok': False, 'error': 'forbidden'}); return
+                obj['caller'] = 'ih_games'
+                obj['context'] = {'caller': 'ih_games'}
             code, r = layer.request(obj) if p == '/request' else layer.feedback(obj)
             self._send(code, r)
 

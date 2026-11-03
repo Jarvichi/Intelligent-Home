@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.2] - 2026-11-03
+
+### Added
+- Scoped Games artwork token, restricted to the `game_art_search` capability on `/request`.
+- SerpApi Google Images search capability for official game box art.
+
 ## [0.4.1] - 2026-11-03
 
 ### Added

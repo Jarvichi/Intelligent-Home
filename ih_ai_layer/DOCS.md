@@ -24,6 +24,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | Option | Required? | What it is |
 |---|---|---|
 | `api_token` | Yes | Bearer token callers must send to this add-on's API. |
+| `games_art_token` | No | Optional Games-only token. It can call `/request` only with `game_art_search`; it cannot access status, usage, feedback or other AI capabilities. |
 | `register_key` | Yes | Shared secret. Must be the same value in this add-on and its parent. Empty = link off. |
 | `shadow` | No | On (default): answers or logs only, posts nothing. Turn off to go live. |
 | `agent_timeout_s` | No | How long to wait for an agent to answer, in seconds. Default: `20`. |

@@ -49,3 +49,21 @@ def format_organic(rows):
     if not rows:
         return None
     return '\n'.join('%d. %s - %s %s' % (i + 1, r['title'], r['snippet'], r['link']) for i, r in enumerate(rows)).replace('  ', ' ')
+
+
+def parse_images(data, limit=3):
+    """Extract a small set of image candidates and their source pages from SerpApi."""
+    out = []
+    if not isinstance(data, dict):
+        return out
+    for r in data.get('images_results') or []:
+        if not isinstance(r, dict):
+            continue
+        image = str(r.get('original') or r.get('thumbnail') or '')
+        source = str(r.get('link') or '')
+        if image and source:
+            out.append({'title': str(r.get('title') or '')[:180], 'image_url': image[:1200],
+                        'source_url': source[:1200], 'source': str(r.get('source') or '')[:100]})
+        if len(out) >= max(1, min(5, int(limit))):
+            break
+    return out

@@ -1,5 +1,6 @@
 {
   "api_token": "",
+  "games_art_token": "",
   "register_key": "",
   "shadow": true,
   "agent_timeout_s": 20,

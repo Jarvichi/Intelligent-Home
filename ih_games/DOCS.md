@@ -18,6 +18,7 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `mode` to `live`.
 6. Open the add-on's **Open Web UI** page to browse each player's game library and open complete game details. The UI uses the existing `admin_token` on the server; it is not sent to the browser.
+7. To add cover art, use **Find official box art** on a game's card. This asks the IH AI Layer's scoped image-search capability, then keeps the image under this add-on's `/data/artwork` store and serves it locally. Search uses the configured AI Layer provider quota. Only results linked to recognized official store or publisher pages are accepted.
 
 ## Options
 
@@ -46,6 +47,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |
 | `admin_token` | No | Setting `admin_token`. |
+| `ai_layer_url` | No | IH AI Layer request endpoint. Default: `http://172.30.32.1:8801`. |
+| `ai_layer_art_token` | No | Scoped token accepted only for Games box-art search. It is configured by the owner and never shown in the UI. |
 | `arc_data_dir` | No | Setting `arc_data_dir`. |
 | `destiny_reset_utc_hour` | No | Setting `destiny_reset_utc_hour`. Default: `17`. |
 | `todo_entity` | No | Setting `todo_entity`. Default: `todo.claude_to_do`. |
