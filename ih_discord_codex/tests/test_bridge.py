@@ -120,13 +120,20 @@ class CommandTests(unittest.TestCase):
     def test_new_clears_uncertain_work_and_status_is_content_free(self):
         class FakeBridge:
             def __init__(self): self.cleared=[]
-            def status(self): return {"jobs":{"needs_review":1},"delivery":{"needs_review":1}}
+            def status(self): return {"jobs":{"needs_review":1},"delivery":{"needs_review":1},"claude_handoffs":{}}
             def abandon_uncertain(self,channel): self.cleared.append(channel)
         bridge=FakeBridge(); runner=CommandRunner(bridge,object(),"codex")
         self.assertIn("held",runner.run(None,"/new",lambda _:None))
         self.assertEqual(bridge.cleared,["codex"])
         self.assertIn("needs_review",runner.run(None,"/status",lambda _:None))
-        self.assertIn("coding request",runner.run(None,"/help",lambda _:None))
+        self.assertIn("no Claude handoffs",runner.run(None,"/status",lambda _:None))
+        self.assertIn("IH code",runner.run(None,"/help",lambda _:None))
+
+    def test_status_handles_missing_claude_handoffs(self):
+        class LegacyFakeBridge:
+            def status(self): return {"jobs":{},"delivery":{}}
+        runner=CommandRunner(LegacyFakeBridge(),object(),"codex")
+        self.assertIn("no Claude handoffs",runner.run(None,"/status",lambda _:None))
 
 
 class DurableAckTests(unittest.TestCase):
