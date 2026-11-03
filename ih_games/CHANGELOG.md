@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.9] - 2026-11-03
+
+### Added
+- Let each game module provide a lazy-loaded UI component for its own detail view; move Destiny details and Hunter/Titan/Warlock objective tabs into the Destiny component, and Arc Raiders details into its own component.
+- Reuse saved cover art for the same title across player/platform game IDs, without showing image source attribution in the UI.
+
+### Changed
+- Keep the shared page focused on the library shell and load game-specific detail UI only when opened.
+
 ## [0.6.8] - 2026-11-03
 
 ### Changed

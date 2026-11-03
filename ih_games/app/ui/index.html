@@ -6,29 +6,29 @@
   <meta name="color-scheme" content="light dark">
   <title>Games · Intelligent Home</title>
   <link rel="stylesheet" href="ih-ui.css">
-  <link rel="stylesheet" href="ui.css?v=3">
+  <link rel="stylesheet" href="ui.css?v=4">
 </head>
 <body>
   <ih-app class="games-app">
-    <ih-header class="games-header">
-      <div class="brand-path"><a href="/app/32c8114c_ih_orchestrator">Intelligent Home</a><span aria-hidden="true">/</span><strong>Games</strong></div>
-      <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
+    <ih-header class="brand">
+      <div class="mark" aria-hidden="true">✳</div>
+      <h1>Intelligent Home<small>Games · player library</small></h1>
     </ih-header>
     <main class="games-main">
-      <section class="games-hero">
-        <div class="hero-copy">
-          <p class="ih-kicker">THE HOUSE GAME LIBRARY</p>
-          <h1>Pick up where you left off.</h1>
-          <p>Player libraries, progress and what’s coming next. Every game keeps its full details and saved official cover art here.</p>
+      <div class="topline">
+        <div>
+          <p class="eyebrow">PLAYER LIBRARY</p>
+          <h2>Games</h2>
+          <p class="lead">Your household’s games, progress and upcoming resets.</p>
         </div>
-        <div class="hero-mark" aria-hidden="true"><span>PLAY</span><strong>✦</strong></div>
-      </section>
-      <ih-tabs id="players" class="player-tabs" aria-label="Choose a player" role="tablist"></ih-tabs>
+        <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
+      </div>
+      <ih-tabs id="players" class="games-nav" aria-label="Choose a player" role="tablist"></ih-tabs>
       <section id="library" aria-live="polite" aria-busy="true"><p class="ih-muted">Loading game library…</p></section>
-      <footer class="games-footer"><span>INTELLIGENT HOME</span><span>Games library</span></footer>
+      <footer class="games-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator">Operations console</a></footer>
     </main>
   </ih-app>
   <script src="ih-ui.js"></script>
-  <script src="ui.js?v=3"></script>
+  <script src="ui.js?v=4"></script>
 </body>
 </html>

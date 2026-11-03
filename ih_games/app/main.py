@@ -11,7 +11,7 @@ import schedule_client, orchestrator, sensors as sensors_mod, library as library
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.6.8"
+VERSION = "0.6.9"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -169,7 +169,8 @@ class Module:
                     data = details(tc, pk)
                 else:
                     data = {"summary": tool.summary(tc, pk) if tool else "", "upcoming": tool.upcoming(tc, pk) if tool else []}
-                return 200, {"ok": True, "game": entry["title"], "tool": tool.NAME if tool else None, "details": data}
+                return 200, {"ok": True, "game": entry["title"], "game_id": parts[1], "tool": tool.NAME if tool else None,
+                             "ui_component": getattr(tool, "UI_COMPONENT", None) if tool else None, "details": data}
             if what == "art" and method == "POST":
                 try:
                     art = artwork.find_and_store(self.opts, self.data, entry, opener=self._opener)

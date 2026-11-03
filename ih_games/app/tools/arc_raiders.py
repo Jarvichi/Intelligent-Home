@@ -6,6 +6,7 @@ import library as L
 
 NAME = "arc_raiders"
 TITLES = ("arc raiders", "arc raiders game")
+UI_COMPONENT = "arc_raiders"
 _cache = {}
 
 

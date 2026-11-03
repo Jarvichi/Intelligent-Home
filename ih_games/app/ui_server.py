@@ -8,6 +8,47 @@ API_PORT=int(os.environ.get('IHG_PORT','8794'))
 DATA=Path(os.environ.get('IHG_DATA','/data'))
 SUPERVISOR_TOKEN=os.environ.get('SUPERVISOR_TOKEN','').strip()
 ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
+
+def _artwork_record(gid):
+ if not re.fullmatch(r'[A-Za-z0-9_-]{1,120}',gid): return None
+ art_dir=DATA/'artwork'
+ def valid(meta,source_id):
+  name=meta.get('file','')
+  if (meta.get('game_id')!=source_id or name!=os.path.basename(name) or not name.startswith(source_id+'.') or
+      not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name) or
+      meta.get('content_type') not in ('image/jpeg','image/png','image/webp')): return None
+  image=art_dir/name
+  try:
+   size=image.stat().st_size
+   if size<1 or size>6*1024*1024: return None
+  except OSError: return None
+  return meta,image
+ direct=art_dir/(gid+'.json')
+ try:
+  record=valid(json.loads(direct.read_text()),gid)
+  if record: return record
+ except (OSError,ValueError,TypeError,AttributeError): pass
+ try:
+  library=json.loads((DATA/'library.json').read_text())
+  title=next((str(e.get('title') or '') for entries in library.get('entries',{}).values()
+              for e in (entries.values() if isinstance(entries,dict) else [])
+              if isinstance(e,dict) and e.get('id')==gid),'')
+ except (OSError,ValueError,TypeError,AttributeError):
+  return None
+ wanted=re.sub(r'[^a-z0-9]+',' ',title.lower()).strip()
+ if not wanted: return None
+ matches=[]
+ for path in art_dir.glob('*.json'):
+  source_id=path.stem
+  if source_id==gid or not re.fullmatch(r'[A-Za-z0-9_-]{1,120}',source_id): continue
+  try: meta=json.loads(path.read_text())
+  except (OSError,ValueError,TypeError): continue
+  if not isinstance(meta,dict): continue
+  if re.sub(r'[^a-z0-9]+',' ',str(meta.get('title') or '').lower()).strip()!=wanted: continue
+  record=valid(meta,source_id)
+  if record: matches.append(record)
+ return max(matches,key=lambda x:str(x[0].get('fetched_at') or '')) if matches else None
+
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
@@ -22,6 +63,9 @@ class Handler(BaseHTTPRequestHandler):
    except Exception as e: detail=type(e).__name__
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   name=ASSETS.get(path)
+  game_ui=re.fullmatch(r'/games/([a-z0-9_-]{1,64})\.js',path)
+  if game_ui:
+   name='games/'+game_ui.group(1)+'.js'
   if not name:return self.send_error(404)
   try: body=(ROOT/name).read_bytes()
   except OSError:return self.send_error(404)
@@ -43,30 +87,13 @@ class Handler(BaseHTTPRequestHandler):
   art_match=re.fullmatch(r'/api/art/([A-Za-z0-9_-]{1,120})',path)
   art_meta_match=re.fullmatch(r'/api/art-meta/([A-Za-z0-9_-]{1,120})',path)
   if art_meta_match and method=='GET':
-   gid=art_meta_match.group(1); meta_path=DATA/'artwork'/(gid+'.json')
-   try:
-    meta=json.loads(meta_path.read_text()); name=meta.get('file','')
-    if (meta.get('game_id')!=gid or name!=os.path.basename(name) or not name.startswith(gid+'.') or
-        not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name) or
-        meta.get('content_type') not in ('image/jpeg','image/png','image/webp')): raise ValueError()
-    image_path=DATA/'artwork'/name
-    size=image_path.stat().st_size
-    if size<1 or size>6*1024*1024: raise ValueError()
-    return self.reply(200,json.dumps({'ok':True,'found':True,'artwork':meta}).encode(),'application/json; charset=utf-8')
-   except (OSError,ValueError,TypeError):
-    return self.reply(200,b'{"ok":true,"found":false}','application/json; charset=utf-8')
+   record=_artwork_record(art_meta_match.group(1))
+   return self.reply(200,json.dumps({'ok':True,'found':bool(record)}).encode(),'application/json; charset=utf-8')
   if art_match and method=='GET':
-   gid=art_match.group(1); meta_path=DATA/'artwork'/(gid+'.json')
-   try:
-    meta=json.loads(meta_path.read_text()); name=meta.get('file','')
-    if (meta.get('game_id')!=gid or name!=os.path.basename(name) or not name.startswith(gid+'.') or
-        not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name) or
-        meta.get('content_type') not in ('image/jpeg','image/png','image/webp')): raise ValueError()
-    data=(DATA/'artwork'/name).read_bytes()
-    if not data or len(data)>6*1024*1024: raise ValueError()
-    return self.reply(200,data,meta['content_type'])
-   except (OSError,ValueError,TypeError):
-    return self.reply(404,b'{"ok":false,"error":"No saved cover art."}','application/json; charset=utf-8')
+   record=_artwork_record(art_match.group(1))
+   if not record: return self.reply(404,b'{"ok":false,"error":"No saved cover art."}','application/json; charset=utf-8')
+   meta,image=record; data=image.read_bytes()
+   return self.reply(200,data,meta['content_type']) if data else self.reply(404,b'{"ok":false,"error":"No saved cover art."}','application/json; charset=utf-8')
   if path=='/api/players':
    rows=[{'key':str(p.get('key') or ''),'name':str(p.get('display_name') or p.get('key') or 'Player')} for p in players if p.get('key')]
    return self.reply(200,json.dumps({'ok':True,'players':rows,'art_search_available':bool(opts.get('ai_layer_art_token'))}).encode(),'application/json; charset=utf-8')
@@ -108,6 +135,11 @@ class Handler(BaseHTTPRequestHandler):
     data=response.read(2*1024*1024+1)
     if len(data)>2*1024*1024:
      return self.reply(502,json.dumps({'ok':False,'error':'Game details are too large to display safely.'}).encode(),'application/json; charset=utf-8')
+    if art_request and method=='POST':
+     result=json.loads(data)
+     if not isinstance(result,dict): return self.reply(502,b'{"ok":false,"error":"Invalid art response."}','application/json; charset=utf-8')
+     if result.get('ok') is False: return self.reply(response.status,data,'application/json; charset=utf-8')
+     data=json.dumps({'ok':True,'saved':True}).encode()
     return self.reply(response.status,data,'application/json; charset=utf-8')
   except urllib.error.HTTPError as e:
    data=e.read(65536)

@@ -1,6 +1,7 @@
-"""Game tool modules. Interface per module:
+"""Game modules. Interface per module:
 NAME (str), TITLES (names it matches), matches(entry)->bool, summary(tc, player)->str, upcoming(tc, player)->[{when,text}],
-commands: dict name -> fn(tc, player, args:list[str]) -> short text.
+commands: dict name -> fn(tc, player, args:list[str]) -> short text. Optional UI_COMPONENT names a standalone
+app/ui/games/<name>.js component that owns this game's detail presentation. The shared library discovers and renders it.
 tc = ToolCtx (data_dir, opts, now, opener, log). Modules read cached data and never block for long."""
 import datetime, urllib.request
 
@@ -20,8 +21,7 @@ class ToolCtx:
 
 
 def all_tools():
-    """Auto-discovery: every app/tools/<name>.py that does not start with an underscore and has NAME and matches().
-    Adding a game tool = adding one file (copy _template.py). No registry to edit."""
+    """Discover game modules; their optional UI_COMPONENT points to app/ui/games/<name>.js."""
     import importlib, pkgutil
     out = []
     for m in sorted(pkgutil.iter_modules(__path__), key=lambda x: x.name):

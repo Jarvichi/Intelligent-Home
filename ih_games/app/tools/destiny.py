@@ -7,6 +7,7 @@ import library as L
 
 NAME = "destiny"
 TITLES = ("destiny 2", "destiny2", "destiny")
+UI_COMPONENT = "destiny"
 BASE = "https://www.bungie.net/Platform"
 CLASSES = {0: "Titan", 1: "Hunter", 2: "Warlock"}
 RESET_UTC_HOUR = 17

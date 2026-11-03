@@ -10,6 +10,8 @@ import library as L
 NAME = "mygame"
 # TODO: normalised titles this tool handles (lowercase, letters and digits, single spaces).
 TITLES = ("my game",)
+# Optional: set UI_COMPONENT = "mygame" and provide app/ui/games/mygame.js to
+# own this game's detail screen. The shared library lazy-loads it when opened.
 
 
 def matches(entry):
