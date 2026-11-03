@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.6] - 2026-11-03
+
+### Fixed
+- Remove an accidental leading quote from the Orchestrator dashboard HTML.
+
 ## [0.10.5] - 2026-11-03
 
 ### Changed
