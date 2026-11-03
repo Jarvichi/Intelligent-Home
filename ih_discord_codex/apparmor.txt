@@ -25,7 +25,8 @@ profile ih_discord_codex flags=(attach_disconnected,mediate_deleted) {
     deny umount,
     deny pivot_root,
 
-    # Bubblewrap alone transitions to the profile with mount/namespace rights.
+    # Codex may use its bundled Bubblewrap; keep the system package path for fallback.
+    /usr/local/lib/python3.12/site-packages/codex_cli_bin/codex-resources/bwrap cx -> bwrap,
     /usr/bin/bwrap cx -> bwrap,
 
     profile bwrap flags=(attach_disconnected,mediate_deleted) {

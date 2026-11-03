@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.20] - 2026-11-03
+- Transition Codex's bundled Bubblewrap executable into the dedicated Bubblewrap AppArmor profile so its loopback setup receives the approved namespace capabilities.
+
 ## [0.1.19] - 2026-11-03
 - Allow the Codex sandbox helper's namespace capability checks while keeping its mount operations denied; grant `SYS_PTRACE` and `SETPCAP` only inside the Bubblewrap child AppArmor profile.
 

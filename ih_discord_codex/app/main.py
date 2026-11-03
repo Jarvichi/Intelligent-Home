@@ -125,7 +125,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.19"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.20"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -436,7 +436,7 @@ class Service:
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.19", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.20", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"] + (["post"] if self.opts.get("review_channel_key") else []), dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -447,7 +447,7 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.19", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.20", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
