@@ -2,6 +2,7 @@
   'use strict';
   const root = location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]*$/, '');
   const playersEl = document.getElementById('players');
+  const researchEl = document.getElementById('research');
   const libraryEl = document.getElementById('library');
   const statusEl = document.getElementById('service-status');
   let players = [];
@@ -35,10 +36,18 @@
     if (cls) n.className = cls;
     return n;
   }
-  function fmtDate(value) {
+  function fmtDate(value, dateOnly) {
     if (!value) return 'Not recorded';
     const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString(undefined, dateOnly ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  function fmtPlaytime(value) {
+    if (value == null || !Number.isFinite(Number(value)) || Number(value) < 0) return 'Unavailable';
+    const minutes = Math.floor(Number(value));
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (!hours) return minutes.toLocaleString() + ' min';
+    return hours.toLocaleString() + (hours === 1 ? ' hour' : ' hours') + (remainder ? ' ' + remainder + ' min' : '');
   }
   async function request(path, method) {
     const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
@@ -53,17 +62,17 @@
   function renderTabs() {
     playersEl.replaceChildren();
     const tabs = players.map(p => ({ key: p.key, name: p.name }));
-    tabs.push({ key: 'research', name: 'Research' });
+    researchEl.setAttribute('aria-pressed', String(selected === 'research'));
     tabs.forEach(function (p, i) {
       const b = el('button', p.name, 'player-tab');
       b.type = 'button'; b.id = 'player-tab-' + i; b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(p.key === selected));
-      b.setAttribute('aria-controls', 'library'); b.tabIndex = p.key === selected ? 0 : -1;
-      b.addEventListener('click', function () { p.key === 'research' ? selectResearch() : selectPlayer(p.key); });
+      b.setAttribute('aria-controls', 'library'); b.tabIndex = p.key === selected || (selected === 'research' && i === 0) ? 0 : -1;
+      b.addEventListener('click', function () { selectPlayer(p.key); });
       b.addEventListener('keydown', function (event) {
-        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
-        const next = (i + (event.key === 'ArrowRight' ? 1 : players.length - 1)) % players.length;
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (i + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
         playersEl.children[next].focus();
       });
       playersEl.appendChild(b);
@@ -149,16 +158,16 @@
     }
     function setArtAction(mode, label) {
       const action = label || (mode === 'refresh' ? 'Refresh' : 'Find') + ' cover art for ' + game.title;
-      artButton.replaceChildren(artIcon(mode)); artButton.setAttribute('aria-label', action); artButton.title = action;
+      artButton.replaceChildren(artIcon(mode), el('span', mode === 'refresh' ? 'Refresh cover' : 'Find cover')); artButton.setAttribute('aria-label', action); artButton.title = action;
     }
     setArtAction('search', artSearchAvailable ? 'Find cover art for ' + game.title : 'Cover art search is not configured');
-    cover.appendChild(artButton);
+
     const main = el('div', null, 'game-main');
     const top = el('div', null, 'game-heading');
     top.append(el('span', game.platform || 'GAME', 'platform-pill'), el('h2', game.title));
     main.appendChild(top);
     const facts = el('dl', null, 'game-facts');
-    facts.append(row('Last seen', fmtDate(game.last_seen)), row('Play time', game.playtime_min == null ? 'Not known yet' : Math.floor(game.playtime_min / 60) + ' h ' + (game.playtime_min % 60) + ' min'));
+    facts.append(row('Last seen', fmtDate(game.last_seen, true)), row('Play time', fmtPlaytime(game.playtime_min)));
     main.appendChild(facts);
     let artStatus = null;
     function showArtStatus(message, className) {
@@ -212,7 +221,9 @@
         detailCache.set(cacheKey, payload); detail.replaceChildren(await detailsContent(payload)); detail.dataset.loaded = 'true';
       } catch (e) { showError(detail, e.message); }
     });
-    main.appendChild(toggle);
+    const actions = el('div', null, 'game-actions');
+    actions.append(toggle, artButton);
+    main.appendChild(actions);
     card.append(cover, main, detail);
     return card;
   }
@@ -226,12 +237,12 @@
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
       const playtimeKnown = games.filter(g => g.playtime_min != null).length;
       const stats = el('div', null, 'library-stats');
-      [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'with a tracker'], [playtimeKnown, 'with playtime']].forEach(function (item) {
+      [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'tracked'], [playtimeKnown, 'playtime known']].forEach(function (item) {
         const box = el('ih-metric', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
       });
       if (!games.length) wrap.appendChild(el('ih-empty', 'No games are listed for this player yet.', 'empty-state'));
       else games.forEach(function (game) { wrap.appendChild(gameCard(game, key)); });
-      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'library-title'), stats, wrap);
+      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'visually-hidden'), stats, wrap);
     } catch (e) { showError(libraryEl, e.message); }
     libraryEl.setAttribute('aria-busy', 'false');
   }
@@ -264,7 +275,7 @@
       const [p, h] = await Promise.all([request('api/players'), request('api/status')]);
       players = p.players || [];
       artSearchAvailable = p.art_search_available === true;
-      statusEl.textContent = h.healthy ? 'Games service available' : 'Games service unavailable';
+      statusEl.textContent = h.healthy ? 'Service online' : 'Service unavailable';
       statusEl.classList.toggle('status-bad', !h.healthy);
       statusEl.setAttribute('status', h.healthy ? 'ok' : 'error');
       if (!players.length) throw new Error('No players are configured for Games yet.');
@@ -273,7 +284,8 @@
       selected = requested === 'research' ? 'research' : players.some(p => p.key === requested) ? requested : players[0].key;
       renderTabs();
       if (selected === 'research') await selectResearch(); else await selectPlayer(selected);
-    } catch (e) { statusEl.textContent = 'Could not connect to Games'; showError(libraryEl, e.message); libraryEl.setAttribute('aria-busy', 'false'); }
+    } catch (e) { statusEl.setAttribute('status', 'error'); statusEl.textContent = 'Could not connect to Games'; showError(libraryEl, e.message); libraryEl.setAttribute('aria-busy', 'false'); }
   }
+  researchEl.addEventListener('click', selectResearch);
   start();
 }());
