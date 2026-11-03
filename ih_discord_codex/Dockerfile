@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* /tmp/bubblewrap-src /tmp/bubblewrap.tar.xz
 
 FROM ${BUILD_FROM}
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 ARG SOURCE_REVISION=unknown
 COPY --from=bwrap-build /usr/local/bin/bwrap /usr/local/bin/bwrap
 RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap git ca-certificates \

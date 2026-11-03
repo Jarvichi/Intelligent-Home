@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.22] - 2026-11-03
+- Set an explicit trusted executable PATH for Codex and its filesystem sandbox helper so it can discover the direct-path system Bubblewrap launcher.
+
 ## [0.1.21] - 2026-11-03
 - Build verified upstream Bubblewrap 0.13.1 as the preferred system launcher so Codex can execute it by pathname under the dedicated child AppArmor profile, avoiding bundled `/proc/self/fd` execution. Keep workspace-write scope, command networking disabled, and denied escalations.
 

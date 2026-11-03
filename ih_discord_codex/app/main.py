@@ -125,7 +125,7 @@ def brain_readonly_probe(token):
     try:
         for rid, method, params in (
             (1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.21"}}),
+                               "clientInfo": {"name": "ih-discord-codex", "version": "0.1.22"}}),
             (2, "tools/list", {}),
         ):
             body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
@@ -212,7 +212,8 @@ class CodexProcessRunner:
                               "codex_home": self.codex_home,
                               "brain_read_token": self.brain_read_token,
                               "claude_review_enabled": self.claude_review_enabled}).encode("utf-8")
-        safe_env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ}
+        safe_env = {k: os.environ[k] for k in ("LANG", "LC_ALL", "TMPDIR") if k in os.environ}
+        safe_env["PATH"] = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
         proc = subprocess.Popen([sys.executable, str(HERE / "codex_worker.py")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, cwd=self.workspace,
@@ -436,7 +437,7 @@ class Service:
              self.opts["mqtt_user"], self.opts["mqtt_password"], "ih_discord_codex_mod",
              log=lambda msg: LOG.info("bus: %s", msg))
         self.client = DurableClient(self.opts["module"], self.opts["key"], self.bus,
-             version="0.1.21", log=lambda msg: LOG.info("%s", msg), threaded=True,
+             version="0.1.22", log=lambda msg: LOG.info("%s", msg), threaded=True,
              ops_needed=["reply"] + (["post"] if self.opts.get("review_channel_key") else []), dry=self.opts["shadow"])
         for channel in self.opts["channel_keys"]:
             self.client.on_message(channel, self.receive, any=True)
@@ -447,7 +448,7 @@ class Service:
 
     def status(self):
         bus = self.bus
-        return {"name": self.opts["module"], "version": "0.1.21", "healthy": self.client is not None,
+        return {"name": self.opts["module"], "version": "0.1.22", "healthy": self.client is not None,
                 "shadow": self.opts["shadow"], "channel_keys": list(self.opts["channel_keys"]),
                 "allowed_users": len(self.opts["users"]), "codex_home_ready": (CODEX_HOME / "auth.json").is_file(),
                 "brain_readonly_configured": bool(self.opts.get("brain_read_token")),
