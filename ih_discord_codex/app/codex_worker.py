@@ -32,6 +32,7 @@ def main():
     overrides = [
         'sandbox_mode="workspace-write"',
         'sandbox_workspace_write.network_access=false',
+        'features.use_legacy_landlock=true',
     ]
     if brain_token:
         overrides.extend((

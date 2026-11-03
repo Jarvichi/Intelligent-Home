@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.15] - 2026-11-03
+- Use Codex's Landlock sandbox backend because Home Assistant's container blocks Bubblewrap mount propagation; keep workspace-write scope and sandbox network disabled.
+
+
 ## [0.1.14] - 2026-11-03
 - Install the distribution `bubblewrap` package used by Codex workspace-write sandboxing on Linux, instead of relying on the bundled user-namespace helper.
 
