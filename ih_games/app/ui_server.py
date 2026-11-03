@@ -41,14 +41,30 @@ class Handler(BaseHTTPRequestHandler):
   players=opts.get('players') or []
   query=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
   art_match=re.fullmatch(r'/api/art/([A-Za-z0-9_-]{1,120})',path)
+  art_meta_match=re.fullmatch(r'/api/art-meta/([A-Za-z0-9_-]{1,120})',path)
+  if art_meta_match and method=='GET':
+   gid=art_meta_match.group(1); meta_path=DATA/'artwork'/(gid+'.json')
+   try:
+    meta=json.loads(meta_path.read_text()); name=meta.get('file','')
+    if (meta.get('game_id')!=gid or name!=os.path.basename(name) or not name.startswith(gid+'.') or
+        not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name) or
+        meta.get('content_type') not in ('image/jpeg','image/png','image/webp')): raise ValueError()
+    image_path=DATA/'artwork'/name
+    size=image_path.stat().st_size
+    if size<1 or size>6*1024*1024: raise ValueError()
+    return self.reply(200,json.dumps({'ok':True,'found':True,'artwork':meta}).encode(),'application/json; charset=utf-8')
+   except (OSError,ValueError,TypeError):
+    return self.reply(200,b'{"ok":true,"found":false}','application/json; charset=utf-8')
   if art_match and method=='GET':
    gid=art_match.group(1); meta_path=DATA/'artwork'/(gid+'.json')
    try:
     meta=json.loads(meta_path.read_text()); name=meta.get('file','')
-    if name!=os.path.basename(name) or not name.startswith(gid+'.') or not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name): raise ValueError()
+    if (meta.get('game_id')!=gid or name!=os.path.basename(name) or not name.startswith(gid+'.') or
+        not re.fullmatch(r'[A-Za-z0-9_-]+\.(?:jpg|png|webp)',name) or
+        meta.get('content_type') not in ('image/jpeg','image/png','image/webp')): raise ValueError()
     data=(DATA/'artwork'/name).read_bytes()
-    if len(data)>6*1024*1024: raise ValueError()
-    return self.reply(200,data,meta.get('content_type','application/octet-stream'))
+    if not data or len(data)>6*1024*1024: raise ValueError()
+    return self.reply(200,data,meta['content_type'])
    except (OSError,ValueError,TypeError):
     return self.reply(404,b'{"ok":false,"error":"No saved cover art."}','application/json; charset=utf-8')
   if path=='/api/players':

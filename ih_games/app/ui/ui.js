@@ -132,22 +132,31 @@
     top.appendChild(title); card.appendChild(top);
     const artRow = el('div', null, 'art-row');
     const art = el('img', null, 'game-art'); art.alt = 'Official cover art for ' + game.title; art.loading = 'lazy'; art.hidden = true;
-    art.addEventListener('load', function () { art.hidden = false; });
-    art.addEventListener('error', function () { art.hidden = true; });
-    art.src = root + 'api/art/' + encodeURIComponent(game.id);
     const artControls = el('div', null, 'art-controls');
     const artButton = el('button', artSearchAvailable ? 'Find official box art' : 'Art search not configured', 'ih-button art-button');
     artButton.type = 'button'; artButton.disabled = !artSearchAvailable;
     const artStatus = el('p', artSearchAvailable ? 'Search uses the IH AI Layer provider quota.' : 'An administrator must configure the scoped AI Layer connection.', 'ih-muted art-status');
+    function useArtwork(metadata) {
+      art.alt = 'Official cover art for ' + game.title;
+      art.hidden = false;
+      art.src = root + 'api/art/' + encodeURIComponent(game.id) + '?v=' + Date.now();
+      artButton.textContent = 'Refresh official box art';
+      artStatus.replaceChildren(el('span', 'Using saved art from ' + (metadata.source_title || 'an official source') + '. '));
+      const source = el('a', 'Source'); source.href = metadata.source_url; source.target = '_blank'; source.rel = 'noopener noreferrer'; artStatus.appendChild(source);
+    }
+    art.addEventListener('load', function () { art.hidden = false; });
+    art.addEventListener('error', function () {
+      art.hidden = true;
+      artStatus.textContent = 'Saved box art could not be loaded. Try refreshing it.';
+    });
+    request('api/art-meta/' + encodeURIComponent(game.id)).then(function (saved) {
+      if (saved.found && saved.artwork) useArtwork(saved.artwork);
+    }).catch(function () {});
     artButton.addEventListener('click', async function () {
       artButton.disabled = true; artButton.textContent = 'Searching official sources…'; artStatus.textContent = 'Asking the IH AI Layer to find publisher or official store art.';
       try {
         const result = await request('api/games/' + encodeURIComponent(game.id) + '/art?player=' + encodeURIComponent(player), 'POST');
-        art.src = root + 'api/art/' + encodeURIComponent(game.id) + '?v=' + Date.now();
-        art.hidden = false;
-        artStatus.replaceChildren(el('span', 'Saved locally from ' + (result.artwork.source_title || 'an official source') + '. '));
-        const source = el('a', 'Source'); source.href = result.artwork.source_url; source.target = '_blank'; source.rel = 'noopener noreferrer'; artStatus.appendChild(source);
-        artButton.textContent = 'Refresh official box art';
+        useArtwork(result.artwork);
       } catch (e) { artButton.textContent = 'Try official art search again'; artStatus.textContent = e.message; }
       artButton.disabled = false;
     });

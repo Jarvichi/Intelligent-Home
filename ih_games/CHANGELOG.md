@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.7] - 2026-11-03
+
+### Fixed
+- Load already-saved official cover art from the persistent artwork store when rendering each player's library.
+- Add a metadata lookup for saved artwork, bypass stale image caches, and show a useful status if a stored image cannot load.
+
 ## [0.6.6] - 2026-11-03
 
 ### Added
