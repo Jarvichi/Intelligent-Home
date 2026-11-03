@@ -1,6 +1,6 @@
 # Intelligent Home - Brain
 
-Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default).
+Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default), and provides an admin-only Home Assistant ingress UI for browsing, searching and mapping Brain notes.
 
 - **Family:** Brain. Stand-alone family member.
 - **Needs:** nothing else

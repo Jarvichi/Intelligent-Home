@@ -1,8 +1,8 @@
 {
  "name": "ih_brain",
- "version": "0.2.2",
+ "version": "0.2.3",
  "kind": "addon",
- "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default).",
+ "description": "Serves House Brain notes over MCP and an admin-only ingress UI (read-only by default).",
  "owner": "local add-on ih_brain",
  "start": "Supervisor add-on 32c8114c_ih_brain (boot manual)",
  "health": [

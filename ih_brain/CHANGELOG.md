@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.3] - 2026-11-02
+
+### Added
+- Admin-only Home Assistant ingress UI for Brain note browsing, search, recent notes, and connection summaries. UI API is read-only, same-origin, and accepts requests only from the Supervisor ingress gateway.
+- Local shared IH UI tokens and component primitives; no external assets or third-party requests.
+
 ## [0.2.2] - 2026-11-02
 
 ### Added

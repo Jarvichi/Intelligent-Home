@@ -1,8 +1,8 @@
 name: "Intelligent Home - Brain"
-version: "0.2.2"
+version: "0.2.3"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
-description: "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder."
+description: "Serves House Brain notes to Claude over MCP and provides an admin-only ingress UI to browse, search and read notes."
 arch:
   - aarch64
   - amd64
@@ -11,6 +11,9 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8820]/healthz  once boot is auto.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8821
+ingress_panel: false
 map:
   - share:rw
 ports:

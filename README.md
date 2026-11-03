@@ -81,7 +81,7 @@ Nothing is copied by hand between add-ons.
 
 | Add-on | What it does | Needs | Docs |
 |---|---|---|---|
-| **Intelligent Home - Brain** (`ih_brain`) | Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default). | nothing else | [DOCS](ih_brain/DOCS.md) |
+| **Intelligent Home - Brain** (`ih_brain`) | Serves House Brain notes to Claude over MCP and provides an admin-only ingress UI for browsing, searching and mapping notes. | nothing else | [DOCS](ih_brain/DOCS.md) |
 
 ### Assistant
 

@@ -2,7 +2,7 @@
 
 ## What it does
 
-Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default). Stand-alone family member.
+Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core (read-only by default), and provides an admin-only Home Assistant ingress page to browse and search Brain notes.
 
 ## Requires
 
@@ -14,7 +14,7 @@ Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outs
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Brain**.
 2. Install the Intelligent Home orchestrator first if you can. When its settings hub is on, it fills shared keys (such as `register_key`, `signing_key` and `ingest_token`) of this add-on automatically.
 3. Open the Configuration tab and set `api_token`, `pocket_cloudflare_token`, `pocket_key`.
-4. Start the add-on and check `/healthz` and the log.
+4. Start the add-on. Choose **Open Web UI** to browse the Brain, or check `/healthz` for MCP service health.
 
 ## Options
 
@@ -52,6 +52,7 @@ Nothing leaves your network. The notes are read from the shared folder and sent 
 ### Endpoints
 | Path | Returns |
 |---|---|
+| Home Assistant **Open Web UI** | Admin-only, read-only browse/search/recent/connection views. Requests are served through ingress only (gateway peer `172.30.32.2`). |
 | `GET /healthz` | `ok` (no token) |
 | `GET /status` | version, note count, `read_only`, last index time, whether a token is set (no note content, never the token) |
 | `POST /mcp` | MCP JSON-RPC 2.0 (`initialize`, `ping`, `tools/list`, `tools/call`); also accepted on `POST /`. Send `Authorization: Bearer <api_token>`. Notifications get HTTP 202. |

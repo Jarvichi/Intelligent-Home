@@ -4,8 +4,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import brainlib, mcp, extras
+import ui_server
 
-VERSION = '0.2.2'
+VERSION = '0.2.3'
 MAX_BODY = 512 * 1024
 
 
@@ -197,6 +198,7 @@ def main():
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     opts = load_options(os.environ.get('IHA_OPTIONS', '/data/options.json'))
     st = State(opts, os.environ.get('IHA_DATA', '/data'), lg.info)
+    ui_server.serve(st.brain)
     lg.info('ih_brain %s starting: %d notes in %s; %s; token %s', VERSION, len(st.brain._notes()), opts['brain_dir'],
             'READ-ONLY' if opts['read_only'] else 'writes allowed', 'set' if opts['api_token'] else 'NOT set (all requests refused)')
     if st.pocket and opts['pocket_interval_min']:
