@@ -1,0 +1,27 @@
+#include <tunables/global>
+
+profile ih_discord_codex flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # The worker needs ordinary file and socket access for its configured services.
+  file,
+  network,
+  unix,
+  signal,
+
+  # Bubblewrap alone transitions to the profile with namespace/mount rights.
+  /usr/bin/bwrap cx -> bwrap,
+
+  profile bwrap flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    file,
+    network,
+    unix,
+    signal,
+    capability sys_admin,
+    mount,
+    umount,
+    pivot_root,
+  }
+}

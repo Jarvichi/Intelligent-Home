@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.16] - 2026-11-03
+- Run filesystem-restricted Codex commands with Bubblewrap under a dedicated AppArmor child profile that grants only the sandbox launcher mount and namespace permissions.
+- Keep Codex workspace-write scope, disabled command networking, and denied escalations.
+
+
 ## [0.1.15] - 2026-11-03
 - Use Codex's Landlock sandbox backend because Home Assistant's container blocks Bubblewrap mount propagation; keep workspace-write scope and sandbox network disabled.
 
