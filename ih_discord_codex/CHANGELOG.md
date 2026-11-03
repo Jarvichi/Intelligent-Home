@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.18] - 2026-11-03
+- Allow Bubblewrap's isolated network namespace to configure loopback by granting `NET_ADMIN` only in the Bubblewrap child AppArmor profile; command networking remains disabled.
+
 ## [0.1.17] - 2026-11-03
 - Reissue the scoped Bubblewrap AppArmor and capability configuration with a fresh add-on version so Home Assistant can detect the release.
 
