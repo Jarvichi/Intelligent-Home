@@ -108,3 +108,5 @@ With the default `review_channel_key` of `claude_review`, and the transport mapp
 Messages are stored before the signed transport ACK. Codex input is passed as untrusted external content. A turn interrupted by process failure is held for review; Discord sends with an uncertain receipt are not replayed automatically. Logs and status contain counts and state only, never prompts, replies, or credentials. The first release runs in shadow mode until a real private-channel comparison is approved.
 
 The add-on configuration directory must contain a private `codex-home/auth.json` created from the authorized existing Codex login, and `workspace/` is the only work area. Keep the auth file mode 0600. Do not put this file in the public repository, options examples, backups, Brain notes, logs, or Discord messages.
+
+The Bubblewrap transition names the fully qualified child profile for this public repository installation (`32c8114c_ih_discord_codex//codex_sandbox//bwrap`). Forks or local installations with a different Supervisor slug must adapt this target; a mismatch fails closed. Nested relative child transitions do not resolve correctly on the target host.

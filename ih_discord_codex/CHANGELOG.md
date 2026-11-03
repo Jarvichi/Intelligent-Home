@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.24] - 2026-11-03
+- Correct Bubblewrap AppArmor transitions to the fully qualified loaded child profile; nested relative transitions failed with profile transition not found.
+
 ## [0.1.23] - 2026-11-03
 - Put the verified system Bubblewrap in Codex’s executable search directory and log a secret-free launcher probe for path, execute permission, and required options.
 
