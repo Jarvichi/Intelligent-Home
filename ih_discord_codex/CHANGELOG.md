@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.21] - 2026-11-03
+- Build verified upstream Bubblewrap 0.13.1 as the preferred system launcher so Codex can execute it by pathname under the dedicated child AppArmor profile, avoiding bundled `/proc/self/fd` execution. Keep workspace-write scope, command networking disabled, and denied escalations.
+
 ## [0.1.20] - 2026-11-03
 - Transition Codex's bundled Bubblewrap executable into the dedicated Bubblewrap AppArmor profile so its loopback setup receives the approved namespace capabilities.
 
