@@ -6,8 +6,27 @@
   const statusEl = document.getElementById('service-status');
   let players = [];
   let selected = '';
+  let requestedRoute = '';
   let artSearchAvailable = false;
   const detailCache = new Map();
+
+  function routeKey(route) {
+    const path = route && typeof route.path === 'string' ? route.path : '';
+    const parts = path.split('/').filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+  }
+  function applyRequestedRoute() {
+    if (!players.length || !requestedRoute) return;
+    const next = requestedRoute === 'research' ? 'research' : players.some(p => p.key === requestedRoute) ? requestedRoute : '';
+    if (!next || next === selected) return;
+    if (next === 'research') selectResearch(); else selectPlayer(next);
+  }
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== 'home-assistant/properties') return;
+    requestedRoute = routeKey(event.data.route);
+    applyRequestedRoute();
+  });
+  if (window.parent !== window) window.parent.postMessage({ type: 'home-assistant/subscribe-properties', handleSafeArea: true }, '*');
 
   function el(tag, text, cls) {
     const n = document.createElement(tag);
@@ -32,12 +51,14 @@
   }
   function renderTabs() {
     playersEl.replaceChildren();
-    players.forEach(function (p, i) {
+    const tabs = players.map(p => ({ key: p.key, name: p.name }));
+    tabs.push({ key: 'research', name: 'Research' });
+    tabs.forEach(function (p, i) {
       const b = el('button', p.name, 'player-tab');
       b.type = 'button'; b.id = 'player-tab-' + i; b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(p.key === selected));
       b.setAttribute('aria-controls', 'library'); b.tabIndex = p.key === selected ? 0 : -1;
-      b.addEventListener('click', function () { selectPlayer(p.key); });
+      b.addEventListener('click', function () { p.key === 'research' ? selectResearch() : selectPlayer(p.key); });
       b.addEventListener('keydown', function (event) {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
@@ -160,9 +181,39 @@
       const data = await request('api/library?player=' + encodeURIComponent(key));
       const wrap = el('div', null, 'library-grid');
       const games = data.games || [];
+      const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
+      const playtimeKnown = games.filter(g => g.playtime != null).length;
+      const stats = el('div', null, 'library-stats');
+      [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'with a tracker'], [playtimeKnown, 'with playtime']].forEach(function (item) {
+        const box = el('div', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
+      });
       if (!games.length) wrap.appendChild(el('section', 'No games are listed for this player yet.', 'ih-card empty-state'));
       else games.forEach(function (game) { wrap.appendChild(gameCard(game, key)); });
-      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'library-title'), wrap);
+      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'library-title'), stats, wrap);
+    } catch (e) { showError(libraryEl, e.message); }
+    libraryEl.setAttribute('aria-busy', 'false');
+  }
+  async function selectResearch() {
+    selected = 'research'; renderTabs(); libraryEl.setAttribute('aria-busy', 'true');
+    libraryEl.replaceChildren(el('p', 'Loading Games research…', 'ih-muted'));
+    try {
+      const data = await request('api/research');
+      const items = data.items || [];
+      const section = el('section', null, 'ih-card research-card');
+      section.append(el('p', 'RESEARCH QUEUE', 'ih-eyebrow'), el('h2', 'Ideas to explore'));
+      section.append(el('p', items.length + ' open ' + (items.length === 1 ? 'idea' : 'ideas'), 'research-count'));
+      if (!data.available) section.append(el('p', 'The Home Assistant Games to-do list is temporarily unavailable.', 'notice notice-warning'));
+      else if (!items.length) section.append(el('p', 'No game research is waiting. IH adds items here when a game needs a tracker.', 'ih-muted'));
+      else {
+        const list = el('ul', null, 'research-list');
+        items.forEach(function (item) {
+          const li = el('li'); li.append(el('span', item.what.replace(/^Games:\s*/i, '')),
+            el('small', item.due ? 'Due ' + item.due : 'No due date')); list.appendChild(li);
+        });
+        section.appendChild(list);
+      }
+      section.append(el('p', 'These items are managed in the Claude to-do list. This view shows open Games research only.', 'ih-muted'));
+      libraryEl.replaceChildren(section);
     } catch (e) { showError(libraryEl, e.message); }
     libraryEl.setAttribute('aria-busy', 'false');
   }
@@ -174,7 +225,11 @@
       statusEl.textContent = h.healthy ? 'Games service available' : 'Games service unavailable';
       statusEl.classList.toggle('status-bad', !h.healthy);
       if (!players.length) throw new Error('No players are configured for Games yet.');
-      selected = players[0].key; renderTabs(); await selectPlayer(selected);
+      const parts = location.pathname.split('/').filter(Boolean);
+      const requested = requestedRoute || (parts.length >= 3 ? parts[parts.length - 1] : '');
+      selected = requested === 'research' ? 'research' : players.some(p => p.key === requested) ? requested : players[0].key;
+      renderTabs();
+      if (selected === 'research') await selectResearch(); else await selectPlayer(selected);
     } catch (e) { statusEl.textContent = 'Could not connect to Games'; showError(libraryEl, e.message); libraryEl.setAttribute('aria-busy', 'false'); }
   }
   start();

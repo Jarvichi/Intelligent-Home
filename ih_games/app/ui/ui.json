@@ -1,14 +1,17 @@
 {
   "title": "Games",
-  "purpose": "Browse each player's game library and inspect complete game progress.",
-  "description": "Per-player game hub with full Destiny milestones and Arc Raiders progress, backed by the local Games API.",
+  "purpose": "The single Games dashboard for player libraries, game progress, art, and research.",
+  "description": "Replaces the generated Games dashboard with per-player libraries, full game details, official cover art, and the Games research queue.",
   "health_port": 8794,
   "health_path": "/healthz",
   "navigation": [
     "Player libraries",
+    "Player library summaries",
     "Game details and progress",
     "Complete Destiny milestones",
-    "Arc Raiders quests and inventory"
+    "Arc Raiders quests and inventory",
+    "Games research queue",
+    "Official game cover art"
   ],
   "access": "Home Assistant authenticated ingress only"
 }

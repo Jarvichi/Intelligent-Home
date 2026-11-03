@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.6] - 2026-11-03
+
+### Added
+- Move the existing player and research dashboard behavior into the Games ingress UI, including per-player library summaries and the open Games research queue.
+- Let the previous `/house-games/<player>` dashboard open the matching player page in the Games add-on.
+
 ## [0.6.5] - 2026-11-03
 
 ### Added

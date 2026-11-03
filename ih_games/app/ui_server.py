@@ -6,6 +6,7 @@ ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text(
 OPTIONS=Path(os.environ.get('IHG_OPTIONS','/data/options.json'))
 API_PORT=int(os.environ.get('IHG_PORT','8794'))
 DATA=Path(os.environ.get('IHG_DATA','/data'))
+SUPERVISOR_TOKEN=os.environ.get('SUPERVISOR_TOKEN','').strip()
 ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
@@ -53,6 +54,17 @@ class Handler(BaseHTTPRequestHandler):
   if path=='/api/players':
    rows=[{'key':str(p.get('key') or ''),'name':str(p.get('display_name') or p.get('key') or 'Player')} for p in players if p.get('key')]
    return self.reply(200,json.dumps({'ok':True,'players':rows,'art_search_available':bool(opts.get('ai_layer_art_token'))}).encode(),'application/json; charset=utf-8')
+  if path=='/api/research' and method=='GET':
+   if not SUPERVISOR_TOKEN:
+    return self.reply(200,b'{"ok":true,"available":false,"items":[]}','application/json; charset=utf-8')
+   req=urllib.request.Request('http://supervisor/core/api/states/sensor.claude_todo',headers={'Authorization':'Bearer '+SUPERVISOR_TOKEN,'Accept':'application/json'})
+   try:
+    with urllib.request.urlopen(req,timeout=5) as response: state=json.loads(response.read(1024*1024))
+    rows=state.get('attributes',{}).get('todo_rows',[])
+    items=[{'what':str(row.get('what') or ''),'due':str(row.get('due') or '')} for row in rows if isinstance(row,dict) and str(row.get('what') or '').lower().startswith('games:')]
+    return self.reply(200,json.dumps({'ok':True,'available':True,'items':items}).encode(),'application/json; charset=utf-8')
+   except Exception:
+    return self.reply(200,b'{"ok":true,"available":false,"items":[]}','application/json; charset=utf-8')
   player=(query.get('player') or [''])[0]
   if not player or player not in {str(p.get('key') or '') for p in players}:
    return self.reply(400,json.dumps({'ok':False,'error':'Choose a configured player.'}).encode(),'application/json; charset=utf-8')
