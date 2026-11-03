@@ -48,6 +48,8 @@ def load_options(path):
         'brain_token': str(o.get('brain_token') or '').strip(),
         'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'),
         'facts_key': str(o.get('facts_key') or '').strip(),
+        'ingest_url': str(o.get('ingest_url') or '').strip(),
+        'ingest_token': str(o.get('ingest_token') or '').strip(),
         'cook': cook_config(o),
     }
 

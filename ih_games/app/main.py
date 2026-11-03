@@ -6,11 +6,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod
 from jobs import common
 from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -77,6 +78,7 @@ def _tag(v, default='-'):
 class Module:
     def __init__(self, opts, data=None, log=None, token=None, opener=None):
         self.opts, self.started = opts, time.time()
+        self.tracer = trace.from_options('ih_games', opts)   # metadata-only spans; off without an ingest token
         self.data = data or DATA
         self.log = log or (lambda m: logging.getLogger("ihgames").info(m))
         self._token, self._opener = token, opener
@@ -183,6 +185,15 @@ class Module:
         return "live" if self.live_mode()[0] else "dry"
 
     def run_job(self, name, trigger="manual"):
+        if name not in JOBS:
+            return False
+        with self.tracer.span(name) as sp:
+            ok = self._run_job(name, trigger)
+            if ok is False:
+                sp.fail("job_failed")
+            return ok
+
+    def _run_job(self, name, trigger="manual"):
         if name not in JOBS:
             return False
         with self.locks[name]:

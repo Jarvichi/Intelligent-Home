@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import core
 import settings as ST
 import bus_client
@@ -129,6 +130,7 @@ class Module:
         except Exception as e:
             self.ha, self.error = None, 'no Home Assistant access: ' + str(e)[:80]
         self.threaded = threaded
+        self.tracer = trace.from_options('ih_discord_house', opts)   # metadata-only spans; off without an ingest token
 
     def dry_now(self):
         return bool(self.opts['shadow']) or os.path.exists(os.path.join(self.data, STOP_FILE))
@@ -161,6 +163,7 @@ class Module:
         self.apply_mode()
         return True
 
+    @trace.traced('message_in')
     def on_in(self, d):
         """One verified `in` event (the ack was already sent). Only messages are handled; reactions are not used by the house feature."""
         if d.get('type') != 'message':

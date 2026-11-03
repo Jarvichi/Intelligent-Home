@@ -28,5 +28,7 @@
   "brain_url": "http://<host>:8820/mcp",
   "brain_token": "",
   "facts_url": "",
-  "facts_key": ""
+  "facts_key": "",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": ""
 }

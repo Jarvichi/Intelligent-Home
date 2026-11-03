@@ -1,5 +1,5 @@
 name: "Intelligent Home - Cooking"
-version: "0.6.2"
+version: "0.6.3"
 slug: ih_cooking
 image: "ghcr.io/jarvichi/{arch}-ih_cooking"
 description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
@@ -50,6 +50,8 @@ options:
   brain_token: ""
   facts_url: ""
   facts_key: ""
+  ingest_url: "http://172.30.32.1:8790"
+  ingest_token: ""
 schema:
   log_payloads: bool?
   api_token: password
@@ -81,3 +83,5 @@ schema:
   brain_token: password?
   facts_url: str?
   facts_key: password?
+  ingest_url: str?
+  ingest_token: password?

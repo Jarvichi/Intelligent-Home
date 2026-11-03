@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs"
-version: "0.14.4"
+version: "0.15.1"
 slug: ih_jobs
 image: "ghcr.io/jarvichi/{arch}-ih_jobs"
 description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps the media and share folders (read-write) for the photo, receipt and inbox plugins; the brain_stats plugin only reads the brain folder in share."

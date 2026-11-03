@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import core
 import schedule_client
 import bus_client
@@ -120,6 +121,7 @@ class Module:
         self.beats, self.errors, self.err_last, self.threads = {}, collections.Counter(), {}, []
         self.error = None
         self.discord = discord
+        self.tracer = trace.from_options('ih_discord', opts)   # metadata-only spans; off without an ingest token
         self.last_selfcheck = None
         self.sched = None   # ScheduleClient when the scheduler is on
         self.sched_reason = ''
@@ -211,6 +213,7 @@ class Module:
         """Process is up. With a token, the router thread must be alive."""
         return self.error is None and all(t.is_alive() for t in self.threads)
 
+    @trace.traced('selfcheck')
     def selfcheck(self, now=None):
         """Scheduled job. The router thread must be alive and ticking. A tick is late after 3 x its interval + 60 s.
         Before the first tick, allow the same time from start-up. Stores the result for /status and returns ok (bool)."""
@@ -266,6 +269,7 @@ class Module:
                                           is_live=self.bus_live, offline_notice=bool(o.get('offline_notice')), notice_live=self.notice_live,
                                           max_age_s=o.get('max_age_s', 600), threaded=True,
                                           categories=o.get('categories'), templates=o.get('permission_templates'), log_payloads=bool(o.get('log_payloads')))
+        self.bus_t.tracer = self.tracer
         ok = self.bus_t.start()
         if not ok:
             self.bus_reason = 'bus did not start'

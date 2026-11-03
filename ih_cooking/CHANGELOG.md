@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.3] - 2026-11-03
+
+### Added
+- optional `ingest_url` / `ingest_token` options; metadata-only request traces to the Orchestrator (off when empty; the Orchestrator fills an empty token).
+
 ## [0.6.1] - 2026-11-01
 
 ### Fixed

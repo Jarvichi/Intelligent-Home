@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.1] - 2026-11-03
+
+### Added
+- one metadata-only trace per plugin pass (shared ihlib.trace; service-loop plugins are not traced); off without an ingest token. Also publishes the free_power_value plugin (0.15.0, dry first).
+
+## [0.15.0] - 2026-11-01
+### Added
+- Plugin `free_power_value` (hourly, dry first): after each supplier free electricity session or Happy Hour, works out the kWh used (Home Assistant long-term statistics), what it would have cost at the normal rate, and the extra over the usual baseline. Keeps one line per session and a winter total (season 1 Nov to 14 Feb) in its own data file; posts one message per session block (live) or logs it (dry).
 ## [0.14.3] - 2026-11-02
 
 ### Added

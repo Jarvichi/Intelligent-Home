@@ -7,6 +7,7 @@ Writes to Discord happen only when is_live(module) says so (dry-run, live_module
 import json, os, re, time, threading, collections
 from urllib.parse import quote
 import bus_client as B
+from ihlib import trace
 import admin as A
 import bus_crypto as C
 
@@ -87,6 +88,7 @@ class BusTransport:
         self.bus, self.router, self.discord, self.grants, self.channels, self.data = bus, router, discord, grants, dict(channels), data
         self.journal, self.clock, self.log, self.max_age_s, self.threaded = journal, clock, log, max_age_s, threaded
         self.is_live = is_live or (lambda m: (False, 'no gate given'))
+        self.tracer = None   # set by the Module (ihlib.trace); None = no tracing
         self.offline_notice = offline_notice
         self.log_payloads = bool(log_payloads)
         self.notice_live = notice_live or (lambda: False)
@@ -234,6 +236,7 @@ class BusTransport:
             body = C.encrypt_private_event(grant.key, module, topic, body)
         self._pub('in', module, topic, body)
 
+    @trace.traced('deliver_message')
     def deliver_message(self, module, entry, allowed):
         pid = 'm:' + str(entry['id'])
         if (module, pid) in self.pending:
@@ -339,12 +342,17 @@ class BusTransport:
     def _run_op(self, module, g, d):
         oid, op = d['op_id'], d.get('op')
         t0 = time.time()
+        sp = self.tracer.span('op_' + trace.clean(op)) if self.tracer is not None and self.tracer.enabled else None
         try:
             res = self._execute(module, g, d)
         except Exception as e:   # never leave the module without an answer; the detail is only the error type
             self.log('bus: op failed inside the transport (%s)' % type(e).__name__)
             res = self._fail('discord_error', 'internal error')
         res['op_id'] = oid
+        if sp is not None:
+            if res.get('ok') is False:
+                sp.fail(res.get('code') or 'failed')
+            sp.end()
         self._invocation_line(module, op, d, res, t0)
         self._audit(module, str(op)[:20], str(d.get('channel_key') or res.get('channel_key') or '')[:60], res.get('discord_id'), res.get('code'))
         self.results[oid] = {'t': self.clock(), 'res': res}

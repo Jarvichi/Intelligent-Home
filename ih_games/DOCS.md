@@ -43,27 +43,12 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `assistant_url` | No | str, password |
 | `assistant_token` | No | str, password |
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
-| `players[].destiny_reset` | No | `true` adds a weekly-reset message (Tuesday 17:00 UK, once a week) for that player. |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |
-
-| `admin_token` | For the library API | Bearer token for `/library` and `/games/...`. Empty = the API answers 503. |
-| `arc_data_dir` | No | Folder with the public Arc Raiders data set (quests, items, hideout, projects.json, maps.json). Default search: `/app/arcdata`, then `/data/arc_data`. |
-| `destiny_reset_utc_hour` | No | Hour (UTC) of Destiny's daily and weekly (Tuesday) reset. Default 17. |
-| `todo_entity` | No | To-do list that gets the "research a tracker" items. Default `todo.claude_to_do`. |
-| `todo_sync` | No | `false` stops the add-on creating those to-dos. Default `true`. Only acts in live mode. |
-
-## Library and game tools (0.6.0)
-
-Each player has a library in `/data/library.json`: id, title, platform, first and last seen, playtime (when known), source (`psn`, `xbox`, `steam`, `bungie`, `manual`) and `tools`. It fills itself from the provider feeds on every provider run and on each request; you can add or hide games by hand. All endpoints need `Authorization: Bearer <admin_token>`; `player` is a `players[].key` or `display_name`.
-
-- `GET /library?player=` (add `&hidden=1` to include hidden) ; `GET /library/new-games-without-todo`
-- `POST /library/add` `{player,title,platform,tools}` ; `POST /library/hide` `{player,id,hidden}` ; `POST /library/sync-todos`
-- `GET /games/<id>/summary?player=` (played summary from the feeds plus the tool's summary) ; `GET /games/<id>/upcoming?player=`
-- `POST /games/<id>/cmd` `{player,cmd,args:[...]}` ; `<id>` is a library id or a tool name.
-
-Tools live in `app/tools/*.py` and are found automatically (copy `app/tools/_template.py`). Included: `destiny` (reset times computed locally, characters, power and milestones through `bungie_api_key`; commands `week reset characters power`) and `arc_raiders` (commands `need maps inv done have hideout project`; state in `/data/arc/state_<player>.json`).
-
-When a game with no tool and no to-do appears (feeds or manual add), the add-on adds one to-do on `todo_entity`, due in 14 days. It never duplicates: an open item mentioning the title (any case) blocks it. In dry mode it only logs.
+| `admin_token` | No | Setting `admin_token`. |
+| `arc_data_dir` | No | Setting `arc_data_dir`. |
+| `destiny_reset_utc_hour` | No | Setting `destiny_reset_utc_hour`. Default: `17`. |
+| `todo_entity` | No | Setting `todo_entity`. Default: `todo.claude_to_do`. |
+| `todo_sync` | No | Setting `todo_sync`. Default: `true`. |
 
 ## Troubleshooting
 
@@ -87,6 +72,3 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 3. Implement `run(ctx, player)` accepting context and a player dict.
 4. Compare state using files in `/data/state_<name>_<player>.json` and append new events.
 5. Atomically write feed to `/data/feeds/<name>_<player>.json` keeping the last 50 events. Register the provider in `app/main.py`.
-
-## Home Assistant sensors (0.6.1)
-After each providers run the add-on publishes `sensor.games_library_<player>` (state = number of games, attribute `games`) and `sensor.games_<tool>_<player>` (summary plus tool attributes). Needs `homeassistant_api` (already set). Dry mode only logs. A dashboard can be built from these sensors.

@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import cooking, recipeadmin
 
 PORT = int(os.environ.get('IHC_PORT', '8809'))
@@ -58,6 +59,7 @@ def start_cook(st, name, eat):
 
 def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
     page = os.path.join(HERE, 'ui', 'index.html')
+    tracer = trace.from_options('ih_cooking', st.opts)   # off unless ingest_url + ingest_token are in the options
 
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ct='application/json'):
@@ -126,13 +128,14 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 self._why = 'rate_limit'
                 return self._send(429, {'ok': False, 'why': 'rate limit'})
             try:
-                if method == 'GET':
-                    return self._get(p, q)
-                try:
-                    body = self._body()
-                except Exception as ex:
-                    self._why = 'bad_body'; return self._send(400, {'ok': False, 'why': 'bad body'})
-                return self._write(method, p, body)
+                with tracer.span('api_' + method.lower()):
+                    if method == 'GET':
+                        return self._get(p, q)
+                    try:
+                        body = self._body()
+                    except Exception as ex:
+                        self._why = 'bad_body'; return self._send(400, {'ok': False, 'why': 'bad body'})
+                    return self._write(method, p, body)
             except ValueError:
                 self._why = 'bad_parameter'
                 return self._send(400, {'ok': False, 'why': 'bad parameter'})

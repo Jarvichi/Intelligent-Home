@@ -6,6 +6,7 @@ import importlib, json, os, pkgutil, threading, time, traceback
 from datetime import datetime, timedelta, timezone
 
 import ihlib.ha, ihlib.discord, ihlib.http, ihlib.state, ihlib.log
+from ihlib import trace
 
 CATCHUP_MIN = 60   # a daily plugin missed by less than this still runs (add-on started late)
 STOP_ALL = 'STOP_LIVE'
@@ -111,6 +112,7 @@ class Host:
         self.clock = clock or (lambda: datetime.now(self.tz))
         self.ha = ihlib.ha.HA(token=token, opener=opener, connect=connect)
         self.opener = opener
+        self.tracer = trace.from_options('ih_jobs', opts)   # metadata-only spans: one trace per plugin pass (service-loop plugins are not traced: they would flood the store)
         self.locks = {n: threading.Lock() for n in self.mods}
         self.info = {n: {'last_run': None, 'last_ok': None, 'last_error': None, 'last_mode': None, 'last_success': None, 'last_success_mode': None, 'runs': 0, 'errors': 0} for n in self.mods}
         self.thread = None
@@ -159,7 +161,16 @@ class Host:
         return ihlib.log.Logger(self.log_sink, self.secrets, prefix=name)
 
     def run(self, name, trigger='manual'):
-        """Run one plugin now. -> True/False. Never raises."""
+        """Run one plugin now. -> True/False. Never raises. One trace (one span) per pass, except service-loop plugins."""
+        if trigger == 'service' or name not in self.mods or name not in self.cfg:
+            return self._run(name, trigger)
+        with self.tracer.span(name) as sp:
+            ok = self._run(name, trigger)
+            if ok is False:
+                sp.fail('plugin_failed')
+            return ok
+
+    def _run(self, name, trigger='manual'):
         if name not in self.mods or name not in self.cfg:
             return False
         with self.locks[name]:
@@ -196,6 +207,15 @@ class Host:
                 return False
 
     def event(self, name, payload, trigger='event'):
+        if name not in self.mods or name not in self.cfg:
+            return self._event(name, payload, trigger)
+        with self.tracer.span(str(name) + '_event') as sp:
+            res = self._event(name, payload, trigger)
+            if not res[0]:
+                sp.fail('plugin_failed')
+            return res
+
+    def _event(self, name, payload, trigger='event'):
         """0.12.0: hand one event (a JSON object) to a plugin that has event(ctx, payload). -> (ok, why). Never raises. Same dry/live and kill-switch rules as run()."""
         if name not in self.mods or name not in self.cfg:
             return False, 'plugin not configured'

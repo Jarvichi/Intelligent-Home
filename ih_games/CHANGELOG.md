@@ -3,6 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.3] - 2026-11-03
+
+### Added
+- metadata-only trace spans (shared ihlib.trace); off without an ingest token. Includes the pending to-do sync and docs edits.
+
+## [0.6.2] - 2026-10-31
+
+### Fixed
+- To-do sync: an open to-do only blocks a new "Games: research ... for <title>" item when its summary is that exact item. Before, any item whose description mentioned the title blocked it and the game was marked done, so Cyberpunk 2077 never got its to-do. Games affected earlier can be re-queued by clearing their `todo` flag.
+
 ## [0.6.1] - 2026-10-31
 
 ### Added

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.5] - 2026-11-03
+
+### Changed
+- the settings hub fills an EMPTY `ingest_token` of every ih_* add-on that declares one with the Orchestrator's own ingest token (was Assistant only). A non-empty value is kept; values are never logged.
+
 ## [0.10.2] - 2026-11-02
 
 ### Fixed

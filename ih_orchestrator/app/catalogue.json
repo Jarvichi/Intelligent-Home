@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.10.0",
+  "version": "0.10.5",
   "image": true
  },
  {
@@ -16,7 +16,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.10.1",
+  "version": "0.10.3",
   "image": true
  },
  {
@@ -27,7 +27,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.14.3",
+  "version": "0.15.1",
   "image": true
  },
  {
@@ -38,7 +38,7 @@
   "requires": [
    "ih_jobs"
   ],
-  "version": "0.1.4",
+  "version": "0.1.5",
   "image": true
  },
  {
@@ -49,7 +49,7 @@
   "requires": [
    "ih_jobs"
   ],
-  "version": "0.1.4",
+  "version": "0.1.5",
   "image": true
  },
  {
@@ -61,7 +61,7 @@
    "ih_jobs",
    "ih_ai_layer"
   ],
-  "version": "0.1.4",
+  "version": "0.1.5",
   "image": true
  },
  {
@@ -73,7 +73,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.2.4",
+  "version": "0.2.6",
   "image": true
  },
  {
@@ -85,7 +85,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.3.2",
+  "version": "0.3.4",
   "image": true
  },
  {
@@ -97,7 +97,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.6.1",
+  "version": "0.6.3",
   "image": true
  },
  {
@@ -109,7 +109,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.3",
+  "version": "0.1.5",
   "image": true
  },
  {
@@ -121,7 +121,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.2",
+  "version": "0.1.4",
   "image": true
  },
  {
@@ -134,7 +134,19 @@
    "ih_ai_layer",
    "mqtt"
   ],
-  "version": "0.2.0",
+  "version": "0.2.2",
+  "image": true
+ },
+ {
+  "name": "Intelligent Home - Discord - Codex",
+  "slug": "ih_discord_codex",
+  "description": "A private Codex worker with filtered Home Assistant tools and a private IH code review branch, connected through the signed Discord transport.",
+  "kind": "addon",
+  "requires": [
+   "ih_discord",
+   "mqtt"
+  ],
+  "version": "0.1.10",
   "image": true
  },
  {
@@ -143,7 +155,7 @@
   "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remember",
   "kind": "addon",
   "requires": [],
-  "version": "0.4.0",
+  "version": "0.4.1",
   "image": true
  },
  {
@@ -154,7 +166,7 @@
   "requires": [
    "ih_ai_layer"
   ],
-  "version": "0.1.1",
+  "version": "0.1.2",
   "image": true
  },
  {
@@ -163,16 +175,16 @@
   "description": "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders.",
   "kind": "addon",
   "requires": [],
-  "version": "0.6.1",
+  "version": "0.6.3",
   "image": true
  },
  {
   "name": "Intelligent Home - Brain",
   "slug": "ih_brain",
-  "description": "Serves the House Brain markdown notes to Claude as an MCP server over HTTP, outside Home Assistant core. Read-only by default; write tools need read_only set to false. Maps the share folder.",
+  "description": "Serves House Brain notes to Claude over MCP and provides an admin-only ingress UI to browse, search and read notes.",
   "kind": "addon",
   "requires": [],
-  "version": "0.2.2",
+  "version": "0.2.5",
   "image": true
  },
  {
@@ -181,19 +193,7 @@
   "description": "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default.",
   "kind": "addon",
   "requires": [],
-  "version": "0.7.0",
-  "image": true
- },
- {
-  "name": "Intelligent Home - Discord - Codex",
-  "slug": "ih_discord_codex",
-  "description": "Private Codex coding conversations over the signed Discord transport, with read-only search of shared Brain notes.",
-  "kind": "addon",
-  "requires": [
-   "ih_discord",
-   "mqtt"
-  ],
-  "version": "0.1.4",
+  "version": "0.9.1",
   "image": true
  }
 ]

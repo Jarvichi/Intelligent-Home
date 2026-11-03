@@ -273,6 +273,7 @@ class Module:
                 return self.reply(ck, mid, MSG_LONG, error=True)
             if not self.opts['api_token']:
                 return self.reply(ck, mid, MSG_AUTH, error=True)
+        trace_id, root_span_id, root_started = uuid.uuid4().hex, uuid.uuid4().hex[:16], time.time()   # 3 Nov 2026: these names were never defined (NameError on every request)
         if self.threaded:
             if not self.sem.acquire(blocking=False):
                 with self.lock:

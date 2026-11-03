@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import bus_client
 
 VERSION = '0.1.3'
@@ -100,6 +101,7 @@ class Module:
         self.opts, self.started, self.ring, self.data, self.clock = opts, clock(), ring or Ring(), data or DATA, clock
         self.lg = logging.getLogger('ihtaskchannels')
         self.threaded = threaded
+        self.tracer = trace.from_options('ih_discord_taskchannels', opts)   # metadata-only spans; off without an ingest token
         self.lock = threading.RLock()
         self.error, self.client, self.bus, self.bus_reason = None, None, bus, ''
         self.in_count = self.out_ops = self.out_failed = self.created = self.finished = self.deleted = 0
@@ -192,6 +194,7 @@ class Module:
         return bool(ok)
 
     # ---- events ----
+    @trace.traced('command_in')
     def on_in(self, d):
         """One verified `in` event on the commands channel key (the ack was already sent)."""
         with self.lock:
@@ -207,6 +210,7 @@ class Module:
             if out:
                 self.reply(out, d.get('msg_id'))
 
+    @trace.traced('admin_event')
     def on_admin(self, d):
         """The transport says a channel this module created is gone from Discord (deleted by hand)."""
         with self.lock:

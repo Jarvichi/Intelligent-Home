@@ -52,6 +52,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `brain_token` | No | Bearer token of the Brain add-on (needs its read_only off). |
 | `facts_url` | No | Setting `facts_url`. |
 | `facts_key` | No | Setting `facts_key`. |
+| `ingest_url` | No | Orchestrator trace address (default `http://172.30.32.1:8790`). |
+| `ingest_token` | No | Orchestrator trace token; filled by the Orchestrator when empty. Empty = tracing off. Metadata only. |
 
 ## Troubleshooting
 

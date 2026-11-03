@@ -17,6 +17,7 @@ from urllib.parse import urlparse, parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import bus_client
 
 VERSION = '0.1.2'
@@ -204,6 +205,7 @@ class Module:
         self.opts, self.started, self.ring, self.data, self.clock = opts, clock(), ring or Ring(), data or DATA, clock
         self.lg = logging.getLogger('ihorchinbox')
         self.threaded = threaded
+        self.tracer = trace.from_options('ih_orchestration_inbox', opts)   # metadata-only spans; off without an ingest token
         self.lock = threading.RLock()
         self.error, self.client, self.bus, self.bus_reason = None, None, bus, ''
         self.in_count = self.queued = self.dup = self.skipped = self.reacts = self.react_failed = 0
@@ -245,6 +247,7 @@ class Module:
         return bool(ok)
 
     # ---- events ----
+    @trace.traced('message_in')
     def on_in(self, d):
         """One verified `in` event on a claimed channel key (the ack was already sent). Stores it, then reacts. Never posts."""
         with self.lock:

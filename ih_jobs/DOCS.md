@@ -125,8 +125,7 @@ Every house value comes from settings (JSON in plugins[].settings):
   target_entity         same for the target pressure, e.g. sensor.car_tire_pressure_target_{pos}   (both sensors in kPa)
   positions             {"front_left": "front left", ...}: key = {pos} in the entity ids, value = words used in the message
   odometer_entity       sensor that changes while the car is driven
-  picture_url           optional URL of a picture (PNG) showing which tyres are low; fetched fresh at send time. NOTE: the old script re-rendered it first.
-  tyre_image_url        optional URL of a transparent top-down car PNG (front at top). When set, the picture the plugin draws shows the four pressures and the target line on this image instead of the line-art car (pure Python PNG decode, no Pillow). A failed fetch or undecodable file falls back to the line-art car. Default empty.
+  picture_url           optional URL of a PNG fetched at send time; empty = the plugin draws the car with the four PSI numbers itself (_tyrepic.py, setting draw_picture, default true)
   recipient_name, car_name, signoff   words used in the message ("Hi <recipient_name>. The <car_name>'s tyres ...", "- <signoff>")
   window_start, window_end   hours of the day when it may send (default 8 and 20)
   low_fraction (0.9), parked_hours (2), cooldown_days (3), drop_psi (2)
@@ -352,6 +351,11 @@ Every 6 hours (setting `minutes`, 360): four parallel downloads of a 100 MB file
 
 ##### Plugin `brain_stats` (0.14.0)
 Every hour (`minutes`, 60): counts the notes in `folder` (`/share/brain`, read-only) and times five fixed searches on its search index (`index_db`, `bench`). Live, it writes the note count to `publish_entity` (`sensor.brain_notes`) with attributes words, links, orphans, areas, density and search_ms. Same counting rules as the host script. Dry: logs the numbers, publishes nothing. Keeps no state. Swap: remove the old command_line sensor with the same entity id, then set live.
+
+##### Plugin `free_power_value` (0.15.0)
+Every hour (`minutes`, 60). For each supplier free electricity session or Happy Hour that ended more than `settle_h` (2) hours ago and is not recorded yet: the kWh used in the session window (sum of the 5-minute `change` statistics of `consumption_entity`; a half-hour counts only with all six buckets), the value (kWh x the normal unit rate of each half hour, from the day-rate entities in `rates_entities`, VAT included), and the extra over the usual use (history of `baseline_entity`, whose state is the baseline of the current half hour). The slow official sensor `meter_entity` is used as a cross-check only (both figures are logged). Sessions that touch are one block with one message. Incomplete data: nothing is recorded, retried each hour, skipped with a log line after `give_up_days` (3). One line per session id (never counted twice, survives restarts) plus a total for the season (`season_start` 2026-11-01 to `season_end` 2027-02-14).
+Message: `Free power, Sun 1 Nov 12:00-14:00: 3.1 kWh, worth GBP 0.98 (1.9 kWh more than usual). Winter total so far: GBP 0.98.` (with the pound sign and a lightning symbol). Settings: `events_free_entity`, `events_happy_entity`, `consumption_entity`, `meter_entity`, `rates_entities`, `baseline_entity`, `channel` (alerts), `token_option`, `season_start`, `season_end`, `settle_h`, `give_up_days`, `min_extra_kwh` (0.05).
+Dry (`live: false`): reads only, logs `session N recorded ...` and `[DRY] would post ...`, posts nothing; keeps its own `ledger_dry` so going live still posts each session once. The facts store is not written (needs a new key); totals live in `/data/free_power_value/ledger.json`.
 
 ##### Plugin `car_log` publish_entity (0.14.0)
 `publish_entity` now also writes unit GBP, icon and friendly name, so it can replace the old command_line sensor (set it to that sensor's entity id). Same attributes as before: rows, last, n, month_label, week.

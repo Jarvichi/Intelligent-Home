@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.4] - 2026-11-03
+
+### Added
+- metadata-only trace spans per command (shared ihlib.trace); off without an ingest token.
+
 ## [0.3.2] - 2026-10-31
 
 ### Changed

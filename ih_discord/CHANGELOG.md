@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.3] - 2026-11-03
+
+### Added
+- metadata-only trace spans for bus intake and delivery (shared ihlib.trace); off without an ingest token.
+
 ## [0.10.1] - 2026-11-02
 
 ### Security

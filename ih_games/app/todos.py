@@ -1,6 +1,7 @@
 """'Games: research ways to track progress/help for <title>' to-do items (owner request, 31 Oct 2026).
 Created on todo.claude_to_do through the add-on's own HA access (homeassistant_api: true). Idempotent: an open item whose
-summary or description mentions the title (case-insensitive) blocks a new one. Games with a tool module never get one."""
+summary is already this game's 'Games: research ... for <title>' item blocks a new one (0.6.2: description text of
+unrelated items no longer counts; before, a 'Game chat' item that mentioned Cyberpunk 2077 swallowed the to-do). Games with a tool module never get one."""
 import datetime
 import library as L
 
@@ -14,9 +15,14 @@ def open_items(ha, entity=ENTITY):
     return (sr.get(entity) or {}).get("items") or []
 
 
+def summary_for(title):
+    return "Games: research ways to track progress/help for %s" % title
+
+
 def mentions(items, title):
-    n = L.norm(title)
-    return any(n and n in L.norm((i.get("summary") or "") + " " + (i.get("description") or "")) for i in items)
+    """True when an open item's SUMMARY is this game's own research item (exact normalised match, not a substring)."""
+    n = L.norm(summary_for(title))
+    return any(L.norm(i.get("summary") or "") == n for i in items)
 
 
 def sync(lib, ctx, today=None, entity=ENTITY):
@@ -42,7 +48,7 @@ def sync(lib, ctx, today=None, entity=ENTITY):
         if ctx.dry:
             ctx.log("[DRY] would add to-do: Games: research ways to track progress/help for %s" % r["title"])
             continue
-        ctx.ha("services/todo/add_item", {"entity_id": entity, "item": "Games: research ways to track progress/help for %s" % r["title"],
+        ctx.ha("services/todo/add_item", {"entity_id": entity, "item": summary_for(r["title"]),
                                           "description": desc, "due_date": due})
         for pk, gid in r["ids"].items():
             lib.mark_todo(pk, gid)

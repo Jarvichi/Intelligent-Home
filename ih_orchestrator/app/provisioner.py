@@ -225,9 +225,10 @@ class Provisioner:
             suf = self.suffix(prefix, slug)
             try:
                 addon_options = family_view(suf, a)
-                # Assistant DM traces use the Orchestrator's existing metadata-ingest
-                # endpoint. Scope this token to that one consumer; never log its value.
-                if suf == "ih_assistant" and empty(addon_options.get("ingest_token")):
+                # Request traces use the Orchestrator's existing metadata-ingest endpoint. Any ih_* add-on that
+                # declares an ingest_token option gets it filled when EMPTY (a non-empty value is kept); the value
+                # is never logged (3 Nov 2026, owner approved).
+                if empty(addon_options.get("ingest_token")):
                     addon_options["ingest_token"] = o.get("ingest_token")
                 st["addons"][suf] = self._one(slug, suf, g, addon_options, overwrite)
                 if st["addons"][suf].get("halt"):

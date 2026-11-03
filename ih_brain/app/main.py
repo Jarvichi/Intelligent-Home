@@ -3,6 +3,7 @@ import hmac, json, logging, os, sys, time, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import brainlib, mcp, extras
 import ui_server
 
@@ -37,12 +38,14 @@ def load_options(path):
             'pocket_key': str(o.get('pocket_key') or ''),
             'pocket_url': str(o.get('pocket_url') or ''),
             'scrub_names': str(o.get('scrub_names') or ''),
-            'cors_origins': parse_origins(o.get('cors_origins'))}
+            'cors_origins': parse_origins(o.get('cors_origins')),
+            'ingest_url': str(o.get('ingest_url') or '').strip(), 'ingest_token': str(o.get('ingest_token') or '').strip()}
 
 
 class State:
     def __init__(self, opts, data_dir='/data', log=print, clock=time.time):
         self.opts, self.log, self.clock = opts, log, clock
+        self.tracer = trace.from_options('ih_brain', opts)   # off unless ingest_url + ingest_token are in the options
         self.brain = brainlib.Brain(opts['brain_dir'], data_dir, opts['read_only'])
         self.data_dir = data_dir
         self._hits, self._lock = [], threading.Lock()
@@ -176,14 +179,15 @@ def make_handler(st):
                 msg = json.loads(raw or b'')
             except Exception:
                 return self._send(400, {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'parse error'}})
-            if p == '/codex-mcp':
-                class ShareableBrain:
-                    def t_brain_search(self, args): return st.brain.t_codex_brain_search(args)
-                    def t_brain_read(self, args): return st.brain.t_codex_brain_read(args)
-                resp = mcp.handle_rpc(ShareableBrain(), msg, VERSION, tools=mcp.CODEX_TOOLS,
-                                     server_name='ih-brain-shareable-readonly')
-            else:
-                resp = mcp.handle_rpc(st.brain, msg, VERSION)
+            with st.tracer.span('mcp_rpc'):
+                if p == '/codex-mcp':
+                    class ShareableBrain:
+                        def t_brain_search(self, args): return st.brain.t_codex_brain_search(args)
+                        def t_brain_read(self, args): return st.brain.t_codex_brain_read(args)
+                    resp = mcp.handle_rpc(ShareableBrain(), msg, VERSION, tools=mcp.CODEX_TOOLS,
+                                         server_name='ih-brain-shareable-readonly')
+                else:
+                    resp = mcp.handle_rpc(st.brain, msg, VERSION)
             if resp is None:
                 self.send_response(202); self.send_header('Content-Length', '0'); self.end_headers(); return
             self._send(200, resp)

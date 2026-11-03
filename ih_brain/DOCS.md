@@ -35,8 +35,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `pocket_url` | No | Setting `pocket_url`. |
 | `pocket_cloudflare_token` | Yes | Setting `pocket_cloudflare_token`. |
 | `pocket_key` | Yes | Setting `pocket_key`. |
-| `cors_origins` | No | Origins allowed to call the server from a browser page, comma separated (e.g. `http://host:8123`). Default: empty (no CORS). `*` is ignored. |
-| `scrub_names` | No | Names to replace before notes are pushed, as `Name=Replacement,Other=Repl`. Default: empty (no name replacement; IPs, MACs, ids and emails are always scrubbed). |
+| `scrub_names` | No | Setting `scrub_names`. |
+| `cors_origins` | No | Setting `cors_origins`. |
+| `ingest_url` | No | Orchestrator trace address (default `http://172.30.32.1:8790`). |
+| `ingest_token` | No | Orchestrator trace token; filled by the Orchestrator when empty. Empty = tracing off. Metadata only. |
 
 ## Troubleshooting
 
@@ -62,7 +64,7 @@ Rate limit: `rate_per_min` (429). Kill switch: file `/data/STOP` (503). A reques
 ### Tools
 `brain_help`, `brain_index`, `brain_search` (query, area, limit), `brain_read` (path), `brain_list` (area), `brain_recent` (limit), `brain_links` (path), `brain_graph`, `brain_image`, `brain_text`, `brain_file`, `brain_files`, `brain_write` (path, content, author, summary), `brain_append` (path, text or content, author).
 
-`POST /codex-mcp` uses the separate `codex_read_token` and exposes only `brain_search` and `brain_read`. Both operate only on Markdown notes whose front matter explicitly says `share: true`; notes under `inbox/`, hidden paths, attachments, and all writes are excluded. A missing or invalid token is refused. This is intended for the private Codex Discord worker; note content returned by search/read is sent to its hosted model when used in a turn.
+`POST /codex-mcp` uses the separate `codex_read_token` and exposes only `brain_search` and `brain_read`. Both operate only on Markdown notes whose front matter explicitly says `share: true`; notes under `inbox/`, hidden paths, attachments, and all writes are excluded. A missing or invalid token is refused. Note content returned by search/read is sent to the hosted Codex model when used in a turn.
 
 Rules kept from the component: note paths must end in `.md`, may not contain `..` or start with a dot, and must stay inside `brain_dir`; hidden folders are never listed or read; attachments are limited by type and size; writes are refused if they look like they hold a password, token or key, are over 60 KB, keep the old version in `.history/` (last 20) and add a line to `_log.md`; `updated:` front matter is set on save.
 

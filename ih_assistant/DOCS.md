@@ -28,6 +28,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `timezone` | No | Time zone for check-ins and quiet hours. Default: `Europe/London`. |
 | `facts_url` | No | Setting `facts_url`. |
 | `facts_key` | No | Setting `facts_key`. |
+| `usage_sensor_session` | No | Setting `usage_sensor_session`. |
+| `usage_sensor_week` | No | Setting `usage_sensor_week`. |
+| `usage_sensor_session_reset` | No | Setting `usage_sensor_session_reset`. |
+| `usage_sensor_week_reset` | No | Setting `usage_sensor_week_reset`. |
 | `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, and the optional planner settings... |
 
 ## Troubleshooting
@@ -62,7 +66,6 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/ask` | `{text, options?}` posts the question as the persona and adds tick, cross and question reactions (`options`: any of `yes`, `no`, `unsure`); the person's reactions come back as `reaction` events `{msg_id, emoji}` (live). Dry-run only logs |
 | `POST /persona/<key>/profile` | merges a seed profile |
 | `POST /persona/<key>/identity` | `{username?, avatar?, nickname?}` changes the persona's own Discord name (2..32 characters, no `discord`, `@`, `#`, `:` or code fence), picture (base64 PNG or JPEG, up to 1 MiB) and server nickname (`""` clears it). Limit: 2 username changes an hour per persona (429 with `retry_after`). The new name is saved in the persona profile. Dry-run only logs lengths |
-| `GET /persona/<key>/behaviour` | the persona's levels, a short `prompt` block for the persona prompt, `gif_ok` (a fresh random decision each call), `emoji_max` and `checkins_per_day_cap` |
 | `GET /persona/<key>/plan` | today's planned check-in times (`time`, `kind`, `status`) and the agreed times. Times only |
 | `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
 | `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |

@@ -13,5 +13,7 @@
   "pocket_cloudflare_token": "REPLACE_ME",
   "pocket_key": "REPLACE_ME",
   "scrub_names": "",
-  "cors_origins": ""
+  "cors_origins": "",
+  "ingest_url": "http://172.30.32.1:8790",
+  "ingest_token": ""
 }

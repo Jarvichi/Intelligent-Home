@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from ihlib import trace
 import core
 import settings as ST
 import shortcut
@@ -195,6 +196,7 @@ class Module:
         except Exception as e:
             self.ha, self.error = None, 'no Home Assistant access: ' + str(e)[:80]
         self.threaded = threaded
+        self.tracer = trace.from_options('ih_discord_shopping', opts)   # metadata-only spans; off without an ingest token
 
     def today(self):
         return datetime.date.fromtimestamp(self.clock())
@@ -318,6 +320,7 @@ class Module:
         return bool(ok)
 
     # ---- events ----
+    @trace.traced('message_in')
     def on_in(self, d):
         """One verified `in` event on the shopping channel key (the ack was already sent): a message or a reaction."""
         with self.lock:
@@ -335,6 +338,7 @@ class Module:
                                          'author': {'id': uid, 'username': d.get('author_name') or '', 'bot': False}})
             self.save_state()
 
+    @trace.traced('house_in')
     def on_in_house(self, d):
         """`shop` or `got ...` typed in the house channel key: a plain-text answer (same text as the house feature gave)."""
         with self.lock:
@@ -376,6 +380,7 @@ class Module:
             return S.got_reply(items, done, unsure, missing)
         return None
 
+    @trace.traced('reaction_in')
     def on_reaction(self, d):
         if d.get('added') is not True:
             return
