@@ -1,0 +1,45 @@
+name: version-check
+# Fails when an add-on's files changed but its `version:` in config.yaml did not.
+# Why: build-images only builds, and Home Assistant only offers an update, when the version changes (missed on 3 Nov 2026).
+# Docs-only and tests-only changes are allowed without a bump.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -u
+          if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"; else base="$PUSH_BEFORE"; fi
+          [ -n "$base" ] || { echo "no base commit, skipping"; exit 0; }
+          git cat-file -e "$base" 2>/dev/null || { echo "base not found, skipping"; exit 0; }
+          ver() { sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -1; }
+          bad=""
+          for cfg in */config.yaml; do
+            d=$(dirname "$cfg")
+            old=$(git show "$base:$cfg" 2>/dev/null | ver || true)
+            [ -z "$old" ] && continue
+            new=$(ver < "$cfg")
+            changed=$(git diff --name-only "$base" HEAD -- "$d" | grep -v '/tests/' | grep -v -E '\.md$' || true)
+            if [ -n "$changed" ] && [ "$old" = "$new" ]; then
+              echo "::error title=Version not bumped::$d changed but version is still $new. Bump version in $cfg (also app/manifest.json and CHANGELOG.md)."
+              echo "$changed" | head -5
+              bad="$bad $d"
+            fi
+          done
+          if [ -n "$bad" ]; then echo "Add-ons needing a version bump:$bad"; exit 1; fi
+          echo "ok: every changed add-on has a new version"
