@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.12] - 2026-11-03
+- Move the ingress UI to port 8812 so it cannot race the loopback Home Assistant MCP server on port 8811.
+- Run the health UI and worker as supervised child processes so a worker startup failure stops the add-on instead of leaving a misleading live UI process.
+- Report the deployed add-on version in the signed bus heartbeat and status.
+
 ## [0.1.11] - 2026-11-03
 
 ### Changed
