@@ -28,6 +28,7 @@ profile ih_discord_codex flags=(attach_disconnected,mediate_deleted) {
     # Prefer the verified system Bubblewrap so Codex executes it by its pathname;
     # keep the bundled and distro paths as confined fallbacks.
     /usr/local/bin/bwrap cx -> bwrap,
+    /usr/local/lib/python3.12/site-packages/codex_cli_bin/bin/bwrap cx -> bwrap,
     /usr/local/lib/python3.12/site-packages/codex_cli_bin/codex-resources/bwrap cx -> bwrap,
     /usr/bin/bwrap cx -> bwrap,
 

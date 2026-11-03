@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap git 
     && rm -rf /var/lib/apt/lists/*
 COPY ih_discord_codex/requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt && rm /requirements.txt
+RUN install -m 0755 /usr/local/bin/bwrap /usr/local/lib/python3.12/site-packages/codex_cli_bin/bin/bwrap \
+    && test -x /usr/local/lib/python3.12/site-packages/codex_cli_bin/bin/bwrap
 COPY ih_discord_codex/app /app
 COPY ih_discord_codex/run.sh /run.sh
 COPY . /opt/ih-source

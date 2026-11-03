@@ -5,6 +5,8 @@ import json
 import base64
 import os
 import sys
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -23,6 +25,18 @@ def main():
     os.environ.clear()
     os.environ.update(keep)
     os.environ.update({"HOME": codex_home, "CODEX_HOME": codex_home, "CODEX_SQLITE_HOME": codex_home})
+    bwrap = shutil.which("bwrap")
+    probe = {"path": bwrap, "exec_ok": False, "supports_perms": False, "supports_pid1": False}
+    if bwrap:
+        try:
+            result = subprocess.run([bwrap, "--help"], capture_output=True, text=True, timeout=3, check=False)
+            help_text = result.stdout + result.stderr
+            probe.update({"exec_ok": result.returncode == 0,
+                          "supports_perms": "--perms" in help_text,
+                          "supports_pid1": "--as-pid-1" in help_text})
+        except (OSError, subprocess.SubprocessError) as exc:
+            probe["exec_errno"] = getattr(exc, "errno", None)
+    emit({"type": "sandbox_probe", **probe})
     brain_token = str(request.get("brain_read_token") or "")
     if brain_token:
         os.environ["BRAIN_READ_TOKEN"] = brain_token

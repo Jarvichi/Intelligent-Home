@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.23] - 2026-11-03
+- Put the verified system Bubblewrap in Codex’s executable search directory and log a secret-free launcher probe for path, execute permission, and required options.
+
 ## [0.1.22] - 2026-11-03
 - Set an explicit trusted executable PATH for Codex and its filesystem sandbox helper so it can discover the direct-path system Bubblewrap launcher.
 
