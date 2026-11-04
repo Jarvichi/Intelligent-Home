@@ -6,6 +6,7 @@
     const wrap = api.el('div', null, 'details-content arc-raiders-details');
     const canEdit = typeof api.command === 'function' && typeof api.reload === 'function';
     let toastTimer = null;
+    let doneOpen = false;
 
     function plainError(error) {
       const text = error && error.message ? error.message : '';
@@ -41,7 +42,7 @@
         bar.appendChild(b);
       }
       wrap.appendChild(bar);
-      toastTimer = setTimeout(function () { bar.remove(); }, isError ? 8000 : 10000);
+      toastTimer = setTimeout(function () { bar.remove(); }, isError ? 8000 : 20000);
     }
 
     function questRows() {
@@ -63,6 +64,31 @@
         list.appendChild(li);
       });
       return list;
+    }
+
+    function doneList() {
+      const box = api.el('div', null, 'arc-done');
+      const count = (data.done_quests || []).length;
+      const toggle = api.el('button', 'Done quests (' + count + ')', 'ih-button'); toggle.type = 'button';
+      toggle.setAttribute('aria-expanded', String(doneOpen));
+      box.appendChild(toggle);
+      const list = api.el('ul', null, 'arc-list'); list.hidden = !doneOpen;
+      (data.done_quests || []).forEach(function (q) {
+        const li = api.el('li', null, 'arc-row');
+        const cb = api.el('input'); cb.type = 'checkbox'; cb.className = 'arc-check'; cb.checked = true; cb.disabled = !canEdit;
+        cb.setAttribute('aria-label', 'Untick to mark not done: ' + q.name);
+        cb.addEventListener('change', async function () {
+          cb.disabled = true;
+          const ok = await save('undone', [q.id], li);
+          if (ok) notice('Marked not done: ' + q.name, false); else cb.checked = true;
+        });
+        li.append(cb, api.el('div', q.name, 'arc-row-title'));
+        list.appendChild(li);
+      });
+      if (!count) list.appendChild(api.el('li', 'No done quests yet.', 'ih-muted'));
+      toggle.addEventListener('click', function () { doneOpen = !doneOpen; list.hidden = !doneOpen; toggle.setAttribute('aria-expanded', String(doneOpen)); });
+      box.appendChild(list);
+      return box;
     }
 
     function stepper(label, value, min, max, unit, onSet) {
@@ -120,7 +146,7 @@
       wrap.replaceChildren();
       if (data.error) wrap.appendChild(api.el('p', data.error, 'notice notice-warning'));
       if (data.quests_completed != null) wrap.appendChild(api.section('Quest progress', api.el('p', data.quests_completed + ' quests completed', 'ih-muted')));
-      if (data.open_quests) wrap.appendChild(api.section('Open quests (' + data.open_quests.length + ')', data.open_quests.length ? questRows() : api.el('p', 'No open quests.', 'ih-muted')));
+      if (data.open_quests) wrap.appendChild(api.section('Open quests (' + data.open_quests.length + ')', (function () { const c = api.el('div'); c.append(data.open_quests.length ? questRows() : api.el('p', 'No open quests.', 'ih-muted'), doneList()); return c; }())));
       if (data.hideout && data.hideout.length) wrap.appendChild(api.section('Hideout benches', stepRows(data.hideout, 'bench', 'Level', 'hideout_set', 'level', 'max_level')));
       const projects = (data.projects || []).filter(function (p) { return p.active; });
       if (projects.length) wrap.appendChild(api.section('Active projects', stepRows(projects, 'project', 'Phase', 'project_set', 'done_phases', 'total_phases')));

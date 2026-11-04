@@ -207,6 +207,8 @@ def details(tc, player):
     return {
         "quests_completed": len(s["quests_done"]),
         "open_quests": [{"id": q["id"], "name": _en(q.get("name")), "maps": [g["maps"].get(mid, mid) for mid in (q.get("map") or [])]} for q in open_q],
+        "done_quests": sorted(({"id": i, "name": _en(g["quests"][i]["name"])} for i in s["quests_done"] if i in g["quests"]),
+                              key=lambda r: (r["name"] or "").lower()),
         "hideout": hideout_rows(g, s),
         "projects": project_rows(g, s),
         "needs": need_rows(g, s),

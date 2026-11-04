@@ -140,7 +140,7 @@
     if (gameComponentCache.has(name)) return gameComponentCache.get(name);
     const pending = new Promise(function (resolve, reject) {
       const script = document.createElement('script');
-      script.src = root + 'games/' + name + '.js?v=3'; script.async = true;
+      script.src = root + 'games/' + name + '.js?v=4'; script.async = true;
       script.onload = function () {
         const component = window.IHGameComponents && window.IHGameComponents[name];
         component && typeof component.render === 'function' ? resolve(component) : reject(new Error('The game UI component did not register.'));

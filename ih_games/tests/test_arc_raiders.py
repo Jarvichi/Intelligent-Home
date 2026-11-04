@@ -48,6 +48,14 @@ class ArcTests(unittest.TestCase):
         self.assertEqual([q["id"] for q in A.details(self.tc, "p1")["open_quests"]], ["q_one"])
         self.assertIn("not found", self.run_cmd("undone", "nope"))
 
+    def test_done_quests_list(self):
+        self.assertEqual(A.details(self.tc, "p1")["done_quests"], [])
+        self.run_cmd("done", "q_two")
+        self.run_cmd("done", "q_one")
+        self.assertEqual(A.details(self.tc, "p1")["done_quests"], [{"id": "q_one", "name": "First Quest"}, {"id": "q_two", "name": "Second Quest"}])
+        self.run_cmd("undone", "q_one")
+        self.assertEqual([q["id"] for q in A.details(self.tc, "p1")["done_quests"]], ["q_two"])
+
     def test_hideout_set_checked(self):
         self.assertTrue(self.run_cmd("hideout_set", "bench_x", "2").startswith("Saved"))
         self.assertEqual(A.details(self.tc, "p1")["hideout"][0]["level"], 2)

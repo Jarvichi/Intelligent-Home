@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.1] - 2026-11-04
+
+### Added
+- Arc Raiders card: collapsed "Done quests (N)" list under Open quests; untick a quest to mark it not done. Details include `done_quests`.
+
+### Changed
+- The Undo toast now stays for 20 seconds.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added
