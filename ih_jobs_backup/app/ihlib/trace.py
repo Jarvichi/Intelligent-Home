@@ -1,7 +1,7 @@
 """Metadata-only tracing for IH add-ons. stdlib only. Spans go to the Orchestrator's POST <ingest_url>/trace with the existing ingest token.
 A span carries ONLY: random trace id, span id, parent span id, component, operation, status, short reason code, start time, duration,
 plus an optional `attrs` dict: at most 8 entries, keys from the fixed ATTR_KEYS allowlist, values a small int or a short token (typed, not free-form).
-No message text, no user/channel/entity IDs, no free-form fields exist in the API, so none can leak (sender is a person label such as andrew, never an ID).
+No message text, no user/channel/entity IDs, no free-form fields exist in the API, so none can leak (sender is a configured short label, never an ID).
 Never raises into the caller, never blocks (bounded queue + one daemon sender thread), off when no url or token.
 Usage:   T = trace.from_options('ih_jobs', opts)            # opts: ingest_url + ingest_token (or trace_url)
          with T.span('plugin_pass') as s:                   # new trace; nested spans pick up the parent by themselves

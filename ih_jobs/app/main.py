@@ -20,11 +20,11 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.15.4'
+VERSION = '0.15.5'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')   # built-in jobs
-# 0.15.3 (Andrew 4 Nov 2026): any Jobs child add-on may register its own job name, not only the built-in ones.
+# 0.15.3: any Jobs child add-on may register its own job name, not only the built-in ones.
 CHILD_JOB_RE = re.compile(r'^[a-z][a-z0-9_]{1,31}$')
 RUNNERS = {'backupstore': backupstore.run, 'metoffice': metoffice.run}
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every job goes dry on its next run

@@ -28,7 +28,7 @@ import admin
 import identity
 import approvals
 
-VERSION = '0.10.5'
+VERSION = '0.10.6'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there

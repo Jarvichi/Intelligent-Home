@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.6] - 2026-11-04
+
+### Fixed
+- Remove deployment-specific identity examples from tracing source.
+
 ## [0.10.5] - 2026-11-04
 
 ### Added

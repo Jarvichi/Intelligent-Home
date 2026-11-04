@@ -17,7 +17,7 @@ import planner
 import levels
 import random
 
-VERSION = '0.9.2'
+VERSION = '0.9.3'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -113,6 +113,7 @@ def load_options(path):
                     texts.append('%s|%s' % (d, tx.strip()))
         utext = lambda v: v.strip() if isinstance(v, str) and 0 < len(v.strip()) <= USAGE_TEXT_MAX else ''
         personas.append({
+            'sender_label': p.get('sender_label') if isinstance(p.get('sender_label'), str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]{0,47}', p['sender_label']) else 'unknown',
             'checkin_days': days(p.get('checkin_days')), 'closed_dates': [d.strip() for d in (p.get('closed_dates') or []) if isinstance(d, str) and DATE_RE.match(d.strip())] if isinstance(p.get('closed_dates'), list) else [],
             'checkin_texts': texts, 'checkin_send': p.get('checkin_send') is True,
             'usage_text': utext(p.get('usage_text')), 'usage_text_notime': utext(p.get('usage_text_notime')),
@@ -205,11 +206,10 @@ class Assistant:
         except Exception as e:
             self.log('trace upload failed (%s)' % type(e).__name__)
 
-    SENDER_DEFAULTS = {'clara': 'andrew', 'rob': 'rob', 'claire': 'claire'}
-
     def sender_label(self, key):
-        """Person label for a persona (never an ID). The add-on config has no owner field, so a fixed map; anything else is 'unknown'."""
-        return self.SENDER_DEFAULTS.get(str(key).lower(), 'unknown')
+        """Configured short label; never infer a person's identity from a persona key."""
+        label = self.cfg.get(key, {}).get('sender_label', 'unknown')
+        return label if isinstance(label, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]{0,47}', label) else 'unknown'
 
     def trace_message(self, key, ev):
         """Create a trace at the Discord-to-persona inbox boundary and retain local correlation metadata."""
