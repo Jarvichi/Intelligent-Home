@@ -44,3 +44,21 @@ def validate(raw, source):
             "summary": _text(raw.get("summary"), 180),
             "next_step": _text(raw.get("next_step"), 180),
             "last_activity_at": activity, "metrics": clean}
+
+
+def validate_children(raw, source, now):
+    """Only Jobs may relay bounded child reports from its signed registry."""
+    if source != 'ih_jobs' or not isinstance(raw, list) or len(raw) > 20:
+        raise ValueError('bad child report source or count')
+    out, seen = [], set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError('bad child report')
+        name, sampled = item.get('source'), item.get('sampled_at')
+        if not isinstance(name, str) or not re.fullmatch(r'ih_jobs_[a-z0-9_]{1,27}', name) or name in seen:
+            raise ValueError('bad child identity')
+        if isinstance(sampled, bool) or not isinstance(sampled, (int, float)) or not math.isfinite(sampled) or not 0 <= sampled <= now + 10:
+            raise ValueError('bad child sample time')
+        seen.add(name)
+        out.append({**validate(item, name), 'sampled_at': min(now, sampled)})
+    return out

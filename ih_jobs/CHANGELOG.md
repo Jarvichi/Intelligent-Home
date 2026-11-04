@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.7] - 2026-11-04
+
+### Added
+- Show Jobs child reports inside Manager using their existing signed status channel; retain original sample times so stale children cannot appear freshly reported.
+
 ## [0.15.6] - 2026-11-04
 
 ### Added

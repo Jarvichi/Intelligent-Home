@@ -49,5 +49,27 @@ class UIContributionTests(unittest.TestCase):
                 ui_contribution.validate(bad, "ih_jobs")
 
 
+    def test_child_relay_preserves_sample_freshness_and_strips_private_fields(self):
+        child = dict(self.panel, source='ih_jobs_backup', sampled_at=1000, secret='must not appear')
+        body = {'source':'ih_jobs', 'manifests':[{'name':'ih_jobs','health':[]}],
+                'status':[{'name':'ih_jobs'}], 'child_ui_contributions':[child]}
+        self.assertEqual(main.ingest(json.dumps(body).encode(), now=1100)[0], 200)
+        self.assertEqual(set(main.STATE['extra']), {'ih_jobs'})
+        row = main.contribution_rows(main.STATE['extra'], now=1101)[0]
+        self.assertFalse(row['stale'])
+        self.assertNotIn('secret', row)
+        self.assertEqual(main.ingest(json.dumps(body).encode(), now=1120)[0], 200)
+        self.assertTrue(main.contribution_rows(main.STATE['extra'], now=1121)[0]['stale'])
+        self.assertEqual(main.contribution_rows(main.STATE['extra'], now=1000+main.EXTRA_MAX_AGE+1), [])
+        for bad in ([dict(child, source='ih_assistant')], [dict(child, sampled_at=99999)],
+                    [dict(child, sampled_at=float('nan'))], [child, child]):
+            with self.assertRaises(ValueError):
+                ui_contribution.validate_children(bad, 'ih_jobs', 1100)
+        with self.assertRaises(ValueError):
+            ui_contribution.validate_children([child], 'ih_assistant', 1100)
+        body['manifests']=[{'name':'ih_other'}]
+        self.assertEqual(main.ingest(json.dumps(body).encode(), now=1100)[0],400)
+
+
 if __name__ == '__main__':
     unittest.main()

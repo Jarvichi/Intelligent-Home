@@ -146,17 +146,25 @@ def contribution_rows(extra, now=None):
     now = time.time() if now is None else now
     out = []
     for source, entry in sorted(extra.items()):
-        if not isinstance(entry, dict) or not isinstance(entry.get("ui_contribution"), dict):
+        if not isinstance(entry, dict):
             continue
-        received = entry.get("received_at")
-        if not isinstance(received, (int, float)) or now - received > EXTRA_MAX_AGE:
-            continue
-        try:
-            row = ui_contribution.validate(entry["ui_contribution"], source)
-        except ValueError:
-            continue
-        out.append({**row, "received_at": received, "stale": now - received > 120})
-    return out
+        candidates = []
+        if isinstance(entry.get('ui_contribution'), dict):
+            try:
+                candidates.append((ui_contribution.validate(entry['ui_contribution'], source), entry.get('received_at')))
+            except ValueError:
+                pass
+        if source == 'ih_jobs':
+            try:
+                children = ui_contribution.validate_children(entry.get('child_ui_contributions', []), source, now)
+                candidates.extend((row, row['sampled_at']) for row in children)
+            except ValueError:
+                pass
+        for row, received in candidates:
+            if not isinstance(received, (int, float)) or now - received > EXTRA_MAX_AGE:
+                continue
+            out.append({**row, 'received_at': received, 'stale': now - received > 120})
+    return sorted(out, key=lambda row: row['source'])
 
 
 def consumer_progress_rows(now=None):
@@ -267,10 +275,18 @@ def ingest(body, now=None):
             contribution = ui_contribution.validate(req["ui_contribution"], src)
         except ValueError:
             return 400, {"error": "bad ui contribution"}
+    children = []
+    if 'child_ui_contributions' in req:
+        if not any(x['name'] == src for x in m) or not any(x['name'] == src for x in s):
+            return 400, {'error': 'child report source mismatch'}
+        try:
+            children = ui_contribution.validate_children(req['child_ui_contributions'], src, now)
+        except ValueError:
+            return 400, {'error': 'bad child ui contribution'}
     with LOCK:
         if src:  # a module pushes only its own entries; the host snapshot is not touched
             STATE.setdefault("extra", {})[src] = {"manifests": m, "status": s, "received_at": now,
-                                                   "ui_contribution": contribution}
+                                                   "ui_contribution": contribution, "child_ui_contributions": children}
         else:
             STATE.update(manifests=m, status=s, received_at=now)
     save_state()

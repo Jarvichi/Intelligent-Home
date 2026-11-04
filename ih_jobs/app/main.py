@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.15.6'
+VERSION = '0.15.7'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')   # built-in jobs
@@ -204,7 +204,7 @@ class Module:
         now = time.time() if now is None else now
         with self.children_lock:
             return {j: {'name': c['name'], 'title': c['title'], 'slug': c['slug'], 'version': c['version'], 'mode': c['mode'], 'healthy': c['healthy'],
-                        'up': (now - c['seen']) <= CHILD_FRESH_S, 'seen_s_ago': int(now - c['seen']), 'status': c['status'],
+                        'sampled_at': c['seen'], 'up': (now - c['seen']) <= CHILD_FRESH_S, 'seen_s_ago': int(now - c['seen']), 'status': c['status'],
                         'last_forward': None if j not in self.forward_results else {'s_ago': int(now - self.forward_results[j][0]), 'ok': self.forward_results[j][1]}}
                     for j, c in self.children.items()}
 
@@ -295,6 +295,34 @@ class Module:
                 'would_set_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 
 
+def child_contributions(mod, now):
+    """Relay only signed registry counters; never job details, URLs or options."""
+    if not hasattr(mod, 'children_view'):
+        return []
+    reports, seen = [], set()
+    for child in mod.children_view(now).values():
+        name, sampled, st = child.get('name'), child.get('sampled_at'), child.get('status') or {}
+        if not isinstance(name, str) or not re.fullmatch(r'ih_jobs_[a-z0-9_]{1,27}', name) or name in seen:
+            continue
+        if isinstance(sampled, bool) or not isinstance(sampled, (int, float)) or not 0 <= sampled <= now:
+            continue
+        values = [st.get(k) for k in ('runs', 'errors', 'would_set_total')]
+        if any(isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 1000000000 for v in values):
+            continue
+        runs, errors, would = values
+        age, last = st.get('last_run_s'), st.get('last_ok')
+        activity = sampled - age if not isinstance(age, bool) and isinstance(age, (int, float)) and 0 <= age <= sampled else None
+        state = 'attention' if last is False or not child.get('healthy') else 'ok' if last is True else 'unknown'
+        outcome = 'succeeded' if last is True else 'failed' if last is False else 'not reported'
+        seen.add(name)
+        reports.append({'source': name, 'sampled_at': sampled, 'version': 1, 'state': state,
+            'summary': '%s mode; %d runs; last result %s' % ('live' if child.get('mode') == 'live' else 'dry', runs, outcome),
+            'last_activity_at': activity,
+            'metrics': [{'label': 'Runs', 'value': runs}, {'label': 'Errors', 'value': errors}, {'label': 'Dry-run writes', 'value': would}],
+            'next_step': 'Review recent results in the Jobs view; dry runs do not confirm delivery'})
+    return reports
+
+
 def push(mod, manifest, now=None, opener=None, log=print):
     """POST this module's manifest and status to the Intelligent Home add-on. Never raises. The token is never printed."""
     o = mod.opts
@@ -315,7 +343,7 @@ def push(mod, manifest, now=None, opener=None, log=print):
                                 {'label': 'Child add-ons', 'value': len(st['children'])}],
                     'next_step': 'Review recent job results' if failed else 'Check the Jobs and plugins view for recent results'}
     body = json.dumps({'source': SOURCE, 'manifests': [manifest],
-                       'ui_contribution': contribution,
+                       'ui_contribution': contribution, 'child_ui_contributions': child_contributions(mod, now),
                        'status': [{'name': SOURCE, 'probed_at': now,
                                    'checks': [{'type': 'http', 'ok': st['healthy'], 'detail': '%s, %d would-set, %d children' % (st['mode'], st['would_set_total'], len(st['children']))}]}]}).encode()
     try:

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.12] - 2026-11-04
+
+### Added
+- Show Jobs child reports inside Manager using their existing signed status channel; retain original sample times so stale children cannot appear freshly reported.
+
 ## [0.10.11] - 2026-11-04
 
 ### Added

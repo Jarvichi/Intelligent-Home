@@ -91,3 +91,5 @@ The page tab **Usage** and the line "Used: N today (M failed), last HH:MM" on ea
 - Only counts and times are stored or shown, never log text. Counts are kept per day (14 days) in `/data/usage.json`, so they survive log rotation and restarts; a line is never counted twice.
 - Logs hold only a limited tail, so counts start when this version first ran. Log lines have a time but no date; a quiet spell longer than a day can date very old lines a day late.
 - "Not used in 7 days" is highlighted in the Usage tab: those add-ons are candidates to stop or remove.
+
+Jobs may relay up to 20 child reports from its signed registration channel. Child source names stay within the Jobs family. Reports retain the child sample timestamp for freshness and expire after six hours; forwarding does not replace service health, add credentials, send error text or confirm external delivery.

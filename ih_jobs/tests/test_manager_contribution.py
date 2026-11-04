@@ -41,5 +41,22 @@ class PushTests(unittest.TestCase):
         self.assertNotIn("private-token", json.dumps(panel))
 
 
+    def test_relay_uses_registered_sample_time_and_only_safe_counters(self):
+        class Module:
+            def children_view(self, now):
+                return {'backup': {'name':'ih_jobs_backup','sampled_at':900,'mode':'dry','healthy':True,
+                    'status':{'runs':4,'errors':1,'would_set_total':2,'last_ok':True,'last_run_s':10,
+                              'last_error':'PRIVATE DETAIL', 'url':'PRIVATE URL'}},
+                    'invalid': {'name':'ih_assistant','sampled_at':900,'status':{}},
+                    'malformed': {'name':'ih_jobs_bad','sampled_at':900,'status':{'runs':True,'errors':0,'would_set_total':0}}}
+        rows=main.child_contributions(Module(),1000)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['sampled_at'],900)
+        self.assertEqual(rows[0]['last_activity_at'],890)
+        self.assertEqual(rows[0]['state'],'ok')
+        self.assertNotIn('PRIVATE',json.dumps(rows))
+        self.assertEqual([m['value'] for m in rows[0]['metrics']],[4,1,2])
+
+
 if __name__ == '__main__':
     unittest.main()
