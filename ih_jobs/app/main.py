@@ -20,10 +20,12 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.15.2'
+VERSION = '0.15.3'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
-JOBS = ('backupstore', 'metoffice')
+JOBS = ('backupstore', 'metoffice')   # built-in jobs
+# 0.15.3 (Andrew 4 Nov 2026): any Jobs child add-on may register its own job name, not only the built-in ones.
+CHILD_JOB_RE = re.compile(r'^[a-z][a-z0-9_]{1,31}$')
 RUNNERS = {'backupstore': backupstore.run, 'metoffice': metoffice.run}
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every job goes dry on its next run
 OPTIONS = os.environ.get('IHJ_OPTIONS', '/data/options.json')
@@ -182,7 +184,7 @@ class Module:
             self.child_rejected += 1
             return 401, why
         job, name, url = str(obj.get('job') or ''), str(obj.get('name') or ''), str(obj.get('url') or '').rstrip('/')
-        if job not in JOBS or not name.startswith(SOURCE + '_') or len(name) > 40 or not url.startswith('http://') or len(url) > 120:
+        if not CHILD_JOB_RE.match(job) or not name.startswith(SOURCE + '_') or len(name) > 40 or not url.startswith('http://') or len(url) > 120:
             self.child_rejected += 1
             return 400, 'bad registration'
         with self.children_lock:
@@ -227,8 +229,10 @@ class Module:
 
     def dispatch(self, name, trigger='manual'):
         """Run job `name`: through its registered child when one is up, else the built-in copy (when run_builtin_jobs). Start-up runs skip a live child (it runs itself)."""
-        if name not in JOBS:
-            return False
+        if name not in JOBS:   # child-only job: forward to the child when it is up; there is no built-in copy
+            if not self.child_fresh(name) or trigger == 'startup':
+                return False
+            return self.forward(name)
         if self.child_fresh(name):
             if trigger == 'startup':
                 return True
@@ -446,7 +450,7 @@ def make_handler(mod):
                 out = {'ok': code == 200, 'why': why}
             else:
                 obj, why = jobs_link.unpack(mod.opts.get('register_key', ''), raw, sig)
-                if obj is None or obj.get('job') not in JOBS:
+                if obj is None or (obj.get('job') not in JOBS and obj.get('job') not in mod.children):
                     code, out = (401 if obj is None else 400), {'ok': False, 'why': why if obj is None else 'unknown job'}
                 else:
                     ok = mod.dispatch(obj['job'], 'trigger'); code, out = 200, {'ok': ok, 'job': obj['job']}

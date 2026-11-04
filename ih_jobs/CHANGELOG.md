@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.3] - 2026-11-04
+
+### Changed
+- Any Jobs child add-on can register its own job (name: lowercase letters, digits, `_`), not only `backupstore` and `metoffice`. Child-only jobs are run through their child (no built-in copy). Fixes `ih_jobs_trust` being refused.
+
 ## [0.15.2] - 2026-11-04
 
 ### Changed
