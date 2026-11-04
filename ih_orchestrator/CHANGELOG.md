@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.13] - 2026-11-04
+
+### Changed
+- Catalogue lists Jobs 0.16.0 (new spare_ai plugin).
+
 ## [0.10.12] - 2026-11-04
 
 ### Added
