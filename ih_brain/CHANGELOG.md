@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.6] - 2026-11-04
+
+### Changed
+- Improve browse and search with area filtering, result counts, keyboard tabs, race-safe updates and return-to-selection behavior.
+
 ## [0.2.5] - 2026-11-03
 
 ### Added

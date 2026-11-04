@@ -3,7 +3,7 @@ import json, os, time, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
-ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
+ASSETS={'/ih-patterns.css':'ih-patterns.css','/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
@@ -15,6 +15,24 @@ class Handler(BaseHTTPRequestHandler):
     with urllib.request.urlopen(req,timeout=2) as response: healthy=200<=response.status<400; detail='Health endpoint responded'
    except Exception as e: detail=type(e).__name__
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
+  if path=='/api/jobs':
+   try:
+    req=urllib.request.Request('http://127.0.0.1:%d/status'%INFO['health_port'],headers={'Accept':'application/json'})
+    with urllib.request.urlopen(req,timeout=3) as response:
+     raw=response.read(1024*1024+1)
+    if len(raw)>1024*1024: raise ValueError('status too large')
+    data=json.loads(raw)
+    rows=[]
+    for kind in ('jobs','plugins'):
+     for name,item in (data.get(kind) or {}).items():
+      if not isinstance(item,dict): continue
+      row={key:item.get(key) for key in ('mode','runs','errors','last_ok','last_run','last_run_s','next_run','last_mode','last_error','why')}
+      row.update(name=name,kind='Plugin' if kind=='plugins' else 'Built-in job')
+      rows.append(row)
+    body={'available':True,'checked_at':time.time(),'jobs':rows}
+    return self.reply(200,json.dumps(body).encode(),'application/json; charset=utf-8')
+   except Exception:
+    return self.reply(503,b'{"available":false,"error":"Job results are temporarily unavailable."}','application/json; charset=utf-8')
   name=ASSETS.get(path)
   if not name:return self.send_error(404)
   try: body=(ROOT/name).read_bytes()

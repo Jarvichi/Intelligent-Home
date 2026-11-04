@@ -2,6 +2,9 @@
   const $ = (s) => document.querySelector(s);
   const results = $('#results'), reader = $('#note'), area = $('#area');
   let view = 'browse', notes = [], selected = '', visibleRows = 30;
+  let listRequest = 0, noteRequest = 0, listScroll = 0, pageScroll = 0;
+  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function syncTabs() { document.querySelectorAll('[role=tab]').forEach(t => { const active = t.dataset.view === (view === 'search' ? 'browse' : view); t.setAttribute('aria-selected', String(active)); t.tabIndex = active ? 0 : -1; }); }
   let graphInstance = null, graphResizeObserver = null, graphResizeHandler = null;
   const rowPageSize = 30;
   const mobileList = () => window.matchMedia('(max-width: 760px)').matches;
@@ -25,12 +28,14 @@
     destroyGraph();
     if (!append) { notes = rows; visibleRows = rowPageSize; }
     $('#list-title').textContent = view === 'recent' ? 'Recently changed' : ($('#query').value.trim() ? 'Search results' : 'Notes');
-    const shown = mobileList() ? rows.slice(0, visibleRows) : rows;
-    if (!rows.length) { results.innerHTML = '<ih-empty>No matching notes in this view.</ih-empty>'; return; }
+    const filtered = rows.filter(n => !area.value || n.path.startsWith(area.value + '/'));
+    const shown = mobileList() ? filtered.slice(0, visibleRows) : filtered;
+    $('#result-count').textContent = filtered.length + ' results · ' + shown.length + ' shown';
+    if (!filtered.length) { results.innerHTML = '<ih-empty>No matching notes in this view.</ih-empty>'; return; }
     results.innerHTML = shown.map((n) => `<button class="note-row" type="button" data-path="${esc(n.path)}" aria-current="${n.path === selected}"><strong>${esc(n.title)}</strong><small>${esc(n.path)} · ${esc(n.type || 'note')} · ${esc(n.updated || 'date unknown')}</small></button>`).join('');
-    if (mobileList() && shown.length < rows.length) {
+    if (mobileList() && shown.length < filtered.length) {
       const more = document.createElement('button'); more.type = 'button'; more.className = 'show-more'; more.dataset.more = 'true';
-      more.textContent = `Show ${Math.min(rowPageSize, rows.length - shown.length)} more · ${rows.length - shown.length} remaining`;
+      more.textContent = `Show ${Math.min(rowPageSize, filtered.length - shown.length)} more · ${filtered.length - shown.length} remaining`;
       results.append(more);
     }
   }
@@ -39,48 +44,58 @@
     reader.innerHTML = `<p class="path">${esc(n.path)}</p><h2>${esc(n.title)}</h2><pre>${esc(n.content)}</pre>`;
     results.querySelectorAll('.note-row').forEach((b) => b.setAttribute('aria-current', String(b.dataset.path === selected)));
     document.querySelector('.workspace').dataset.reading = 'true';
-    if (mobileList()) document.querySelector('.reader').scrollIntoView({block:'start', behavior:'smooth'});
+    if (mobileList()) document.querySelector('.reader').scrollIntoView({block:'start', behavior:reducedMotion()?'auto':'smooth'});
   }
   async function loadNotes() {
+    const requestId = ++listRequest; ++noteRequest; syncTabs();
     try {
       destroyGraph(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false'; results.innerHTML = '<ih-loading>Loading notes…</ih-loading>';
       const suffix = view === 'recent' ? 'recent' : `notes?area=${encodeURIComponent(area.value)}`;
       const data = await api(suffix);
+      if (requestId !== listRequest) return;
       renderRows(data.notes || []);
-    } catch (e) { results.innerHTML = `<ih-error role="alert">${esc(e.message)}</ih-error>`; }
+    } catch (e) { if (requestId !== listRequest) return; results.innerHTML = `<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
   async function search() {
     const q = $('#query').value.trim();
     if (!q) { view = 'browse'; await loadNotes(); return; }
-    try { view = 'search'; destroyGraph(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false'; results.innerHTML = '<ih-loading>Searching every note…</ih-loading>'; const d = await api(`search?q=${encodeURIComponent(q)}`); renderRows(d.notes || []); }
-    catch (e) { results.innerHTML = `<ih-error role="alert">${esc(e.message)}</ih-error>`; }
+    const requestId = ++listRequest; ++noteRequest;
+    try { view = 'search'; syncTabs(); destroyGraph(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false'; results.innerHTML = '<ih-loading>Searching every note…</ih-loading>'; const d = await api(`search?q=${encodeURIComponent(q)}`); if (requestId === listRequest) renderRows(d.notes || []); }
+    catch (e) { if (requestId !== listRequest) return; results.innerHTML = `<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
   results.addEventListener('click', async (e) => {
     if (e.target.closest('[data-more]')) { visibleRows += rowPageSize; renderRows(notes, true); return; }
     const b = e.target.closest('[data-path]'); if (!b) return;
-    try { const d = await api(`read?path=${encodeURIComponent(b.dataset.path)}`); renderNote(d); }
-    catch (err) { reader.innerHTML = `<ih-error role="alert">${esc(err.message)}</ih-error>`; }
+    listScroll = results.scrollTop; pageScroll = window.scrollY; const requestId = ++noteRequest;
+    try { const d = await api(`read?path=${encodeURIComponent(b.dataset.path)}`); if(requestId === noteRequest) renderNote(d); }
+    catch (err) { if(requestId !== noteRequest) return; reader.innerHTML = `<ih-error role="alert">${esc(err.message)}</ih-error>`; }
   });
   $('#search').addEventListener('click', search);
   $('#back-to-list').addEventListener('click', () => {
     document.querySelector('.workspace').dataset.reading = 'false';
-    document.querySelector('.note-list').scrollIntoView({block:'start', behavior:'smooth'});
+    ++noteRequest;
+    const row = [...results.querySelectorAll('[data-path]')].find(b => b.dataset.path === selected);
+    if(row) row.focus({preventScroll:true});
+    results.scrollTop = listScroll; window.scrollTo({top:pageScroll, behavior:'auto'});
   });
   $('#query').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
-  area.addEventListener('change', () => { view = 'browse'; loadNotes(); });
+  area.addEventListener('change', () => { if(view === 'graph') { view='browse'; $('#query').value=''; loadNotes(); } else { renderRows(notes); } });
   document.querySelector('ih-tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-view]'); if (!b) return;
-    view = b.dataset.view; document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false';
+    ++listRequest; ++noteRequest; view = b.dataset.view; syncTabs(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false';
     document.querySelectorAll('[role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t === b)));
     if (view === 'graph') { renderGraph(); return; }
     $('#query').value = ''; loadNotes();
   });
   async function renderGraph() {
+    const requestId = ++listRequest;
+    $('#result-count').textContent = '';
     destroyGraph();
     $('#list-title').textContent = 'Knowledge connections';
     results.innerHTML = '<ih-loading>Mapping note connections…</ih-loading>';
     try {
       const d = await api('graph'), nodes = d.nodes || [], links = d.links || [];
+      if(requestId !== listRequest) return;
       if (!window.ForceGraph) throw new Error('The local graph renderer could not be loaded.');
       const groupNames = [...new Set(nodes.map((n) => n.g || 'General'))].sort();
       const colors = ['#7ea2ff','#f5a524','#30a46c','#e5484d','#b07cff','#3aa6d8','#e87bd0','#9bd34a','#ffd166','#8d99ae','#06d6a0','#ff8c42'];
@@ -142,11 +157,12 @@
         if (button.dataset.zoom === 'fit') graphInstance.zoomToFit(350, 32);
         else graphInstance.zoom(Math.max(.2,Math.min(12,graphInstance.zoom()*(button.dataset.zoom==='in'?1.35:1/1.35))),250);
       }));
-    } catch(e) { destroyGraph(); results.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
+    } catch(e) { if(requestId !== listRequest) return; destroyGraph(); results.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
   async function openMapNote(path) {
-    try { const d=await api(`read?path=${encodeURIComponent(path)}`); renderNote(d); }
-    catch(e) { reader.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
+    const requestId = ++noteRequest;
+    try { const d=await api(`read?path=${encodeURIComponent(path)}`); if(requestId === noteRequest) renderNote(d); }
+    catch(e) { if(requestId !== noteRequest) return; reader.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
   (async () => {
     try {
@@ -157,6 +173,13 @@
       renderRows(d.notes); 
     } catch(e) { $('#health').textContent='Unavailable'; $('#count').textContent=e.message; results.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   })();
+  syncTabs();
+  document.querySelector('ih-tabs').addEventListener('keydown', e => {
+    const tabs = [...document.querySelectorAll('[role=tab]')], i = tabs.indexOf(e.target);
+    if(i < 0 || !['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    e.preventDefault(); const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length-1 : (i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;
+    tabs[next].focus(); tabs[next].click();
+  });
   const media = window.matchMedia('(max-width: 760px)');
   const rerenderForWidth = () => { if (view !== 'graph' && notes.length) renderRows(notes); };
   if (media.addEventListener) media.addEventListener('change', rerenderForWidth);
