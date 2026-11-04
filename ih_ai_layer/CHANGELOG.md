@@ -3,6 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.4] - 2026-11-05
+
+### Added
+- Built-in provider `publicapis` (PublicAPIs.io MCP directory, free, no key): capabilities api_search, api_info, api_quickstart, api_compare, api_offerings. Result cache (`cache_hours`, default 24). The owner-side deal tools are not implemented.
+- Keyword rule routes "public API" style requests to api_search.
+- Tests for the provider (`tests/test_publicapis.py`).
+
+### Changed
+- Gemini default model is now `gemini-3.5-flash` (Google retired 2.5 flash for this account).
+
 ## [0.4.3] - 2026-11-04
 
 ### Fixed

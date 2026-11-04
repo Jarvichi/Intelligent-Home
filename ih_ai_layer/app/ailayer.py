@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.3'
+VERSION = '0.4.4'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -33,6 +33,7 @@ def _tag(v, default='-'):
 # capability -> keywords (lower case, substring match on the request text). First capability with most hits wins; no hit = no capability.
 KEYWORDS = {
     'showtimes': ('showtime', 'showing', 'cinema', 'film', 'movie', 'odeon', 'screening', "what's on at", 'whats on at'),
+    'api_search': ('public api', 'free api', 'open api', 'rest api', 'api for', 'an api', 'api that', 'api to'),
     'web_search': ('search', 'look up', 'lookup', 'google', 'find out', 'latest', 'news', 'who is', 'what is', 'how much', 'when is'),
 }
 
