@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.9] - 2026-11-04
+
+### Changed
+- Give the rich application a clear Brain sidebar title and purpose-specific icon.
+- Declare administrator-only sidebar access explicitly; visibility stays a per-installation Home Assistant preference.
+
 ## [0.2.8] - 2026-11-04
 
 ### Fixed

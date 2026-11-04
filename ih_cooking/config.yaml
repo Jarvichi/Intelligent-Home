@@ -1,5 +1,5 @@
 name: "Intelligent Home - Cooking"
-version: "0.6.9"
+version: "0.6.10"
 slug: ih_cooking
 image: "ghcr.io/jarvichi/{arch}-ih_cooking"
 description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
@@ -14,7 +14,9 @@ init: false
 homeassistant_api: true
 ingress: true
 ingress_port: 8810
-ingress_panel: false
+panel_title: "Cooking"
+panel_icon: mdi:chef-hat
+panel_admin: true
 ports:
   8809/tcp: 8809
 ports_description:

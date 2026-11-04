@@ -120,3 +120,6 @@ last-published section fingerprints. Detected edits to generated sections requir
 silently overwritten. An initial legacy note is adopted only when its generated content matches the
 canonical recipe. The Brain API has no compare-and-swap: simultaneous external edits between a read
 and write are not atomic; Brain history remains available. No note content or credentials appear in status.
+
+
+The rich Cooking interface can open directly from the Home Assistant sidebar. Enable **Show in sidebar** on the app page. Its title is **Cooking** and access is restricted to administrators. This does not change other dashboard access or the app options. Background-worker reports stay inside Intelligent Home Manager.

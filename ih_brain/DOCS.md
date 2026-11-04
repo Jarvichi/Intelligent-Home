@@ -75,3 +75,6 @@ With `read_only` true (the default) `brain_write` and `brain_append` return an e
 1. Install the add-on, set `api_token` to a long random text, start it, check `/status`.
 2. Add a second MCP server next to the old one: `claude mcp add --transport http house-brain-new http://<host>:8820/mcp --header "Authorization: Bearer <api_token>"`. Test a search.
 3. When it answers the same, set `read_only` to false if Claude should write, then remove the old entry and re-add the new one under the old name (`house-brain`). The Home Assistant component stays installed as a fallback.
+
+
+The rich Brain interface can open directly from the Home Assistant sidebar. Enable **Show in sidebar** on the app page. Its title is **Brain** and access is restricted to administrators. This does not change other dashboard access or the app options. Background-worker reports stay inside Intelligent Home Manager.
