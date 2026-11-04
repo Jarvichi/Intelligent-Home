@@ -74,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
   path=self.path.split('?',1)[0]
-  if not re.fullmatch(r'/api/games/[A-Za-z0-9_-]{1,120}/art',path):
+  if not re.fullmatch(r'/api/games/[A-Za-z0-9_-]{1,120}/(?:art|cmd)',path):
    return self.send_error(404)
   return self.game_api(path,'POST')
  def game_api(self,path,method='GET'):
@@ -115,7 +115,19 @@ class Handler(BaseHTTPRequestHandler):
   if not token:
    return self.reply(503,json.dumps({'ok':False,'error':'The Games API is not configured.'}).encode(),'application/json; charset=utf-8')
   art_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art',path)
-  if art_request and method=='POST':
+  cmd_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/cmd',path)
+  if cmd_request and method=='POST':
+   try:
+    length=int(self.headers.get('Content-Length') or 0)
+    sent=json.loads(self.rfile.read(length) if 0<length<=8192 else b'{}')
+    cmd=str(sent.get('cmd') or '').strip().lower()
+    args=[str(a) for a in (sent.get('args') or [])]
+    if not re.fullmatch(r'[a-z_]{1,32}',cmd) or len(args)>8 or any(len(a)>200 for a in args): raise ValueError
+   except (ValueError,TypeError,AttributeError):
+    return self.reply(400,json.dumps({'ok':False,'error':'That change was not understood.'}).encode(),'application/json; charset=utf-8')
+   upstream='/games/'+cmd_request.group(1)+'/cmd'
+   request_body=json.dumps({'player':player,'cmd':cmd,'args':args}).encode()
+  elif art_request and method=='POST':
    upstream='/games/'+art_request.group(1)+'/art?'+urllib.parse.urlencode({'player':player})
    request_body=b'{}'
   elif path=='/api/library' and method=='GET':

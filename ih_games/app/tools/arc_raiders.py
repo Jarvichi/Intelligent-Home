@@ -116,7 +116,7 @@ def need_rows(g, s):
     rows = []
     for iid in set(now) | set(later):
         n, l, have = now.get(iid, 0), later.get(iid, 0), s["inventory"].get(iid, 0)
-        rows.append({"item": _iname(g, iid), "now": n, "later": l, "have": have, "short": max(0, n - have),
+        rows.append({"id": iid, "item": _iname(g, iid), "now": n, "later": l, "have": have, "short": max(0, n - have),
                      "status": "NEED" if have < n else ("Later" if have < n + l else "Enough"), "for": ", ".join(why[iid][:2])})
     rows.sort(key=lambda r: (-r["short"], r["item"]))
     return rows
@@ -144,7 +144,7 @@ def inv_rows(g, s):
     for iid, have in s["inventory"].items():
         it = items.get(iid)
         if not it:
-            rows.append({"item": iid, "surplus": have, "action": "unknown item id", "gain": 0})
+            rows.append({"id": iid, "have": have, "item": iid, "surplus": have, "action": "unknown item id", "gain": 0})
             continue
         keep = now.get(iid, 0) + later.get(iid, 0)
         if it.get("questItem"):
@@ -159,7 +159,7 @@ def inv_rows(g, s):
             act = "RECYCLE %d" % surplus
         else:
             act = "SELL %d" % surplus
-        rows.append({"item": _iname(g, iid), "surplus": surplus, "action": act, "gain": surplus * (it.get("value") or 0)})
+        rows.append({"id": iid, "have": have, "item": _iname(g, iid), "surplus": surplus, "action": act, "gain": surplus * (it.get("value") or 0)})
     rows.sort(key=lambda r: -r["gain"])
     return rows
 
@@ -178,6 +178,25 @@ def summary(tc, player):
     return "Arc Raiders: %d quests done, %d open now, %d item types short for what is open." % (len(s["quests_done"]), len(open_q), len(short))
 
 
+def hideout_rows(g, s):
+    rows = []
+    for hid, h in g["hideout"].items():
+        top = h.get("maxLevel") or max([lv["level"] for lv in h.get("levels", [])] or [0])
+        rows.append({"id": hid, "name": _en(h.get("name")), "level": min(_num(s["hideout"].get(hid, 0)) or 0, top), "max_level": top})
+    rows.sort(key=lambda r: r["name"] or r["id"])
+    return rows
+
+
+def project_rows(g, s):
+    rows = []
+    for p in g["projects"]:
+        total = len(p.get("phases", []))
+        rows.append({"id": p["id"], "name": _en(p.get("name")), "active": p["id"] in s["projects_active"],
+                     "done_phases": min(_num(s["projects_done_phases"].get(p["id"], 0)) or 0, total), "total_phases": total})
+    rows.sort(key=lambda r: r["name"] or r["id"])
+    return rows
+
+
 def details(tc, player):
     """Return complete read-only progress for the authenticated Games UI."""
     g = game_data(tc)
@@ -187,7 +206,9 @@ def details(tc, player):
     open_q, *_ = compute(g, s)
     return {
         "quests_completed": len(s["quests_done"]),
-        "open_quests": [{"name": _en(q.get("name")), "maps": [g["maps"].get(mid, mid) for mid in (q.get("map") or [])]} for q in open_q],
+        "open_quests": [{"id": q["id"], "name": _en(q.get("name")), "maps": [g["maps"].get(mid, mid) for mid in (q.get("map") or [])]} for q in open_q],
+        "hideout": hideout_rows(g, s),
+        "projects": project_rows(g, s),
         "needs": need_rows(g, s),
         "maps": map_rows(g, s),
         "inventory": inv_rows(g, s),
@@ -250,6 +271,21 @@ def cmd_done(tc, player, args):
     return "Marked done: %s." % _en(g["quests"][m[0]]["name"])
 
 
+def cmd_undone(tc, player, args):
+    g = game_data(tc)
+    if not g:
+        return _nodata()
+    q = " ".join(args).strip().lower()
+    m = [i for i, x in g["quests"].items() if q in (i, _en(x["name"]).lower())]
+    if len(m) != 1:
+        return "Quest not found or not exact (%d matches)." % len(m)
+    s = load_state(tc, player)
+    if m[0] in s["quests_done"]:
+        s["quests_done"].remove(m[0])
+        save_state(tc, player, s)
+    return "Marked not done: %s." % _en(g["quests"][m[0]]["name"])
+
+
 def _num(v):
     try:
         return int(v)
@@ -286,4 +322,45 @@ def cmd_project(tc, player, args):
     return "Saved: project %s, %d phases done." % (args[0], _num(args[1]))
 
 
-commands = {"need": cmd_need, "maps": cmd_maps, "inv": cmd_inv, "done": cmd_done, "have": cmd_have, "hideout": cmd_hideout, "project": cmd_project}
+def cmd_hideout_set(tc, player, args):
+    """Checked version of 'hideout': exact station id, level 0..max."""
+    g = game_data(tc)
+    if not g:
+        return _nodata()
+    if len(args) != 2 or _num(args[1]) is None:
+        return "Use: hideout_set <station id> <level>"
+    row = next((r for r in hideout_rows(g, load_state(tc, player)) if r["id"] == args[0]), None)
+    if not row:
+        return "Unknown hideout station: %s." % args[0]
+    lvl = _num(args[1])
+    if lvl < 0 or lvl > row["max_level"]:
+        return "%s level must be 0 to %d." % (row["name"], row["max_level"])
+    s = load_state(tc, player)
+    s["hideout"][args[0]] = lvl
+    save_state(tc, player, s)
+    return "Saved: %s level %d." % (row["name"], lvl)
+
+
+def cmd_project_set(tc, player, args):
+    """Checked version of 'project': exact project id, phases done 0..total."""
+    g = game_data(tc)
+    if not g:
+        return _nodata()
+    if len(args) != 2 or _num(args[1]) is None:
+        return "Use: project_set <project id> <phases done>"
+    row = next((r for r in project_rows(g, load_state(tc, player)) if r["id"] == args[0]), None)
+    if not row:
+        return "Unknown project: %s." % args[0]
+    n = _num(args[1])
+    if n < 0 or n > row["total_phases"]:
+        return "%s phases done must be 0 to %d." % (row["name"], row["total_phases"])
+    s = load_state(tc, player)
+    if args[0] not in s["projects_active"]:
+        s["projects_active"].append(args[0])
+    s["projects_done_phases"][args[0]] = n
+    save_state(tc, player, s)
+    return "Saved: %s, %d of %d phases done." % (row["name"], n, row["total_phases"])
+
+
+commands = {"need": cmd_need, "maps": cmd_maps, "inv": cmd_inv, "done": cmd_done, "have": cmd_have, "hideout": cmd_hideout, "project": cmd_project,
+            "undone": cmd_undone, "hideout_set": cmd_hideout_set, "project_set": cmd_project_set}

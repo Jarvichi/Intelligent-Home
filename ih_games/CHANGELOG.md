@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-11-04
+
+### Added
+- Arc Raiders card: tick boxes for open quests with a short Undo, hideout bench and project steppers, and "I have" number boxes for materials. Each save re-loads the details so needs and next quests update.
+- Details now carry quest ids, hideout benches (level and max), projects (active, phases) and item ids with counts.
+- New checked commands `undone`, `hideout_set` and `project_set`; existing chat commands are unchanged.
+- The UI proxy forwards `POST /api/games/<id>/cmd` with the same admin-only ingress access as the rest of the UI.
+
 ## [0.6.15] - 2026-11-04
 
 ### Changed

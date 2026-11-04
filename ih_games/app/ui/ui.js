@@ -83,8 +83,8 @@
     if (data.fetched) return { state: 'unknown', text: 'Saved tracker data · ' + fmtDate(data.fetched) + ' · freshness not reported' };
     return { state: 'unknown', text: 'Tracker freshness is not reported' };
   }
-  async function request(path, method) {
-    const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
+  async function request(path, method, payload) {
+    const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? JSON.stringify(payload || {}) : undefined });
     let data;
     try { data = await r.json(); } catch (_) { throw new Error('The Games service returned an unreadable response.'); }
     if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The Games service could not load this data.');
@@ -140,7 +140,7 @@
     if (gameComponentCache.has(name)) return gameComponentCache.get(name);
     const pending = new Promise(function (resolve, reject) {
       const script = document.createElement('script');
-      script.src = root + 'games/' + name + '.js?v=2'; script.async = true;
+      script.src = root + 'games/' + name + '.js?v=3'; script.async = true;
       script.onload = function () {
         const component = window.IHGameComponents && window.IHGameComponents[name];
         component && typeof component.render === 'function' ? resolve(component) : reject(new Error('The game UI component did not register.'));
@@ -151,12 +151,24 @@
     gameComponentCache.set(name, pending);
     return pending;
   }
-  async function detailsContent(payload) {
+  async function detailsContent(payload, ctx) {
     const data = payload.details || {};
     if (payload.ui_component) {
       try {
         const component = await loadGameComponent(payload.ui_component);
-        return component.render(data, { el, section, row, dataTable, fmtDate, gameId: payload.game_id || payload.game });
+        const gameId = payload.game_id || payload.game;
+        const base = 'api/games/' + encodeURIComponent(gameId);
+        const player = ctx && ctx.player;
+        const helpers = { el, section, row, dataTable, fmtDate, gameId };
+        if (player) {
+          helpers.command = function (cmd, args) { return request(base + '/cmd?player=' + encodeURIComponent(player), 'POST', { cmd: cmd, args: args || [] }); };
+          helpers.reload = async function () {
+            const fresh = await request(base + '/details?player=' + encodeURIComponent(player));
+            detailCache.set(ctx.key, { payload: fresh, saved: Date.now() });
+            return fresh.details || {};
+          };
+        }
+        return component.render(data, helpers);
       } catch (error) {
         return el('p', error.message, 'notice notice-warning');
       }
@@ -277,7 +289,7 @@
         const payload = cached && Date.now() - cached.saved < 60000 ? cached.payload : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
         detailCache.set(expansionKey, { payload, saved: Date.now() });
         showTrackerStatus(payload);
-        detail.replaceChildren(await detailsContent(payload)); detail.dataset.loaded = 'true';
+        detail.replaceChildren(await detailsContent(payload, { player: player, key: expansionKey })); detail.dataset.loaded = 'true';
       } catch (e) {
         trackerStatus.textContent = 'Tracker unavailable'; trackerStatus.dataset.state = 'unavailable';
         showError(detail, e.message);
