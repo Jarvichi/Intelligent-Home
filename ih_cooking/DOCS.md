@@ -109,3 +109,5 @@ Live control is allowed only when **all** of these hold, checked when a cook sta
 5. `other_controller_entity` is not this add-on's own `plan_sensor_entity`.
 
 If anything cannot be read or is in doubt, live control is refused (fail closed). If the guard fails while a cook is running, the cook carries on in dry mode and the log says `GUARD: ...`. `GET /cook` shows the reason.
+
+The recipe editor supports equipment, a child reminder note and short display labels for each step. Editing step wording preserves its existing oven and other metadata. Invalid fields are rejected before writing and every existing-recipe save keeps a distinct backup. The editor does not replace Home Assistant meal-plan controls or their access model.

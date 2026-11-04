@@ -2,7 +2,9 @@
 Data lives in /data: recipes/<slug>.json, recipe_backups/, staples.json, meal_items.json, mealplan.json."""
 import base64, json, os, re, time
 
-EDIT = ('name', 'title', 'oven', 'serves', 'ro' + 'b_minutes', 'steps', 'prep', 'shopping', 'equipment')
+RK = 'ro' + 'b_'  # Compatibility keys used by existing recipe files.
+
+EDIT = ('name', 'title', 'oven', 'serves', RK + 'minutes', RK + 'note', 'steps', 'prep', 'shopping', 'equipment')
 SLUG = re.compile(r'^[a-z0-9-]{1,60}$')
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 
@@ -17,6 +19,7 @@ def validate(d):
     if d.get('serves') not in (None, '') and not ((isinstance(d['serves'], int) and not isinstance(d['serves'], bool) and 1 <= d['serves'] <= 20) or (isinstance(d['serves'], str) and len(d['serves']) <= 40)): e.append('serves: number or short text')
     for k in ('prep', 'shopping', 'equipment'):
         if k in d and not (isinstance(d[k], list) and all(isinstance(x, str) and len(x) <= 300 for x in d[k])): e.append(f'{k}: list of text')
+    if RK + 'note' in d and not (isinstance(d[RK + 'note'], str) and len(d[RK + 'note']) <= 1000): e.append('child message note: text up to 1000 chars')
     if 'steps' in d:
         s = d['steps']
         if not (isinstance(s, list) and s): e.append('steps: need at least one')
@@ -25,11 +28,19 @@ def validate(d):
                 if not (isinstance(x, dict) and isinstance(x.get('text'), str) and x['text'].strip() and len(x['text']) <= 600
                         and isinstance(x.get('before'), int) and not isinstance(x.get('before'), bool) and 0 <= x['before'] <= 600):
                     e.append(f'step {i+1}: needs text and whole minutes before serving 0-600')
+                if isinstance(x, dict):
+                    for key, maximum in (('short', 34), ('note', 200)):
+                        if key in x and not (isinstance(x[key], str) and len(x[key]) <= maximum): e.append(f'step {i+1}: {key} must be text up to {maximum} chars')
+                    if '_original_text' in x and not (isinstance(x['_original_text'], str) and len(x['_original_text']) <= 600): e.append(f'step {i+1}: invalid original text')
+                    if '_new_step' in x and (not isinstance(x['_new_step'], bool) or (x['_new_step'] and '_original_index' in x)): e.append(f'step {i+1}: invalid new step')
+                    if '_original_index' in x and (isinstance(x['_original_index'], bool) or not isinstance(x['_original_index'], int) or x['_original_index'] < 0): e.append(f'step {i+1}: invalid original step')
     return e
 
 
 def atomic(path, obj):
-    tmp = path + '.tmp'; json.dump(obj, open(tmp, 'w'), indent=1, ensure_ascii=False); os.replace(tmp, path)
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as handle: json.dump(obj, handle, indent=1, ensure_ascii=False)
+    os.replace(tmp, path)
 
 
 def save_recipe(data, slug, d):
@@ -38,9 +49,13 @@ def save_recipe(data, slug, d):
     if not SLUG.match(slug or '') or not os.path.exists(f): return False, ['no such recipe']
     e = validate(d)
     if e: return False, e
-    r = json.load(open(f)); old = json.loads(json.dumps(r))
+    with open(f, encoding='utf-8') as handle: r = json.load(handle)
+    old = json.loads(json.dumps(r))
+    indices = [step['_original_index'] for step in d.get('steps', []) if '_original_index' in step]
+    if len(indices) != len(set(indices)) or any(i >= len(old.get('steps', [])) for i in indices): return False, ['invalid original step reference']
+    if any('_original_index' in step and '_original_text' in step and step['_original_text'] != old['steps'][step['_original_index']].get('text') for step in d.get('steps', [])): return False, ['recipe changed; reload before editing']
     bdir = os.path.join(data, 'recipe_backups'); os.makedirs(bdir, exist_ok=True)
-    atomic(os.path.join(bdir, '%s-%s.json' % (slug, time.strftime('%Y%m%d-%H%M%S'))), r)
+    atomic(os.path.join(bdir, '%s-%s-%s.json' % (slug, time.strftime('%Y%m%d-%H%M%S'), time.time_ns())), r)
     for k in EDIT:
         if k in d:
             if d[k] in (None, '') and k in ('oven', 'serves'):
@@ -49,7 +64,14 @@ def save_recipe(data, slug, d):
             else: r[k] = d[k]
     if 'steps' in d:
         olds = {s.get('text'): s for s in old.get('steps', [])}
-        r['steps'] = [dict(before=s['before'], text=s['text'], **{k: v for k, v in olds.get(s['text'], {}).items() if k not in ('before', 'text')}) for s in d['steps']]
+        merged = []
+        for step in d['steps']:
+            base = old['steps'][step['_original_index']] if '_original_index' in step else {} if step.get('_new_step') else olds.get(step['text'], {})
+            updated = dict(base, before=step['before'], text=step['text'])
+            if 'short' in step: updated['short'] = step['short'] or step['text'][:34]
+            for key in ('_original_index', '_original_text', '_new_step'): updated.pop(key, None)
+            merged.append(updated)
+        r['steps'] = merged
     atomic(f, r)
     return True, []
 
@@ -58,13 +80,18 @@ def create_recipe(data, d):
     """New recipe from the builder (host recipes.py save). d has name/title and steps. Returns (ok, slug-or-errors)."""
     if not isinstance(d, dict): return False, ['not an object']
     n = re.sub(r'[^a-z0-9-]+', '-', str(d.get('id') or d.get('name') or d.get('title') or 'recipe').lower()).strip('-')[:40] or 'recipe'
-    steps = [dict(dict(before=int(s.get('before', 0)), text=str(s.get('text', ''))[:200], short=str(s.get('short') or s.get('text', ''))[:34]),
-                  **({'note': str(s['note'])[:200]} if s.get('note') else {})) for s in d.get('steps', []) if isinstance(s, dict) and str(s.get('text', '')).strip()]
+    e = validate(d)
+    if e: return False, e
+    if not d.get('steps'): return False, ['steps: need at least one']
+    if not (d.get('title') or d.get('name')): return False, ['recipe title required']
+    steps = []
+    for step in d.get('steps', []):
+        item = {key: step[key] for key in ('before', 'text', 'note') if key in step}
+        item['short'] = step.get('short') or step['text'][:34]
+        steps.append(item)
     r = {k: v for k, v in d.items() if k not in ('id', '_edit', 'steps', 'prep', 'shopping', 'equipment')}
     r['steps'] = steps
-    for k in ('prep', 'shopping', 'equipment'): r[k] = [str(p)[:80] for p in d.get(k, []) if str(p).strip()]
-    e = validate(r)
-    if e: return False, e
+    for k in ('prep', 'shopping', 'equipment'): r[k] = [value for value in d.get(k, []) if value.strip()]
     rdir = os.path.join(data, 'recipes'); os.makedirs(rdir, exist_ok=True)
     if os.path.exists(os.path.join(rdir, n + '.json')): return False, ['recipe %s already exists (edit it instead)' % n]
     atomic(os.path.join(rdir, n + '.json'), r)

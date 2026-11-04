@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.7] - 2026-11-04
+
+### Added
+- Labelled equipment, child reminder note and per-step short display labels in the shared-style recipe editor.
+- Add/remove step controls, pending-save feedback and accessible validation messages.
+
+### Fixed
+- Preserve existing oven settings and other step metadata when wording changes or steps move.
+- Keep all accepted recipe text and equipment values when creating recipes; reject invalid fields before writing.
+- Keep distinct backups for rapid successive edits.
+
 ## [0.6.6] - 2026-11-04
 
 ### Fixed
