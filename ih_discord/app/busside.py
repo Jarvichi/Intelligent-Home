@@ -355,6 +355,15 @@ class BusTransport:
             res = self._fail('discord_error', 'internal error')
         res['op_id'] = oid
         if sp is not None:
+            try:
+                txt = d.get('text') if isinstance(d.get('text'), str) else ''
+                back = res.get('text') if isinstance(res.get('text'), str) else ''
+                sp.set(in_bytes=len(txt.encode('utf-8')), out_bytes=len(back.encode('utf-8')))
+                hs = res.get('http_status')
+                if isinstance(hs, int):
+                    sp.set(http_status=hs)
+            except Exception:
+                pass
             if res.get('ok') is False:
                 sp.fail(res.get('code') or 'failed')
             sp.end()

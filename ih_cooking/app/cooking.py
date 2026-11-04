@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.6.4'
+VERSION = '0.6.5'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 

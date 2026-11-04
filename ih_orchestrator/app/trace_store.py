@@ -10,9 +10,32 @@ TRACE_ID = re.compile(r"^[a-f0-9]{32}$")
 SPAN_ID = re.compile(r"^[a-f0-9]{16}$")
 TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,48}$")
 STATUSES = {"ok", "error", "skipped", "unknown"}
+ATTR_KEYS = ("sender", "persona", "kind", "in_bytes", "out_bytes", "attachments", "items", "http_status", "retries", "chars")
+MAX_ATTRS = 8
+MAX_ATTR_INT = 1000000000
 MAX_BODY_SPANS = 40
 MAX_SPANS = 5000
 RETENTION_S = 7 * 86400
+
+
+def _attr_ok(k, v):
+    if k not in ATTR_KEYS or isinstance(v, bool):
+        return False
+    if isinstance(v, int):
+        return 0 <= v <= MAX_ATTR_INT
+    return isinstance(v, str) and bool(TOKEN.fullmatch(v))
+
+
+def clean_attrs(raw):
+    """Typed metadata only: allowlisted keys, int or short token values, at most 8. Bad entries are dropped silently."""
+    out = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if len(out) >= MAX_ATTRS:
+                break
+            if _attr_ok(k, v):
+                out[k] = v
+    return out
 
 
 class TraceStore:
@@ -43,7 +66,7 @@ class TraceStore:
 
     @staticmethod
     def _valid_saved(x):
-        if not isinstance(x, dict) or set(x) != {"trace_id", "span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "ended_at", "duration_ms"}:
+        if not isinstance(x, dict) or set(x) not in ({"trace_id", "span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "ended_at", "duration_ms"}, {"trace_id", "span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "ended_at", "duration_ms"} | {"attrs"}):
             return False
         if not TRACE_ID.fullmatch(str(x.get("trace_id") or "")) or not SPAN_ID.fullmatch(str(x.get("span_id") or "")):
             return False
@@ -55,6 +78,10 @@ class TraceStore:
         reason = str(x.get("reason") or "")
         if reason and not TOKEN.fullmatch(reason):
             return False
+        if "attrs" in x:
+            a = x["attrs"]
+            if not isinstance(a, dict) or not a or len(a) > MAX_ATTRS or not all(_attr_ok(k, v) for k, v in a.items()):
+                return False
         try:
             started, ended, duration = float(x.get("started_at")), float(x.get("ended_at")), int(x.get("duration_ms"))
             return math.isfinite(started) and math.isfinite(ended) and 0 <= duration <= 3600000
@@ -65,7 +92,7 @@ class TraceStore:
     def _clean_span(trace_id, raw, now):
         if not isinstance(raw, dict):
             return None
-        if set(raw) != {"span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "duration_ms"}:
+        if set(raw) not in ({"span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "duration_ms"}, {"span_id", "parent_span_id", "component", "operation", "status", "reason", "started_at", "duration_ms"} | {"attrs"}):
             return None
         sid, parent = str(raw.get("span_id") or ""), raw.get("parent_span_id")
         component, operation, status = str(raw.get("component") or ""), str(raw.get("operation") or ""), str(raw.get("status") or "")
@@ -83,10 +110,14 @@ class TraceStore:
         reason = str(raw.get("reason") or "")
         if reason and not TOKEN.fullmatch(reason):
             return None
-        return {"trace_id": trace_id, "span_id": sid, "parent_span_id": parent,
+        span = {"trace_id": trace_id, "span_id": sid, "parent_span_id": parent,
                 "component": component, "operation": operation, "status": status,
                 "reason": reason[:48], "started_at": started,
                 "ended_at": started + duration / 1000.0, "duration_ms": duration}
+        attrs = clean_attrs(raw.get("attrs"))
+        if attrs:
+            span["attrs"] = attrs
+        return span
 
     def _prune(self, now):
         cutoff = now - RETENTION_S

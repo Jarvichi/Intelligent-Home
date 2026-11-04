@@ -1,6 +1,7 @@
 """Metadata-only tracing for IH add-ons. stdlib only. Spans go to the Orchestrator's POST <ingest_url>/trace with the existing ingest token.
-A span carries ONLY: random trace id, span id, parent span id, component, operation, status, short reason code, start time, duration.
-No message text, no user/channel/entity IDs, no free-form fields exist in the API, so none can leak.
+A span carries ONLY: random trace id, span id, parent span id, component, operation, status, short reason code, start time, duration,
+plus an optional `attrs` dict: at most 8 entries, keys from the fixed ATTR_KEYS allowlist, values a small int or a short token (typed, not free-form).
+No message text, no user/channel/entity IDs, no free-form fields exist in the API, so none can leak (sender is a person label such as andrew, never an ID).
 Never raises into the caller, never blocks (bounded queue + one daemon sender thread), off when no url or token.
 Usage:   T = trace.from_options('ih_jobs', opts)            # opts: ingest_url + ingest_token (or trace_url)
          with T.span('plugin_pass') as s:                   # new trace; nested spans pick up the parent by themselves
@@ -12,6 +13,9 @@ TOKEN = re.compile(r'^[A-Za-z0-9_.-]{1,48}$')
 STATUSES = ('ok', 'error', 'skipped', 'unknown')
 MAX_BODY_SPANS = 40
 MAX_MS = 3600000
+ATTR_KEYS = ('sender', 'persona', 'kind', 'in_bytes', 'out_bytes', 'attachments', 'items', 'http_status', 'retries', 'chars')
+MAX_ATTRS = 8
+MAX_ATTR_INT = 1000000000
 _current = contextvars.ContextVar('ih_trace_span', default=None)
 
 
@@ -19,6 +23,30 @@ def clean(value, default='unknown'):
     """Force a short code made of letters, digits and _ . - only (anything else becomes _)."""
     s = re.sub(r'[^A-Za-z0-9_.-]', '_', str(value if value is not None else ''))[:48]
     return s or default
+
+
+def _attr_ok(k, v):
+    if k not in ATTR_KEYS:
+        return False
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, int):
+        return 0 <= v <= MAX_ATTR_INT
+    return isinstance(v, str) and bool(TOKEN.fullmatch(v))
+
+
+def clean_attrs(attrs):
+    """Keep only allowlisted keys with an int 0..1e9 or a short token value; at most MAX_ATTRS. Never raises."""
+    out = {}
+    try:
+        for k, v in (attrs.items() if isinstance(attrs, dict) else ()):
+            if len(out) >= MAX_ATTRS:
+                break
+            if _attr_ok(k, v):
+                out[k] = v
+    except Exception:
+        return {}
+    return out
 
 
 def new_trace_id():
@@ -32,8 +60,12 @@ def new_span_id():
 def valid_span(d):
     """True if a span dict has exactly the allowed keys and values (same rules as the Orchestrator)."""
     keys = {'span_id', 'parent_span_id', 'component', 'operation', 'status', 'reason', 'started_at', 'duration_ms'}
-    if not isinstance(d, dict) or set(d) != keys:
+    if not isinstance(d, dict) or not (set(d) == keys or set(d) == keys | {'attrs'}):
         return False
+    if 'attrs' in d:
+        a = d['attrs']
+        if not isinstance(a, dict) or not a or len(a) > MAX_ATTRS or not all(_attr_ok(k, v) for k, v in a.items()):
+            return False
     if not re.fullmatch(r'[a-f0-9]{16}', str(d['span_id'])):
         return False
     if d['parent_span_id'] is not None and not re.fullmatch(r'[a-f0-9]{16}', str(d['parent_span_id'])):
@@ -57,6 +89,7 @@ class Span:
         self.parent_span_id = parent.span_id if isinstance(parent, Span) else (parent if isinstance(parent, str) and re.fullmatch(r'[a-f0-9]{16}', parent) else None)
         self.span_id = new_span_id()
         self.status, self.reason = 'ok', ''
+        self.attrs = {}
         self.started = self.t0 = None
         self._token = None
         self._ended = False
@@ -74,6 +107,16 @@ class Span:
     def skip(self, reason='skipped'):
         self.status, self.reason = 'skipped', clean(reason, 'skipped')
 
+    def set(self, **attrs):
+        """Add typed metadata (allowlisted keys only; bad keys/values are dropped silently). Returns self."""
+        try:
+            merged = dict(self.attrs)
+            merged.update(clean_attrs(attrs))
+            self.attrs = clean_attrs(merged)
+        except Exception:
+            pass
+        return self
+
     def end(self):
         if self._ended:
             return
@@ -82,9 +125,12 @@ class Span:
             if self.started is None:
                 self.start()
             ms = max(0, min(MAX_MS, int((self.tracer.mono() - self.t0) * 1000)))
-            self.tracer._emit(self.trace_id, {'span_id': self.span_id, 'parent_span_id': self.parent_span_id, 'component': self.tracer.component,
-                                              'operation': self.operation, 'status': self.status, 'reason': self.reason,
-                                              'started_at': float(self.started), 'duration_ms': ms})
+            rec = {'span_id': self.span_id, 'parent_span_id': self.parent_span_id, 'component': self.tracer.component,
+                   'operation': self.operation, 'status': self.status, 'reason': self.reason,
+                   'started_at': float(self.started), 'duration_ms': ms}
+            if self.attrs:
+                rec['attrs'] = dict(self.attrs)
+            self.tracer._emit(self.trace_id, rec)
         except Exception:
             pass
 

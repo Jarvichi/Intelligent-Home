@@ -128,14 +128,19 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 self._why = 'rate_limit'
                 return self._send(429, {'ok': False, 'why': 'rate limit'})
             try:
-                with tracer.span('api_' + method.lower()):
-                    if method == 'GET':
-                        return self._get(p, q)
+                with tracer.span('api_' + method.lower()) as sp:
+                    self._code = 0
                     try:
-                        body = self._body()
-                    except Exception as ex:
-                        self._why = 'bad_body'; return self._send(400, {'ok': False, 'why': 'bad body'})
-                    return self._write(method, p, body)
+                        if method == 'GET':
+                            return self._get(p, q)
+                        try:
+                            body = self._body()
+                        except Exception as ex:
+                            self._why = 'bad_body'; return self._send(400, {'ok': False, 'why': 'bad body'})
+                        return self._write(method, p, body)
+                    finally:
+                        if self._code:
+                            sp.set(http_status=self._code)
             except ValueError:
                 self._why = 'bad_parameter'
                 return self._send(400, {'ok': False, 'why': 'bad parameter'})
