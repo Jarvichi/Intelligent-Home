@@ -101,7 +101,7 @@ def refresh_workspace(path):
 
 
 def rebase_workspace(path):
-    """Rebase local edits and commits onto the latest source bundled in this image."""
+    """Rebase local edits and commits onto the current public IH main branch."""
     target = Path(path).resolve()
     if not (target / ".git").is_dir():
         raise RuntimeError("the IH code workspace is not initialized")
@@ -110,6 +110,10 @@ def rebase_workspace(path):
 
     def git(cwd, *args, timeout=30):
         return subprocess.run(("git",) + args, cwd=cwd, env=env, capture_output=True,
+                              text=True, timeout=timeout)
+
+    def git_with_env(cwd, run_env, *args, timeout=30):
+        return subprocess.run(("git",) + args, cwd=cwd, env=run_env, capture_output=True,
                               text=True, timeout=timeout)
 
     def call(*args, timeout=30):
@@ -126,29 +130,61 @@ def rebase_workspace(path):
     if ancestor.returncode:
         raise RuntimeError("the current source snapshot is not the workspace branch base; use `/code refresh` after preserving your work")
     old_revision = source_revision(target)
+    config = target / "ih_discord_codex" / "config.yaml"
     try:
-        new_revision = SOURCE_REVISION_FILE.read_text(encoding="utf-8").strip()[:40]
+        config_text = config.read_text(encoding="utf-8")
     except OSError:
-        new_revision = ""
+        config_text = ""
+    match = re.search(r'^image:\s*"ghcr\.io/([a-z0-9-]+)/\{arch\}-ih_discord_codex"\s*$',
+                      config_text, re.M)
+    if not match:
+        raise RuntimeError("the public IH source repository could not be identified safely")
+    remote = "https://github.com/%s/Intelligent-Home.git" % match.group(1)
+    fetch = git(target, "fetch", "--no-tags", "--depth=1", remote, "refs/heads/main", timeout=180)
+    if fetch.returncode:
+        raise RuntimeError("could not fetch the latest public IH source; the workspace was not changed")
+    new_revision = git(target, "rev-parse", "FETCH_HEAD").stdout.strip()
     if not re.fullmatch(r"[0-9a-f]{40}", new_revision or ""):
-        raise RuntimeError("the bundled IH source revision is unavailable")
+        raise RuntimeError("the latest public IH source revision could not be verified")
     if old_revision == new_revision:
-        return "The workspace already uses the source bundled in this add-on (%s)." % new_revision[:12]
-    if not (SOURCE_ROOT / "ih_discord_codex" / "config.yaml").is_file():
-        raise RuntimeError("the bundled public IH source is missing; workspace was not changed")
+        return "The workspace already uses the latest public IH source (%s)." % new_revision[:12]
 
     parent = target.parent
     suffix = "%s-%s-%s" % (old_revision[:8], time.strftime("%Y%m%d%H%M%S"), secrets.token_hex(3))
     backup = parent / (target.name + "-pre-rebase-" + suffix)
-    snapshot = parent / ("." + target.name + "-rebase-source-" + secrets.token_hex(6))
-    if backup.exists() or snapshot.exists():
+    snapshot_index = parent / ("." + target.name + "-rebase-index-" + secrets.token_hex(6))
+    if backup.exists() or snapshot_index.exists():
         raise RuntimeError("a rebase workspace path already exists; no files were changed")
 
     try:
-        prepare_workspace(snapshot)
-        new_main = git(snapshot, "rev-parse", "main").stdout.strip()
+        index_env = dict(env, GIT_INDEX_FILE=str(snapshot_index),
+                         GIT_AUTHOR_NAME="Codex Discord", GIT_AUTHOR_EMAIL="codex@localhost",
+                         GIT_COMMITTER_NAME="Codex Discord", GIT_COMMITTER_EMAIL="codex@localhost")
+        if git_with_env(target, index_env, "read-tree", new_revision).returncode:
+            raise RuntimeError("the latest public IH source snapshot could not be prepared")
+        blob = subprocess.run(("git", "hash-object", "-w", "--stdin"), cwd=target, env=env,
+                              input=(new_revision + "\n").encode(), capture_output=True, timeout=30)
+        if blob.returncode:
+            raise RuntimeError("the latest public IH source marker could not be prepared")
+        marker_blob = blob.stdout.decode("ascii", "strict").strip()
+        indexed = git_with_env(target, index_env, "update-index", "--add", "--cacheinfo",
+                               "100644,%s,.codex_source_revision" % marker_blob)
+        tree = git_with_env(target, index_env, "write-tree")
+        if indexed.returncode or tree.returncode:
+            raise RuntimeError("the latest public IH source snapshot could not be prepared")
+        snapshot = git_with_env(target, index_env, "commit-tree", tree.stdout.strip(),
+                                "-p", new_revision,
+                                "-m", "Public IH source snapshot %s" % new_revision[:12])
+        if snapshot.returncode:
+            raise RuntimeError("the latest public IH source snapshot could not be committed")
+        new_main = snapshot.stdout.strip()
         if not re.fullmatch(r"[0-9a-f]{40}", new_main):
-            raise RuntimeError("the bundled IH source snapshot could not be prepared")
+            raise RuntimeError("the latest public IH source snapshot could not be verified")
+        for candidate in (snapshot_index, Path(str(snapshot_index) + ".lock")):
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
         shutil.copytree(target, backup, symlinks=True)
 
         status = call("status", "--porcelain", "--untracked-files=all")
@@ -158,15 +194,11 @@ def rebase_workspace(path):
             if result.returncode:
                 raise RuntimeError("local edits could not be checkpointed; the original workspace is preserved")
 
-        fetch = git(target, "fetch", str(snapshot), "main", timeout=60)
-        if fetch.returncode:
-            raise RuntimeError("latest bundled IH source could not be fetched; the original workspace is preserved")
         call("branch", "-f", "main", new_main)
         result = git(target, "rebase", "--onto", new_main, old_main, "codex/work", timeout=120)
         if result.returncode:
             conflict_result = git(target, "diff", "--name-only", "--diff-filter=U", timeout=10)
             conflicts = [line for line in conflict_result.stdout.splitlines() if line]
-            shutil.rmtree(snapshot, ignore_errors=True)
             if conflicts:
                 shown = ", ".join(conflicts[:12])
                 if len(conflicts) > 12:
@@ -177,11 +209,14 @@ def rebase_workspace(path):
 
         if source_revision(target) != new_revision:
             raise RuntimeError("rebased workspace source marker did not update; restoring the previous workspace")
-        shutil.rmtree(snapshot, ignore_errors=True)
-        return "Rebased `codex/work` onto bundled source %s. Local edits and commits are preserved; the pre-rebase workspace is backed up as `%s`. Use `/code submit` to open a review PR." % (
+        return "Rebased `codex/work` onto current public IH source %s. Local edits and commits are preserved; the pre-rebase workspace is backed up as `%s`. Use `/code submit` to open a review PR." % (
             new_revision[:12], backup.name)
     except Exception:
-        shutil.rmtree(snapshot, ignore_errors=True)
+        for candidate in (snapshot_index, Path(str(snapshot_index) + ".lock")):
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
         if backup.exists():
             failed = parent / ("." + target.name + "-failed-rebase-" + secrets.token_hex(4))
             try:

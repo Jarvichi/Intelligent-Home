@@ -144,7 +144,7 @@ def publish_review_branch(path, token, repo=None, opener=None):
         old = original.get(item["path"])
         new = current.get(item["path"])
         if ((old or {}).get("sha")) != ((new or {}).get("sha")):
-            raise PublishError("The public IH source changed since this workspace was created; no branch was uploaded")
+            raise PublishError("A file you changed also changed on public IH main since this workspace base; nothing was uploaded. Run `/code rebase` to integrate the latest source, resolve conflicts if needed, and retry `/code submit`.")
         if item["status"] == "D":
             tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": None})
         else:

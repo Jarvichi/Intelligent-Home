@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.31] - 2026-11-04
+- Make `/code rebase` fetch current public IH main instead of relying on the source snapshot packaged when the add-on was built.
+- Explain that submit conflicts are file-specific and direct the owner to rebase before retrying.
+
 ## [0.1.30] - 2026-11-04
 - Allow `/code rebase --continue` to verify Git's recorded original branch while a conflicted rebase has detached `HEAD`.
 

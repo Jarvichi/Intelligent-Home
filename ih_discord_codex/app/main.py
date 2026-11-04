@@ -279,7 +279,7 @@ class CommandRunner:
     def run(self, thread, text, save_thread):
         command = text.strip().lower()
         if command == "/help":
-            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, `/code rebase` rebases your branch onto bundled IH source, `/code rebase --continue` continues after conflict fixes, `/code refresh` archives and reseeds the workspace, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
+            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, `/code rebase` rebases your branch onto current public IH main, `/code rebase --continue` continues after conflict fixes, `/code refresh` archives and reseeds the workspace, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
         if command == "/status":
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
