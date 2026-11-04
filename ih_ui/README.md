@@ -6,4 +6,4 @@ Run `ih_ui/sync_ih_ui.sh` after changing canonical assets. Run it with `--check`
 
 New pages use `tokens.css` and `components.js`, relative asset/API URLs, `ih-` elements, and the requirements in the House Brain note `projects/intelligent-home/ih-ui-style-guide.md`.
 
-The local [UI consistency plan](consistency.md) describes reusable Games patterns and the proposed rollout across add-ons. It is source documentation; updating the Brain guide requires separate Brain write access.
+The local [UI consistency plan](consistency.md) describes reusable Games patterns and their rollout across add-ons. The normative guide and durable design decisions live in the House Brain note `projects/intelligent-home/ih-ui-style-guide.md`.
