@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.16.0] - 2026-11-05
+
+### Added
+- New plugin `spare_ai`: each night it spends the unused part of each free AI provider's daily allowance (read from the AI Layer `/status`) on queued, non-private tasks and on a free second-opinion review of the last day's commits to a public GitHub repository. Each task is asked of several different providers, then compared by another one. Answers are unverified and saved as Markdown files. Dry by default (no AI calls).
+- New add-on options `ai_layer_url` (default `http://172.30.32.1:8801`) and `ai_layer_token` (the AI Layer `api_token`; password).
+
 ## [0.15.7] - 2026-11-04
 
 ### Added

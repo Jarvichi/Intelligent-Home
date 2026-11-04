@@ -50,6 +50,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `files_token` | No | Setting `files_token`. |
 | `bods_api_key` | No | Optional Bus Open Data API key for the bus_watch plugin (the plugin setting bods_key_option names this option). |
 | `mail_password` | No | Optional mailbox app password for the mail_inbox plugin (read with ctx.option, never logged). |
+| `ai_layer_url` | No | AI Layer address for the spare_ai plugin. Default: `http://172.30.32.1:8801`. |
+| `ai_layer_token` | No | The AI Layer `api_token` (admin). spare_ai skips with a log line when empty; never logged. |
 | `anthropic_key` | No | Optional Anthropic API key for the receipt_photos plugin (reads receipt photos; live only, paid per call; never logged). |
 | `plugins` | No | Extra job plugins to enable. |
 
@@ -359,3 +361,26 @@ Dry (`live: false`): reads only, logs `session N recorded ...` and `[DRY] would 
 
 ##### Plugin `car_log` publish_entity (0.14.0)
 `publish_entity` now also writes unit GBP, icon and friendly name, so it can replace the old command_line sensor (set it to that sensor's entity id). Same attributes as before: rows, last, n, month_label, week.
+
+##### Plugin `spare_ai` (0.16.0)
+Every night (default 22:30) it reads the AI Layer `/status` and spends each free provider's unused daily allowance on low-priority, non-private tasks. Spare per provider = `daily_cap - used_today - reserve_per_provider` (not below 0); the night's budget is the sum, capped at `max_calls`. Only providers named in `providers_order` are used (paid or unknown ones are excluded by leaving them out), and only if the layer reports them configured, free, live and not stopped. A provider is forced by its model name from `/status`.
+
+Each task is a fan-out: up to `fanout` different providers get the same question (plus "Keep the answer under 200 words."), then one more provider compares the answers (agreed / only one source / best answer). The result is `<folder>/done/<YYYYMMDD>-<id>.md`, headed "UNCHECKED: AI output, review before use". A night summary is written to `<folder>/reports/<YYYYMMDD>.json`. Answers beginning "[dry]" (the layer in shadow mode) count as failures.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `at` | `22:30` | Daily start. |
+| `folder` | `/share/ih/spare_ai` | Holds `queue/`, `done/`, `reports/`. |
+| `providers_order` | gemini, mistral, groq, openrouter, pollinations | Provider names allowed, in order of use. |
+| `reserve_per_provider` | 5 | Calls left unused per provider. |
+| `max_calls` | 120 | Hard ceiling per night. |
+| `fanout` | 3 | Providers asked per task (1 to 4). |
+| `repo` | empty | `owner/name` of a public GitHub repository to review. Empty = no review. |
+| `repo_hours` | 24 | How far back to look for commits. |
+| `max_diff_chars` | 2800 | Diff text sent per commit. |
+
+Queue: put `<folder>/queue/<name>.json` = `{"id": "short-id", "kind": "research|review|draft|summary", "text": "...", "fanout": 2, "guard": "passed"}` (`fanout` optional; text at most 3500 characters). Oldest file first. Files without `"guard": "passed"`, with invalid JSON, a bad id or kind, or too much text are moved to `queue/refused/`. Finished tasks move to `queue/processed/`; tasks where no provider answered move to `queue/failed/`. The program that writes queue files must do its own privacy check first, as this plugin does not.
+
+Repo review: public GitHub API, no token. Commits on the default branch in the last `repo_hours` are reviewed (merge commits skipped, each commit once; reviewed SHAs are kept in plugin state), two providers per commit. Rate limits (HTTP 403/429) stop the review cleanly.
+
+Privacy: only put non-private text in the queue; everything sent goes to outside AI services. Answers are unverified, and numbers, names and links that only one AI gave must be checked. Logs hold metadata only (ids, provider names, sizes, ok, ms), never the token, questions or answers. Dry (the default) reads `/status` and the commit list and logs what would run; it makes no AI calls and writes or moves nothing.
