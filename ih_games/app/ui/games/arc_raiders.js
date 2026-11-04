@@ -29,20 +29,15 @@
       }
     }
 
-    function notice(message, isError, undo) {
+    function notice(message, isError) {
       const old = wrap.querySelector('.arc-toast');
       if (old) old.remove();
       clearTimeout(toastTimer);
       const bar = api.el('div', null, 'arc-toast' + (isError ? ' notice-error' : ''));
       bar.setAttribute('role', 'status');
       bar.appendChild(api.el('span', message));
-      if (undo) {
-        const b = api.el('button', 'Undo', 'ih-button'); b.type = 'button';
-        b.addEventListener('click', async function () { b.disabled = true; clearTimeout(toastTimer); await undo(); });
-        bar.appendChild(b);
-      }
       wrap.appendChild(bar);
-      toastTimer = setTimeout(function () { bar.remove(); }, isError ? 8000 : 20000);
+      toastTimer = setTimeout(function () { bar.remove(); }, isError ? 8000 : 5000);
     }
 
     function questRows() {
@@ -55,7 +50,7 @@
         box.addEventListener('change', async function () {
           box.disabled = true;
           const ok = await save('done', [q.id], li);
-          if (ok) notice('Marked done: ' + q.name, false, function () { return save('undone', [q.id]).then(function (done) { if (done) notice('Undone: ' + q.name, false); }); });
+          if (ok) notice('Marked done: ' + q.name, false);
           else box.checked = false;
         });
         const title = api.el('div', null, 'arc-row-title');

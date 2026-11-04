@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Arc Raiders card: collapsed "Done quests (N)" list under Open quests; untick a quest to mark it not done. Details include `done_quests`.
 
 ### Changed
-- The Undo toast now stays for 20 seconds.
+- No Undo toast (untick a quest in Done quests instead). The tracker freshness line on game cards is replaced by a small "refreshed HH:MM" next to the expand arrow.
 
 ## [0.7.0] - 2026-11-04
 
