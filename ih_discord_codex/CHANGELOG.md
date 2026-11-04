@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.30] - 2026-11-04
+- Allow `/code rebase --continue` to verify Git's recorded original branch while a conflicted rebase has detached `HEAD`.
+
 ## [0.1.29] - 2026-11-04
 - Add `/code rebase` to checkpoint local edits, preserve a complete pre-rebase backup, and rebase `codex/work` onto the latest bundled public IH source before submission.
 - Add `/code rebase --continue` for resolving conflicts and continuing the rebase; document the workflow in `/help`.

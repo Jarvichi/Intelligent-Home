@@ -206,11 +206,28 @@ def continue_workspace_rebase(path):
                               text=True, timeout=timeout)
 
     branch = git("branch", "--show-current")
-    if branch.returncode or branch.stdout.strip() != "codex/work":
-        raise RuntimeError("rebase can continue only from the codex/work branch")
     marker = git("rev-parse", "--verify", "REBASE_HEAD")
     if marker.returncode:
         raise RuntimeError("there is no IH source rebase waiting to continue")
+    branch_name = branch.stdout.strip() if branch.returncode == 0 else ""
+    if branch_name != "codex/work":
+        recorded = ""
+        if not branch_name:
+            for state_dir in ("rebase-merge", "rebase-apply"):
+                git_path = git("rev-parse", "--git-path", state_dir + "/head-name")
+                if git_path.returncode:
+                    continue
+                metadata = Path(git_path.stdout.strip())
+                if not metadata.is_absolute():
+                    metadata = target / metadata
+                try:
+                    recorded = metadata.read_text(encoding="utf-8").strip()
+                except OSError:
+                    continue
+                if recorded:
+                    break
+        if branch_name or recorded not in ("refs/heads/codex/work", "codex/work"):
+            raise RuntimeError("rebase can continue only for an in-progress codex/work rebase")
     conflicts = git("diff", "--name-only", "--diff-filter=U")
     if conflicts.returncode:
         raise RuntimeError("could not check rebase conflicts")
