@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.7] - 2026-11-04
+
+### Changed
+- Add-ons are searchable and keyboard navigable, stopped or misconfigured services have next steps, and stale health data is called out on the overview.
+
 ## [0.10.6] - 2026-11-03
 
 ### Fixed
