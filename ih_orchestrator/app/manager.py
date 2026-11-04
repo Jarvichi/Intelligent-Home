@@ -273,6 +273,7 @@ class Manager:
             s = c["slug"]
             i = inst.get(s)
             r = {"slug": s, "name": c.get("name") or s, "description": str(c.get("description") or "")[:200], "kind": c.get("kind"),
+                 "ui": {k: v[:240] for k, v in (c.get("ui") if isinstance(c.get("ui"), dict) else {}).items() if k in ("title", "purpose") and isinstance(v, str)},
                  "installed": bool(i), "version": i["version"] if i else None, "latest": (i or {}).get("latest") or c.get("version"),
                  "state": i["state"] if i else None, "update": bool(i and i["update"]), "boot": None, "cpu": None, "mem_mb": None,
                  "mem_pct": None, "full": (prefix + "_" + s) if i else None, "seen": seen.get(s), "missing_settings": len(settings[s].get("missing") or []) if s in settings else None,

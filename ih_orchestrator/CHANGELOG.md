@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.8] - 2026-11-04
+
+### Added
+- The Manager's add-on cards display each add-on's own title and purpose alongside live health checks, resource use, and activity. Stale or missing health reports are labelled plainly.
+
 ## [0.10.7] - 2026-11-04
 
 ### Changed

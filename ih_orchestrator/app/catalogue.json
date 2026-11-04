@@ -5,8 +5,12 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.10.7",
-  "image": true
+  "version": "0.10.8",
+  "image": true,
+  "ui": {
+   "title": "Intelligent Home",
+   "purpose": "Operate and inspect the add-on system, jobs, health, traces, settings, and usage."
+  }
  },
  {
   "name": "Intelligent Home - Discord",
@@ -17,7 +21,11 @@
    "mqtt"
   ],
   "version": "0.10.3",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Discord Transport",
+   "purpose": "Connects Intelligent Home modules to Discord and routes house messages."
+  }
  },
  {
   "name": "Intelligent Home - Jobs",
@@ -28,7 +36,11 @@
    "mqtt"
   ],
   "version": "0.15.1",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Jobs",
+   "purpose": "Coordinates the Jobs family and reports scheduled house job activity."
+  }
  },
  {
   "name": "Intelligent Home - Jobs - Backup",
@@ -39,7 +51,11 @@
    "ih_jobs"
   ],
   "version": "0.1.6",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Jobs · Backup",
+   "purpose": "Publishes backup storage status and handles signed backup run requests."
+  }
  },
  {
   "name": "Intelligent Home - Jobs - Met Office",
@@ -50,7 +66,11 @@
    "ih_jobs"
   ],
   "version": "0.1.6",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Jobs · Met Office",
+   "purpose": "Publishes weather data from the Met Office job service."
+  }
  },
  {
   "name": "Intelligent Home - Jobs - AI Trust Test",
@@ -62,7 +82,11 @@
    "ih_ai_layer"
   ],
   "version": "0.1.5",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Jobs · Trust",
+   "purpose": "Publishes house trust and service availability checks."
+  }
  },
  {
   "name": "Intelligent Home - Discord - House",
@@ -74,7 +98,11 @@
    "mqtt"
   ],
   "version": "0.2.6",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Discord House",
+   "purpose": "Handles house-oriented Discord commands and Home Assistant actions."
+  }
  },
  {
   "name": "Intelligent Home - Discord - Shopping",
@@ -86,7 +114,11 @@
    "mqtt"
   ],
   "version": "0.3.4",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Shopping Shortcut",
+   "purpose": "Set up and verify the iPhone Shortcut that adds items to the household shopping list."
+  }
  },
  {
   "name": "Intelligent Home Games",
@@ -98,7 +130,11 @@
    "mqtt"
   ],
   "version": "0.6.3",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Games",
+   "purpose": "The single Games dashboard for player libraries, game progress, art, and research."
+  }
  },
  {
   "name": "Intelligent Home - Discord - Task channels",
@@ -110,7 +146,11 @@
    "mqtt"
   ],
   "version": "0.1.5",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Discord Task Channels",
+   "purpose": "Routes task requests and review handoffs through Discord channels."
+  }
  },
  {
   "name": "Intelligent Home - Orchestration - Inbox",
@@ -122,7 +162,11 @@
    "mqtt"
   ],
   "version": "0.1.4",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Orchestration Inbox",
+   "purpose": "Accepts and tracks requests waiting for Intelligent Home orchestration."
+  }
  },
  {
   "name": "Intelligent Home - Discord - AI Bot",
@@ -135,7 +179,11 @@
    "mqtt"
   ],
   "version": "0.2.2",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Discord AI Bot",
+   "purpose": "Handles AI-backed Discord requests through the configured assistant services."
+  }
  },
  {
   "name": "Intelligent Home - Discord - Codex",
@@ -147,7 +195,11 @@
    "mqtt"
   ],
   "version": "0.1.11",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Discord Codex",
+   "purpose": "Provides the Discord interface for Codex requests and task status."
+  }
  },
  {
   "name": "Intelligent Home - AI Layer",
@@ -156,7 +208,11 @@
   "kind": "addon",
   "requires": [],
   "version": "0.4.1",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "AI Layer",
+   "purpose": "Routes approved AI requests to configured providers and tracks provider performance."
+  }
  },
  {
   "name": "Intelligent Home - AI Layer - Claude CLI Agent",
@@ -167,7 +223,11 @@
    "ih_ai_layer"
   ],
   "version": "0.1.2",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Claude CLI",
+   "purpose": "Runs the Claude CLI worker for delegated coding and review tasks."
+  }
  },
  {
   "name": "Intelligent Home - Cooking",
@@ -176,7 +236,11 @@
   "kind": "addon",
   "requires": [],
   "version": "0.6.3",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Cooking",
+   "purpose": "Manage recipes, meal plans, and cooking sessions."
+  }
  },
  {
   "name": "Intelligent Home - Brain",
@@ -185,7 +249,11 @@
   "kind": "addon",
   "requires": [],
   "version": "0.2.5",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "House Brain",
+   "purpose": "Browse, search, read, and map connections between House Brain notes."
+  }
  },
  {
   "name": "Intelligent Home - Assistant - Personas",
@@ -194,6 +262,10 @@
   "kind": "addon",
   "requires": [],
   "version": "0.9.1",
-  "image": true
+  "image": true,
+  "ui": {
+   "title": "Assistant",
+   "purpose": "Provides the shared Intelligent Home assistant API and its registered capabilities."
+  }
  }
 ]
