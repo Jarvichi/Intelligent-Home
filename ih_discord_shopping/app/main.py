@@ -13,6 +13,7 @@ stdlib only (paho-mqtt for the real bus). Serves /healthz and /status (no secret
 import datetime
 import html
 import json, os, re, sys, threading, time, logging, collections, urllib.request
+from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
