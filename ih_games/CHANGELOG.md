@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.14] - 2026-11-04
+
+### Changed
+- Add library search, platform filters and sorting by last played, title or playtime.
+- Remember expanded game cards and library preferences per player during the page session.
+- Clarify tracker freshness and Research categories, review status and next steps.
+- Adopt shared UI layout and freshness patterns, with a documented consistency rollout plan.
+
 ## [0.6.13] - 2026-11-04
 
 ### Changed

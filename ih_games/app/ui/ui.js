@@ -10,6 +10,9 @@
   let requestedRoute = '';
   let artSearchAvailable = false;
   const detailCache = new Map();
+  const expandedCards = new Set();
+  const libraryPreferences = new Map();
+  let viewRequest = 0;
   const gameComponentCache = new Map();
 
   function routeKey(route) {
@@ -48,6 +51,37 @@
     const remainder = minutes % 60;
     if (!hours) return minutes.toLocaleString() + ' min';
     return hours.toLocaleString() + (hours === 1 ? ' hour' : ' hours') + (remainder ? ' ' + remainder + ' min' : '');
+  }
+  function filteredGames(games, preferences) {
+    const query = preferences.query.trim().toLocaleLowerCase();
+    const result = games.filter(game => String(game.title || '').toLocaleLowerCase().includes(query) &&
+      (!preferences.platform || (game.platform || 'Other') === preferences.platform));
+    const titleOrder = (a, b) => String(a.title).localeCompare(String(b.title));
+    const played = value => { const date = Date.parse(value); return Number.isFinite(date) ? date : -Infinity; };
+    const playtime = value => value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value);
+    result.sort((a, b) => {
+      if (preferences.sort === 'title') return titleOrder(a, b);
+      const av = preferences.sort === 'playtime' ? playtime(a.playtime_min) : played(a.last_seen);
+      const bv = preferences.sort === 'playtime' ? playtime(b.playtime_min) : played(b.last_seen);
+      return av === bv ? titleOrder(a, b) : av > bv ? -1 : 1;
+    });
+    return result;
+  }
+  function researchItem(item) {
+    const text = String(item.what || '').replace(/^Games:\s*/i, '').trim();
+    const tracker = text.match(/^research ways to track progress\/help for (.+)$/i);
+    const recommendation = text.match(/^(?:recommend|recommendation|suggest)[:\s]+(.+)$/i);
+    return tracker ? { title: tracker[1], kind: 'Tracker research', question: 'How can progress and useful game information be tracked?', next: 'Next: review tracker options; no tracker is promised yet.' } :
+      recommendation ? { title: recommendation[1], kind: 'Recommendation', question: text, next: 'Next: review whether this belongs in the library.' } :
+      { title: text || 'Game research', kind: 'Research', question: 'Review this research request.', next: 'Next: clarify the request and decide what to investigate.' };
+  }
+  function trackerAvailability(payload) {
+    const data = payload.details || {};
+    if (data.error) return { state: 'unavailable', text: 'Tracker unavailable · ' + String(data.error) };
+    if (data.stale) return { state: 'stale', text: 'Tracker data is stale' + (data.fetched ? ' · saved ' + fmtDate(data.fetched) : '') };
+    if (data.stale === false && Number.isFinite(Date.parse(data.fetched))) return { state: 'current', text: 'Tracker current at last check · updated ' + fmtDate(data.fetched) };
+    if (data.fetched) return { state: 'unknown', text: 'Saved tracker data · ' + fmtDate(data.fetched) + ' · freshness not reported' };
+    return { state: 'unknown', text: 'Tracker freshness is not reported' };
   }
   async function request(path, method) {
     const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
@@ -127,7 +161,7 @@
         return el('p', error.message, 'notice notice-warning');
       }
     }
-    const wrap = el('div', null, 'details-content');
+    const wrap = el('div', null, 'details-content ih-detail-stack');
     if (data.error) wrap.appendChild(el('p', data.error, 'notice notice-warning'));
     if (data.stale) wrap.appendChild(el('p', 'Showing the last saved game data; the provider has not refreshed successfully.', 'notice notice-warning'));
     if (data.fetched) wrap.appendChild(el('p', 'Data refreshed ' + fmtDate(data.fetched), 'data-refreshed'));
@@ -143,6 +177,7 @@
   }
   function gameCard(game, player) {
     const card = el('ih-card', null, 'game-card');
+    const expansionKey = JSON.stringify([player, game.id]);
     card.setAttribute('role', 'article'); card.setAttribute('aria-label', game.title);
     const cover = el('div', null, 'game-cover');
     const fallback = el('div', null, 'game-cover-fallback');
@@ -212,34 +247,57 @@
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
     if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.map(name => name.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', '), 'game-tools'));
-    const toggle = el('button', null, 'details-toggle');
+    const toggle = el('button', null, 'details-toggle ih-disclosure');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-label', 'Show details for ' + game.title); toggle.title = 'Show details';
     const detail = el('div', null, 'game-details'); detail.hidden = true;
-    toggle.addEventListener('click', async function () {
-      const opening = detail.hidden;
+    const trackerStatus = el('p', game.tools && game.tools.length ? 'Tracker not checked · open details to load' : 'No tracker configured', 'tracker-status ih-freshness');
+    function showTrackerStatus(payload) {
+      if (!game.tools || !game.tools.length) return;
+      const availability = trackerAvailability(payload);
+      trackerStatus.textContent = availability.text; trackerStatus.dataset.state = availability.state;
+    }
+    const savedDetails = detailCache.get(expansionKey);
+    if (savedDetails) showTrackerStatus(savedDetails.payload);
+    main.appendChild(trackerStatus);
+    const detailId = 'game-details-' + encodeURIComponent(player) + '-' + encodeURIComponent(game.id);
+    detail.id = detailId; toggle.setAttribute('aria-controls', detailId);
+    let detailLoading = false;
+    async function setExpanded(opening) {
       detail.hidden = !opening; toggle.setAttribute('aria-expanded', String(opening));
       toggle.setAttribute('aria-label', (opening ? 'Hide' : 'Show') + ' details for ' + game.title);
       toggle.title = opening ? 'Hide details' : 'Show details';
-      if (!opening || detail.dataset.loaded) return;
+      if (opening) expandedCards.add(expansionKey); else expandedCards.delete(expansionKey);
+      if (!opening || detail.dataset.loaded || detailLoading) return;
+      detailLoading = true;
       detail.replaceChildren(el('p', 'Loading complete game details…', 'ih-muted'));
+      detail.setAttribute('aria-busy', 'true');
       try {
-        const cacheKey = player + '/' + game.id;
-        const payload = detailCache.has(cacheKey) ? detailCache.get(cacheKey) : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
-        detailCache.set(cacheKey, payload); detail.replaceChildren(await detailsContent(payload)); detail.dataset.loaded = 'true';
-      } catch (e) { showError(detail, e.message); }
-    });
+        const cached = detailCache.get(expansionKey);
+        const payload = cached && Date.now() - cached.saved < 60000 ? cached.payload : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
+        detailCache.set(expansionKey, { payload, saved: Date.now() });
+        showTrackerStatus(payload);
+        detail.replaceChildren(await detailsContent(payload)); detail.dataset.loaded = 'true';
+      } catch (e) {
+        trackerStatus.textContent = 'Tracker unavailable'; trackerStatus.dataset.state = 'unavailable';
+        showError(detail, e.message);
+      } finally { detailLoading = false; detail.setAttribute('aria-busy', 'false'); }
+    }
+    toggle.addEventListener('click', function () { return setExpanded(detail.hidden); });
     const summary = el('div', null, 'game-summary');
     summary.append(cover, main, toggle);
     card.append(summary, detail);
+    if (expandedCards.has(expansionKey)) setExpanded(true);
     return card;
   }
   async function selectPlayer(key) {
+    const requestId = ++viewRequest;
     selected = key; renderTabs(); libraryEl.setAttribute('aria-busy', 'true');
     libraryEl.replaceChildren(el('p', 'Loading game library…', 'ih-muted'));
     try {
       const data = await request('api/library?player=' + encodeURIComponent(key));
-      const wrap = el('div', null, 'library-grid');
+      const wrap = el('div', null, 'library-grid ih-card-grid');
+      if (requestId !== viewRequest) return;
       const games = data.games || [];
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
       const playtimeKnown = games.filter(g => g.playtime_min != null).length;
@@ -247,35 +305,73 @@
       [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'tracked'], [playtimeKnown, 'with playtime']].forEach(function (item) {
         const box = el('ih-metric', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
       });
-      if (!games.length) wrap.appendChild(el('ih-empty', 'No games are listed for this player yet.', 'empty-state'));
-      else games.forEach(function (game) { wrap.appendChild(gameCard(game, key)); });
-      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'visually-hidden'), stats, wrap);
-    } catch (e) { showError(libraryEl, e.message); }
-    libraryEl.setAttribute('aria-busy', 'false');
+      const preferences = libraryPreferences.get(key) || { query: '', platform: '', sort: 'recent' };
+      libraryPreferences.set(key, preferences);
+      const toolbar = el('div', null, 'library-toolbar ih-toolbar');
+      const searchLabel = el('label', 'Search games', 'search-field');
+      const search = el('input'); search.type = 'search'; search.value = preferences.query;
+      search.placeholder = 'Game title'; searchLabel.appendChild(search);
+      const platformLabel = el('label', 'Platform'); const platform = el('select');
+      const platforms = [...new Set(games.map(game => game.platform || 'Other'))].sort();
+      [['', 'All platforms'], ...platforms.map(value => [value, value])].forEach(([value, label]) => {
+        const option = el('option', label); option.value = value; platform.appendChild(option);
+      });
+      platform.value = preferences.platform; platformLabel.appendChild(platform);
+      const sortLabel = el('label', 'Sort by'); const sort = el('select');
+      [['recent', 'Last played'], ['title', 'Title'], ['playtime', 'Playtime']].forEach(([value, label]) => {
+        const option = el('option', label); option.value = value; sort.appendChild(option);
+      });
+      sort.value = preferences.sort; sortLabel.appendChild(sort);
+      const clear = el('button', 'Clear filters', 'ih-button'); clear.type = 'button';
+      toolbar.append(searchLabel, platformLabel, sortLabel, clear);
+      const count = el('p', null, 'library-result-count'); count.setAttribute('role', 'status');
+      function renderGames() {
+        const visible = filteredGames(games, preferences);
+        wrap.replaceChildren();
+        count.textContent = visible.length + ' of ' + games.length + ' games';
+        clear.disabled = !preferences.query && !preferences.platform;
+        if (!games.length) wrap.appendChild(el('ih-empty', 'No games are listed for this player yet.', 'empty-state'));
+        else if (!visible.length) wrap.appendChild(el('p', 'No games match these filters. Clear filters to see the full library.', 'empty-state'));
+        else visible.forEach(game => wrap.appendChild(gameCard(game, key)));
+      }
+      search.addEventListener('input', function () { preferences.query = search.value; renderGames(); });
+      platform.addEventListener('change', function () { preferences.platform = platform.value; renderGames(); });
+      sort.addEventListener('change', function () { preferences.sort = sort.value; renderGames(); });
+      clear.addEventListener('click', function () {
+        preferences.query = ''; preferences.platform = ''; search.value = ''; platform.value = ''; renderGames(); search.focus();
+      });
+      renderGames();
+      libraryEl.replaceChildren(el('h2', players.find(p => p.key === key).name + '’s library', 'visually-hidden'), stats, toolbar, count, wrap);
+    } catch (e) { if (requestId === viewRequest) showError(libraryEl, e.message); }
+    if (requestId === viewRequest) libraryEl.setAttribute('aria-busy', 'false');
   }
   async function selectResearch() {
+    const requestId = ++viewRequest;
     selected = 'research'; renderTabs(); libraryEl.setAttribute('aria-busy', 'true');
     libraryEl.replaceChildren(el('p', 'Loading Games research…', 'ih-muted'));
     try {
       const data = await request('api/research');
+      if (requestId !== viewRequest) return;
       const items = data.items || [];
       const section = el('ih-card', null, 'research-card');
-      section.append(el('p', 'RESEARCH QUEUE', 'ih-eyebrow'), el('h2', 'Ideas to explore'));
-      section.append(el('p', items.length + ' open ' + (items.length === 1 ? 'idea' : 'ideas'), 'research-count'));
+      section.append(el('p', 'RESEARCH QUEUE', 'ih-kicker'), el('h2', 'Ideas to explore'));
+      section.append(el('p', data.available ? items.length + ' ' + (items.length === 1 ? 'request' : 'requests') + ' listed for review' : 'Research status unavailable', 'research-count'));
       if (!data.available) section.append(el('p', 'The Home Assistant Games to-do list is temporarily unavailable.', 'notice notice-warning'));
-      else if (!items.length) section.append(el('p', 'No game research is waiting. IH adds items here when a game needs a tracker.', 'ih-muted'));
+      else if (!items.length) section.append(el('p', 'No game research is waiting. Tracker requests and game recommendations will appear here.', 'ih-muted'));
       else {
         const list = el('ul', null, 'research-list');
         items.forEach(function (item) {
-          const li = el('li'); li.append(el('span', item.what.replace(/^Games:\s*/i, '')),
-            el('small', item.due ? 'Due ' + item.due : 'No due date')); list.appendChild(li);
+          const info = researchItem(item);
+          const li = el('li'); const content = el('div', null, 'research-item-main');
+          content.append(el('small', info.kind, 'research-kind'), el('h3', info.title), el('p', info.question), el('p', 'Status: listed for review · investigation status not reported', 'research-status'), el('p', info.next));
+          li.append(content, el('small', item.due ? 'Due ' + item.due : 'No due date')); list.appendChild(li);
         });
         section.appendChild(list);
       }
-      section.append(el('p', 'These items are managed in the Claude to-do list. This view shows open Games research only.', 'ih-muted'));
+      section.append(el('p', 'These items are managed in the Claude to-do list. This read-only view does not report whether investigation has started.', 'ih-muted'));
       libraryEl.replaceChildren(section);
-    } catch (e) { showError(libraryEl, e.message); }
-    libraryEl.setAttribute('aria-busy', 'false');
+    } catch (e) { if (requestId === viewRequest) showError(libraryEl, e.message); }
+    if (requestId === viewRequest) libraryEl.setAttribute('aria-busy', 'false');
   }
   async function start() {
     try {

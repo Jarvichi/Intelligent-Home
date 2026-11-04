@@ -7,7 +7,7 @@ OPTIONS=Path(os.environ.get('IHG_OPTIONS','/data/options.json'))
 API_PORT=int(os.environ.get('IHG_PORT','8794'))
 DATA=Path(os.environ.get('IHG_DATA','/data'))
 SUPERVISOR_TOKEN=os.environ.get('SUPERVISOR_TOKEN','').strip()
-ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
+ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
 
 def _artwork_record(gid):
  if not re.fullmatch(r'[A-Za-z0-9_-]{1,120}',gid): return None
