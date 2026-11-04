@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.8] - 2026-11-04
+
+### Fixed
+- Reject stale recipe edits, require a loaded revision for API edits, and serialize conflicting writes.
+- Preflight recipe imports and back up intentional replacements instead of silently overwriting newer recipes.
+- Publish Brain notes through the Brain API only, keeping filesystem webhook output limited to static pages.
+
+### Added
+- Authenticated consistent recipe snapshots and a compatibility adapter for legacy editors using derived caches.
+- Shared-token legacy editor controls that preserve step identities and confirm asynchronous saves.
+
 ## [0.6.7] - 2026-11-04
 
 ### Added

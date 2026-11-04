@@ -33,6 +33,7 @@ def ingress_api(st, method, p, body):
     if method == 'POST' and p == '/cook/stop':
         return 200, engine(st).stop_cook()
     if method == 'PUT' and m:
+        if not isinstance(body, dict) or not re.fullmatch(r'[a-f0-9]{64}', str(body.get('_revision', ''))): return 409, {'errors': ['Reload the recipe before saving']}
         ok, e = recipeadmin.save_recipe(st.data, m[1], body)
         if not ok: return (404 if e == ['no such recipe'] else 422), {'errors': e}
         st.publish()
@@ -152,6 +153,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             if p == '/status':
                 s = st.status(); s['cook'] = engine(st).status()
                 return self._send(200, s)
+            if p == '/recipe-snapshot':
+                return self._send(200, recipeadmin.recipe_snapshot(st.data))
             if p == '/recipes':
                 return self._send(200, {'recipes': st.recipes()})
             if p.startswith('/recipes/'):
@@ -174,6 +177,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             e = None
             m = re.fullmatch(r'/recipes/([a-z0-9-]+)', p)
             if method in ('PUT', 'POST') and m:
+                if not isinstance(body, dict) or not re.fullmatch(r'[a-f0-9]{64}', str(body.get('_revision', ''))): return self._send(409, {'errors': ['Reload the recipe before saving']})
                 ok, errs = recipeadmin.save_recipe(st.data, m[1], body)
                 self._why = 'invalid' if not ok else '-'
                 if ok: st.publish()

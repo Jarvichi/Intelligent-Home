@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.6.7'
+VERSION = '0.6.8'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -160,7 +160,7 @@ class Store:
         else:
             self.log('publish: brain_url or brain_token not set, brain notes skipped')
         if url:
-            files = dict(('brain/' + k, v) for k, v in notes.items()); files.update(www)
+            files = www  # Brain notes use the authenticated Brain MCP route only.
             req = urllib.request.Request(url, data=json.dumps({'source': 'ih_cooking', 'files': files}, ensure_ascii=False).encode(), method='POST', headers={'Content-Type': 'application/json'})
             try:
                 with self.opener(req, timeout=20) as r: code = getattr(r, 'status', 200)

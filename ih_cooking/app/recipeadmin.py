@@ -22,6 +22,18 @@ def revision(recipe):
     stored = {k: v for k, v in recipe.items() if k not in ('_revision', 'slug')}
     return hashlib.sha256(json.dumps(stored, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
 
+def recipe_snapshot(data):
+    """One consistent authenticated read for legacy cache refreshes."""
+    with _WRITE_LOCK:
+        folder = os.path.join(data, 'recipes')
+        out = {}
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if not name.endswith('.json') or not SLUG.fullmatch(name[:-5]): continue
+            with open(os.path.join(folder, name), encoding='utf-8') as handle: recipe = json.load(handle)
+            recipe['_revision'] = revision(recipe)
+            out[name[:-5]] = recipe
+        return out
+
 def backup_recipe(data, slug, recipe):
     folder = os.path.join(data, 'recipe_backups')
     os.makedirs(folder, exist_ok=True)

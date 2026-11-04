@@ -20,6 +20,7 @@ class Ownership(unittest.TestCase):
         self.calls=[]
         def client(method,path,body=None):
             self.calls.append((method,path))
+            if method=='GET' and path=='/recipe-snapshot':return api.recipe_snapshot(str(self.data))
             if method=='GET' and path=='/recipes':return api.listing(str(self.data))
             if method=='GET':
                 recipe=json.loads((self.data/'recipes'/(path.split('/')[-1]+'.json')).read_text());recipe['_revision']=api.revision(recipe);return recipe

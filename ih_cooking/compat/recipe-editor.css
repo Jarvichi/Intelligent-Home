@@ -1,0 +1,31 @@
+/* Retained pages consume the canonical House tokens. */
+:root{--bg:var(--ih-bg);--card:var(--ih-surface);--ink:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--accent:var(--ih-link);--ok:var(--ih-ok);--bad:var(--ih-danger);--warn:var(--ih-danger)}
+body{font-family:var(--ih-font);line-height:1.5}
+main{max-width:1280px;padding:var(--ih-space-6);margin:auto}
+.card{border-radius:var(--ih-radius-panel);padding:var(--ih-space-5);margin-bottom:var(--ih-space-3)}
+label{font-size:13px;line-height:1.5;letter-spacing:normal;text-transform:none;font-weight:500}
+input,select,textarea,button{border-radius:8px;min-height:44px}
+button.p,button.primary{background:var(--ih-accent);border-color:var(--ih-accent);color:var(--ih-accent-ink);font-weight:600}
+button:disabled{opacity:.6;cursor:default}
+:focus-visible{outline:2px solid var(--ih-link);outline-offset:3px}
+.m{white-space:normal}.item{min-height:44px}.item>span{min-width:0;overflow-wrap:anywhere}
+.st{min-width:0}.st>div{min-width:0;overflow-wrap:anywhere}
+textarea{resize:vertical}#msg{overflow-wrap:anywhere}
+@media(max-width:760px){main{padding:var(--ih-space-4)}.card{padding:var(--ih-space-4)}}
+@media(max-width:600px){
+ #steps tr{display:grid;grid-template-columns:1fr auto;border:1px solid var(--ih-line);border-radius:12px;padding:12px;margin-bottom:12px;gap:8px}
+ #steps td{display:block;width:auto;padding:0;min-width:0}
+ #steps td:not(.min):not(.time){grid-column:1/-1}
+ #steps td.short{display:block}
+ #steps td.act{white-space:normal;display:flex;gap:8px;flex-wrap:wrap}
+ #steps td.act button{min-width:44px}
+ .row>div{min-width:min(140px,100%)}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto;transition:none}}
+
+#e_steps fieldset{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px}
+#e_steps fieldset>div{grid-column:1/-1}
+#e_steps fieldset label{margin:0}
+#e_steps textarea{min-height:88px}
+@media(max-width:600px){#e_steps fieldset{grid-template-columns:minmax(0,1fr)}}
+button.item{width:100%;text-align:left;border-width:0 0 1px;border-radius:0;background:transparent}

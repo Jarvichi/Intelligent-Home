@@ -5,10 +5,22 @@ snapshots before replacement. Failed canonical reads/writes never fall back loca
 """
 import copy
 import json
+import tempfile
+import fcntl
+import functools
 import os
 import pathlib
 import re
 import time
+
+def cache_lock(fn):
+    @functools.wraps(fn)
+    def locked(self, *args, **kwargs):
+        self.backups.mkdir(parents=True, exist_ok=True)
+        with (self.backups / '.cache.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            return fn(self, *args, **kwargs)
+    return locked
 
 SLUG = re.compile(r'[a-z0-9-]{1,60}\Z')
 
@@ -19,6 +31,7 @@ class RecipeOwner:
 
     def listing(self):
         rows = self.client('GET', '/recipes')
+        if isinstance(rows, dict): rows = rows.get('recipes')
         if not isinstance(rows, list): raise ValueError('Canonical recipe list unavailable')
         for row in rows:
             slug = row.get('slug') or row.get('id')
@@ -38,14 +51,25 @@ class RecipeOwner:
     @staticmethod
     def _atomic(path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + '.tmp')
-        with temporary.open('w', encoding='utf-8') as handle: json.dump(value, handle, ensure_ascii=False, indent=1)
-        os.replace(temporary, path)
+        fd, temporary = tempfile.mkstemp(prefix=path.name + '.', dir=path.parent)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle: json.dump(value, handle, ensure_ascii=False, indent=1)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary): os.unlink(temporary)
 
+    @cache_lock
     def refresh(self):
-        # Complete all canonical reads before touching either local cache.
-        rows = self.listing()
-        recipes = {(row.get('slug') or row.get('id')): self.get(row.get('slug') or row.get('id')) for row in rows}
+        # One consistent canonical read before touching either local cache.
+        raw = self.client('GET', '/recipe-snapshot')
+        if not isinstance(raw, dict): raise ValueError('Canonical snapshot unavailable')
+        recipes = {}
+        for slug, value in raw.items():
+            if not isinstance(slug, str) or not SLUG.fullmatch(slug) or not isinstance(value, dict) or not re.fullmatch(r'[a-f0-9]{64}', value.get('_revision', '')): raise ValueError('Invalid canonical snapshot')
+            recipe = copy.deepcopy(value)
+            recipe.pop('slug', None)
+            for index, step in enumerate(recipe.get('steps', [])): step['_original_index'], step['_original_text'] = index, step['text']
+            recipes[slug] = recipe
         snapshot = self.backups / ('canonical-cache-' + str(time.time_ns()))
         for slug, recipe in recipes.items():
             for label, folder in (('host', self.cache), ('www', self.www)):
@@ -75,5 +99,6 @@ class RecipeOwner:
             result = reply.get('slug') or reply.get('created')
             if not isinstance(result, str) or not SLUG.fullmatch(result): raise ValueError('Create response missing recipe identity')
         # A cache refresh failure must be surfaced even though the canonical write succeeded.
-        self.refresh()
+        try: self.refresh()
+        except Exception: raise RuntimeError('Recipe saved in Cooking, but legacy pages could not refresh. Reload before editing again.') from None
         return result
