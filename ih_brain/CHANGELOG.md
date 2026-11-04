@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.10] - 2026-11-04
+
+### Added
+- Readable note headings, lists, quotes, code and responsive table rows, with exact Markdown source available on demand.
+- Internal note links, previous-note navigation, pending feedback and retry without discarding the current note.
+
+### Fixed
+- Decode quoted title values and read root metadata without letting nested fields override it.
+- Refresh existing search-index titles after the display change without requiring a note edit.
+- Ignore late note responses after navigation; render HTML and image references inertly instead of loading untrusted content.
+
 ## [0.2.9] - 2026-11-04
 
 ### Changed

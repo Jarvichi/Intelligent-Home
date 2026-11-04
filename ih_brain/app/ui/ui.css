@@ -46,3 +46,41 @@ footer { padding:16px 2px; font-size:12px; }
   .graph-tools div { flex-wrap:wrap; }
   .graph-wrap { height:min(60vh,620px); height:min(60dvh,620px); min-height:340px; }
 }
+/* Note content stays readable within the split reader and on phones. */
+.note-markdown { min-width:0; container-type:inline-size; line-height:1.65; }
+.note-markdown :first-child { margin-top:0; }
+.note-markdown p, .note-markdown ul, .note-markdown ol, .note-markdown blockquote, .note-markdown pre { margin:0 0 var(--ih-space-4); }
+.note-markdown h3, .note-markdown h4, .note-markdown h5, .note-markdown h6 { margin:var(--ih-space-6) 0 var(--ih-space-3); line-height:1.3; overflow-wrap:anywhere; }
+.note-markdown h3 { font-size:20px; }.note-markdown h4 { font-size:18px; }.note-markdown h5, .note-markdown h6 { font-size:16px; }
+.note-markdown li { margin:var(--ih-space-1) 0; }.note-markdown li>p { margin-bottom:var(--ih-space-2); }
+.note-markdown ul, .note-markdown ol { padding-left:var(--ih-space-6); }
+.note-markdown blockquote { margin-left:0; padding:var(--ih-space-2) var(--ih-space-4); border-left:4px solid var(--ih-line); color:var(--ih-muted); }
+.note-markdown blockquote>:last-child { margin-bottom:0; }
+.note-markdown a { color:var(--ih-link); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
+.note-markdown code { padding:2px 4px; background:var(--ih-surface-raised); border-radius:4px; font: .9em/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap:anywhere; }
+.note-markdown pre { padding:var(--ih-space-4); background:var(--ih-bg); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); }
+.note-markdown pre code { background:transparent; padding:0; white-space:pre-wrap; }
+.note-markdown hr { border:0; border-top:1px solid var(--ih-line); margin:var(--ih-space-6) 0; }
+.note-task { list-style:none; position:relative; }.note-task>input { position:absolute; left:-22px; top:6px; accent-color:var(--ih-link); }
+.note-attachment { display:inline-block; padding:var(--ih-space-1) var(--ih-space-2); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); overflow-wrap:anywhere; }
+.unresolved-note { text-decoration:underline dotted; text-underline-offset:3px; }
+.note-source { margin:var(--ih-space-3) 0 var(--ih-space-5); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); }
+.note-source summary { min-height:44px; padding:var(--ih-space-3); cursor:pointer; color:var(--ih-muted); font-size:13px; }
+.note-source pre { padding:var(--ih-space-3); border-top:1px solid var(--ih-line); max-height:60vh; overflow:auto; font:13px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.previous-note { min-height:44px; padding:var(--ih-space-2) var(--ih-space-3); margin-bottom:var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); background:var(--ih-surface); color:var(--ih-link); font:inherit; cursor:pointer; }
+.note-table { margin:var(--ih-space-4) 0; min-width:0; }
+.note-table table { width:100%; border-collapse:collapse; font-size:14px; table-layout:fixed; }
+.note-table th, .note-table td { text-align:left; padding:var(--ih-space-2); border:1px solid var(--ih-line); vertical-align:top; overflow-wrap:anywhere; }
+.note-table th { background:var(--ih-surface-raised); font-weight:700; }
+@container (max-width:640px) {
+  .note-table table, .note-table tbody, .note-table tr, .note-table td { display:block; width:100%; }
+  .note-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .note-table tr { margin:0 0 var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); overflow:hidden; }
+  .note-table td { border:0; border-top:1px solid var(--ih-line); }.note-table td:first-child { border-top:0; }
+  .note-table td::before { content:attr(data-label); display:block; margin-bottom:var(--ih-space-1); color:var(--ih-muted); font-size:12px; font-weight:700; }
+}
+.reader .path { overflow-wrap:anywhere; }
+.note-error { padding:var(--ih-space-3); margin-bottom:var(--ih-space-4); border:1px solid var(--ih-danger); border-radius:var(--ih-radius-control); color:var(--ih-danger); }
+.note-error button { margin:var(--ih-space-2) 0 0; }
+.note-markdown pre code { font-size:13px; line-height:1.6; }
+.note-pending { color:var(--ih-muted); font-size:13px; }

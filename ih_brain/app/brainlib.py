@@ -100,6 +100,8 @@ class Brain:
         meta = {}
         if m:
             for line in m.group(1).splitlines():
+                if line[:1].isspace():
+                    continue
                 if ":" in line:
                     k, v = line.split(":", 1)
                     meta[k.strip()] = v.strip()
@@ -108,14 +110,23 @@ class Brain:
     def _title(self, rel, text):
         meta, body = self._front(text)
         if meta.get("title"):
-            return meta["title"]
+            title = meta["title"]
+            if title.startswith('"') and title.endswith('"'):
+                try:
+                    decoded = json.loads(title)
+                    if isinstance(decoded, str): return decoded
+                except ValueError:
+                    pass
+            elif title.startswith("'") and title.endswith("'"):
+                return title[1:-1].replace("''", "'")
+            return title
         h = re.search(r"^#\s+(.+)$", body, re.M)
         return h.group(1).strip() if h else rel
 
     # ---------------------------------------------------------------- search index
     def _signature(self):
         files = self._notes()
-        return f"{len(files)}:{max((f.stat().st_mtime_ns for _, f in files), default=0)}"
+        return f"display-title-v2:{len(files)}:{max((f.stat().st_mtime_ns for _, f in files), default=0)}"
 
     def _reindex(self):
         sig = self._signature()

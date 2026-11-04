@@ -78,3 +78,13 @@ With `read_only` true (the default) `brain_write` and `brain_append` return an e
 
 
 The rich Brain interface can open directly from the Home Assistant sidebar. Enable **Show in sidebar** on the app page. Its title is **Brain** and access is restricted to administrators. This does not change other dashboard access or the app options. Background-worker reports stay inside Intelligent Home Manager.
+
+
+Notes open as readable pages. The reader supports common Markdown headings, emphasis, lists/tasks,
+quotes, fenced/indented code, tables and links. Tables show labelled row details in narrow readers.
+**View Markdown source** retains the exact complete note, including front matter. Internal links use
+known note paths, filenames or unique titles; the previous-note button returns through a link chain.
+Raw HTML stays text and image references stay labelled references: the reader makes no automatic
+external image or embed requests. Attachment previews, extended Markdown constructs and ambiguous
+aliases are not a replacement for the existing Wiki attachment workflow. Keep that workflow until
+its parity is verified. The UI remains read-only and administrator-only; no access options change.

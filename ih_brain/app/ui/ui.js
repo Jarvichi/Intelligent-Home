@@ -1,7 +1,8 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const results = $('#results'), reader = $('#note'), area = $('#area');
-  let view = 'browse', notes = [], selected = '', visibleRows = 30;
+  let view = 'browse', notes = [], selected = '', visibleRows = 30, allNotes = [];
+  let noteHistory = [];
   let listRequest = 0, noteRequest = 0, listScroll = 0, pageScroll = 0;
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function syncTabs() { document.querySelectorAll('[role=tab]').forEach(t => { const active = t.dataset.view === (view === 'search' ? 'browse' : view); t.setAttribute('aria-selected', String(active)); t.tabIndex = active ? 0 : -1; }); }
@@ -39,15 +40,60 @@
       results.append(more);
     }
   }
+  function cancelNoteRequest() { ++noteRequest; reader.removeAttribute('aria-busy'); reader.querySelector('.note-pending')?.remove(); }
+  function resolveNote(target, currentPath) {
+    let text; try { text = decodeURIComponent(target).trim(); } catch (_) { return null; }
+    const normalize = path => { const parts = []; for (const part of path.split('/')) { if (!part || part === '.') continue; if (part === '..') { if (!parts.length) return null; parts.pop(); } else parts.push(part); } return parts.join('/'); };
+    const parent = currentPath.split('/').slice(0, -1).join('/');
+    const candidates = [normalize(parent + '/' + text), normalize(text)];
+    for (const value of candidates) {
+      if (!value) continue;
+      const path = /\.md$/i.test(value) ? value : value + '.md', row = allNotes.find(note => note.path.toLowerCase() === path.toLowerCase());
+      if (row) return row.path;
+    }
+    const key = text.replace(/\.md$/i, '').toLowerCase();
+    const matches = allNotes.filter(note => note.title.toLowerCase() === key || note.path.split('/').pop().replace(/\.md$/i, '').toLowerCase() === key);
+    return matches.length === 1 ? matches[0].path : null;
+  }
   function renderNote(n) {
     selected = n.path;
-    reader.innerHTML = `<p class="path">${esc(n.path)}</p><h2>${esc(n.title)}</h2><pre>${esc(n.content)}</pre>`;
+    reader.replaceChildren();
+    const path = document.createElement('p'); path.className = 'path'; path.textContent = n.path;
+    const title = document.createElement('h2'); title.textContent = n.title;
+    reader.append(path, title);
+    if (noteHistory.length) { const back = document.createElement('button'); back.type = 'button'; back.className = 'previous-note'; back.dataset.previousNote = 'true'; back.textContent = '← Previous note'; reader.append(back); }
+    const source = document.createElement('details'); source.className = 'note-source';
+    const summary = document.createElement('summary'); summary.textContent = 'View Markdown source';
+    const pre = document.createElement('pre'); pre.textContent = n.content; source.append(summary, pre); reader.append(source);
+    reader.append(window.IHBrainMarkdown.render(n.content, {title:n.title, resolveNote:target => resolveNote(target, n.path)}));
     results.querySelectorAll('.note-row').forEach((b) => b.setAttribute('aria-current', String(b.dataset.path === selected)));
     document.querySelector('.workspace').dataset.reading = 'true';
     if (mobileList()) document.querySelector('.reader').scrollIntoView({block:'start', behavior:reducedMotion()?'auto':'smooth'});
   }
+  async function fetchNote(path, {remember = false, back = false, heading = ''} = {}) {
+    const requestId = ++noteRequest;
+    reader.querySelector('.note-pending')?.remove(); reader.setAttribute('aria-busy', 'true');
+    const pending = document.createElement('p'); pending.className = 'note-pending'; pending.setAttribute('role', 'status'); pending.textContent = 'Opening note…'; reader.prepend(pending);
+    try {
+      const d = await api(`read?path=${encodeURIComponent(path)}`); if(requestId !== noteRequest) return;
+      if (!back) { if (remember && selected && selected !== path) noteHistory.push(selected); else if (!remember) noteHistory = []; }
+      renderNote(d);
+      if (heading) reader.querySelector('[id="' + CSS.escape(heading) + '"]')?.scrollIntoView({block:'start', behavior:'auto'});
+    } catch(e) {
+      if(requestId !== noteRequest) return;
+      reader.querySelector('.note-error')?.remove();
+      const error = document.createElement('div'); error.className = 'note-error'; error.setAttribute('role', 'alert'); error.textContent = 'Could not open this note. ';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'previous-note'; retry.textContent = 'Try again'; retry.onclick = () => fetchNote(path, {remember, back, heading}); error.append(retry); reader.prepend(error);
+    } finally { if (requestId === noteRequest) { reader.removeAttribute('aria-busy'); reader.querySelector('.note-pending')?.remove(); } }
+  }
+  reader.addEventListener('click', e => {
+    const previous = e.target.closest('[data-previous-note]');
+    if (previous) { const path = noteHistory.pop(); if (path) fetchNote(path, {back:true}); return; }
+    const link = e.target.closest('a[data-note-path]'); if (!link) return;
+    e.preventDefault(); fetchNote(link.dataset.notePath, {remember:true, heading:link.dataset.noteHeading || ''});
+  });
   async function loadNotes() {
-    const requestId = ++listRequest; ++noteRequest; syncTabs();
+    const requestId = ++listRequest; cancelNoteRequest(); syncTabs();
     try {
       destroyGraph(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false'; results.innerHTML = '<ih-loading>Loading notes…</ih-loading>';
       const suffix = view === 'recent' ? 'recent' : `notes?area=${encodeURIComponent(area.value)}`;
@@ -59,21 +105,19 @@
   async function search() {
     const q = $('#query').value.trim();
     if (!q) { view = 'browse'; await loadNotes(); return; }
-    const requestId = ++listRequest; ++noteRequest;
+    const requestId = ++listRequest; cancelNoteRequest();
     try { view = 'search'; syncTabs(); destroyGraph(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false'; results.innerHTML = '<ih-loading>Searching every note…</ih-loading>'; const d = await api(`search?q=${encodeURIComponent(q)}`); if (requestId === listRequest) renderRows(d.notes || []); }
     catch (e) { if (requestId !== listRequest) return; results.innerHTML = `<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
   results.addEventListener('click', async (e) => {
     if (e.target.closest('[data-more]')) { visibleRows += rowPageSize; renderRows(notes, true); return; }
     const b = e.target.closest('[data-path]'); if (!b) return;
-    listScroll = results.scrollTop; pageScroll = window.scrollY; const requestId = ++noteRequest;
-    try { const d = await api(`read?path=${encodeURIComponent(b.dataset.path)}`); if(requestId === noteRequest) renderNote(d); }
-    catch (err) { if(requestId !== noteRequest) return; reader.innerHTML = `<ih-error role="alert">${esc(err.message)}</ih-error>`; }
+    listScroll = results.scrollTop; pageScroll = window.scrollY; await fetchNote(b.dataset.path);
   });
   $('#search').addEventListener('click', search);
   $('#back-to-list').addEventListener('click', () => {
     document.querySelector('.workspace').dataset.reading = 'false';
-    ++noteRequest;
+    cancelNoteRequest();
     const row = [...results.querySelectorAll('[data-path]')].find(b => b.dataset.path === selected);
     if(row) row.focus({preventScroll:true});
     results.scrollTop = listScroll; window.scrollTo({top:pageScroll, behavior:'auto'});
@@ -82,7 +126,7 @@
   area.addEventListener('change', () => { if(view === 'graph') { view='browse'; $('#query').value=''; loadNotes(); } else { renderRows(notes); } });
   document.querySelector('ih-tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-view]'); if (!b) return;
-    ++listRequest; ++noteRequest; view = b.dataset.view; syncTabs(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false';
+    ++listRequest; cancelNoteRequest(); view = b.dataset.view; syncTabs(); document.querySelector('.workspace').dataset.view = view; document.querySelector('.workspace').dataset.reading = 'false';
     document.querySelectorAll('[role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t === b)));
     if (view === 'graph') { renderGraph(); return; }
     $('#query').value = ''; loadNotes();
@@ -159,14 +203,10 @@
       }));
     } catch(e) { if(requestId !== listRequest) return; destroyGraph(); results.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
   }
-  async function openMapNote(path) {
-    const requestId = ++noteRequest;
-    try { const d=await api(`read?path=${encodeURIComponent(path)}`); if(requestId === noteRequest) renderNote(d); }
-    catch(e) { if(requestId !== noteRequest) return; reader.innerHTML=`<ih-error role="alert">${esc(e.message)}</ih-error>`; }
-  }
+  async function openMapNote(path) { return fetchNote(path); }
   (async () => {
     try {
-      const d = await api('index');
+      const d = await api('index'); allNotes = d.notes;
       $('#health').textContent = 'Connected'; $('#health').setAttribute('data-ok','true');
       $('#count').textContent = `${d.count} notes · read-only through this page`;
       for (const a of d.areas) { const o=document.createElement('option'); o.value=a.path; o.textContent=`${a.title} (${a.count})`; area.append(o); }
