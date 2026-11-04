@@ -14,7 +14,7 @@ class Gemini(Provider):
         """The ONLY outside call. Key goes in the header here and nowhere else. -> reply text (may be empty)."""
         body = json.dumps({'systemInstruction': {'parts': [{'text': SYSTEM[cap]}]},
                            'contents': [{'role': 'user', 'parts': [{'text': text}]}],
-                           'generationConfig': {'maxOutputTokens': 1024}}).encode()
+                           'generationConfig': {'maxOutputTokens': self.opts['max_tokens']}}).encode()
         req = urllib.request.Request(self.API_BASE + self.opts['model'] + ':generateContent', data=body, method='POST',
                                      headers={'Content-Type': 'application/json', 'x-goog-api-key': self.opts['key']})
         with self.opener(req, timeout=timeout) as x:

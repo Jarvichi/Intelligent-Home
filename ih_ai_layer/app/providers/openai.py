@@ -11,7 +11,7 @@ class OpenAI(Provider):
 
     def generate(self, cap, text, timeout):
         """The ONLY outside call. Key goes in the Authorization header here and nowhere else. -> reply text (may be empty)."""
-        body = json.dumps({'model': self.opts['model'], 'instructions': SYSTEM[cap], 'input': text, 'max_output_tokens': 1024, 'store': False}).encode()
+        body = json.dumps({'model': self.opts['model'], 'instructions': SYSTEM[cap], 'input': text, 'max_output_tokens': self.opts['max_tokens'], 'store': False}).encode()
         req = urllib.request.Request(self.API_URL, data=body, method='POST',
                                      headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.opts['key']})
         with self.opener(req, timeout=timeout) as x:
