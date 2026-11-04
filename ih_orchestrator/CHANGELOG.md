@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.14] - 2026-11-05
+
+### Added
+- Traces accept routing attributes (capability, classified, agent, model, score, candidates, tries). Model ids may contain `/`, `.`, `:` and `-`. The trace viewer shows them as chips such as "general_qa (auto)", "-> groq", "model ...", "score 0.741", "3 candidates", "1 try".
+- Catalogue lists AI Layer 0.4.7 and Discord AI Bot 0.2.3.
+
 ## [0.10.13] - 2026-11-04
 
 ### Changed

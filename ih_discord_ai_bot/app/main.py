@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.2.0'
+VERSION = '0.2.3'
 MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
@@ -29,6 +29,9 @@ DEFAULT_MODULE = 'ih_discord_ai_bot'
 OPS_NEEDED = ['post']
 MAX_ASK = 4000                # the AI layer refuses longer text
 MAX_REPLY = 1800              # the transport cuts at 1900
+AGENT_LABELS = {'pollinations': 'Pollinations', 'gemini': 'Gemini', 'groq': 'Groq', 'openrouter': 'OpenRouter', 'mistral': 'Mistral',
+                'openai': 'OpenAI', 'serpapi': 'SerpApi', 'publicapis': 'PublicAPIs.io', 'claude': 'Claude', 'grok': 'Grok'}
+MODEL_OK = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 SEEN_MAX = 500
 MAX_PARALLEL = 2
 ID_OK = re.compile(r'^\d{1,32}$')
@@ -111,12 +114,33 @@ class Ring(logging.Handler):
             self.would_lines.append(time.strftime('%H:%M:%S ') + t[:300])
 
 
+def friendly_agent(agent):
+    """ih_ai_layer_groq -> Groq. Unknown agents show the part after ih_ai_layer_. '' if there is no usable name."""
+    a = agent if isinstance(agent, str) else ''
+    if a.startswith('ih_ai_layer_'):
+        a = a[len('ih_ai_layer_'):]
+    if not re.fullmatch(r'[A-Za-z0-9._-]{1,48}', a):
+        return ''
+    return AGENT_LABELS.get(a.lower(), a)
+
+
+def attribution(agent, model=None):
+    """Small-text Discord line saying who answered, e.g. '-# answered by Groq · openai/gpt-oss-120b'. '' when the agent is unknown."""
+    who = friendly_agent(agent)
+    if not who:
+        return ''
+    line = '-# answered by ' + who
+    if isinstance(model, str) and MODEL_OK.fullmatch(model):
+        line += ' \u00b7 ' + model
+    return line
+
+
 def ask_ai(opts, text, rid, opener=None, timeout=None, trace_id=None, parent_span_id=None):
-    """Ask AI Layer and return the answer plus its content-free trace spans."""
+    """Ask AI Layer. -> (kind, text, trace spans, reason, attribution line). The attribution is only set for a real answer."""
     empty = []
     if not opts['ai_layer_url']:
-        return 'error', MSG_DOWN, empty, 'not_configured'
-    body = {'text': text, 'request_id': rid, 'trace_id': trace_id, 'parent_span_id': parent_span_id}
+        return 'error', MSG_DOWN, empty, 'not_configured', ''
+    body = {'text': text, 'request_id': rid, 'caller': 'ih_discord_ai_bot', 'trace_id': trace_id, 'parent_span_id': parent_span_id}
     if opts['capability']:
         body['capability'] = opts['capability']
     req = urllib.request.Request(opts['ai_layer_url'] + '/request', data=json.dumps(body).encode(), method='POST',
@@ -126,21 +150,21 @@ def ask_ai(opts, text, rid, opener=None, timeout=None, trace_id=None, parent_spa
             raw = x.read(200000)
         r = json.loads(raw)
     except urllib.error.HTTPError as e:
-        return 'error', MSG_AUTH if e.code == 401 else ('The AI layer is busy (rate limit). Try again in a minute.' if e.code == 429 else ('The AI layer is stopped (kill switch).' if e.code == 503 else MSG_DOWN)), empty, ('unauthorized' if e.code == 401 else 'rate_limit' if e.code == 429 else 'stopped' if e.code == 503 else 'http_error')
+        return 'error', MSG_AUTH if e.code == 401 else ('The AI layer is busy (rate limit). Try again in a minute.' if e.code == 429 else ('The AI layer is stopped (kill switch).' if e.code == 503 else MSG_DOWN)), empty, ('unauthorized' if e.code == 401 else 'rate_limit' if e.code == 429 else 'stopped' if e.code == 503 else 'http_error'), ''
     except Exception:
-        return 'error', MSG_DOWN, empty, 'network_error'
+        return 'error', MSG_DOWN, empty, 'network_error', ''
     if not isinstance(r, dict):
-        return 'error', MSG_NONE, empty, 'invalid_response'
+        return 'error', MSG_NONE, empty, 'invalid_response', ''
     spans = r.get('trace_spans') if isinstance(r.get('trace_spans'), list) and r.get('trace_id') == trace_id else []
     spans = spans[:30]
     ans = r.get('answer')
     if r.get('mode') == 'dry' or (isinstance(ans, str) and ans.startswith('[dry]')):
-        return 'error', MSG_SHADOW, spans, 'shadow'
+        return 'error', MSG_SHADOW, spans, 'shadow', ''
     if not r.get('ok') or not isinstance(ans, str) or not ans.strip():
         msg = ans.strip()[:200] if isinstance(ans, str) and ans.strip() else MSG_NONE
         why = r.get('error') if isinstance(r.get('error'), str) and re.fullmatch(r'[A-Za-z0-9_.-]{1,48}', r.get('error')) else 'no_answer'
-        return 'error', msg, spans, why
-    return 'answer', ans.strip(), spans, ''
+        return 'error', msg, spans, why, ''
+    return 'answer', ans.strip(), spans, '', attribution(r.get('agent'), r.get('model'))
 
 
 class Module:
@@ -309,7 +333,7 @@ class Module:
         spans, ai_started, ai_span_id = [], time.time(), uuid.uuid4().hex[:16]
         ai_status, ai_reason, delivery_status, delivery_reason = 'error', 'internal_error', 'error', 'not_attempted'
         try:
-            kind, out, child_spans, ai_reason = ask_ai(self.opts, text, trace_id, opener=self.opener,
+            kind, out, child_spans, ai_reason, credit = ask_ai(self.opts, text, trace_id, opener=self.opener,
                                                        trace_id=trace_id, parent_span_id=ai_span_id)
             spans.extend(child_spans)
             ai_status = 'ok' if kind == 'answer' else ('skipped' if ai_reason == 'shadow' else 'error')
@@ -319,7 +343,7 @@ class Module:
                 self.apply_mode()
                 posting_dry = self.dry_now()
                 post_started = time.time()
-                sent = self.reply(ck, mid, out, error=(kind != 'answer'))
+                sent = self.reply(ck, mid, out, error=(kind != 'answer'), credit=credit if kind == 'answer' else '')
                 delivery_status = 'skipped' if posting_dry else ('ok' if sent else 'error')
                 delivery_reason = 'shadow' if posting_dry else ('' if sent else 'transport_error')
                 spans.append(self._span('ih_discord', 'post_reply', delivery_status, post_started,
@@ -343,9 +367,14 @@ class Module:
             if release:
                 self.sem.release()
 
-    def reply(self, ck, mid, text, error=False):
-        """Post ONE reply to message `mid`. Text is never logged."""
-        text = text if len(text) <= MAX_REPLY else text[:MAX_REPLY - 3] + '...'
+    def reply(self, ck, mid, text, error=False, credit=''):
+        """Post ONE reply to message `mid`. Text is never logged. `credit` (who answered) is appended after the cut: the answer is truncated, never the credit."""
+        if credit:
+            tail = '\n\n' + credit
+            room = MAX_REPLY - len(tail)
+            text = (text if len(text) <= room else text[:room - 3] + '...') + tail
+        else:
+            text = text if len(text) <= MAX_REPLY else text[:MAX_REPLY - 3] + '...'
         if self.dry_now():
             self.lg.info('[DRY] would post %s reply (%d chars) to a message on %s', 'an error' if error else 'a', len(text), ck)
         res = self.client.post(ck, text, reply_to=mid, tag='ai')
