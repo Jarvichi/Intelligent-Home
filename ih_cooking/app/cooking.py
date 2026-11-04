@@ -1,10 +1,10 @@
 """Store (recipes, meal plan), options, HA calendar fetch, rate limit. stdlib only."""
 import glob, hashlib, hmac, json, os, re, shutil, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
-import clashes, recipeadmin
+import clashes, recipeadmin, brainpub, threading
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.6.8'
+VERSION = '0.6.9'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -82,6 +82,8 @@ class Store:
         self.calls = 0
         self.seed_recipes()
         self.engine = None
+        self._publication_lock = threading.Lock()
+        self._publication_result = None
 
     def make_engine(self, clock_now=None, discord=None, ha=None, **kw):
         """The cook engine. HA client only if ha_token is set; Discord client only if a bot token is set."""
@@ -115,35 +117,73 @@ class Store:
         body = '\n'.join(l for l in text.split('\n') if not l.startswith('updated:'))   # the date line changes daily: not a content change
         return hashlib.sha256(body.encode()).hexdigest()
 
-    def _brain_call(self, path, content):
-        msg = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'brain_write', 'arguments': {
-            'path': path, 'content': content, 'author': 'ih_cooking', 'summary': 'recipe published by ih_cooking'}}}
+    def _brain_rpc(self, tool, arguments):
+        if tool not in ('brain_read', 'brain_write') or not re.fullmatch(r'home/recipes/[a-z0-9-]{1,60}\.md', str(arguments.get('path', ''))):
+            raise ValueError('unsupported recipe note operation')
+        msg = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': tool, 'arguments': arguments}}
         req = urllib.request.Request(self.opts['brain_url'], data=json.dumps(msg, ensure_ascii=False).encode(), method='POST',
                                      headers={'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'Authorization': 'Bearer ' + self.opts['brain_token']})
-        with self.opener(req, timeout=20) as r:
-            j = json.loads(r.read() or b'{}')
-        if j.get('error') or (j.get('result') or {}).get('isError'):
+        with self.opener(req, timeout=3) as response:
+            reply = json.loads(response.read() or b'{}')
+        result = reply.get('result')
+        if reply.get('error') or not isinstance(result, dict) or result.get('isError'):
             raise ValueError('brain refused')
+        return result
+
+    def _brain_read(self, path):
+        result = self._brain_rpc('brain_read', {'path': path})
+        text = '\n'.join(item['text'] for item in result.get('content', []) if item.get('type') == 'text' and isinstance(item.get('text'), str))
+        if text.startswith('No such note.'): return None
+        if not text.startswith(('---\n', '# ')): raise ValueError('invalid brain read response')
+        return text
+
+    def _brain_call(self, path, content):
+        result = self._brain_rpc('brain_write', {'path': path, 'content': content, 'author': 'ih_cooking', 'summary': 'refresh generated recipe sections; preserve manual content'})
+        if not any(item.get('type') == 'text' and str(item.get('text', '')).startswith('saved ' + path + ' (') for item in result.get('content', [])):
+            raise ValueError('brain write was not confirmed')
+        return result
+
+    def publication_status(self):
+        configured = bool(self.opts.get('brain_url') and self.opts.get('brain_token'))
+        enabled = self.opts.get('publish_live') is True
+        return {'enabled': enabled, 'configured': configured,
+                'state': 'paused' if not enabled else 'setup' if not configured else (self._publication_result or {}).get('state', 'ready'),
+                'last_result': self._publication_result}
 
     def publish_brain(self, notes):
-        """-> dict(sent, unchanged, failed). Only notes whose content changed are sent. Never logs note text."""
-        try: hashes = json.load(open(self._hash_file()))
-        except (OSError, ValueError): hashes = {}
-        sent = unchanged = failed = 0
-        for path, text in notes.items():
-            h = self._note_hash(text)
-            if hashes.get(path) == h:
-                unchanged += 1; continue
+        # Serialize read/merge/write and state snapshots in this process. Brain history remains
+        # available; its API has no compare-and-swap, so cross-client races are not atomic.
+        with self._publication_lock:
             try:
-                self._brain_call(path, text); hashes[path] = h; sent += 1
-            except Exception as e:
-                failed += 1; self.log('brain publish failed: %s (%s)' % (tag(path), type(e).__name__))
-        if sent:
+                with open(self._hash_file(), encoding='utf-8') as handle: previous = json.load(handle)
+            except (OSError, ValueError): previous = {}
+            if not isinstance(previous, dict): previous = {}
+            sent = unchanged = failed = conflicts = 0
+            for path, desired in notes.items():
+                try:
+                    current = self._brain_read(path)
+                    if path == 'home/recipes/recipes.md':
+                        merged, state = brainpub.merge_index(current, desired), {}
+                    else:
+                        old = previous.get(path)
+                        merged, state = brainpub.merge_recipe(current, desired, old if isinstance(old, dict) else {})
+                    if current is not None and self._note_hash(current) == self._note_hash(merged): unchanged += 1
+                    else:
+                        self._brain_call(path, merged); sent += 1
+                    previous[path] = state
+                except brainpub.NoteConflict:
+                    conflicts += 1
+                except Exception:
+                    # Stop after an unavailable/refused service instead of waiting once per note.
+                    failed += len(notes) - sent - unchanged - conflicts
+                    break
             try:
-                tmp = self._hash_file() + '.tmp'; json.dump(hashes, open(tmp, 'w')); os.replace(tmp, self._hash_file())
-            except OSError: pass
-        self.log('publish brain: sent %d, unchanged %d, failed %d' % (sent, unchanged, failed))
-        return {'sent': sent, 'unchanged': unchanged, 'failed': failed}
+                recipeadmin.atomic(self._hash_file(), previous)
+            except OSError: failed += 1
+            self._publication_result = {'state': 'review' if conflicts else 'error' if failed else 'ok',
+                                        'sent': sent, 'unchanged': unchanged, 'failed': failed, 'conflicts': conflicts, 'checked_at': int(self.clock())}
+            self.log('publish brain: sent %d, unchanged %d, failed %d, conflicts %d' % (sent, unchanged, failed, conflicts))
+            return {'sent': sent, 'unchanged': unchanged, 'failed': failed, 'conflicts': conflicts}
 
     def publish(self):
         notes = recipeadmin.brain_notes(self.data)
@@ -156,9 +196,9 @@ class Store:
         res = {'ok': True, 'dry': False, 'notes': len(notes), 'www': 0}
         if burl and self.opts['brain_token']:
             b = self.publish_brain(notes); res['brain'] = b
-            if b['failed']: res['ok'] = False
+            if b['failed'] or b['conflicts']: res['ok'] = False
         else:
-            self.log('publish: brain_url or brain_token not set, brain notes skipped')
+            self.log('publish: brain route not configured, brain notes skipped'); res['ok'] = False; res['why'] = 'brain_not_configured'
         if url:
             files = www  # Brain notes use the authenticated Brain MCP route only.
             req = urllib.request.Request(url, data=json.dumps({'source': 'ih_cooking', 'files': files}, ensure_ascii=False).encode(), method='POST', headers={'Content-Type': 'application/json'})

@@ -111,3 +111,12 @@ Live control is allowed only when **all** of these hold, checked when a cook sta
 If anything cannot be read or is in doubt, live control is refused (fail closed). If the guard fails while a cook is running, the cook carries on in dry mode and the log says `GUARD: ...`. `GET /cook` shows the reason.
 
 The recipe editor supports equipment, a child reminder note and short display labels for each step. Editing step wording preserves its existing oven and other metadata. Invalid fields are rejected before writing and every existing-recipe save keeps a distinct backup. The editor does not replace Home Assistant meal-plan controls or their access model.
+
+
+Recipe-note publishing remains off unless configured and enabled by the owner. The Cooking page reports
+its status separately from recipe saves. A saved recipe can still need note setup, sync or review.
+Publication reads existing notes through Brain MCP, preserves extra sections and index links, and keeps
+last-published section fingerprints. Detected edits to generated sections require review; they are not
+silently overwritten. An initial legacy note is adopted only when its generated content matches the
+canonical recipe. The Brain API has no compare-and-swap: simultaneous external edits between a read
+and write are not atomic; Brain history remains available. No note content or credentials appear in status.

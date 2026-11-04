@@ -18,6 +18,8 @@ EAT_RE = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 def ingress_api(st, method, p, body):
     """The recipes page API (same paths and shapes as the old host page service, minus the /api prefix handled by the caller). -> (code, obj)."""
     m = re.fullmatch(r'/recipes/([a-z0-9-]+)', p)
+    if method == 'GET' and p == '/publication':
+        return 200, st.publication_status()
     if method == 'GET' and p == '/recipes':
         return 200, recipeadmin.listing(st.data)
     if method == 'GET' and m:
@@ -155,6 +157,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(200, s)
             if p == '/recipe-snapshot':
                 return self._send(200, recipeadmin.recipe_snapshot(st.data))
+            if p == '/publication':
+                return self._send(200, st.publication_status())
             if p == '/recipes':
                 return self._send(200, {'recipes': st.recipes()})
             if p.startswith('/recipes/'):

@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.9] - 2026-11-04
+
+### Fixed
+- Preserve manual recipe-note sections, custom front matter and external recipe-index links when publishing through the Brain API.
+- Stop and report unreviewed changes to generated sections instead of overwriting them.
+- Stop after an unavailable Brain service rather than retrying every note in the same request.
+- Escape quoted recipe titles correctly in generated note metadata.
+
+### Added
+- Secret-free recipe-note publication status in the Cooking UI, including paused, setup, ready, synced, review, failure and unavailable states.
+
 ## [0.6.8] - 2026-11-04
 
 ### Fixed
