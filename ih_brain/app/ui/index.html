@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#101511">
   <title>House Brain · Intelligent Home</title>
   <link rel="stylesheet" href="./ih-ui.css">
+<link rel="stylesheet" href="ih-patterns.css">
   <link rel="stylesheet" href="./ui.css">
   <script defer src="./ih-ui.js"></script>
   <script defer src="./force-graph.min.js"></script>
@@ -20,7 +21,7 @@
     </ih-header>
     <ih-card class="overview">
       <div><span class="ih-kicker">BRAIN SERVICE</span><strong id="health">Connecting…</strong><small id="count">Loading notes</small></div>
-      <div class="search-wrap"><ih-field><label for="query">Search all notes</label><input id="query" type="search" placeholder="Try a topic, device, or decision" autocomplete="off"></ih-field><button id="search" type="button">Search</button></div>
+      <div class="search-wrap ih-toolbar"><ih-field><label for="query">Search all notes</label><input id="query" type="search" placeholder="Try a topic, device, or decision" autocomplete="off"></ih-field><button id="search" type="button">Search</button></div>
     </ih-card>
     <ih-tabs aria-label="Brain views" role="tablist">
       <button type="button" role="tab" data-view="browse" aria-selected="true">Browse</button>
@@ -28,7 +29,7 @@
       <button type="button" role="tab" data-view="graph" aria-selected="false">Connections</button>
     </ih-tabs>
     <div class="workspace">
-      <ih-card class="note-list"><div class="list-heading"><h2 id="list-title">All notes</h2><select id="area" aria-label="Filter by area"><option value="">All areas</option></select></div><div id="results" aria-live="polite"><ih-loading>Loading Brain index…</ih-loading></div></ih-card>
+      <ih-card class="note-list"><div class="list-heading ih-toolbar"><h2 id="list-title">All notes</h2><label for="area">Area</label><select id="area"><option value="">All areas</option></select></div><p id="result-count" role="status" class="ih-metadata"></p><div id="results" aria-live="polite"><ih-loading>Loading Brain index…</ih-loading></div></ih-card>
       <ih-card class="reader"><button type="button" id="back-to-list" class="back-to-list">← Back to results</button><div id="note"><ih-empty>Select a note to read it.</ih-empty></div></ih-card>
     </div>
     <footer>Private house knowledge stays on this Home Assistant instance.</footer>

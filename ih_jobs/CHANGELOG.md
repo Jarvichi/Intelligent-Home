@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.2] - 2026-11-04
+
+### Changed
+- Add an ingress-only summary of built-in and plugin runs, modes, outcomes, timestamps and unavailable states.
+
 ## [0.15.1] - 2026-11-03
 
 ### Added

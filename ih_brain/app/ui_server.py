@@ -62,7 +62,7 @@ def make_handler(brain):
             query = parse_qs(parts.query, keep_blank_values=True)
             if path == "/" or path == "/index.html":
                 return self._file("index.html")
-            if path in ("/ih-ui.css", "/ih-ui.js", "/ui.css", "/ui.js", "/ui.json", "/force-graph.min.js"):
+            if path in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/ui.css", "/ui.js", "/ui.json", "/force-graph.min.js"):
                 return self._file("vendor/force-graph-1.43.5.min.js" if path == "/force-graph.min.js" else path[1:])
             if not path.startswith("/api/"):
                 return self._send(404, {"error": "Not found"})
