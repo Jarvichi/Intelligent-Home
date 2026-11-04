@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.5'
+VERSION = '0.4.6'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -295,7 +295,8 @@ class Layer:
         if cap is not None and (not isinstance(cap, str) or not CAP_RE.match(cap)):
             return 400, {'ok': False, 'error': 'bad capability'}
         if not cap and not model:
-            cap, classified = classify(text), True
+            # 0.4.6: no keyword hit = a general question (before, plain questions from the #ask bot failed with 'No agent')
+            cap, classified = classify(text) or 'general_qa', True
         trace_id = obj.get('trace_id') if isinstance(obj.get('trace_id'), str) and TRACE_ID_RE.fullmatch(obj.get('trace_id')) else None
         parent_span_id = obj.get('parent_span_id') if isinstance(obj.get('parent_span_id'), str) and SPAN_ID_RE.fullmatch(obj.get('parent_span_id')) else None
         trace_spans, route_span_id = [], uuid.uuid4().hex[:16]

@@ -67,7 +67,7 @@ All except `/healthz` and `/register` need the header `Authorization: Bearer <ap
 | `GET /healthz` | Plain `ok`. |
 | `POST /register` | Used by agent add-ons (signed, see below). |
 
-If no `capability` is given, a simple keyword rule picks one and `classified` is `true`. If nothing matches, or no live agent has that capability, the answer says so ("No agent ..."). The best agent is tried first (score = thumbs, success rate and speed); on failure the next one is tried, up to `max_tries`.
+If no `capability` is given, a simple keyword rule picks one and `classified` is `true`. If nothing matches, the request is treated as `general_qa`. If no live agent has the capability, the answer says so ("No agent ..."). The best agent is tried first (score = thumbs, success rate and speed); on failure the next one is tried, up to `max_tries`.
 
 ### Safety
 - **Shadow mode** (option `shadow`, on by default): agents are NOT called; the answer is a canned "[dry]" line naming the agent that would be asked.
