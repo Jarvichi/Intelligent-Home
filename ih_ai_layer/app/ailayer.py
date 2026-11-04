@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.6'
+VERSION = '0.4.7'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -23,6 +23,22 @@ def _snip(s, n=200):
     """First n chars as ONE line: backslash, quote and newlines escaped. Only used when option log_payloads is true."""
     s = str(s or '')[:n]
     return s.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n')
+
+
+def _tok(v, n=48):
+    """Trace-attr token: letters, digits and . _ - only, or None if empty."""
+    t = re.sub(r'[^A-Za-z0-9_.-]', '_', str(v if v is not None else ''))[:n]
+    return t or None
+
+
+def _model_tok(v):
+    """Trace-attr model token: also allows / and : (e.g. openai/gpt-oss-120b), max 64."""
+    t = re.sub(r'[^A-Za-z0-9_./:-]', '_', str(v if v is not None else ''))[:64]
+    return t or None
+
+
+def _score_attr(x):
+    return None if x is None else max(0, min(1000, int(round(x * 1000))))
 
 
 def _tag(v, default='-'):
@@ -303,23 +319,35 @@ class Layer:
         self.counts['requests'] += 1
         caller = obj.get('caller') or (ctx or {}).get('caller')
 
-        def finish_trace(ok, reason=None, skipped=False):
+        route = {}   # routing facts for the trace (content-free): score, candidates, tries
+
+        def finish_trace(ok, reason=None, skipped=False, agent=None, mdl=None, chars=0):
             if not trace_id:
                 return
+            attrs = {}
+            for k, v in (('capability', _tok(cap)), ('classified', 1 if classified else 0), ('agent', _tok(re.sub(r'^ih_ai_layer_', '', str(agent or route.get('agent') or '')))),
+                         ('model', _model_tok(mdl)), ('score', route.get('score')), ('candidates', route.get('candidates')), ('tries', route.get('tries')),
+                         ('chars', chars if ok and chars else None)):
+                if v is not None:
+                    attrs[k] = v
             safe_reason = re.sub(r'[^A-Za-z0-9_.-]', '_', str(reason or ''))[:48]
             trace_spans.append({'span_id': route_span_id, 'parent_span_id': parent_span_id, 'component': 'ih_ai_layer',
                                 'operation': 'request', 'status': 'skipped' if skipped else ('ok' if ok else 'error'),
-                                'reason': safe_reason, 'started_at': t0, 'duration_ms': max(0, int((self.clock() - t0) * 1000))})
+                                'reason': safe_reason, 'started_at': t0, 'duration_ms': max(0, int((self.clock() - t0) * 1000)), 'attrs': attrs})
 
         def out(ok, answer, agent=None, extra=None, why=None):
             r = {'ok': ok, 'answer': answer, 'agent': agent, 'capability': cap, 'classified': classified,
                  'took_ms': int((self.clock() - t0) * 1000), 'request_id': rid}
             r.update(extra or {})
             m = self.meta.pop(rid, {})
-            self._usage(caller, agent, cap, r.get('model') or m.get('model') or model, ok, r['took_ms'])
-            self._logline('request', rid, caller, agent, cap, r.get('model') or m.get('model') or model, text, ok, answer, r['took_ms'],
+            used = r.get('model') or m.get('model') or model
+            if used and not r.get('model'):
+                r['model'] = used   # 0.4.7: the scored (non-forced) route now reports the model that answered
+            self._usage(caller, agent, cap, used, ok, r['took_ms'])
+            self._logline('request', rid, caller, agent, cap, used, text, ok, answer, r['took_ms'],
                           why or r.get('error') or ('shadow' if r.get('mode') == 'dry' else None), m.get('free'))
-            finish_trace(ok, why or r.get('error'), skipped=r.get('mode') == 'dry')
+            finish_trace(ok, why or r.get('error'), skipped=r.get('mode') == 'dry', agent=agent, mdl=used,
+                         chars=len(answer) if ok and isinstance(answer, str) else 0)
             if trace_id:
                 r['trace_id'], r['trace_spans'] = trace_id, list(trace_spans)
             return 200, r
@@ -334,13 +362,15 @@ class Layer:
                 self._usage(caller, None, cap, model, False, (self.clock() - t0) * 1000)
                 r = {'ok': False, 'error': 'model_not_available', 'answer': "No live agent serves model '%s'." % model,
                      'model': model, 'request_id': rid}
-                finish_trace(False, 'model_not_available')
+                route.update(candidates=0, tries=0)
+                finish_trace(False, 'model_not_available', mdl=model)
                 if trace_id:
                     r['trace_id'], r['trace_spans'] = trace_id, list(trace_spans)
                 return 404, r
             if self.opts['shadow']:
                 return out(True, "[dry] shadow mode: would ask agent '%s' for model '%s'. No agent was called." % (owners[0], model), owners[0], {'mode': 'dry', 'model': model})
             a0 = self.clock()
+            route.update(candidates=len(owners), tries=1, agent=owners[0])
             ans = self._ask(owners[0], text, cap, ctx or {}, rid, model, caller, trace_spans if trace_id else None, route_span_id)
             ok = ans is not None
             if cap:
@@ -367,7 +397,9 @@ class Layer:
         for name in order[:self.opts['max_tries']]:
             tried += 1
             a0 = self.clock()
-            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller, trace_spans if trace_id else None, route_span_id)
+            sc = self.score(cap, name)
+            route.update(candidates=len(order), tries=tried, agent=name, score=_score_attr(sc))
+            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller, trace_spans if trace_id else None, route_span_id, _score_attr(sc))
             ms = (self.clock() - a0) * 1000
             self._record(cap, name, ans is not None, ms)
             if ans is not None:
@@ -380,7 +412,7 @@ class Layer:
         w = self.agent_why.pop(rid, None)
         return out(False, "The agents for '%s' did not answer (%d tried)." % (cap, tried), None, {'error': w} if w else None)
 
-    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None, trace_spans=None, parent_span_id=None):
+    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None, trace_spans=None, parent_span_id=None, score=None):
         """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only. Logs one 'try' line per call."""
         a = self.table().get(name)
         if a is None:
@@ -425,9 +457,14 @@ class Layer:
             if trace_spans is not None:
                 safe_name = name if NAME_RE.fullmatch(str(name or '')) else 'agent'
                 safe_why = re.sub(r'[^A-Za-z0-9_.-]', '_', str(why or ''))[:48]
+                attrs = {}
+                for k, v in (('agent', _tok(re.sub(r'^ih_ai_layer_', '', str(name)))), ('model', _model_tok(meta.get('model') or model)), ('score', score),
+                             ('chars', len(ans) if ok and isinstance(ans, str) and ans else None)):
+                    if v is not None:
+                        attrs[k] = v
                 trace_spans.append({'span_id': uuid.uuid4().hex[:16], 'parent_span_id': parent_span_id,
                                     'component': safe_name, 'operation': 'ask', 'status': 'ok' if ok else 'error',
-                                    'reason': safe_why, 'started_at': t0, 'duration_ms': ms})
+                                    'reason': safe_why, 'started_at': t0, 'duration_ms': ms, 'attrs': attrs})
 
     def status(self):
         now = self.clock()

@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.3] - 2026-11-05
+
+### Added
+- Successful answers end with a small "answered by <AI> · <model>" line. The answer is shortened, never that line, to stay under Discord's length limit. Error replies carry no such line.
+- Requests to the AI layer now name this add-on as the caller, so its logs and usage show who asked.
+
 ## [0.2.2] - 2026-11-03
 
 ### Fixed

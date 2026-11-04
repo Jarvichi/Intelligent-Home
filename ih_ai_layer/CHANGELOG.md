@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.7] - 2026-11-05
+
+### Added
+- Trace spans now carry routing metadata (content-free): the request span has capability, whether the classifier chose it, the chosen agent and model, its routing score (x1000), the number of live candidates and the agents tried; each ask span has agent, model, score and answer length. A forced-model request has no score and is not classified.
+- The `/request` response now includes the model that answered on the scored route too, not only for forced-model requests.
+
 ## [0.4.6] - 2026-11-05
 
 ### Fixed

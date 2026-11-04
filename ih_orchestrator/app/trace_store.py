@@ -9,8 +9,9 @@ import time
 TRACE_ID = re.compile(r"^[a-f0-9]{32}$")
 SPAN_ID = re.compile(r"^[a-f0-9]{16}$")
 TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,48}$")
+MODEL_TOKEN = re.compile(r"^[A-Za-z0-9_./:-]{1,64}$")   # model ids such as openai/gpt-oss-120b
 STATUSES = {"ok", "error", "skipped", "unknown"}
-ATTR_KEYS = ("sender", "persona", "kind", "in_bytes", "out_bytes", "attachments", "items", "http_status", "retries", "chars")
+ATTR_KEYS = ("sender", "persona", "kind", "in_bytes", "out_bytes", "attachments", "items", "http_status", "retries", "chars", "capability", "classified", "agent", "model", "score", "candidates", "tries")
 MAX_ATTRS = 8
 MAX_ATTR_INT = 1000000000
 MAX_BODY_SPANS = 40
@@ -23,7 +24,7 @@ def _attr_ok(k, v):
         return False
     if isinstance(v, int):
         return 0 <= v <= MAX_ATTR_INT
-    return isinstance(v, str) and bool(TOKEN.fullmatch(v))
+    return isinstance(v, str) and bool((MODEL_TOKEN if k == "model" else TOKEN).fullmatch(v))
 
 
 def clean_attrs(raw):
