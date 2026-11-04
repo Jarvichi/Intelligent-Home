@@ -20,7 +20,7 @@ import jobs_link
 import pluginhost
 from jobs import common, backupstore, metoffice
 
-VERSION = '0.15.5'
+VERSION = '0.15.6'
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 SOURCE = 'ih_jobs'
 JOBS = ('backupstore', 'metoffice')   # built-in jobs
@@ -302,7 +302,20 @@ def push(mod, manifest, now=None, opener=None, log=print):
         return False
     now = time.time() if now is None else now
     st = mod.status()
+    jobs = st.get('jobs') or {}
+    runs = sum(int(j.get('runs') or 0) for j in jobs.values() if isinstance(j, dict))
+    errors = sum(int(j.get('errors') or 0) for j in jobs.values() if isinstance(j, dict))
+    ages = [j.get('last_run_s') for j in jobs.values() if isinstance(j, dict) and isinstance(j.get('last_run_s'), (int, float))]
+    latest = now - min(ages) if ages else None
+    failed = any(j.get('last_ok') is False for j in jobs.values() if isinstance(j, dict))
+    contribution = {'version': 1, 'state': 'attention' if failed else 'ok' if st['healthy'] else 'unknown',
+                    'summary': '%s mode; %d built-in runs; %d child add-ons' % (st['mode'], runs, len(st['children'])),
+                    'last_activity_at': latest,
+                    'metrics': [{'label': 'Built-in runs', 'value': runs}, {'label': 'Errors', 'value': errors},
+                                {'label': 'Child add-ons', 'value': len(st['children'])}],
+                    'next_step': 'Review recent job results' if failed else 'Check the Jobs and plugins view for recent results'}
     body = json.dumps({'source': SOURCE, 'manifests': [manifest],
+                       'ui_contribution': contribution,
                        'status': [{'name': SOURCE, 'probed_at': now,
                                    'checks': [{'type': 'http', 'ok': st['healthy'], 'detail': '%s, %d would-set, %d children' % (st['mode'], st['would_set_total'], len(st['children']))}]}]}).encode()
     try:

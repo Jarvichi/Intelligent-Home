@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.10] - 2026-11-04
+
+### Added
+- Validate and show fresh, read-only status contributions from add-ons inside Manager cards. The first producer is Jobs; stale reports are labelled and no arbitrary HTML, links, options or payload fields are accepted.
+
 ## [0.10.9] - 2026-11-04
 
 ### Added

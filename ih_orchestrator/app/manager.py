@@ -579,7 +579,8 @@ class Manager:
                 "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or [] if isinstance(c, dict)]}
                for r in snap.get("services") or []]
         return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s"),
-                     "consumer_progress": snap.get("consumer_progress") or []}
+                     "consumer_progress": snap.get("consumer_progress") or [],
+                     "ui_contributions": snap.get("ui_contributions") or []}
 
 
 PAGE = (Path(__file__).parent / "ui" / "index.html").read_text(encoding="utf-8")

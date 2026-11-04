@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner, manager, facts, consumer_progress, trace_store
+import healthlib, scheduler, provisioner, manager, facts, consumer_progress, trace_store, ui_contribution
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -137,7 +137,26 @@ def snapshot(manifests=None, status=None, now=None):
     snap["settings"] = PROV.get_status() if PROV else None   # names only, never values
     snap["facts"] = FACTS.status() if FACTS else None        # fact names and times only, never values
     snap["consumer_progress"] = consumer_progress_rows(now)
+    snap["ui_contributions"] = contribution_rows(extra, now)
     return snap
+
+
+def contribution_rows(extra, now=None):
+    """Return pushed panels with their own freshness, separate from host health."""
+    now = time.time() if now is None else now
+    out = []
+    for source, entry in sorted(extra.items()):
+        if not isinstance(entry, dict) or not isinstance(entry.get("ui_contribution"), dict):
+            continue
+        received = entry.get("received_at")
+        if not isinstance(received, (int, float)) or now - received > EXTRA_MAX_AGE:
+            continue
+        try:
+            row = ui_contribution.validate(entry["ui_contribution"], source)
+        except ValueError:
+            continue
+        out.append({**row, "received_at": received, "stale": now - received > 120})
+    return out
 
 
 def consumer_progress_rows(now=None):
@@ -240,9 +259,18 @@ def ingest(body, now=None):
     src = req.get("source")
     if src is not None and not (isinstance(src, str) and 0 < len(src) <= 40):
         return 400, {"error": "bad source"}
+    contribution = None
+    if "ui_contribution" in req:
+        if not src or not any(x["name"] == src for x in m) or not any(x["name"] == src for x in s):
+            return 400, {"error": "contribution source mismatch"}
+        try:
+            contribution = ui_contribution.validate(req["ui_contribution"], src)
+        except ValueError:
+            return 400, {"error": "bad ui contribution"}
     with LOCK:
         if src:  # a module pushes only its own entries; the host snapshot is not touched
-            STATE.setdefault("extra", {})[src] = {"manifests": m, "status": s, "received_at": now}
+            STATE.setdefault("extra", {})[src] = {"manifests": m, "status": s, "received_at": now,
+                                                   "ui_contribution": contribution}
         else:
             STATE.update(manifests=m, status=s, received_at=now)
     save_state()

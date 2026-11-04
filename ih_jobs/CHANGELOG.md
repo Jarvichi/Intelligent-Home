@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.6] - 2026-11-04
+
+### Added
+- Push a bounded, read-only Jobs report into Intelligent Home Manager, including mode, built-in runs, errors, child count and last activity; stale reports are labelled.
+
 ## [0.15.5] - 2026-11-04
 
 ### Fixed
@@ -22,6 +27,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 - Add an ingress-only summary of built-in and plugin runs, modes, outcomes, timestamps and unavailable states.
+
+### Fixed
+- Remove the house-specific fleet page from the public default; the optional fleet fallback is now disabled until an operator-specific URL is configured privately.
 
 ## [0.15.1] - 2026-11-03
 
