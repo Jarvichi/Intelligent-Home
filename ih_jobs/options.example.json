@@ -26,5 +26,7 @@
   "bods_api_key": "",
   "mail_password": "",
   "anthropic_key": "",
+  "ai_layer_url": "http://172.30.32.1:8801",
+  "ai_layer_token": "",
   "plugins": []
 }

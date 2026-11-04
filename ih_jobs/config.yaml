@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs"
-version: "0.15.7"
+version: "0.16.0"
 slug: ih_jobs
 image: "ghcr.io/jarvichi/{arch}-ih_jobs"
 description: "PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps the media and share folders (read-write) for the photo, receipt and inbox plugins; the brain_stats plugin only reads the brain folder in share."
@@ -53,6 +53,8 @@ options:
   bods_api_key: ""
   mail_password: ""
   anthropic_key: ""
+  ai_layer_url: "http://172.30.32.1:8801"
+  ai_layer_token: ""
   plugins: []
 schema:
   log_payloads: bool?
@@ -84,6 +86,8 @@ schema:
   bods_api_key: password?
   mail_password: password?
   anthropic_key: password?
+  ai_layer_url: str?
+  ai_layer_token: password?
   plugins:
     - name: str
       live: bool
