@@ -25,7 +25,7 @@ import bus_client
 import factsview as FV
 from features import shopping as S
 
-VERSION = '0.3.2'
+VERSION = '0.3.5'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -554,7 +554,22 @@ def make_ingress_handler(mod):
             if self.client_address[0] != INGRESS_PEER:
                 self.send_error(403); return
             path = urlparse(self.path).path
-            assets = {'/ih-ui.css': ('ui/ih-ui.css', 'text/css; charset=utf-8'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript; charset=utf-8')}
+            if path == '/api/list':
+                try:
+                    entity = mod.cfg.get('shopping_list_entity')
+                    if not entity or not mod.ha: raise ValueError('list not configured')
+                    items = mod.ha.get_items(entity)
+                    if not isinstance(items, list): raise ValueError('invalid list')
+                    body = {'available': True, 'checked_at': time.time(),
+                            'items': [{'summary': str(item.get('summary') or '')} for item in items if isinstance(item, dict)]}
+                    code = 200
+                except Exception:
+                    body, code = {'available': False, 'error': 'Shopping list is temporarily unavailable.'}, 503
+                b = json.dumps(body).encode('utf-8')
+                self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(b))); self.send_header('Cache-Control', 'no-store')
+                self.end_headers(); self.wfile.write(b); return
+            assets = {'/ih-patterns.css': ('ui/ih-patterns.css', 'text/css; charset=utf-8'), '/ui.js': ('ui/ui.js', 'text/javascript; charset=utf-8'), '/ih-ui.css': ('ui/ih-ui.css', 'text/css; charset=utf-8'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript; charset=utf-8')}
             if path in assets:
                 rel, kind = assets[path]
                 try: b = open(os.path.join(os.path.dirname(__file__), rel), 'rb').read()

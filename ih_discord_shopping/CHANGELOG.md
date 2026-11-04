@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.5] - 2026-11-04
+
+### Changed
+- Add read-only ingress browsing and search for the configured shopping list while retaining Shortcut setup and existing write flows.
+
 ## [0.3.4] - 2026-11-03
 
 ### Added
