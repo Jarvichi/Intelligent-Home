@@ -1,12 +1,31 @@
 """Recipe writes for ih_cooking 0.2 (ports of host recipe_service/main.py validate+save, recipes.py save/shop/publish). stdlib only.
 Data lives in /data: recipes/<slug>.json, recipe_backups/, staples.json, meal_items.json, mealplan.json."""
-import base64, json, os, re, time
+import base64, json, os, re, time, hashlib, threading, functools
 
 RK = 'ro' + 'b_'  # Compatibility keys used by existing recipe files.
 
 EDIT = ('name', 'title', 'oven', 'serves', RK + 'minutes', RK + 'note', 'steps', 'prep', 'shopping', 'equipment')
 SLUG = re.compile(r'^[a-z0-9-]{1,60}$')
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+
+
+_WRITE_LOCK = threading.RLock()
+
+def serialized_write(fn):
+    @functools.wraps(fn)
+    def call(*args, **kwargs):
+        with _WRITE_LOCK:
+            return fn(*args, **kwargs)
+    return call
+
+def revision(recipe):
+    stored = {k: v for k, v in recipe.items() if k not in ('_revision', 'slug')}
+    return hashlib.sha256(json.dumps(stored, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+
+def backup_recipe(data, slug, recipe):
+    folder = os.path.join(data, 'recipe_backups')
+    os.makedirs(folder, exist_ok=True)
+    atomic(os.path.join(folder, '%s-%s-%s.json' % (slug, time.strftime('%Y%m%d-%H%M%S'), time.time_ns())), recipe)
 
 
 def validate(d):
@@ -43,6 +62,7 @@ def atomic(path, obj):
     os.replace(tmp, path)
 
 
+@serialized_write
 def save_recipe(data, slug, d):
     """Validated edit of an EXISTING recipe with a backup of the old file (same rules as the host recipe service). Returns (ok, errors)."""
     rdir = os.path.join(data, 'recipes'); f = os.path.join(rdir, slug + '.json')
@@ -51,11 +71,11 @@ def save_recipe(data, slug, d):
     if e: return False, e
     with open(f, encoding='utf-8') as handle: r = json.load(handle)
     old = json.loads(json.dumps(r))
+    if '_revision' in d and d['_revision'] != revision(old): return False, ['recipe changed; reload before editing']
     indices = [step['_original_index'] for step in d.get('steps', []) if '_original_index' in step]
     if len(indices) != len(set(indices)) or any(i >= len(old.get('steps', [])) for i in indices): return False, ['invalid original step reference']
     if any('_original_index' in step and '_original_text' in step and step['_original_text'] != old['steps'][step['_original_index']].get('text') for step in d.get('steps', [])): return False, ['recipe changed; reload before editing']
-    bdir = os.path.join(data, 'recipe_backups'); os.makedirs(bdir, exist_ok=True)
-    atomic(os.path.join(bdir, '%s-%s-%s.json' % (slug, time.strftime('%Y%m%d-%H%M%S'), time.time_ns())), r)
+    backup_recipe(data, slug, r)
     for k in EDIT:
         if k in d:
             if d[k] in (None, '') and k in ('oven', 'serves'):
@@ -76,6 +96,7 @@ def save_recipe(data, slug, d):
     return True, []
 
 
+@serialized_write
 def create_recipe(data, d):
     """New recipe from the builder (host recipes.py save). d has name/title and steps. Returns (ok, slug-or-errors)."""
     if not isinstance(d, dict): return False, ['not an object']
@@ -89,7 +110,7 @@ def create_recipe(data, d):
         item = {key: step[key] for key in ('before', 'text', 'note') if key in step}
         item['short'] = step.get('short') or step['text'][:34]
         steps.append(item)
-    r = {k: v for k, v in d.items() if k not in ('id', '_edit', 'steps', 'prep', 'shopping', 'equipment')}
+    r = {k: v for k, v in d.items() if k not in ('id', '_edit', '_revision', 'slug', 'steps', 'prep', 'shopping', 'equipment')}
     r['steps'] = steps
     for k in ('prep', 'shopping', 'equipment'): r[k] = [value for value in d.get(k, []) if value.strip()]
     rdir = os.path.join(data, 'recipes'); os.makedirs(rdir, exist_ok=True)
@@ -102,7 +123,8 @@ def listing(data):
     out = []; rdir = os.path.join(data, 'recipes')
     for f in sorted(os.listdir(rdir)) if os.path.isdir(rdir) else []:
         if not f.endswith('.json'): continue
-        try: r = json.load(open(os.path.join(rdir, f)))
+        try:
+            with open(os.path.join(rdir, f), encoding='utf-8') as handle: r = json.load(handle)
         except (OSError, ValueError): continue
         st = r.get('steps', [])
         out.append(dict(id=f[:-5], title=(r.get('title') or r.get('name') or f[:-5]).strip(), minutes=max([s.get('before', 0) for s in st] or [0]),
@@ -172,21 +194,53 @@ def www_index(data):
     for f in sorted(os.listdir(rdir)) if os.path.isdir(rdir) else []:
         if not f.endswith('.json'): continue
         r = json.load(open(os.path.join(rdir, f))); n = f[:-5]
+        r['_revision'] = revision(r)
         idx.append({'name': n, 'title': r.get('name') or r.get('title', n)})
         out['recipes/%s.json' % n] = json.dumps(r, indent=1, ensure_ascii=False)
     out['recipes/index.json'] = json.dumps(idx, ensure_ascii=False)
     return out
 
 
+@serialized_write
 def do_import(data, body):
     """Seed/refresh /data from the host. body: {recipes: {slug: obj}, staples: obj, meal_items: obj, mealplan: obj, overwrite: bool}. Never overwrites unless overwrite."""
-    ow = body.get('overwrite') is True; n = {'recipes': 0, 'skipped': 0}
-    rdir = os.path.join(data, 'recipes'); os.makedirs(rdir, exist_ok=True)
-    for slug, obj in (body.get('recipes') or {}).items():
-        f = os.path.join(rdir, slug + '.json')
-        if not SLUG.match(slug) or not isinstance(obj, dict): n['skipped'] += 1; continue
-        if os.path.exists(f) and not ow: n['skipped'] += 1; continue
-        atomic(f, obj); n['recipes'] += 1
+    n = {'recipes': 0, 'skipped': 0, 'unchanged': 0, 'conflicts': [], 'errors': []}
+    if not isinstance(body, dict) or not isinstance(body.get('recipes', {}), dict) or not isinstance(body.get('expected_revisions', {}), dict):
+        n['errors'].append({'error': 'invalid import request'})
+        return n
+    ow, expected = body.get('overwrite') is True, body.get('expected_revisions', {})
+    rdir = os.path.join(data, 'recipes')
+    pending = []
+    for slug, raw in body.get('recipes', {}).items():
+        if not isinstance(slug, str) or not SLUG.fullmatch(slug) or not isinstance(raw, dict):
+            n['errors'].append({'error': 'invalid recipe'})
+            continue
+        obj = {k:v for k,v in raw.items() if k not in ('_revision', 'slug')}
+        if isinstance(obj.get('steps'), list): obj['steps'] = [{k:v for k,v in step.items() if k not in ('_original_index', '_original_text', '_new_step')} if isinstance(step, dict) else step for step in obj['steps']]
+        if validate(obj) or not obj.get('steps') or not (obj.get('name') or obj.get('title')):
+            n['errors'].append({'recipe': slug, 'error': 'invalid recipe'})
+            continue
+        f, old = os.path.join(rdir, slug + '.json'), None
+        if os.path.exists(f):
+            with open(f, encoding='utf-8') as handle: old = json.load(handle)
+            if revision(old) == revision(obj):
+                n['unchanged'] += 1
+                continue
+            if not ow:
+                n['skipped'] += 1
+                continue
+            if expected.get(slug) != revision(old):
+                n['conflicts'].append(slug)
+                continue
+        pending.append((slug, f, obj, old))
+    # Validate the complete recipe batch before changing any recipe or side file.
+    if n['errors'] or n['conflicts']:
+        return n
+    os.makedirs(rdir, exist_ok=True)
+    for slug, f, obj, old in pending:
+        if old is not None: backup_recipe(data, slug, old)
+        atomic(f, obj)
+        n['recipes'] += 1
     for key, fn in (('staples', 'staples.json'), ('meal_items', 'meal_items.json'), ('mealplan', 'mealplan.json')):
         if isinstance(body.get(key), dict):
             f = os.path.join(data, fn)

@@ -227,9 +227,10 @@ class Store:
         if not SLUG_RE.match(slug or ''):
             return None
         try:
-            r = json.load(open(os.path.join(self.rdir, slug + '.json')))
+            with open(os.path.join(self.rdir, slug + '.json'), encoding='utf-8') as handle: r = json.load(handle)
         except (OSError, ValueError):
             return None
+        r['_revision'] = recipeadmin.revision(r)
         r['slug'] = slug
         return r
 

@@ -49,6 +49,7 @@ async function save(){const num=v=>v===''?null:Number(v);
  captureSteps();const steps=STEP_DRAFT.map(step=>{const out={before:step.before,text:step.text,short:step.short||''};if(Number.isInteger(step._original_index)){out._original_index=step._original_index;out._original_text=step._original_text}else out._new_step=true;return out});
  if(!steps.length||steps.some(s=>!Number.isInteger(s.before)||s.before<0||s.before>600||!s.text))return msg('Each step needs an instruction and whole minutes from 0 to 600.','err');
  const d={title:$('#e_title').value.trim(),oven:num($('#e_oven').value),serves:(v=>/^\d+$/.test(v)?Number(v):v)($('#e_serves').value.trim()),[RK+'minutes']:num($('#e_kid').value)??15,steps,equipment:unl($('#e_equipment').value),[RK+'note']:$('#e_note').value.trim(),prep:unl($('#e_prep').value),shopping:unl($('#e_shop').value)};
+ if(!CUR._new&&CUR._revision)d._revision=CUR._revision;
  const saveButton=$('#sv');saveButton.disabled=true;saveButton.textContent='Saving…';
  try{if(CUR._new){const c=await api('api/recipes',{method:'POST',body:JSON.stringify(d)});CUR=await api('api/recipes/'+c.created);CUR._id=c.created;ALL=await api('api/recipes');draw();show();return msg('Created','good')}
   const savedId=CUR._id;await api('api/recipes/'+savedId,{method:'PUT',body:JSON.stringify(d)});CUR=await api('api/recipes/'+savedId);CUR._id=savedId;ALL=await api('api/recipes');draw();show();msg('Saved (backup kept)','good')}
