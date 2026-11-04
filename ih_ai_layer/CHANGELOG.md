@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.9] - 2026-11-05
+
+### Added
+- Generic MCP provider `mcp`: connect any remote MCP server (https only) with a `providers` entry instead of new code. The entry can be listed many times; each `settings` JSON has an `id`, `url`, optional `label`, optional `auth_header` (secret in the entry `key`), an ALLOWLIST of `tools` (each mapped to a capability, with the tool argument that receives the request text and optional `context_args`), optional `keywords` and the usual caps/timeouts/`shadow`. Only listed tools can ever be called; anything else is refused before any network call. See DOCS.md "Connect any MCP server".
+- The server's `tools/list` is read on first use and every 24 hours; only listed tools that the server really offers are callable, and missing ones are logged. Listed tools that are not marked read-only by the server show as `write_tools` in the provider status.
+- Keywords from `mcp` settings are merged into the classifier at startup (whole words, never overriding a built-in capability).
+- Agent name `ih_ai_layer_mcp_<id>` (scores, trace spans). Request text, argument values and keys are never logged; the key is sent only in the chosen header and redirects are not followed.
+
+### Changed
+- The MCP client code (session, JSON-RPC, SSE parsing, re-initialise on HTTP 400/404) moved from `publicapis` into `providers/mcp_client.py`, shared by both. PublicAPIs.io behaves as before.
+
 ## [0.4.8] - 2026-11-05
 
 ### Added

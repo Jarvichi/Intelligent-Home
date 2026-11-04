@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.8'
+VERSION = '0.4.9'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 
@@ -57,7 +57,32 @@ KEYWORDS = {
                       'announced', 'trailer', 'score', 'result', 'standings', 'weather', '2025', '2026', '2027'),
     'web_search': ('search', 'look up', 'lookup', 'google', 'find out', 'latest', 'news', 'who is', 'what is', 'how much', 'when is'),
 }
-WORD_MATCH = {'current_facts': {w: re.compile(r'(?<![a-z0-9])' + re.escape(w) + r'(?![a-z0-9])') for w in KEYWORDS['current_facts']}}
+
+def _words(ws):
+    return {w: re.compile(r'(?<![a-z0-9])' + re.escape(w) + r'(?![a-z0-9])') for w in ws}
+
+
+WORD_MATCH = {'current_facts': _words(KEYWORDS['current_facts'])}
+BASE_KEYWORDS, BASE_WORD_MATCH = dict(KEYWORDS), dict(WORD_MATCH)
+
+
+def merge_keywords(providers):
+    """0.4.9: keywords from `mcp` provider settings join the classifier (whole words/phrases), after showtimes and before the other built-ins.
+    A capability that already has built-in keywords is never overridden. Called at startup (each Layer), always from the built-in table."""
+    extra = {}
+    for p in providers.values():
+        for cap, ws in (p.keywords().items() if hasattr(p, 'keywords') else []):
+            if cap not in BASE_KEYWORDS and cap not in extra:
+                extra[cap] = tuple(ws)
+    KEYWORDS.clear()
+    WORD_MATCH.clear()
+    for cap, ws in BASE_KEYWORDS.items():
+        KEYWORDS[cap] = ws
+        if cap == 'showtimes':
+            for c, w in extra.items():
+                KEYWORDS[c] = w
+                WORD_MATCH[c] = _words(w)
+    WORD_MATCH.update(BASE_WORD_MATCH)
 
 
 def classify(text):
@@ -222,6 +247,7 @@ class Layer:
         self.agents = {}                       # name -> dict(url, capabilities, version, healthy, seen): EXTERNAL agent add-ons that registered
         # in-process providers (Phase 4), same agent names as the old add-ons ('ih_ai_layer_groq' ...) so scores carry over
         self.providers = provmod.build(opts.get('providers'), opts.get('provider_keys') or {}, data, self.log, provider_opener or urllib.request.urlopen, clock, today)
+        merge_keywords(self.providers)
         self.scores = self._load()             # cap -> agent -> dict(n, ok, ms, up, down)
         self.recent = collections.OrderedDict()  # request_id -> (cap, agent), for feedback
         self.window = collections.deque()

@@ -106,6 +106,7 @@ Ten providers run inside this add-on (Phase 4). Each does what the old agent add
 | `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
 | `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
 | `publicapis` | api_search, api_info, api_quickstart, api_compare, api_offerings | none | none needed | free |
+| `mcp` | the capabilities you list for each server | none | entry `key` (optional) | free unless the server charges; see "Connect any MCP server" |
 
 A provider is used only when it has an entry in `providers` with `enabled` true and a key (`publicapis` needs no key) (the entry `key`, or the flat key option above). Paid calls need `spend_cap` above 0 in the `settings`.
 
@@ -150,6 +151,26 @@ A directory of 1,500+ public APIs, read through its free MCP server (https://pub
 | `api_offerings` | not used | none |
 
 Invalid context values are dropped. Answers are cached for `cache_hours` (default 24, 0 = off); errors are never cached. Daily cap default 200. One MCP session is kept per process and re-created once if the server drops it. Only the read-only tools are used. The server's other tools (`start_deal`, `send_message`, `get_deal`) are for API owners who buy a paid listing or sponsorship; they are deliberately NOT implemented. Results come from a third-party directory and are unverified: check an API's terms and safety before using it. A plain request such as "find a public API for weather" is routed to `api_search` by the keyword rule.
+
+### Connect any MCP server (`mcp`)
+A new MCP server (streamable HTTP, https only) is connected by a settings entry, not by code. Add an entry to `providers` with `name` `mcp`. List it once per server; each `id` must be different. Example `settings` (placeholder address):
+
+```
+{"id": "demo", "url": "https://example.com/mcp", "label": "Demo server",
+ "auth_header": "Authorization",
+ "tools": {"search_items": {"capability": "demo_search", "arg": "query", "context_args": ["limit"]}},
+ "keywords": {"demo_search": ["demo item", "demo catalogue"]},
+ "daily_cap": 100, "cache_hours": 1, "timeout_s": 30, "max_chars": 6000, "shadow": false}
+```
+
+- `id` (required): a-z, 0-9 and `_`, up to 24 characters. The agent is called `ih_ai_layer_mcp_<id>`.
+- `url` (required): must start with `https://`. Redirects are not followed.
+- `auth_header` (optional) and the entry `key`: the key is sent as the value of that header. For `Authorization`, a key with no scheme gets `Bearer ` in front. With no `auth_header` the key is not used. The key is never logged or shown.
+- `tools` (required): the ALLOWLIST. Only tools named here can ever be called; any other tool is refused before any network call, even if a caller asks for it. Each tool gives a `capability` (the name callers use), `arg` (the tool argument that receives the request text) and optional `context_args` (extra arguments that may be taken from the request `context`; other context values are ignored). One capability per tool.
+- `keywords` (optional): `{"capability": ["word", ...]}` so a plain question is routed to the capability. Whole words or phrases, merged at startup; they never override a built-in capability.
+- `daily_cap`, `cache_hours` (default 1; only answers of tools that the server marks read-only are cached), `timeout_s`, `max_chars`, `shadow` work as for the other providers. `scrub` (default true) removes private-looking data from the request text before it is sent.
+
+On first use, and every 24 hours, the layer reads the server's tool list and keeps only listed tools that the server really offers. Listed tools the server does not offer are logged by name. A listed tool that the server does not mark read-only shows under `write_tools` in the provider status; the allowlist is the owner's decision. Do not allowlist tools that spend money or send messages unless the owner has approved that specific tool. A bad entry (no `id`, an `http` address, a bad `id`, an empty allowlist) is skipped with a log line. Request text, argument values and keys are never logged.
 
 ### Status
 Version 0.3.1: request usage log (`/usage`); 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.
