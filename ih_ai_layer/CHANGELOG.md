@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.5] - 2026-11-05
+
+### Fixed
+- Answers from thinking models were cut off mid-sentence (Gemini 3.5 Flash) or empty (OpenRouter free router): the output budget was a fixed 1024 tokens. New provider setting `max_tokens`, default 4096.
+- Default `max_chars` raised from 1900 to 4000 (limit 8000), so long answers and answer comparisons are not cut.
+
 ## [0.4.4] - 2026-11-05
 
 ### Added

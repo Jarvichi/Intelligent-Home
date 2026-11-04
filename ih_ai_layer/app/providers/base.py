@@ -59,7 +59,7 @@ def parse_settings(raw):
 
 
 
-USER_AGENT = 'intelligent-home-ai-layer/0.4.4'
+USER_AGENT = 'intelligent-home-ai-layer/0.4.5'
 
 class Provider:
     """Subclasses set the class attributes and implement generate(cap, text, timeout)."""
@@ -100,7 +100,10 @@ class Provider:
              'daily_cap': num('daily_cap', cls.DEFAULT_DAILY_CAP, 0, cls.MAX_DAILY_CAP), 'timeout_s': num('timeout_s', 30, 5, 120),
              'log_payloads': _flag(s.get('log_payloads', False)),
              'shadow': sh if isinstance(sh, bool) else str(sh).lower() not in ('false', '0', 'no'),
-             'max_chars': num('max_chars', 1900, 100, 4000)}
+             'max_chars': num('max_chars', 4000, 100, 8000),
+             # 0.4.5: output token budget. 1024 was too small for thinking models (gemini-3.5-flash cut answers off mid-sentence,
+             # openrouter/free returned empty answers): they spend part of the budget on reasoning before the reply.
+             'max_tokens': num('max_tokens', 4096, 256, 16384)}
         o.update(cls.extra_opts(s, num))
         return o
 
@@ -265,7 +268,7 @@ class ChatProvider(Provider):
 
     def generate(self, cap, text, timeout):
         """The ONLY outside call. Key goes in the Authorization header here and nowhere else. -> reply text (may be empty)."""
-        body = json.dumps({'model': self.opts['model'], 'max_tokens': 1024,
+        body = json.dumps({'model': self.opts['model'], 'max_tokens': self.opts['max_tokens'],
                            'messages': [{'role': 'system', 'content': SYSTEM[cap]}, {'role': 'user', 'content': text}]}).encode()
         req = urllib.request.Request(self.API_URL, data=body, method='POST', headers=self.headers())
         with self.opener(req, timeout=timeout) as x:

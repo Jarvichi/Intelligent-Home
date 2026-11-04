@@ -15,7 +15,7 @@ CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 MODEL_RE = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 TRACE_ID_RE = re.compile(r'^[a-f0-9]{32}$')
 SPAN_ID_RE = re.compile(r'^[a-f0-9]{16}$')
-VERSION = '0.4.4'
+VERSION = '0.4.5'
 USAGE_FILE, USAGE_KEEP = 'usage.jsonl', 2000
 
 

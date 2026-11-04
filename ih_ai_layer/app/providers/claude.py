@@ -12,7 +12,7 @@ class Claude(Provider):
 
     def generate(self, cap, text, timeout):
         """The ONLY outside call. Key goes in the x-api-key header here and nowhere else. -> reply text (may be empty)."""
-        body = json.dumps({'model': self.opts['model'], 'max_tokens': 1024, 'system': SYSTEM[cap],
+        body = json.dumps({'model': self.opts['model'], 'max_tokens': self.opts['max_tokens'], 'system': SYSTEM[cap],
                            'messages': [{'role': 'user', 'content': text}]}).encode()
         req = urllib.request.Request(self.API_URL, data=body, method='POST',
                                      headers={'Content-Type': 'application/json', 'x-api-key': self.opts['key'], 'anthropic-version': '2023-06-01'})
