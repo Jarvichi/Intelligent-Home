@@ -28,10 +28,11 @@
 .cover-monogram{align-self:flex-end;color:var(--ih-link);font-size:clamp(32px,5vw,60px);line-height:1;letter-spacing:-.07em}
 .game-art{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}
 .game-art[hidden],.game-cover-fallback[hidden]{display:none}
-.art-action{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:var(--ih-muted);font:inherit;font-size:11px;cursor:pointer}
-.art-action:hover:not(:disabled){border-color:var(--ih-link);transform:translateY(-1px)}
-.art-action:disabled{cursor:not-allowed;opacity:.68}
-.art-action svg{width:19px;height:19px}
+.art-action{position:absolute;z-index:2;top:0;left:0;display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent;color:#fff;cursor:pointer}
+.art-action svg{width:15px;height:15px;opacity:.3;filter:drop-shadow(0 1px 2px #000) drop-shadow(0 0 1px #000);transition:opacity .15s ease}
+.art-action:hover:not(:disabled) svg,.art-action:focus-visible svg,.art-action:active:not(:disabled) svg{opacity:1}
+.art-action:focus-visible{outline-offset:-3px;background:rgb(0 0 0 / 20%)}
+.art-action:disabled{cursor:not-allowed}.art-action:disabled svg{opacity:.15}
 .game-main{display:flex;flex-direction:column;align-items:flex-start;min-width:0;padding:12px}
 .game-heading{display:grid;gap:8px;width:100%}
 .game-heading h2{margin:0;font-size:clamp(18px,2vw,22px);line-height:1.15;letter-spacing:-.03em;overflow-wrap:anywhere}
@@ -88,7 +89,7 @@ th{position:sticky;top:0;background:var(--ih-surface-raised);color:var(--ih-mute
  .library-stat{padding:8px}.library-stat strong{font-size:23px}.library-stat span{font-size:10px;line-height:1.3}
  .game-card{grid-template-columns:92px minmax(0,1fr)}.game-cover-fallback{padding:8px}.cover-monogram{font-size:28px}
  .game-main{padding:10px}.game-heading{gap:6px}.game-heading h2{font-size:17px}.game-facts{gap:8px}.detail-row dd{font-size:12px}
- .game-actions{gap:0}.art-action{padding:4px}.art-action svg{width:15px;height:15px}
+ .game-actions{gap:0}
  .objective-heading{align-items:flex-start;flex-direction:column}.objective-tabs{gap:4px}.objective-tab{min-width:100px;padding:8px}.objective-row{display:grid;gap:4px;padding:10px}.objective-progress{text-align:left}
  .table-wrap{overflow:visible;border:0}.table-wrap table,.table-wrap tbody{display:block;width:100%}.table-wrap thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
  .table-wrap tr{display:grid;grid-template-columns:1fr;gap:0;margin-bottom:8px;padding:4px 12px;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-bg)}

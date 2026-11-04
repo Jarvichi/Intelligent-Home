@@ -158,9 +158,10 @@
     }
     function setArtAction(mode, label) {
       const action = label || (mode === 'refresh' ? 'Refresh' : 'Find') + ' cover art for ' + game.title;
-      artButton.replaceChildren(artIcon(mode), el('span', mode === 'refresh' ? 'Refresh cover' : 'Find cover')); artButton.setAttribute('aria-label', action); artButton.title = action;
+      artButton.replaceChildren(artIcon(mode)); artButton.setAttribute('aria-label', action); artButton.title = action;
     }
     setArtAction('search', artSearchAvailable ? 'Find cover art for ' + game.title : 'Cover art search is not configured');
+    cover.appendChild(artButton);
 
     const main = el('div', null, 'game-main');
     const top = el('div', null, 'game-heading');
@@ -205,7 +206,7 @@
       } catch (e) { setArtAction(art.hidden ? 'search' : 'refresh'); showArtStatus(e.message, 'notice notice-error art-status'); }
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
-    if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.join(', '), 'game-tools'));
+    if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.map(name => name.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', '), 'game-tools'));
     const toggle = el('button', 'View full details', 'ih-button details-toggle');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     const detail = el('div', null, 'game-details'); detail.hidden = true;
@@ -222,7 +223,7 @@
       } catch (e) { showError(detail, e.message); }
     });
     const actions = el('div', null, 'game-actions');
-    actions.append(toggle, artButton);
+    actions.append(toggle);
     main.appendChild(actions);
     card.append(cover, main, detail);
     return card;
@@ -237,7 +238,7 @@
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
       const playtimeKnown = games.filter(g => g.playtime_min != null).length;
       const stats = el('div', null, 'library-stats');
-      [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'tracked'], [playtimeKnown, 'playtime known']].forEach(function (item) {
+      [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'tracked'], [playtimeKnown, 'with playtime']].forEach(function (item) {
         const box = el('ih-metric', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);
       });
       if (!games.length) wrap.appendChild(el('ih-empty', 'No games are listed for this player yet.', 'empty-state'));

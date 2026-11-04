@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.11] - 2026-11-04
+
+### Changed
+- Compact the library header and statistics, preserve full cover artwork, and separate Research from player tabs.
+- Show service status labels on mobile and simplify dates, playtime, and tracker names.
+- Place a small translucent artwork action above the top-left of each cover, with a clear keyboard focus state and a 44px touch target.
+
 ## [0.6.10] - 2026-11-03
 
 ### Changed
