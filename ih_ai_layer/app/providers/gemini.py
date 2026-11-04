@@ -4,9 +4,9 @@ from .base import Provider, SYSTEM
 
 
 class Gemini(Provider):
-    NAME, LABEL, VERSION = 'gemini', 'Gemini', '0.2.2'
+    NAME, LABEL, VERSION = 'gemini', 'Gemini', '0.2.3'
     API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/'
-    DEFAULT_MODEL = 'gemini-2.5-flash'
+    DEFAULT_MODEL = 'gemini-3.5-flash'
     MODEL_PATTERN = r'[A-Za-z0-9._-]{1,60}'
     KEY_OPTION = 'gemini_key'
 

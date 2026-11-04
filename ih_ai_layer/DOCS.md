@@ -77,11 +77,11 @@ If no `capability` is given, a simple keyword rule picks one and `classified` is
 - Agent links are signed (HMAC, 5 minute freshness) with the shared `register_key`. Empty `register_key` = nobody can register and no agent is called.
 
 ### Built-in providers
-Nine AI providers run inside this add-on (Phase 4). Each does what the old agent add-on did: same request code, default model, capabilities, daily and spend caps, and text scrubbing. `claude_cli` is not here (it needs the Claude CLI) and stays a separate add-on.
+Ten providers run inside this add-on (Phase 4). Each does what the old agent add-on did: same request code, default model, capabilities, daily and spend caps, and text scrubbing. `claude_cli` is not here (it needs the Claude CLI) and stays a separate add-on.
 
 | Provider (`name`) | Capabilities | Default model | Key option | Plan |
 |---|---|---|---|---|
-| `gemini` | general_qa, summarize | gemini-2.5-flash | `gemini_key` | paid unless `free_tier` |
+| `gemini` | general_qa, summarize | gemini-3.5-flash | `gemini_key` | paid unless `free_tier` |
 | `groq` | general_qa, summarize | openai/gpt-oss-120b | `groq_key` | paid unless `free_tier` |
 | `openrouter` | general_qa, summarize | openrouter/auto | `openrouter_key` | paid unless `free_tier` or a `:free` model |
 | `mistral` | general_qa, summarize | mistral-medium-latest | `mistral_key` (+ setting `agent_id`) | free by default |
@@ -90,11 +90,12 @@ Nine AI providers run inside this add-on (Phase 4). Each does what the old agent
 | `serpapi` | showtimes, web_search | none | `serpapi_key` | paid unless `free_tier` |
 | `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
 | `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
+| `publicapis` | api_search, api_info, api_quickstart, api_compare, api_offerings | none | none needed | free |
 
-A provider is used only when it has an entry in `providers` with `enabled` true and a key (the entry `key`, or the flat key option above). Paid calls need `spend_cap` above 0 in the `settings`.
+A provider is used only when it has an entry in `providers` with `enabled` true and a key (`publicapis` needs no key) (the entry `key`, or the flat key option above). Paid calls need `spend_cap` above 0 in the `settings`.
 
 #### The `providers` option
-One entry per provider: `name`, `enabled`, `key` (optional: empty = use the flat key option), `model` (optional: empty = default) and `settings` (optional JSON text). Example settings: `{"daily_cap": 50, "spend_cap": 0, "free_tier": true, "timeout_s": 30, "max_chars": 1900, "shadow": false, "log_payloads": false}`. Extra settings: `agent_id` (mistral, required), `cache_hours` and `default_cinema` (serpapi). The daily cap counts calls per day, before the call. A provider-level `shadow` is off by default; the router `shadow` option already stops every call.
+One entry per provider: `name`, `enabled`, `key` (optional: empty = use the flat key option), `model` (optional: empty = default) and `settings` (optional JSON text). Example settings: `{"daily_cap": 50, "spend_cap": 0, "free_tier": true, "timeout_s": 30, "max_chars": 1900, "shadow": false, "log_payloads": false}`. Extra settings: `agent_id` (mistral, required), `cache_hours` and `default_cinema` (serpapi), `cache_hours` (publicapis, default 24). The daily cap counts calls per day, before the call. A provider-level `shadow` is off by default; the router `shadow` option already stops every call.
 
 #### How the router uses them
 Built-in providers join the same scoring and learning as agents, under the same names as the old add-ons (`ih_ai_layer_groq` and so on), so earlier scores still count. If an external agent add-on with the same name is live and healthy, it wins; when it stops registering (for example it is stopped or uninstalled), the built-in provider answers. Both could exist during the move. The separate provider add-ons were removed from the repository on 28 Oct 2026; uninstall any you still have. A file `/data/providers/<name>/STOP` stops one provider.
@@ -120,6 +121,19 @@ Do one provider at a time. Never paste a key into a chat.
 3. Save and restart this add-on. Read the log: one `provider <name>` line says `configured`.
 4. While the agent add-on is still running, it keeps answering. Stop the agent add-on, then send a test request: `/agents` shows the provider as `in_process` and live.
 5. When it works, uninstall the agent add-on. Its daily counters start again from zero in the new place.
+
+#### PublicAPIs.io (`publicapis`)
+A directory of 1,500+ public APIs, read through its free MCP server (https://publicapis.io/mcp, no key). Use it to find an API for a task, read its details or a starter code snippet, or compare APIs. The request text is a search query or an API slug and is sent as it is (not scrubbed); it is never logged.
+
+| Capability | Request text | Optional `context` keys |
+|---|---|---|
+| `api_search` | what the API should do | `category`, `auth` (`none`, `api_key`, `oauth`), `free` (bool), `https` (bool), `limit` (1-20) |
+| `api_info` | API slug | `slug` |
+| `api_quickstart` | API slug | `slug`, `language` (`javascript`, `python`, `curl`; default `python`) |
+| `api_compare` | 2-5 slugs split by commas or spaces | `slugs` (list) |
+| `api_offerings` | not used | none |
+
+Invalid context values are dropped. Answers are cached for `cache_hours` (default 24, 0 = off); errors are never cached. Daily cap default 200. One MCP session is kept per process and re-created once if the server drops it. Only the read-only tools are used. The server's other tools (`start_deal`, `send_message`, `get_deal`) are for API owners who buy a paid listing or sponsorship; they are deliberately NOT implemented. Results come from a third-party directory and are unverified: check an API's terms and safety before using it. A plain request such as "find a public API for weather" is routed to `api_search` by the keyword rule.
 
 ### Status
 Version 0.3.1: request usage log (`/usage`); 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.
