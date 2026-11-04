@@ -59,7 +59,7 @@ def parse_settings(raw):
 
 
 
-USER_AGENT = 'intelligent-home-ai-layer/0.4.5'
+USER_AGENT = 'intelligent-home-ai-layer/0.4.6'
 
 class Provider:
     """Subclasses set the class attributes and implement generate(cap, text, timeout)."""

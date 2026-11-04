@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.6] - 2026-11-05
+
+### Fixed
+- A request with no capability and no keyword match now goes to `general_qa` instead of failing with "No agent". Plain questions from callers that leave the capability empty (such as the Discord AI bot) were refused.
+
 ## [0.4.5] - 2026-11-05
 
 ### Fixed
