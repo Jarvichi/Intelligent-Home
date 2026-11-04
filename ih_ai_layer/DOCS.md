@@ -82,7 +82,7 @@ Nine AI providers run inside this add-on (Phase 4). Each does what the old agent
 | Provider (`name`) | Capabilities | Default model | Key option | Plan |
 |---|---|---|---|---|
 | `gemini` | general_qa, summarize | gemini-2.5-flash | `gemini_key` | paid unless `free_tier` |
-| `groq` | general_qa, summarize | llama-3.3-70b-versatile | `groq_key` | paid unless `free_tier` |
+| `groq` | general_qa, summarize | openai/gpt-oss-120b | `groq_key` | paid unless `free_tier` |
 | `openrouter` | general_qa, summarize | openrouter/auto | `openrouter_key` | paid unless `free_tier` or a `:free` model |
 | `mistral` | general_qa, summarize | mistral-medium-latest | `mistral_key` (+ setting `agent_id`) | free by default |
 | `openai` | general_qa, summarize | gpt-6-luna | `openai_key` | paid unless `free_tier` |
