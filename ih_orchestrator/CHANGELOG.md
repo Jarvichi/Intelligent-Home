@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.11] - 2026-11-04
+
+### Added
+- Filter traces by their recorded root operation, alongside trace-ID search, with matching counts and a Clear filters action.
+
+### Fixed
+- Ignore late detail responses after a trace selection changes and retain the selected row highlight when filters change.
+
 ## [0.10.10] - 2026-11-04
 
 ### Added
