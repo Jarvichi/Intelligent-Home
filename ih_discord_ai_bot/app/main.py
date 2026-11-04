@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bus_client
 
-VERSION = '0.2.3'
+VERSION = '0.2.4'
 MAX_LIST_ITEMS = 20
 DATA = os.environ.get('IHB_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
@@ -26,13 +26,16 @@ PUSH_EVERY = 60
 STOP_FILE = 'STOP'            # ignore every message
 STOP_LIVE_FILE = 'STOP_LIVE'  # force dry
 DEFAULT_MODULE = 'ih_discord_ai_bot'
-OPS_NEEDED = ['post']
+OPS_NEEDED = ['post', 'watch']   # watch: optional, for thumbs up / down on answers (without it the bot only posts)
 MAX_ASK = 4000                # the AI layer refuses longer text
 MAX_REPLY = 1800              # the transport cuts at 1900
 AGENT_LABELS = {'pollinations': 'Pollinations', 'gemini': 'Gemini', 'groq': 'Groq', 'openrouter': 'OpenRouter', 'mistral': 'Mistral',
-                'openai': 'OpenAI', 'serpapi': 'SerpApi', 'publicapis': 'PublicAPIs.io', 'claude': 'Claude', 'grok': 'Grok'}
+                'openai': 'OpenAI', 'serpapi': 'SerpApi', 'serper': 'Serper', 'publicapis': 'PublicAPIs.io', 'claude': 'Claude', 'grok': 'Grok'}
 MODEL_OK = re.compile(r'^[A-Za-z0-9._:/-]{1,60}$')
 SEEN_MAX = 500
+REACT_MAX = 500               # remembered answers (message id -> AI layer request id)
+REACT_TTL_S = 3600            # the transport watches a message for at most one hour
+UP, DOWN = '\U0001F44D', '\U0001F44E'
 MAX_PARALLEL = 2
 ID_OK = re.compile(r'^\d{1,32}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
@@ -167,6 +170,19 @@ def ask_ai(opts, text, rid, opener=None, timeout=None, trace_id=None, parent_spa
     return 'answer', ans.strip(), spans, '', attribution(r.get('agent'), r.get('model'))
 
 
+def send_feedback(opts, rid, score, opener=None):
+    """POST /feedback to the AI layer: score +1 or -1 for request `rid`. -> True if the layer took it. Never raises; nothing but ids and the score is sent."""
+    if not opts['ai_layer_url'] or not opts['api_token']:
+        return False
+    req = urllib.request.Request(opts['ai_layer_url'] + '/feedback', data=json.dumps({'request_id': rid, 'score': score}).encode(), method='POST',
+                                 headers={'Authorization': 'Bearer ' + opts['api_token'], 'Content-Type': 'application/json'})
+    try:
+        with (opener or urllib.request.urlopen)(req, timeout=5) as x:
+            return x.status == 200
+    except Exception:
+        return False
+
+
 class Module:
     def __init__(self, opts, bus=None, ring=None, data=None, clock=time.time, threaded=True, opener=None):
         self.opts, self.started, self.ring, self.data, self.clock = opts, clock(), ring or Ring(), data or DATA, clock
@@ -182,6 +198,9 @@ class Module:
         self.times = collections.deque()        # accepted-question times, for the rate limit
         self.sem = threading.BoundedSemaphore(MAX_PARALLEL)
         self.load_seen()
+        self.reacted = collections.OrderedDict()   # answer message id -> {'rid': request id, 'users': [user ids that already voted]}, persisted
+        self.feedback_sent = self.feedback_failed = 0
+        self.load_reacted()
 
     # ---- mode ----
     def stopped(self):
@@ -219,6 +238,60 @@ class Module:
             os.replace(tmp, self.seen_path())
         except OSError:
             self.lg.info('seen list not saved')
+
+    # ---- thumbs up / down on answers: answer message id -> AI layer request id (ids only, bounded, on disk) ----
+    def reacted_path(self):
+        return os.path.join(self.data, 'reacted.json')
+
+    def load_reacted(self):
+        try:
+            with open(self.reacted_path()) as fh:
+                for k, v in json.load(fh).items():
+                    if isinstance(v, dict) and isinstance(v.get('rid'), str):
+                        self.reacted[str(k)] = {'rid': v['rid'], 'users': [str(u) for u in v.get('users', [])][:50]}
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+
+    def save_reacted(self):
+        try:
+            tmp = self.reacted_path() + '.tmp'
+            with open(tmp, 'w') as fh:
+                json.dump(self.reacted, fh)
+            os.replace(tmp, self.reacted_path())
+        except OSError:
+            self.lg.info('reaction list not saved')
+
+    def track_answer(self, ck, did, rid):
+        """A real answer was posted as message `did`: remember its request id and ask the transport to watch it for thumbs up / down."""
+        self.reacted[str(did)] = {'rid': rid, 'users': []}
+        while len(self.reacted) > REACT_MAX:
+            self.reacted.popitem(last=False)
+        self.save_reacted()
+        r = self.client.watch(ck, str(did), [UP, DOWN], ttl_s=REACT_TTL_S)
+        if r is None or not r.get('ok'):
+            self.lg.info('watch not available (%s): no thumbs feedback', (r or {}).get('code', 'no reply'))
+
+    def on_reaction(self, d):
+        """Thumbs up / down by an allowed user on one of this bot's answers -> AI layer /feedback (+1 / -1). One vote per user and message."""
+        with self.lock:
+            if self.stopped() or not d.get('added'):
+                return
+            em, uid, mid = _text(d.get('emoji')), _text(d.get('user_id')), _text(d.get('msg_id'))
+            e = self.reacted.get(mid)
+            if em not in (UP, DOWN) or not e or uid not in self.opts['allowed_user_ids'] or uid in e['users']:
+                return
+            if self.dry_now():
+                self.lg.info('[DRY] would send %s feedback', 'positive' if em == UP else 'negative')
+                return
+            e['users'].append(uid)
+            self.save_reacted()
+            rid = e['rid']
+        ok = send_feedback(self.opts, rid, 1 if em == UP else -1, opener=self.opener)
+        with self.lock:
+            if ok:
+                self.feedback_sent += 1
+            else:
+                self.feedback_failed += 1
 
     # ---- build / start ----
     def build(self):
@@ -263,6 +336,8 @@ class Module:
 
     def on_in(self, d):
         """One verified `in` event (the ack was already sent). Decides, then asks the AI layer and posts ONE reply."""
+        if d.get('type') == 'reaction':
+            return self.on_reaction(d)
         with self.lock:
             self.apply_mode()
             if d.get('type') != 'message':
@@ -343,7 +418,7 @@ class Module:
                 self.apply_mode()
                 posting_dry = self.dry_now()
                 post_started = time.time()
-                sent = self.reply(ck, mid, out, error=(kind != 'answer'), credit=credit if kind == 'answer' else '')
+                sent = self.reply(ck, mid, out, error=(kind != 'answer'), credit=credit if kind == 'answer' else '', rid=trace_id)
                 delivery_status = 'skipped' if posting_dry else ('ok' if sent else 'error')
                 delivery_reason = 'shadow' if posting_dry else ('' if sent else 'transport_error')
                 spans.append(self._span('ih_discord', 'post_reply', delivery_status, post_started,
@@ -367,7 +442,7 @@ class Module:
             if release:
                 self.sem.release()
 
-    def reply(self, ck, mid, text, error=False, credit=''):
+    def reply(self, ck, mid, text, error=False, credit='', rid=None):
         """Post ONE reply to message `mid`. Text is never logged. `credit` (who answered) is appended after the cut: the answer is truncated, never the credit."""
         if credit:
             tail = '\n\n' + credit
@@ -386,6 +461,8 @@ class Module:
                 self.own[str(did)] = True
                 while len(self.own) > SEEN_MAX:
                     self.own.popitem(last=False)
+                if rid and not error and not self.dry_now():
+                    self.track_answer(ck, did, rid)
         if error:
             self.errors_posted += 1
         else:
@@ -411,7 +488,8 @@ class Module:
                         'reason': self.bus_reason, 'last_heartbeat_s': None if hb is None else int(now - hb)},
                 'counts': {'in': self.in_count, 'answered': self.answered, 'errors_posted': self.errors_posted, 'ignored': self.ignored,
                            'ignored_by': dict(self.ignored_why), 'rate_limited': self.rate_limited, 'busy': self.busy, 'out_failed': self.out_failed,
-                           'rejected': sum((self.client.rejected if self.client else {}).values())},
+                           'rejected': sum((self.client.rejected if self.client else {}).values()),
+                           'tracked_answers': len(self.reacted), 'feedback_sent': self.feedback_sent, 'feedback_failed': self.feedback_failed},
                 'last_in_s': None if self.last_in is None else int(now - self.last_in),
                 'would_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 

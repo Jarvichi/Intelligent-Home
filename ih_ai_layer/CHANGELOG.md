@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.8] - 2026-11-05
+
+### Added
+- Search first, then answer: new capability `current_facts`, handled by the router itself. Questions about prices, release dates, news, scores, weather and other time-sensitive facts are searched on the web first; a general_qa agent then answers ONLY from the numbered results. Links in the answer that are not result links are removed (note "(link removed: not in search results)"), and the answer ends with a short "Sources:" list. If no search is possible the answer is plain general_qa with the note "(No web search available - this may be out of date.)".
+- New built-in provider `serper` (Serper.dev, Google results, 2,500 free credits): capability `web_search`, option `serper_key`, daily cap 60, results cached 6 hours (never errors or empty results). The search text is not scrubbed and never logged.
+- Classifier: time-sensitive words (whole words only) now choose `current_facts` before `web_search`. Showtimes and API search are unchanged.
+- Trace: the request span has `results` (number of search results; `chars` is left out so there are at most 8 attrs); a `search` span per search.
+
+### Changed
+- The general_qa system prompt now tells every provider to say so when it cannot verify current information, and never to invent links.
+
 ## [0.4.7] - 2026-11-05
 
 ### Added

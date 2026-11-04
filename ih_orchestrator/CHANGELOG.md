@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.15] - 2026-11-05
+
+### Added
+- Traces accept the attribute `results` (number of search results); the viewer shows it as "2 results".
+- Catalogue lists AI Layer 0.4.8 and Discord AI Bot 0.2.4.
+
 ## [0.10.14] - 2026-11-05
 
 ### Added

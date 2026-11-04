@@ -14,6 +14,10 @@ class RoutingAttrs(unittest.TestCase):
         self.assertEqual(len(a), 8)
         self.assertEqual(a["model"], "openai/gpt-oss-120b")
 
+    def test_results_attr(self):
+        self.assertEqual(trace_store.clean_attrs({"results": 3}), {"results": 3})
+        self.assertEqual(trace_store.clean_attrs({"results": -1}), {})
+
     def test_model_variants(self):
         for m in ("gemini-2.5-flash", "meta-llama/llama-3.3-70b:free", "mistral_small.v1"):
             self.assertEqual(trace_store.clean_attrs({"model": m}), {"model": m})

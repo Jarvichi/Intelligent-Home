@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.4] - 2026-11-05
+
+### Added
+- Thumbs up / down on answers: a thumbs-up or thumbs-down by an allowed user on one of the bot's answers is sent to the AI layer as feedback (+1 / -1) for the AI that wrote it, once per user and message. The bot asks the transport to watch each posted answer (`watch` operation, at most one hour); the last 500 answers (message id and request id only) are remembered in /data. Needs `watch` in the `ops` of the transport row; without it the bot works as before.
+- "answered by Serper" label for the new search provider.
+
 ## [0.2.3] - 2026-11-05
 
 ### Added
