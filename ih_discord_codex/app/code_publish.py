@@ -14,6 +14,7 @@ REPO_NAME = "Intelligent-Home"
 MAX_FILE = 2_000_000
 MAX_TOTAL = 8_000_000
 MAX_FILES = 20
+SUPERVISOR_NETWORK = re.compile(r"\b172\.30\.\d{1,3}\.\d{1,3}\b")
 PRIVATE_PATTERNS = (
     re.compile(r"(?i)\b(?:192\.168\.|10\.\d{1,3}\.|172\.(?:1[6-9]|2\d|3[01])\.)\d{1,3}\.\d{1,3}\b"),
     re.compile(r"(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b"),
@@ -110,7 +111,10 @@ def _changed_files(path):
         if total > MAX_TOTAL:
             raise PublishError("The source change set exceeds the review limit")
         text = data.decode("utf-8", "strict")
-        if any(pattern.search(text) for pattern in PRIVATE_PATTERNS):
+        # Match the repository scanner's existing allowance for Home Assistant's
+        # fixed 172.30.x.x Supervisor network. Other private ranges remain blocked.
+        text_for_scan = SUPERVISOR_NETWORK.sub("[SUPERVISOR_NETWORK]", text)
+        if any(pattern.search(text_for_scan) for pattern in PRIVATE_PATTERNS):
             raise PublishError("A private address, device identifier or secret-like value was found; nothing was uploaded")
         files.append({"path": name, "status": status, "content": data})
     return files

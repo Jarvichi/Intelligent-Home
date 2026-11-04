@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.28] - 2026-11-04
+- Allow only the fixed Home Assistant Supervisor network (`172.30.x.x`) in code submission scans, while retaining checks for other private addresses and secret-like values.
+- Let `/code refresh` archive the existing `codex/work` checkout, including local edits or commits, before reseeding; clarify that `/code submit` leaves the local checkout intact.
+
 ## [0.1.27] - 2026-11-03
 - Derive the bus heartbeat, MCP client, and health status version from `app/manifest.json` so runtime reporting stays aligned with the installed add-on version.
 

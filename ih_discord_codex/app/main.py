@@ -278,7 +278,7 @@ class CommandRunner:
     def run(self, thread, text, save_thread):
         command = text.strip().lower()
         if command == "/help":
-            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, `/code refresh` safely refreshes a clean branch from bundled IH source, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
+            return "Ask about Home Assistant, device diagnostics, or IH code. Device changes require `/approve CODE`. `/code status` shows your review branch, `/code diff` prints changes, `/code refresh` archives the old workspace and reseeds from bundled IH source, and `/code submit` opens a PR after a privacy scan. `/status` shows queue state; `/new` starts a fresh thread."
         if command == "/status":
             state = self.bridge.status()
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
@@ -317,11 +317,11 @@ class CommandRunner:
                     notice = " Claude task handoff: %s." % ("queued" if state == "pending" else state)
                 else:
                     notice = " Claude handoff is not configured."
-                return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed.%s" % (result["url"], result["branch"], notice)
+                return "Review pull request created: %s\nBranch: `%s`. Nothing was merged or deployed. `/code submit` leaves the local checkout unchanged; `/code refresh` archives it and starts a clean workspace from bundled IH source.%s" % (result["url"], result["branch"], notice)
             except PublishError as exc:
                 return str(exc)
         if command.startswith("/code "):
-            return "Use `/code status`, `/code diff`, or `/code refresh`. Code stays on the private local review branch and is not merged or deployed."
+            return "Use `/code status`, `/code diff`, `/code refresh`, or `/code submit`. Code stays on the private local review branch and is not merged or deployed."
         answer = self.codex.run(thread, text, save_thread)
         context = self.bridge.active_context()
         plans = self.ha_tools.pending_for(context["message"]) if self.ha_tools and context else []

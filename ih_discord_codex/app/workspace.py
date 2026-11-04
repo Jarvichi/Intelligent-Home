@@ -47,7 +47,7 @@ def prepare_workspace(path):
 
 
 def refresh_workspace(path):
-    """Refresh a clean, unchanged workspace while preserving its old snapshot."""
+    """Refresh a workspace by archiving the complete old checkout before reseeding."""
     target = Path(path).resolve()
     if not (target / ".git").is_dir():
         raise RuntimeError("the IH code workspace is not initialized")
@@ -61,11 +61,10 @@ def refresh_workspace(path):
     if branch.returncode or branch.stdout.strip() != "codex/work":
         raise RuntimeError("refresh is allowed only from the codex/work branch")
     status = git("status", "--porcelain", "--untracked-files=all")
-    if status.returncode or status.stdout.strip():
-        raise RuntimeError("workspace has uncommitted or untracked files; preserve them before refreshing")
     ahead = git("rev-list", "--count", "main..codex/work")
-    if ahead.returncode or ahead.stdout.strip() != "0":
-        raise RuntimeError("workspace branch contains commits; preserve them before refreshing")
+    if status.returncode or ahead.returncode or not ahead.stdout.strip().isdigit():
+        raise RuntimeError("workspace state could not be checked; no files were changed")
+    has_local_changes = bool(status.stdout.strip()) or ahead.stdout.strip() != "0"
 
     old_revision = source_revision(target)
     try:
@@ -74,14 +73,15 @@ def refresh_workspace(path):
         new_revision = ""
     if not new_revision or new_revision == "unknown":
         raise RuntimeError("the bundled IH source revision is unavailable")
-    if new_revision == old_revision:
+    if new_revision == old_revision and not has_local_changes:
         return "The IH code workspace already uses the latest bundled source (%s)." % new_revision[:12]
     if not (SOURCE_ROOT / "ih_discord_codex" / "config.yaml").is_file():
         raise RuntimeError("the bundled public IH source is missing; workspace was not changed")
 
     parent = target.parent
     temporary = parent / (".%s-refresh-%s" % (target.name, secrets.token_hex(6)))
-    backup = parent / ("%s-previous-%s-%s" % (target.name, old_revision[:8], time.strftime("%Y%m%d%H%M%S")))
+    backup = parent / ("%s-previous-%s-%s-%s" % (
+        target.name, old_revision[:8], time.strftime("%Y%m%d%H%M%S"), secrets.token_hex(3)))
     try:
         prepare_workspace(temporary)
         os.replace(target, backup)
@@ -95,7 +95,7 @@ def refresh_workspace(path):
             shutil.rmtree(temporary, ignore_errors=True)
         raise
     os.chmod(target, 0o700)
-    return "Refreshed the IH code workspace to source %s. The previous clean workspace is saved as `%s` if you need it." % (
+    return "Refreshed the IH code workspace to source %s. The previous workspace, including local edits, is preserved as `%s`." % (
         new_revision[:12], backup.name)
 
 
