@@ -15,6 +15,14 @@ for dir in "$ROOT"/ih_*/app/ui; do
       cp "$ROOT/ih_ui/$src" "$dir/$dst"
     fi
   done
+  # Optional patterns are adopted explicitly; do not alter unrelated add-ons.
+  if [ -f "$dir/ih-patterns.css" ]; then
+    if [ "$CHECK" -eq 1 ]; then
+      cmp -s "$ROOT/ih_ui/patterns.css" "$dir/ih-patterns.css" || { echo "stale patterns: ${dir#"$ROOT"/}"; exit 1; }
+    else
+      cp "$ROOT/ih_ui/patterns.css" "$dir/ih-patterns.css"
+    fi
+  fi
 done
 [ "$found" -eq 1 ] || { echo "no add-on app/ui targets found"; exit 1; }
 echo "IH UI assets $([ "$CHECK" -eq 1 ] && echo checked || echo synced)"

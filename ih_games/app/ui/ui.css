@@ -46,11 +46,7 @@
 .game-tools{margin:12px 0 0;color:var(--ih-muted);font-size:12px;overflow-wrap:anywhere}
 .ih-button{min-height:44px;padding:8px 12px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .15s ease}
 .ih-button:hover:not(:disabled){border-color:var(--ih-link);transform:translateY(-1px)}.ih-button:disabled{cursor:not-allowed;opacity:.65}
-.details-toggle{position:absolute;top:4px;right:4px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--ih-link);cursor:pointer}
-.details-toggle:after{content:"";width:9px;height:9px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin-bottom:5px}
-.details-toggle[aria-expanded=true]:after{transform:rotate(225deg);margin-bottom:0}
-.details-toggle:hover{background:var(--ih-surface-raised)}
-.details-toggle:focus-visible{outline:3px solid var(--ih-link);outline-offset:-3px}
+.details-toggle{position:absolute;top:4px;right:4px}
 .details-content{display:grid;align-content:start;gap:16px;min-width:0}
 .data-refreshed{margin:0;color:var(--ih-muted);font-size:11px;line-height:1.4}
 .game-details{display:grid;align-content:start;gap:16px;margin-top:12px;padding:16px;border-top:1px solid var(--ih-line)}.game-details[hidden]{display:none}
@@ -104,3 +100,10 @@ th{position:sticky;top:0;background:var(--ih-surface-raised);color:var(--ih-mute
 @media(prefers-reduced-motion:reduce){.game-card,.games-nav button,.ih-button{transition:none}}
 
 .upcoming-empty{margin:0;color:var(--ih-muted);font-size:12px;line-height:1.5}
+
+.library-toolbar .search-field{flex:1 1 180px}
+.library-result-count{margin:0 0 12px;color:var(--ih-muted);font-size:12px}
+.research-item-main{display:grid;gap:6px;min-width:0}
+.research-item-main h3{margin:0;font-size:15px;overflow-wrap:anywhere}
+.research-item-main p{margin:0;color:var(--ih-muted);font-size:12px}
+.research-kind{justify-self:start;font-size:10px;letter-spacing:.04em;color:var(--ih-link)}
