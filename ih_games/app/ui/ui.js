@@ -79,14 +79,6 @@
     const d = new Date(ms); const two = function (n) { return String(n).padStart(2, '0'); };
     return two(d.getHours()) + ':' + two(d.getMinutes());
   }
-  function trackerAvailability(payload) {
-    const data = payload.details || {};
-    if (data.error) return { state: 'unavailable', text: 'Tracker unavailable · ' + String(data.error) };
-    if (data.stale) return { state: 'stale', text: 'Tracker data is stale' + (data.fetched ? ' · saved ' + fmtDate(data.fetched) : '') };
-    if (data.stale === false && Number.isFinite(Date.parse(data.fetched))) return { state: 'current', text: 'Tracker current at last check · updated ' + fmtDate(data.fetched) };
-    if (data.fetched) return { state: 'unknown', text: 'Saved tracker data · ' + fmtDate(data.fetched) + ' · freshness not reported' };
-    return { state: 'unknown', text: 'Tracker freshness is not reported' };
-  }
   async function request(path, method, payload) {
     const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? JSON.stringify(payload || {}) : undefined });
     let data;
@@ -262,23 +254,14 @@
       } catch (e) { setArtAction(art.hidden ? 'search' : 'refresh'); showArtStatus(e.message, 'notice notice-error art-status'); }
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
-    if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.map(name => name.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', '), 'game-tools'));
     const toggle = el('button', null, 'details-toggle ih-disclosure');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-label', 'Show details for ' + game.title); toggle.title = 'Show details';
     const detail = el('div', null, 'game-details'); detail.hidden = true;
     const refreshed = el('span', null, 'refreshed-at');
     function showRefreshed(ms) { refreshed.textContent = 'refreshed ' + clockTime(ms); }
-    const trackerStatus = el('p', game.tools && game.tools.length ? 'Tracker not checked · open details to load' : 'No tracker configured', 'tracker-status ih-freshness');
-    function showTrackerStatus(payload) {
-      if (!game.tools || !game.tools.length) return;
-      const availability = trackerAvailability(payload);
-      trackerStatus.textContent = availability.text; trackerStatus.dataset.state = availability.state;
-    }
     const savedDetails = detailCache.get(expansionKey);
     if (savedDetails) showRefreshed(savedDetails.saved);
-    main.appendChild(trackerStatus);
-    if (savedDetails) showTrackerStatus(savedDetails.payload);
     const detailId = 'game-details-' + encodeURIComponent(player) + '-' + encodeURIComponent(game.id);
     detail.id = detailId; toggle.setAttribute('aria-controls', detailId);
     let detailLoading = false;
@@ -291,20 +274,14 @@
       detailLoading = true;
       detail.replaceChildren(el('p', 'Loading complete game details…', 'ih-muted'));
       detail.setAttribute('aria-busy', 'true');
-      let trackerResponseReceived = false;
       try {
         const cached = detailCache.get(expansionKey);
         const payload = cached && Date.now() - cached.saved < 60000 ? cached.payload : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
-        trackerResponseReceived = true;
         detailCache.set(expansionKey, { payload, saved: Date.now() });
         showRefreshed(detailCache.get(expansionKey).saved);
-        showTrackerStatus(payload);
-        const onFetched = function (savedAt, fresh) { showRefreshed(savedAt); if (fresh) showTrackerStatus(fresh); };
+        const onFetched = function (savedAt) { showRefreshed(savedAt); };
         detail.replaceChildren(await detailsContent(payload, { player: player, key: expansionKey, onFetched: onFetched })); detail.dataset.loaded = 'true';
       } catch (e) {
-        if (!trackerResponseReceived && game.tools && game.tools.length) {
-          trackerStatus.textContent = 'Tracker unavailable'; trackerStatus.dataset.state = 'unavailable';
-        }
         showError(detail, e.message);
       } finally { detailLoading = false; detail.setAttribute('aria-busy', 'false'); }
     }

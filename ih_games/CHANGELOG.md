@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.4] - 2026-11-04
+
+### Changed
+- Remove tracker names and tracker freshness lines from collapsed game cards, including Destiny; keep the complete details and small refresh time by the disclosure control.
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 

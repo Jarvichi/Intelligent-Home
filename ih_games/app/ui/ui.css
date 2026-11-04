@@ -43,7 +43,6 @@
 .detail-row dt{color:var(--ih-muted);font-size:11px;font-weight:650}
 .detail-row dd{margin:0;font-size:13px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
 .art-status{margin:auto 0 0;padding-top:8px;color:var(--ih-muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
-.game-tools{margin:12px 0 0;color:var(--ih-muted);font-size:12px;overflow-wrap:anywhere}
 .ih-button{min-height:44px;padding:8px 12px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .15s ease}
 .ih-button:hover:not(:disabled){border-color:var(--ih-link);transform:translateY(-1px)}.ih-button:disabled{cursor:not-allowed;opacity:.65}
 .details-toggle{position:absolute;top:4px;right:4px}
