@@ -138,6 +138,29 @@
     if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
     return wrap;
   }
+  function coverEdgeColor(image) {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(image.naturalWidth, 128);
+      canvas.height = 1;
+      if (!canvas.width || !image.naturalHeight) return null;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return null;
+      context.drawImage(image, 0, image.naturalHeight - 1, image.naturalWidth, 1, 0, 0, canvas.width, 1);
+      const pixels = context.getImageData(0, 0, canvas.width, 1).data;
+      const sum = [0, 0, 0];
+      let weight = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const alpha = pixels[i + 3] / 255;
+        weight += alpha;
+        for (let c = 0; c < 3; c++) sum[c] += pixels[i + c] * alpha;
+      }
+      return weight ? 'rgb(' + sum.map(value => Math.round(value / weight)).join(', ') + ')' : null;
+    } catch (_) {
+      // Unreadable or cross-origin artwork keeps the neutral column background.
+      return null;
+    }
+  }
   function gameCard(game, player) {
     const card = el('ih-card', null, 'game-card');
     card.setAttribute('role', 'article'); card.setAttribute('aria-label', game.title);
@@ -187,8 +210,14 @@
       art.src = root + 'api/art/' + encodeURIComponent(game.id) + '?v=' + Date.now();
       setArtAction('refresh');
     }
-    art.addEventListener('load', function () { art.hidden = false; fallback.hidden = true; cover.classList.add('has-art'); });
+    art.addEventListener('load', function () {
+      art.hidden = false; fallback.hidden = true; cover.classList.add('has-art');
+      const color = coverEdgeColor(art);
+      if (color) card.style.setProperty('--cover-edge', color);
+      else card.style.removeProperty('--cover-edge');
+    });
     art.addEventListener('error', function () {
+      card.style.removeProperty('--cover-edge');
       art.hidden = true;
       fallback.hidden = false;
       cover.classList.remove('has-art');
@@ -207,13 +236,13 @@
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
     if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.map(name => name.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', '), 'game-tools'));
-    const toggle = el('button', 'View full details', 'ih-button details-toggle');
+    const toggle = el('button', 'Details', 'details-toggle');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     const detail = el('div', null, 'game-details'); detail.hidden = true;
     toggle.addEventListener('click', async function () {
       const opening = detail.hidden;
       detail.hidden = !opening; toggle.setAttribute('aria-expanded', String(opening));
-      toggle.textContent = opening ? 'Hide details' : 'View full details';
+      toggle.textContent = opening ? 'Hide details' : 'Details';
       if (!opening || detail.dataset.loaded) return;
       detail.replaceChildren(el('p', 'Loading complete game details…', 'ih-muted'));
       try {

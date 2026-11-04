@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.12] - 2026-11-04
+
+### Changed
+- Use a compact details toggle and extend the artwork bottom-edge colour down the cover column behind detail panels.
+- Place a faint cover-art action above the top-left of the artwork while preserving its touch target and accessible label.
+- Keep a neutral column colour when artwork cannot be sampled or loaded.
+
 ## [0.6.11] - 2026-11-04
 
 ### Changed
