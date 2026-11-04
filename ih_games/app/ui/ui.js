@@ -75,13 +75,9 @@
       recommendation ? { title: recommendation[1], kind: 'Recommendation', question: text, next: 'Next: review whether this belongs in the library.' } :
       { title: text || 'Game research', kind: 'Research', question: 'Review this research request.', next: 'Next: clarify the request and decide what to investigate.' };
   }
-  function trackerAvailability(payload) {
-    const data = payload.details || {};
-    if (data.error) return { state: 'unavailable', text: 'Tracker unavailable · ' + String(data.error) };
-    if (data.stale) return { state: 'stale', text: 'Tracker data is stale' + (data.fetched ? ' · saved ' + fmtDate(data.fetched) : '') };
-    if (data.stale === false && Number.isFinite(Date.parse(data.fetched))) return { state: 'current', text: 'Tracker current at last check · updated ' + fmtDate(data.fetched) };
-    if (data.fetched) return { state: 'unknown', text: 'Saved tracker data · ' + fmtDate(data.fetched) + ' · freshness not reported' };
-    return { state: 'unknown', text: 'Tracker freshness is not reported' };
+  function clockTime(ms) {
+    const d = new Date(ms); const two = function (n) { return String(n).padStart(2, '0'); };
+    return two(d.getHours()) + ':' + two(d.getMinutes());
   }
   async function request(path, method, payload) {
     const r = await fetch(root + path, { cache: 'no-store', method: method || 'GET', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: method === 'POST' ? JSON.stringify(payload || {}) : undefined });
@@ -140,7 +136,7 @@
     if (gameComponentCache.has(name)) return gameComponentCache.get(name);
     const pending = new Promise(function (resolve, reject) {
       const script = document.createElement('script');
-      script.src = root + 'games/' + name + '.js?v=3'; script.async = true;
+      script.src = root + 'games/' + name + '.js?v=5'; script.async = true;
       script.onload = function () {
         const component = window.IHGameComponents && window.IHGameComponents[name];
         component && typeof component.render === 'function' ? resolve(component) : reject(new Error('The game UI component did not register.'));
@@ -164,7 +160,7 @@
           helpers.command = function (cmd, args) { return request(base + '/cmd?player=' + encodeURIComponent(player), 'POST', { cmd: cmd, args: args || [] }); };
           helpers.reload = async function () {
             const fresh = await request(base + '/details?player=' + encodeURIComponent(player));
-            detailCache.set(ctx.key, { payload: fresh, saved: Date.now() });
+            const saved = Date.now(); detailCache.set(ctx.key, { payload: fresh, saved: saved }); if (ctx.onFetched) ctx.onFetched(saved);
             return fresh.details || {};
           };
         }
@@ -263,15 +259,10 @@
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-label', 'Show details for ' + game.title); toggle.title = 'Show details';
     const detail = el('div', null, 'game-details'); detail.hidden = true;
-    const trackerStatus = el('p', game.tools && game.tools.length ? 'Tracker not checked · open details to load' : 'No tracker configured', 'tracker-status ih-freshness');
-    function showTrackerStatus(payload) {
-      if (!game.tools || !game.tools.length) return;
-      const availability = trackerAvailability(payload);
-      trackerStatus.textContent = availability.text; trackerStatus.dataset.state = availability.state;
-    }
+    const refreshed = el('span', null, 'refreshed-at');
+    function showRefreshed(ms) { refreshed.textContent = 'refreshed ' + clockTime(ms); }
     const savedDetails = detailCache.get(expansionKey);
-    if (savedDetails) showTrackerStatus(savedDetails.payload);
-    main.appendChild(trackerStatus);
+    if (savedDetails) showRefreshed(savedDetails.saved);
     const detailId = 'game-details-' + encodeURIComponent(player) + '-' + encodeURIComponent(game.id);
     detail.id = detailId; toggle.setAttribute('aria-controls', detailId);
     let detailLoading = false;
@@ -288,16 +279,15 @@
         const cached = detailCache.get(expansionKey);
         const payload = cached && Date.now() - cached.saved < 60000 ? cached.payload : await request('api/games/' + encodeURIComponent(game.id) + '/details?player=' + encodeURIComponent(player));
         detailCache.set(expansionKey, { payload, saved: Date.now() });
-        showTrackerStatus(payload);
-        detail.replaceChildren(await detailsContent(payload, { player: player, key: expansionKey })); detail.dataset.loaded = 'true';
+        showRefreshed(detailCache.get(expansionKey).saved);
+        detail.replaceChildren(await detailsContent(payload, { player: player, key: expansionKey, onFetched: showRefreshed })); detail.dataset.loaded = 'true';
       } catch (e) {
-        trackerStatus.textContent = 'Tracker unavailable'; trackerStatus.dataset.state = 'unavailable';
         showError(detail, e.message);
       } finally { detailLoading = false; detail.setAttribute('aria-busy', 'false'); }
     }
     toggle.addEventListener('click', function () { return setExpanded(detail.hidden); });
     const summary = el('div', null, 'game-summary');
-    summary.append(cover, main, toggle);
+    summary.append(cover, main, refreshed, toggle);
     card.append(summary, detail);
     if (expandedCards.has(expansionKey)) setExpanded(true);
     return card;
