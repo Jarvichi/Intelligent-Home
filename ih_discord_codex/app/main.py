@@ -189,6 +189,12 @@ class DurableClient(bus_client.ModuleClient):
             self._publish("ack", bus_client.topic_ack(self.module), {"ids": [str(mid)]})
 
 
+class CodexTurnFailure(RuntimeError):
+    def __init__(self, failure_code):
+        self.failure_code = failure_code
+        super().__init__(failure_code)
+
+
 class CodexProcessRunner:
     def __init__(self, workspace, codex_home, brain_read_token="", claude_review_enabled=False, timeout_s=240):
         self.workspace, self.codex_home, self.timeout_s = str(workspace), str(codex_home), timeout_s
@@ -250,14 +256,22 @@ class CodexProcessRunner:
                     elif record.get("type") == "answer":
                         answer = record.get("text")
                     elif record.get("type") == "error":
-                        raise RuntimeError("Codex runtime error (%s)" % record.get("kind", "unknown"))
+                        raise CodexTurnFailure("runtime_error")
             try:
                 code = proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 code = None
             if answer and code == 0:
                 return answer
-            raise RuntimeError("Codex turn not confirmed")
+            if time.monotonic() >= deadline:
+                raise CodexTurnFailure("timeout")
+            if code is None:
+                raise CodexTurnFailure("process_hung")
+            if code != 0:
+                raise CodexTurnFailure("nonzero_exit")
+            if not answer:
+                raise CodexTurnFailure("no_answer")
+            raise CodexTurnFailure("process_hung")
         finally:
             if proc.poll() is None:
                 try:
@@ -285,7 +299,14 @@ class CommandRunner:
             jobs = ", ".join("%s %s" % (count, name) for name, count in sorted(state["jobs"].items())) or "no queued work"
             delivery = ", ".join("%s %s" % (count, name) for name, count in sorted(state["delivery"].items())) or "no replies pending"
             handoffs = ", ".join("%s %s" % (count, name) for name, count in sorted(state.get("claude_handoffs", {}).items())) or "no Claude handoffs"
-            return "Codex status: %s. Replies: %s. Claude task handoffs: %s." % (jobs, delivery, handoffs)
+            note = ""
+            if state.get("last_issue"):
+                note = " Last issue: " + state["last_issue"] + "."
+            if state["jobs"].get("needs_review"):
+                note += " An uncertain turn is held; /new archives it and starts a fresh thread."
+            elif state["delivery"].get("needs_review"):
+                note += " A reply delivery is uncertain; /new archives it and starts a fresh thread."
+            return "Codex status: %s. Replies: %s. Claude task handoffs: %s.%s" % (jobs, delivery, handoffs, note)
         if command == "/new":
             self.bridge.abandon_uncertain(self.channel)
             return "Started a fresh Codex thread. Any interrupted turn or uncertain reply was held and will not be replayed."

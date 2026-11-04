@@ -94,6 +94,10 @@ class Bridge:
             if cur.rowcount == 1 and allowed:
                 for position,image in enumerate(valid_images):
                     self.db.execute('INSERT INTO job_images VALUES(?,?,?,?,?)',(ch,mid,position,image['mime'],image['data']))
+                if not (text.strip().lower() in ('/help','/status','/new')
+                        or text.strip().lower().startswith('/approve ') or text.strip().lower().startswith('/deny ')):
+                    self.db.execute('INSERT INTO outbox VALUES(?,?,?,?,?,?)',
+                      (ch,mid,-2,'Received. Your request is queued; I’ll send the result here.','pending',None))
             if cur.rowcount==1 and reason=='queue limit':
                 self.db.execute('INSERT OR IGNORE INTO outbox VALUES(?,?,?,?,?,?)',
                   (ch,mid,0,'The Codex queue is full. Send /status or /new to continue.','pending',None))
@@ -108,6 +112,8 @@ class Bridge:
         with self.lock:
             # One in-flight turn per channel; an uncertain turn blocks its followers.
             row=self.db.execute("""SELECT channel,message,text,author FROM jobs j WHERE state='queued'
+            AND (NOT EXISTS(SELECT 1 FROM outbox ack WHERE ack.channel=j.channel AND ack.message=j.message AND ack.part=-2)
+                 OR EXISTS(SELECT 1 FROM outbox ack WHERE ack.channel=j.channel AND ack.message=j.message AND ack.part=-2 AND ack.state='sent'))
              AND (j.text IN ('/help','/status','/new') OR j.text LIKE '/approve %' OR j.text LIKE '/deny %' OR j.text LIKE '/code %' OR NOT EXISTS(SELECT 1 FROM jobs x WHERE x.channel=j.channel AND x.state IN ('running','needs_review')))
              AND (j.text IN ('/help','/status','/new') OR j.text LIKE '/approve %' OR j.text LIKE '/deny %' OR j.text LIKE '/code %' OR NOT EXISTS(SELECT 1 FROM outbox o WHERE o.channel=j.channel AND o.state IN ('sending','needs_review')))
              ORDER BY j.rowid LIMIT 1""").fetchone()
@@ -118,32 +124,49 @@ class Bridge:
             if ch not in self.channels or author not in self.users:
                 with self.db:self.db.execute("UPDATE jobs SET state='rejected',reason='authorization revoked',text='' WHERE channel=? AND message=?",(ch,mid))
                 return True
+            thread_row=self.db.execute('SELECT thread FROM threads WHERE channel=?',(ch,)).fetchone()
+            thread=thread_row[0] if thread_row else None
             with self.db:self.db.execute("UPDATE jobs SET state='running' WHERE channel=? AND message=?",(ch,mid))
-            with self.lock:self._active_context={'channel':ch,'message':mid,'author':author}
-            def save_thread(thread):
-                if not isinstance(thread,str) or not thread:raise ValueError('invalid thread')
-                with self.db:
-                    self.db.execute('INSERT OR REPLACE INTO threads VALUES(?,?)',(ch,thread))
-                    self.db.execute('UPDATE jobs SET thread=? WHERE channel=? AND message=?',(thread,ch,mid))
-            try:
-                if images and hasattr(runner,'run_with_images'):
-                    answer=runner.run_with_images(self.thread(ch),text,images,save_thread)
-                else:
-                    answer=runner.run(self.thread(ch),text,save_thread)
-                if not isinstance(answer,str) or not answer.strip():raise ValueError('empty answer')
-                if len(answer)>18000:raise ValueError('answer exceeds bounded outbox')
-                with self.db:
-                    for part,offset in enumerate(range(0,len(answer),1800)):
-                        self.db.execute('INSERT INTO outbox VALUES(?,?,?,?,?,?)',(ch,mid,part,answer[offset:offset+1800],'pending',None))
-                    self.db.execute("UPDATE jobs SET state='answered',text='' WHERE channel=? AND message=?",(ch,mid))
-                    self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
-            except Exception:
-                with self.db:
-                    self.db.execute("UPDATE jobs SET state='needs_review',reason='model outcome uncertain' WHERE channel=? AND message=?",(ch,mid))
-                    self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
-            finally:
-                with self.lock:self._active_context=None
-            return True
+            self._active_context={'channel':ch,'message':mid,'author':author}
+        progress_done=threading.Event()
+        def save_thread(thread_id):
+            if not isinstance(thread_id,str) or not thread_id:raise ValueError('invalid thread')
+            with self.lock,self.db:
+                self.db.execute('INSERT OR REPLACE INTO threads VALUES(?,?)',(ch,thread_id))
+                self.db.execute('UPDATE jobs SET thread=? WHERE channel=? AND message=?',(thread_id,ch,mid))
+        try:
+            threading.Thread(target=self._queue_slow_progress,args=(ch,mid,progress_done),
+                             name='codex-progress',daemon=True).start()
+            if images and hasattr(runner,'run_with_images'):
+                answer=runner.run_with_images(thread,text,images,save_thread)
+            else:
+                answer=runner.run(thread,text,save_thread)
+            if not isinstance(answer,str) or not answer.strip():raise ValueError('empty answer')
+            if len(answer)>18000:raise ValueError('answer exceeds bounded outbox')
+            with self.lock,self.db:
+                for part,offset in enumerate(range(0,len(answer),1800)):
+                    self.db.execute('INSERT INTO outbox VALUES(?,?,?,?,?,?)',(ch,mid,part,answer[offset:offset+1800],'pending',None))
+                self.db.execute("UPDATE jobs SET state='answered',text='' WHERE channel=? AND message=?",(ch,mid))
+                self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
+        except Exception as exc:
+            failure=getattr(exc,'failure_code','')
+            if failure not in ('timeout','runtime_error','nonzero_exit','no_answer','process_hung','invalid_result','spawn_error'):
+                failure='invalid_result' if isinstance(exc,ValueError) else 'spawn_error' if isinstance(exc,OSError) else 'execution_error'
+            with self.lock,self.db:
+                self.db.execute("UPDATE jobs SET state='needs_review',reason=? WHERE channel=? AND message=?",
+                                ('model outcome uncertain ('+failure+')',ch,mid))
+                self.db.execute("DELETE FROM job_images WHERE channel=? AND message=?",(ch,mid))
+        finally:
+            progress_done.set()
+            with self.lock:self._active_context=None
+        return True
+    def _queue_slow_progress(self,channel,message,done):
+        if done.wait(60):return
+        with self.lock,self.db:
+            row=self.db.execute("SELECT state FROM jobs WHERE channel=? AND message=?",(channel,message)).fetchone()
+            if row and row[0]=='running':
+                self.db.execute('INSERT OR IGNORE INTO outbox VALUES(?,?,?,?,?,?)',
+                  (channel,message,-1,'Still working on this. I’ll send the result when the turn finishes.','pending',None))
     def deliver_one(self,sender):
         with self.lock:
             row=self.db.execute("""SELECT o.channel,o.message,o.part,o.text,j.author FROM outbox o JOIN jobs j ON j.channel=o.channel AND j.message=o.message WHERE o.state='pending'
@@ -170,9 +193,23 @@ class Bridge:
         return True
     def status(self):
         with self.lock:
+            row=self.db.execute("SELECT reason FROM jobs WHERE state='needs_review' ORDER BY created DESC LIMIT 1").fetchone()
+            reason=(row[0] if row else '')
+            safe_reasons={
+                'interrupted model turn':'turn interrupted before completion',
+                'model outcome uncertain':'model turn outcome could not be confirmed',
+                'model outcome uncertain (timeout)':'model turn timed out',
+                'model outcome uncertain (runtime_error)':'model runtime reported an error',
+                'model outcome uncertain (nonzero_exit)':'model process exited unsuccessfully',
+                'model outcome uncertain (no_answer)':'model returned no answer',
+                'model outcome uncertain (process_hung)':'model process did not exit after answering',
+                'model outcome uncertain (invalid_result)':'model returned an invalid result',
+                'model outcome uncertain (spawn_error)':'model process could not be started',
+                'model outcome uncertain (execution_error)':'model turn ended unexpectedly'}
             return {'jobs':dict(self.db.execute('SELECT state,count(*) FROM jobs GROUP BY state')),
                     'delivery':dict(self.db.execute('SELECT state,count(*) FROM outbox GROUP BY state')),
-                    'claude_handoffs':dict(self.db.execute('SELECT state,count(*) FROM claude_handoffs GROUP BY state'))}
+                    'claude_handoffs':dict(self.db.execute('SELECT state,count(*) FROM claude_handoffs GROUP BY state')),
+                    'last_issue':safe_reasons.get(reason,'')}
     def queue_claude_handoff(self,context,summary,url=None):
         if not context or not isinstance(context.get('message'),str):
             raise ValueError('handoff needs an active authorized task')

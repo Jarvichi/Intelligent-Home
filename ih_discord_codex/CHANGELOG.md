@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.32] - 2026-11-04
+- Send a visible acknowledgement before starting normal prompts or `/code` work, and a delayed progress note if a turn lasts over a minute.
+- Report safe failure categories and clear `/status` guidance when a turn or reply needs review.
+- Keep model execution isolated from the bus and status service; preserve uncertain-turn handling.
+
 ## [0.1.31] - 2026-11-04
 - Make `/code rebase` fetch current public IH main instead of relying on the source snapshot packaged when the add-on was built.
 - Explain that submit conflicts are file-specific and direct the owner to rebase before retrying.
