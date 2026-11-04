@@ -78,13 +78,17 @@ Nothing appears in Discord. `/status` shows `would_total`. Turn `shadow` off onl
 ### Setup (needs the transport options first; the transport row is the real switch)
 
 1. In the `ih_discord` options add a `modules` row with the **`post`** operation, for example
-   `{"name":"ih_discord_ai_bot","signing_key":"<secret>","channels":["<key>"],"ops":["post"],"rate_per_min":30,"shadow":true}`, and make sure `<key>` is a channel key.
+   `{"name":"ih_discord_ai_bot","signing_key":"<secret>","channels":["<key>"],"ops":["post","watch"],"rate_per_min":30,"shadow":true}`, and make sure `<key>` is a channel key.
 2. Create an MQTT user for this module; use the same signing key here and in the transport row.
 3. Set `channel_keys`, `allowed_user_ids`, and `api_token` (the same value as the AI layer's `api_token`).
 4. Start the add-on. Check `http://<host>:8803/status`: `bus.connected` true, `bus.last_heartbeat_s` small.
 
 A channel can have only ONE catch-all module. If another module already owns the channel key, set `trigger_prefix` (for example `ai `): the bot then claims only
 messages that start with it and strips it before asking.
+
+### Thumbs up / down (optional)
+
+If the transport row allows the **`watch`** operation, the bot asks the transport to watch every answer it posts for a thumbs-up or thumbs-down from an allowed user (`allowed_user_ids`). A vote goes to the AI layer `/feedback` (+1 or -1) for the AI that wrote the answer; this changes which AI is preferred next time. One vote per user and message; removing a reaction does nothing. Limits: the transport watches a message for one hour at most, so later reactions are ignored; the AI layer remembers the last 500 requests in memory only, so after it restarts old answers get no feedback. The bot keeps only message id and request id (last 500) in `/data/reacted.json`. Nothing is tracked in shadow mode. Without `watch` in the `ops` list the bot logs "watch not available" and works as before. `/status` counts: `tracked_answers`, `feedback_sent`, `feedback_failed`.
 
 ### Untested
 

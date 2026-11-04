@@ -8,11 +8,12 @@ from .mistral import Mistral
 from .openai import OpenAI
 from .pollinations import Pollinations
 from .serpapi import SerpApi
+from .serper import Serper
 from .grok import Grok
 from .claude import Claude
 from .publicapis import PublicApis
 
-REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Grok, Claude, PublicApis)}
+REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude, PublicApis)}
 KEY_OPTIONS = {c.NAME: c.KEY_OPTION for c in REGISTRY.values()}      # provider -> flat option name that can hold its key (the settings hub fills these)
 
 

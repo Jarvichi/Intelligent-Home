@@ -39,8 +39,22 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `openai_key` | No | OpenAI API key. The settings hub can fill it. |
 | `pollinations_key` | No | Pollinations key (optional: the service works without one). |
 | `serpapi_key` | No | SerpApi key. The settings hub can fill it. |
+| `serper_key` | No | Serper.dev key (used by the `serper` provider and the search-first flow). The settings hub can fill it. |
 | `xai_key` | No | xAI (Grok) API key. The settings hub can fill it. |
 | `anthropic_key` | No | Anthropic (Claude) API key. The settings hub can fill it. |
+
+## Search first, then answer (`current_facts`)
+
+A general model has no web access and guesses about current things (a price, a release date). For those questions the router searches first:
+
+1. The classifier picks `current_facts` when the text has a time-sensitive word (price, cost, how much, release date, launch, latest, news, today, now, still, upcoming, score, weather, 2025-2027 ...; whole words only). Showtimes and API questions keep their own routes. A caller can also ask for `current_facts` by name.
+2. A short search query (at most 120 characters, filler and mentions removed) goes to the best live `web_search` agent: `serper` first, then others such as `serpapi`. Only the query leaves the house, never the whole text.
+3. A general_qa agent (normal scoring, fallback and `max_tries`) gets a prompt that says: answer ONLY from the numbered results, quote the link of each result used, say so if the results do not answer, never invent links, prices or dates. The prompt stays under the 4000-character limit (results are dropped from the end, never the question).
+4. Link check: any http(s) link in the answer that is not a result link (same host and path; a shorter path on the same host is allowed) is removed and "(link removed: not in search results)" is added once.
+5. The answer is cut to about 1100 characters, then ends with "Sources:" and the result links it cites (or the top 3 results if it cites none).
+6. No search agent, a failed search or no results: plain general_qa, with the note "(No web search available - this may be out of date.)" first.
+
+`/feedback` scores the general_qa agent that wrote the answer. The response also has `search` (ok, none or empty), `results`, `links_removed`. Usage log: one `current_facts` line plus one `web_search` line for the search. Trace: request span attrs include `results`; a `search` span names the search agent. Each Serper search uses one free credit, so the daily cap (default 60) matters: when it is reached, questions fall back to the plain answer with the note.
 
 ## Troubleshooting
 
@@ -88,6 +102,7 @@ Ten providers run inside this add-on (Phase 4). Each does what the old agent add
 | `openai` | general_qa, summarize | gpt-6-luna | `openai_key` | paid unless `free_tier` |
 | `pollinations` | general_qa, summarize | openai | `pollinations_key` (optional) | free by default; prompts are PUBLIC |
 | `serpapi` | showtimes, web_search | none | `serpapi_key` | paid unless `free_tier` |
+| `serper` | web_search | none | `serper_key` | free (2,500 credits); daily cap 60 |
 | `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
 | `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
 | `publicapis` | api_search, api_info, api_quickstart, api_compare, api_offerings | none | none needed | free |
@@ -95,7 +110,7 @@ Ten providers run inside this add-on (Phase 4). Each does what the old agent add
 A provider is used only when it has an entry in `providers` with `enabled` true and a key (`publicapis` needs no key) (the entry `key`, or the flat key option above). Paid calls need `spend_cap` above 0 in the `settings`.
 
 #### The `providers` option
-One entry per provider: `name`, `enabled`, `key` (optional: empty = use the flat key option), `model` (optional: empty = default) and `settings` (optional JSON text). Example settings: `{"daily_cap": 50, "spend_cap": 0, "free_tier": true, "timeout_s": 30, "max_chars": 4000, "max_tokens": 4096, "shadow": false, "log_payloads": false}`. Extra settings: `agent_id` (mistral, required), `cache_hours` and `default_cinema` (serpapi), `cache_hours` (publicapis, default 24). `max_tokens` (default 4096) is the output budget per answer; thinking models use part of it for reasoning, so do not set it low. `max_chars` (default 4000, at most 8000) cuts the returned answer. The daily cap counts calls per day, before the call. A provider-level `shadow` is off by default; the router `shadow` option already stops every call.
+One entry per provider: `name`, `enabled`, `key` (optional: empty = use the flat key option), `model` (optional: empty = default) and `settings` (optional JSON text). Example settings: `{"daily_cap": 50, "spend_cap": 0, "free_tier": true, "timeout_s": 30, "max_chars": 4000, "max_tokens": 4096, "shadow": false, "log_payloads": false}`. Extra settings: `agent_id` (mistral, required), `cache_hours` and `default_cinema` (serpapi), `cache_hours` (serper, default 6), `cache_hours` (publicapis, default 24). `max_tokens` (default 4096) is the output budget per answer; thinking models use part of it for reasoning, so do not set it low. `max_chars` (default 4000, at most 8000) cuts the returned answer. The daily cap counts calls per day, before the call. A provider-level `shadow` is off by default; the router `shadow` option already stops every call.
 
 #### How the router uses them
 Built-in providers join the same scoring and learning as agents, under the same names as the old add-ons (`ih_ai_layer_groq` and so on), so earlier scores still count. If an external agent add-on with the same name is live and healthy, it wins; when it stops registering (for example it is stopped or uninstalled), the built-in provider answers. Both could exist during the move. The separate provider add-ons were removed from the repository on 28 Oct 2026; uninstall any you still have. A file `/data/providers/<name>/STOP` stops one provider.
@@ -111,6 +126,7 @@ Built-in providers join the same scoring and learning as agents, under the same 
 | `openai_key` | OpenAI API key. The settings hub can fill it. |
 | `pollinations_key` | Pollinations key (optional: the service works without one). |
 | `serpapi_key` | SerpApi key. The settings hub can fill it. |
+| `serper_key` | Serper.dev key. The settings hub can fill it. |
 | `xai_key` | xAI (Grok) API key. The settings hub can fill it. |
 | `anthropic_key` | Anthropic (Claude) API key. The settings hub can fill it. |
 

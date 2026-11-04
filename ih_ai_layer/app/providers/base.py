@@ -7,7 +7,7 @@ import json, os, re, threading, time, urllib.request
 
 CAPS_QA = ['general_qa', 'summarize']
 MAX_IN = 8000
-SYSTEM = {'general_qa': 'You are a general assistant. Answer the question clearly and briefly in plain text. You know nothing about the asker, their home or their location; do not ask for personal details.',
+SYSTEM = {'general_qa': 'You are a general assistant. Answer the question clearly and briefly in plain text. You know nothing about the asker, their home or their location; do not ask for personal details. If the question needs current information (prices, dates, news) that you cannot verify, say so instead of guessing. Never invent links.',
           'summarize': 'You are a general assistant. Summarize the text you are given clearly and briefly in plain text. Do not add facts that are not in the text.'}
 
 _EMAIL = re.compile(r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+')
@@ -59,7 +59,7 @@ def parse_settings(raw):
 
 
 
-USER_AGENT = 'intelligent-home-ai-layer/0.4.7'
+USER_AGENT = 'intelligent-home-ai-layer/0.4.8'
 
 class Provider:
     """Subclasses set the class attributes and implement generate(cap, text, timeout)."""
