@@ -106,7 +106,7 @@
     if (gameComponentCache.has(name)) return gameComponentCache.get(name);
     const pending = new Promise(function (resolve, reject) {
       const script = document.createElement('script');
-      script.src = root + 'games/' + name + '.js?v=1'; script.async = true;
+      script.src = root + 'games/' + name + '.js?v=2'; script.async = true;
       script.onload = function () {
         const component = window.IHGameComponents && window.IHGameComponents[name];
         component && typeof component.render === 'function' ? resolve(component) : reject(new Error('The game UI component did not register.'));
@@ -130,36 +130,16 @@
     const wrap = el('div', null, 'details-content');
     if (data.error) wrap.appendChild(el('p', data.error, 'notice notice-warning'));
     if (data.stale) wrap.appendChild(el('p', 'Showing the last saved game data; the provider has not refreshed successfully.', 'notice notice-warning'));
-    if (data.fetched) wrap.appendChild(el('p', 'Data refreshed ' + fmtDate(data.fetched), 'ih-muted'));
+    if (data.fetched) wrap.appendChild(el('p', 'Data refreshed ' + fmtDate(data.fetched), 'data-refreshed'));
     if (data.summary) wrap.appendChild(section('Summary', data.summary));
-    if (data.upcoming) wrap.appendChild(section('Coming up', dataTable([
-      { label: 'When', value: x => fmtDate(x.when) }, { label: 'Event', value: x => x.text }
-    ], data.upcoming)));
+    if (Array.isArray(data.upcoming)) {
+      if (data.upcoming.length) wrap.appendChild(section('Coming up', dataTable([
+        { label: 'When', value: x => fmtDate(x.when) }, { label: 'Event', value: x => x.text }
+      ], data.upcoming)));
+      else wrap.appendChild(el('p', 'No upcoming events.', 'upcoming-empty'));
+    }
     if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
     return wrap;
-  }
-  function coverEdgeColor(image) {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(image.naturalWidth, 128);
-      canvas.height = 1;
-      if (!canvas.width || !image.naturalHeight) return null;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      if (!context) return null;
-      context.drawImage(image, 0, image.naturalHeight - 1, image.naturalWidth, 1, 0, 0, canvas.width, 1);
-      const pixels = context.getImageData(0, 0, canvas.width, 1).data;
-      const sum = [0, 0, 0];
-      let weight = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        const alpha = pixels[i + 3] / 255;
-        weight += alpha;
-        for (let c = 0; c < 3; c++) sum[c] += pixels[i + c] * alpha;
-      }
-      return weight ? 'rgb(' + sum.map(value => Math.round(value / weight)).join(', ') + ')' : null;
-    } catch (_) {
-      // Unreadable or cross-origin artwork keeps the neutral column background.
-      return null;
-    }
   }
   function gameCard(game, player) {
     const card = el('ih-card', null, 'game-card');
@@ -212,12 +192,8 @@
     }
     art.addEventListener('load', function () {
       art.hidden = false; fallback.hidden = true; cover.classList.add('has-art');
-      const color = coverEdgeColor(art);
-      if (color) card.style.setProperty('--cover-edge', color);
-      else card.style.removeProperty('--cover-edge');
     });
     art.addEventListener('error', function () {
-      card.style.removeProperty('--cover-edge');
       art.hidden = true;
       fallback.hidden = false;
       cover.classList.remove('has-art');
@@ -236,13 +212,15 @@
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
     if (game.tools && game.tools.length) main.appendChild(el('p', 'Trackers · ' + game.tools.map(name => name.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', '), 'game-tools'));
-    const toggle = el('button', 'Details', 'details-toggle');
+    const toggle = el('button', null, 'details-toggle');
     toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Show details for ' + game.title); toggle.title = 'Show details';
     const detail = el('div', null, 'game-details'); detail.hidden = true;
     toggle.addEventListener('click', async function () {
       const opening = detail.hidden;
       detail.hidden = !opening; toggle.setAttribute('aria-expanded', String(opening));
-      toggle.textContent = opening ? 'Hide details' : 'Details';
+      toggle.setAttribute('aria-label', (opening ? 'Hide' : 'Show') + ' details for ' + game.title);
+      toggle.title = opening ? 'Hide details' : 'Show details';
       if (!opening || detail.dataset.loaded) return;
       detail.replaceChildren(el('p', 'Loading complete game details…', 'ih-muted'));
       try {
@@ -251,10 +229,9 @@
         detailCache.set(cacheKey, payload); detail.replaceChildren(await detailsContent(payload)); detail.dataset.loaded = 'true';
       } catch (e) { showError(detail, e.message); }
     });
-    const actions = el('div', null, 'game-actions');
-    actions.append(toggle);
-    main.appendChild(actions);
-    card.append(cover, main, detail);
+    const summary = el('div', null, 'game-summary');
+    summary.append(cover, main, toggle);
+    card.append(summary, detail);
     return card;
   }
   async function selectPlayer(key) {

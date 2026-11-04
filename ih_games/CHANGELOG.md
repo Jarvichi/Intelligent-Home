@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.13] - 2026-11-04
+
+### Changed
+- Split each game card into a top-aligned summary and a separate full-width details section; keep neighbouring cards at their own height.
+- Remove the artwork colour extension and use a top-right chevron with accessible show/hide labels.
+- Reduce refreshed timestamp text and add spacing between game detail panels.
+- Replace empty Coming up panels with a compact message; retain the event panel when entries exist.
+
 ## [0.6.12] - 2026-11-04
 
 ### Changed
