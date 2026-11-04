@@ -65,7 +65,7 @@
     const wrap = api.el('div', null, 'details-content destiny-details');
     if (data.error) wrap.appendChild(api.el('p', data.error, 'notice notice-warning'));
     if (data.stale) wrap.appendChild(api.el('p', 'Showing the last saved Destiny data; the provider has not refreshed successfully.', 'notice notice-warning'));
-    if (data.fetched) wrap.appendChild(api.el('p', 'Data refreshed ' + api.fmtDate(data.fetched), 'ih-muted'));
+    if (data.fetched) wrap.appendChild(api.el('p', 'Data refreshed ' + api.fmtDate(data.fetched), 'data-refreshed'));
     if (data.resets) wrap.appendChild(api.section('Reset schedule', data.resets.map(function (item) {
       return api.row(item.kind === 'weekly' ? 'Weekly reset' : 'Daily reset', item.when + ' · ' + item.in);
     })));
