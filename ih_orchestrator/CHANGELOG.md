@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.9] - 2026-11-04
+
+### Added
+- Traces accept, validate (fixed key allowlist, int or short token values, at most 8) and show an optional typed `attrs` field on each span (sender, sizes, attachments, status). Older spans without it still work.
+
 ## [0.10.8] - 2026-11-04
 
 ### Added

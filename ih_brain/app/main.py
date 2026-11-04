@@ -7,7 +7,7 @@ from ihlib import trace
 import brainlib, mcp, extras
 import ui_server
 
-VERSION = '0.2.6'
+VERSION = '0.2.7'
 MAX_BODY = 512 * 1024
 
 
@@ -179,7 +179,8 @@ def make_handler(st):
                 msg = json.loads(raw or b'')
             except Exception:
                 return self._send(400, {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'parse error'}})
-            with st.tracer.span('mcp_rpc'):
+            with st.tracer.span('mcp_rpc') as sp:
+                sp.set(in_bytes=len(raw))
                 if p == '/codex-mcp':
                     class ShareableBrain:
                         def t_brain_search(self, args): return st.brain.t_codex_brain_search(args)
@@ -188,6 +189,10 @@ def make_handler(st):
                                          server_name='ih-brain-shareable-readonly')
                 else:
                     resp = mcp.handle_rpc(st.brain, msg, VERSION)
+                try:
+                    sp.set(out_bytes=len(json.dumps(resp)) if resp is not None else 0)
+                except Exception:
+                    pass
             if resp is None:
                 self.send_response(202); self.send_header('Content-Length', '0'); self.end_headers(); return
             self._send(200, resp)

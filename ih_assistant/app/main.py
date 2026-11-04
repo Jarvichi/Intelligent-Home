@@ -12,11 +12,12 @@ from store import PersonaStore, StoreError, valid_key
 from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
 from ihlib import ha as ihha
+from ihlib import trace as ihtrace
 import planner
 import levels
 import random
 
-VERSION = '0.9.0'
+VERSION = '0.9.2'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -204,14 +205,24 @@ class Assistant:
         except Exception as e:
             self.log('trace upload failed (%s)' % type(e).__name__)
 
+    SENDER_DEFAULTS = {'clara': 'andrew', 'rob': 'rob', 'claire': 'claire'}
+
+    def sender_label(self, key):
+        """Person label for a persona (never an ID). The add-on config has no owner field, so a fixed map; anything else is 'unknown'."""
+        return self.SENDER_DEFAULTS.get(str(key).lower(), 'unknown')
+
     def trace_message(self, key, ev):
         """Create a trace at the Discord-to-persona inbox boundary and retain local correlation metadata."""
         tid, root, queued = uuid.uuid4().hex, secrets.token_hex(8), secrets.token_hex(8)
         started = self.clock()
         ev['trace'] = {'id': tid, 'root': root, 'queued': queued, 'started': started}
+        text = str(ev.get('text') or '')   # only sizes leave this function, never the text
+        attrs = ihtrace.clean_attrs({'persona': str(key), 'sender': self.sender_label(key), 'kind': 'message',
+                                   'in_bytes': len(text.encode('utf-8')), 'chars': len(text),
+                                   'attachments': int(ev.get('attachments') or 0)})
         self.trace_batch(tid, [
             {'span_id': root, 'parent_span_id': None, 'component': 'discord', 'operation': 'direct_message',
-             'status': 'ok', 'reason': '', 'started_at': started, 'duration_ms': 0},
+             'status': 'ok', 'reason': '', 'started_at': started, 'duration_ms': 0, 'attrs': attrs},
             {'span_id': queued, 'parent_span_id': root, 'component': 'ih_assistant', 'operation': 'inbox_queue',
              'status': 'ok', 'reason': '', 'started_at': started, 'duration_ms': 0}
         ])
@@ -838,7 +849,7 @@ class Assistant:
             completed = False
             if rt:
                 try:
-                    self.trace_reply(key, rt)
+                    self.trace_reply(key, rt, len(text), len(text.encode('utf-8')))
                     completed = st.complete_message(msg_id=rt)
                     self.publish_reply_progress(key, force=True)
                 except Exception as e:
@@ -848,7 +859,7 @@ class Assistant:
         self.log('persona %s: sent %d chars' % (key, len(text)))
         return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed)}
 
-    def trace_reply(self, key, msg_id):
+    def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""
         try:
             ev = next((e for e in reversed(self.stores[key].read_inbox(0, 500))
@@ -860,11 +871,13 @@ class Assistant:
             now = self.clock()
             elapsed = max(0, min(3600000, int((now - started) * 1000)))
             bridge, sent = secrets.token_hex(8), secrets.token_hex(8)
+            a = ihtrace.clean_attrs({'out_bytes': reply_bytes, 'chars': reply_chars}) if reply_chars is not None else {}
+            reply_attrs = {'attrs': a} if a else {}
             self.trace_batch(tid, [
                 {'span_id': bridge, 'parent_span_id': queued, 'component': 'claude_bridge', 'operation': 'external_processing',
                  'status': 'ok', 'reason': 'reply_received', 'started_at': started, 'duration_ms': elapsed},
-                {'span_id': sent, 'parent_span_id': bridge, 'component': 'discord', 'operation': 'reply_sent',
-                 'status': 'ok', 'reason': '', 'started_at': now, 'duration_ms': 0}
+                dict({'span_id': sent, 'parent_span_id': bridge, 'component': 'discord', 'operation': 'reply_sent',
+                      'status': 'ok', 'reason': '', 'started_at': now, 'duration_ms': 0}, **reply_attrs)
             ])
         except Exception as e:
             self.log('trace correlation failed (%s)' % type(e).__name__)

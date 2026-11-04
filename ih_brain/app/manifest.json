@@ -1,6 +1,6 @@
 {
  "name": "ih_brain",
- "version": "0.2.6",
+ "version": "0.2.7",
  "kind": "addon",
  "description": "Serves House Brain notes over MCP and an admin-only ingress UI (read-only by default).",
  "owner": "local add-on ih_brain",

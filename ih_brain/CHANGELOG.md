@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.7] - 2026-11-04
+
+### Added
+- Shared trace library: optional typed span `attrs` (allowlisted keys, int or short-token values, max 8; `Span.set()`), never message text or IDs. MCP spans carry request and response sizes.
+
 ## [0.2.6] - 2026-11-04
 
 ### Changed

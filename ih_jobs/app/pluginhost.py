@@ -211,6 +211,10 @@ class Host:
             return self._event(name, payload, trigger)
         with self.tracer.span(str(name) + '_event') as sp:
             res = self._event(name, payload, trigger)
+            try:
+                sp.set(in_bytes=len(json.dumps(payload)))
+            except Exception:
+                pass
             if not res[0]:
                 sp.fail('plugin_failed')
             return res
