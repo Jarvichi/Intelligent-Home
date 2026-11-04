@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.3] - 2026-11-04
+
+### Fixed
+- Chat providers now send a named User-Agent. Groq rejected the default Python one with HTTP 403 (Cloudflare error 1010).
+- Groq default model is now `openai/gpt-oss-120b`. Groq no longer offers `llama-3.3-70b-versatile`.
+
 ## [0.4.2] - 2026-11-03
 
 ### Added

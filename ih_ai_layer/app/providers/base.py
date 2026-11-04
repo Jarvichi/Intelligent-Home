@@ -58,6 +58,9 @@ def parse_settings(raw):
     return d if isinstance(d, dict) else {}
 
 
+
+USER_AGENT = 'intelligent-home-ai-layer/0.4.3'
+
 class Provider:
     """Subclasses set the class attributes and implement generate(cap, text, timeout)."""
     NAME = ''                         # short name used in the `providers` option, e.g. 'groq'
@@ -257,7 +260,8 @@ class ChatProvider(Provider):
     API_URL = ''
 
     def headers(self):
-        return {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.opts['key']}
+        # A named User-Agent: Groq's Cloudflare front answers urllib's default "Python-urllib/x" with 403 (error 1010).
+        return {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.opts['key'], 'User-Agent': USER_AGENT}
 
     def generate(self, cap, text, timeout):
         """The ONLY outside call. Key goes in the Authorization header here and nowhere else. -> reply text (may be empty)."""
