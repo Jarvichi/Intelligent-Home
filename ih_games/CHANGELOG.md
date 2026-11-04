@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.2] - 2026-11-04
+
+### Changed
+- Show tracker freshness on each game card as current at last check, stale, unavailable, or unknown, with provider update time where supplied.
+- Use the shared IH freshness pattern while preserving game-specific detail actions and refresh behavior.
+
 ## [0.7.1] - 2026-11-04
 
 ### Added

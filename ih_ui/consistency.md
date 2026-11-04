@@ -1,6 +1,6 @@
 # Intelligent Home UI consistency plan
 
-Use the canonical tokens and components for every add-on. Keep page-specific content and layouts while sharing controls, spacing, typography and state language. Games is the first adopter of the optional `patterns.css` layout classes.
+Use the canonical tokens and components for every add-on. Keep page-specific content and layouts while sharing controls, spacing, typography and state language. Games established the optional `patterns.css` layout classes; Operations, Cooking, Brain, Jobs and Shopping are the next adopters.
 
 ## Shared patterns available now
 
@@ -29,6 +29,6 @@ Keep service health separate from data freshness: a healthy service may hold old
 2. Apply the same loading, empty, error and freshness language to richer pages. Each provider must supply its own freshness contract before the UI labels data current.
 3. Review navigation, primary action placement, cards and metadata across add-ons at narrow widths and in both colour schemes. Retain domain-specific content while removing duplicate layout rules where shared patterns suffice.
 
-Before rolling out a page, check keyboard navigation, visible focus, disclosure state, long content, 320px width, reduced motion, both colour schemes and failure states. The global rollout above is planned; this change adopts the patterns in Games only.
+Before rolling out a page, check keyboard navigation, visible focus, disclosure state, long content, 320px width, reduced motion, both colour schemes and failure states. Games and the 4 Nov 2026 Operations, Cooking, Brain, Jobs and Shopping work use these patterns; remaining add-on pages still need an inventory and rollout.
 
-These generic guidelines are ready for reconciliation with the Brain style guide through an authorised Brain editor. This file does not establish that the Brain note was updated.
+The Brain style guide is maintained in the House Brain note `projects/intelligent-home/ih-ui-style-guide.md`; its data-heavy screens section records the tracker freshness and Research queue rules derived from Games.
