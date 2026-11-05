@@ -45,10 +45,25 @@
       const row = el('div', 'today-row');
       row.appendChild(el('div', 'today-name', r.name));
       const score = num(r.score);
-      row.appendChild(el('div', 'today-score', score === null ? '–' : Math.round(score) + '%'));
+      const value = typeof r.value === 'string' && r.value ? r.value.slice(0, 24) : '';
+      // value = short text in the score slot (e.g. "9.7°"); plain = no score slot at all (name + note rows). Without either, the old "–" shows.
+      if (value) row.appendChild(el('div', 'today-score', value));
+      else if (score !== null || r.plain !== true) row.appendChild(el('div', 'today-score', score === null ? '–' : Math.round(score) + '%'));
       if (typeof r.model === 'string' && r.model) row.appendChild(el('div', 'today-model', r.model));
       const used = num(r.used), cap = num(r.cap);
-      if (used !== null && cap !== null && cap > 0) {
+      const pct = num(r.pct);   // optional bar without used/cap (0-100)
+      if (pct !== null) {
+        const bar = el('div', 'today-bar');
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-valuemin', '0');
+        bar.setAttribute('aria-valuemax', '100');
+        bar.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, Math.round(pct)))));
+        bar.setAttribute('aria-label', r.name);
+        const fill = document.createElement('i');
+        fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+        bar.appendChild(fill);
+        row.appendChild(bar);
+      } else if (used !== null && cap !== null && cap > 0) {
         const bar = el('div', 'today-bar');
         bar.setAttribute('role', 'progressbar');
         bar.setAttribute('aria-valuemin', '0');

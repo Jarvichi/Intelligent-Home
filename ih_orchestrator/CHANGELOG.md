@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.19] - 2026-11-05
+
+### Changed
+- Catalogue updated for the shared status page change and the new Today cards (Backup, Met Office, AI Trust Test, Task Channels).
+
 ## [0.10.18] - 2026-11-05
 
 ### Changed

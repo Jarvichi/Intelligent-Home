@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.11] - 2026-11-05
+
+### Changed
+- Ingress status page: new "Today" card (today, tomorrow and the next day: temperature, rain chance, forecast age) from a new read-only `/api/today`. Shared page can now show rows without a score and bars without used/cap.
+
 ## [0.1.10] - 2026-11-05
 
 ### Changed
