@@ -1,5 +1,81 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Jobs · Intelligent Home</title><link rel="stylesheet" href="ih-ui.css"><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="ih-patterns.css"></head>
-<body><ih-app><header class="ih-topbar"><div><a class="ih-brand" href="./">Intelligent Home</a><span class="ih-separator">/</span><span id="app-name">Jobs</span></div><ih-status status="unknown" id="refresh">Checking service</ih-status></header><main class="ih-page"><section class="ih-hero"><p class="ih-eyebrow">ADD-ON CONSOLE</p><h1>Jobs</h1><p class="ih-lede">Coordinates the Jobs family and reports scheduled house job activity.</p></section>
-<section class="ih-grid"><ih-card class="ih-card ih-status-card"><div class="ih-card-heading"><div><p class="ih-eyebrow">SERVICE</p><h2>Current status</h2></div><span class="ih-status-dot" id="dot"></span></div><p class="ih-status" id="status">Checking service…</p><p class="ih-muted" id="updated">Connecting to local health endpoint</p><button class="ih-button" id="check" type="button">Check again</button></ih-card><ih-card class="ih-card"><p class="ih-eyebrow">WHAT IT DOES</p><h2>Capabilities</h2><ul class="ih-list"><li>Parent and child jobs</li><li>plugin status</li><li>dry/live mode</li></ul></ih-card></section>
-<section aria-labelledby="jobs-title"><h2 id="jobs-title">Jobs and plugins</h2><p>Results are since the service started. Success may include a skip or dry run; it does not confirm delivery.</p><p id="jobs-updated" role="status">Loading job results…</p><div id="job-results" class="ih-grid"></div></section><ih-card class="ih-card ih-about"><p class="ih-eyebrow">ABOUT THIS ADD-ON</p><p>PARENT of the Jobs family. Lists and triggers the child job add-ons (Jobs - Backup, Jobs - Met Office), hosts plugins (app/plugins, option plugins) and still runs both jobs itself until you turn that off. All local details are options. DRY-RUN by default (logs what it would set); a job goes live per job (live_jobs) after any older loop is switched off. Maps the media and share folders (read-write) for the photo, receipt and inbox plugins; the brain_stats plugin only reads the brain folder in share.</p><p class="ih-muted">This page reports service availability and read-only job results. Configure options and secrets in the Home Assistant add-on settings.</p></ih-card><footer class="ih-footer">Intelligent Home · local add-on interface</footer></main></ih-app><script src="ih-ui.js"></script><script src="ui.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Jobs · Intelligent Home</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-app class="jb-app">
+    <main class="jb-main">
+      <div class="ih-page-heading">
+        <h1>Jobs</h1>
+        <ih-status id="health" class="jb-pill" status="unknown" role="status" aria-live="polite">Checking…</ih-status>
+      </div>
+      <p id="lede" class="jb-lede">Runs the house's scheduled jobs and watches over the Jobs family.</p>
+
+      <ih-card class="jb-card" aria-labelledby="now-title">
+        <h2 id="now-title">What matters now</h2>
+        <p id="now-sub" class="jb-sub" role="status">Loading job results…</p>
+        <div id="tiles" class="jb-tiles" hidden></div>
+        <p class="ih-metadata jb-note">Results count from when Jobs last started. A success can be a skip or a test run, so it does not prove anything was delivered.</p>
+        <div class="jb-actions"><button id="check" class="jb-btn primary" type="button">Check again</button></div>
+      </ih-card>
+
+      <ih-card id="family-card" class="jb-card" aria-labelledby="family-title" hidden>
+        <h2 id="family-title">Family add-ons</h2>
+        <p id="family-sub" class="jb-sub"></p>
+        <div id="family-rows"></div>
+        <p id="family-note" class="ih-metadata" hidden></p>
+      </ih-card>
+
+      <section aria-labelledby="jobs-title">
+        <h2 id="jobs-title" class="jb-sr">All jobs</h2>
+        <div class="ih-toolbar jb-toolbar">
+          <label>Search jobs<input id="q" type="search" placeholder="Job name" autocomplete="off"></label>
+          <label>Show<select id="f"></select></label>
+          <label>Sort by<select id="s">
+            <option value="next">Next run</option>
+            <option value="last">Last run</option>
+            <option value="name">Name</option>
+            <option value="runs">Most runs</option>
+          </select></label>
+        </div>
+        <p id="count" class="jb-count" role="status" aria-live="polite"></p>
+        <div id="state" class="jb-state" hidden></div>
+        <div id="list" class="jb-list" aria-busy="true"></div>
+        <div id="off-box" class="jb-item" hidden>
+          <button id="off-toggle" class="jb-disc" type="button" aria-expanded="false" aria-controls="off-body">
+            <span class="jb-dot off" aria-hidden="true"></span>
+            <span class="t" id="off-title">Switched off</span>
+            <span class="s">Not in the task list. They never run.</span>
+            <span class="chev" aria-hidden="true"></span>
+          </button>
+          <div id="off-body" class="jb-body" hidden></div>
+        </div>
+      </section>
+
+      <ih-card class="jb-about">
+        <button id="about-toggle" class="jb-disc" type="button" aria-expanded="false" aria-controls="about-body">
+          <span class="jb-dot off" aria-hidden="true"></span>
+          <span class="t">About this add-on</span>
+          <span class="s">What Jobs does and what it can touch</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div id="about-body" class="jb-body" hidden>
+          <p class="ih-metadata">Parent of the Jobs family. Lists and starts the child add-ons (Backup, Met Office, Trust), runs the background tasks, and still runs the two built-in jobs itself until you turn that off. Local details are add-on options. Jobs start in test mode and go live one at a time, after any older loop is switched off. It can read and write the media and share folders for the photo, receipt and inbox tasks; the brain statistics task only reads the brain folder.</p>
+          <p class="ih-metadata">This page shows availability and read-only results. Change options and secrets in the Home Assistant add-on settings. Access: Home Assistant sign-in only.</p>
+        </div>
+      </ih-card>
+      <footer class="jb-footer"><span>INTELLIGENT HOME</span><span>Local add-on page</span></footer>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="jobs-logic.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

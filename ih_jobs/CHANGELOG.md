@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.16.1] - 2026-11-05
+
+### Changed
+- The Jobs page now matches the Games-style pages: a health pill, a "What matters now" summary (failing jobs, last run, next run, not run yet), search, a Show filter (All, Live, Test mode, Switched off, Not run yet), sorting (Next run, Last run, Name, Most runs) and a visible count.
+- One compact row per job. Opening a row shows every field (kind, mode, why, last run, last run mode, result, next run, runs, errors, last error). Switched-off jobs sit in one collapsed section. About is collapsed.
+- Separate, plain messages for loading, no jobs, no filter matches and a failed read (a failed read never looks like an empty list). Next-run sorting uses real times, so a job due tomorrow never sorts before one due sooner today.
+- New "Family add-ons" card: whether each child add-on (Backup, Met Office, Trust) is running, and its mode, from the same status the page already read.
+
+### Added
+- `GET api/jobs` now also returns each job's `schedule` (cleaned) and a `children` list (name, mode, running, version). Existing fields are unchanged. The page logic is in `jobs-logic.js` (served by the same ingress server) with unit tests.
+
 ## [0.16.0] - 2026-11-05
 
 ### Added
