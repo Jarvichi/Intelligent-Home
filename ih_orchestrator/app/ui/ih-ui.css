@@ -18,6 +18,7 @@
   --ih-space-5: 20px; --ih-space-6: 24px; --ih-space-8: 32px; --ih-space-10: 40px;
   --ih-radius-control: 8px; --ih-radius-nested: 12px; --ih-radius-panel: 16px;
   --ih-shadow: 0 10px 28px rgb(22 36 24 / 8%);
+  --ih-nav-h: 48px;
   --ih-font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -35,6 +36,15 @@ body { margin: 0; min-width: 320px; background: var(--ih-bg); color: var(--ih-te
 button, input, select { color: inherit; font: inherit; }
 a { color: var(--ih-link); }
 :focus-visible { outline: 3px solid var(--ih-link); outline-offset: 3px; }
+/* Sticky top bar (ih-nav): put it as the first child of <body>, before <ih-app>. Back is always one tap. */
+ih-nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--ih-space-2); min-width: 0; min-height: var(--ih-nav-h); padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); border-bottom: 1px solid var(--ih-line); background: var(--ih-bg); background: color-mix(in srgb, var(--ih-bg) 92%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+ih-nav[hidden] { display: none; }
+.ih-nav-link { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 44px; max-width: 60%; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--ih-radius-control); background: none; color: var(--ih-link); font: inherit; font-weight: 600; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.ih-nav-link:hover { background: var(--ih-surface-raised); }
+.ih-nav-sep { flex: none; color: var(--ih-muted); }
+.ih-nav-here { flex: 1 1 0; min-width: 0; color: var(--ih-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ih-nav-link + .ih-nav-sep + .ih-nav-here { padding-right: 8px; }
+ih-nav > .ih-nav-here:first-child { padding-left: 12px; }
 ih-app { display: block; width: min(1280px, 100%); margin: 0 auto; padding: clamp(16px, 4vw, 40px); }
 ih-header { display: block; margin-bottom: var(--ih-space-6); }
 ih-header h1 { margin: 4px 0; font-size: clamp(26px, 4vw, 34px); line-height: 1.12; letter-spacing: -.035em; }

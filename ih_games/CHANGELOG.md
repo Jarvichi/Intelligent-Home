@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.5] - 2026-11-05
+
+### Changed
+- The add-on page has a sticky top bar: "‹ Intelligent Home" goes back to the Operations console in the whole Home Assistant window. The footer link also opens in the whole window now (it used to open nested inside the page frame).
+
 ## [0.7.4] - 2026-11-04
 
 ### Changed

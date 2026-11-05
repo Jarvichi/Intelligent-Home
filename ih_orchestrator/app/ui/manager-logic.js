@@ -241,7 +241,18 @@
     return TAB_ALIAS[h] || null;
   }
 
+  /* Jump to: every installed IH add-on that has its own page. Plain names, sorted, never the Manager itself. */
+  function plainName(a) {
+    return String(addonName(a)).replace(/^\s*Intelligent Home\s*[-:\u2013\u2014]\s*/i, '').trim() || a.slug;
+  }
+  function jumpTargets(rows) {
+    return installed(rows).filter(function (a) { return a.full && a.ingress && a.slug !== 'ih_orchestrator'; }).map(function (a) {
+      return { slug: a.slug, full: a.full, name: plainName(a), running: a.state === 'started', href: '/app/' + encodeURIComponent(a.full) };
+    }).sort(function (x, y) { return x.name.localeCompare(y.name); });
+  }
+
   var api = {
+    jumpTargets: jumpTargets, plainName: plainName,
     ROUTINE_ROOTS: ROUTINE_ROOTS, plural: plural, isRoutine: isRoutine, ageText: ageText, seenText: seenText, addonAttention: addonAttention,
     filterAddons: filterAddons, worthALook: worthALook, tiles: tiles, pill: pill, filterTraces: filterTraces, traceTypes: traceTypes,
     routineCount: routineCount, filterHealth: filterHealth, attrChips: attrChips, usedTxt: usedTxt, imgTxt: imgTxt, schedText: schedText,

@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Games · Intelligent Home</title>
-  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-ui.css?v=nav1">
   <link rel="stylesheet" href="ih-patterns.css?v=1">
   <link rel="stylesheet" href="ui.css?v=12">
 </head>
 <body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Games"></ih-nav>
   <ih-app class="games-app">
     <main class="games-main">
       <div class="topline ih-page-heading">
@@ -23,10 +24,10 @@
         <button id="research" class="ih-button research-toggle" type="button" aria-pressed="false" aria-controls="library">Research</button>
       </div>
       <section id="library" aria-live="polite" aria-busy="true"><p class="ih-muted">Loading game library…</p></section>
-      <footer class="games-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator">Operations console</a></footer>
+      <footer class="games-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator" target="_top">Operations console</a></footer>
     </main>
   </ih-app>
-  <script src="ih-ui.js"></script>
+  <script src="ih-ui.js?v=nav1"></script>
   <script src="ui.js?v=13"></script>
 </body>
 </html>
