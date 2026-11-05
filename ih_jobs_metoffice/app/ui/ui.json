@@ -1,13 +1,13 @@
 {
   "title": "Jobs · Met Office",
-  "purpose": "Publishes weather data from the Met Office job service.",
-  "description": "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent.",
+  "purpose": "Brings Met Office weather forecasts into the house.",
+  "description": "Fetches weather forecasts from the Met Office. If they are not available it uses the weather already in Home Assistant instead. It starts in test mode, where it only logs what it would do.",
   "health_port": 8799,
   "health_path": "/healthz",
   "navigation": [
-    "Weather refresh",
-    "provider status",
-    "job health"
+    "Fetches Met Office forecasts",
+    "Falls back to Home Assistant weather",
+    "Starts in test mode"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

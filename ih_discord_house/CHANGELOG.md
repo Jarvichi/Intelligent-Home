@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.10] - 2026-11-05
+
+### Changed
+- Ingress status page v2: one status line with a Check button, a plain "What it does" list, and a plain-language description.
+
 ## [0.2.9] - 2026-11-05
 
 ### Changed

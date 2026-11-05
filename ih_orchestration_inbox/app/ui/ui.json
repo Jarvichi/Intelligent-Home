@@ -1,13 +1,14 @@
 {
   "title": "Orchestration Inbox",
-  "purpose": "Accepts and tracks requests waiting for Intelligent Home orchestration.",
-  "description": "Durable inbox for messages on chosen Discord channel keys, as a module of the ih_discord transport. It claims the channel keys you list, stores each message in a queue (7 days), reacts with an eye emoji so the sender knows it arrived, and never answers in the channel. Claude and workers read the queue over a token-protected local API. SHADOW mode by default: queue is written, no reactions. No Home Assistant access. Maps no folders.",
+  "purpose": "Keeps a queue of requests waiting for Claude and other helpers.",
+  "description": "Keeps a queue of messages from chosen Discord channels for 7 days. It reacts with an eye emoji so the sender knows the message arrived, and it never replies in the channel. Claude and other helpers read the queue through a protected local connection. It starts in test mode, where messages are saved but there are no reactions.",
   "health_port": 8800,
   "health_path": "/healthz",
   "navigation": [
-    "Inbox health",
-    "request intake",
-    "handoff status"
+    "Saves messages from chosen channels for 7 days",
+    "Reacts with an eye emoji to show receipt",
+    "Lets Claude and helpers read the queue",
+    "Never replies in the channel"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

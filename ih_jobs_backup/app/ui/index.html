@@ -17,20 +17,27 @@
         <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
       </div>
       <p id="purpose" class="status-purpose"></p>
-      <section class="ih-card-grid status-grid" aria-label="Add-on overview">
-        <ih-card class="status-card">
-          <h2>Status</h2>
-          <p id="state" class="status-state">Checking service…</p>
-          <p id="checked" class="ih-freshness" data-state="unknown">Connecting to the local health endpoint.</p>
-          <p id="detail" class="ih-metadata"></p>
-          <button id="check" class="ih-button" type="button">Check again</button>
-        </ih-card>
-        <ih-card class="status-card">
-          <h2>Capabilities</h2>
-          <ul id="capabilities" class="status-list"></ul>
-          <p id="capabilities-empty" class="ih-empty-inline" hidden>Loading capabilities…</p>
-        </ih-card>
-      </section>
+      <ih-card class="status-card">
+        <div class="status-line">
+          <div class="status-line-text">
+            <b id="state" class="status-state">Checking…</b>
+            <span id="checked" class="ih-freshness" data-state="unknown">Checking now</span>
+          </div>
+          <button id="check" class="ih-button" type="button">Check</button>
+        </div>
+        <p id="detail" class="ih-metadata"></p>
+      </ih-card>
+      <ih-card id="today-card" class="status-card" hidden>
+        <h2 id="today-title">Today</h2>
+        <p id="today-sub" class="status-sub"></p>
+        <div id="today-rows"></div>
+        <p id="today-foot" class="ih-metadata" hidden></p>
+      </ih-card>
+      <ih-card class="status-card">
+        <h2>What it does</h2>
+        <ul id="capabilities" class="status-bullets"></ul>
+        <p id="capabilities-empty" class="ih-empty-inline" hidden>Loading…</p>
+      </ih-card>
       <ih-card class="about-card">
         <div class="about-heading">
           <h2 id="about-heading">About this add-on</h2>

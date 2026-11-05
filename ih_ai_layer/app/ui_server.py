@@ -15,6 +15,13 @@ class Handler(BaseHTTPRequestHandler):
     with urllib.request.urlopen(req,timeout=2) as response: healthy=200<=response.status<400; detail='Health endpoint responded'
    except Exception as e: detail=type(e).__name__
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
+  if path=='/api/today':
+   try:
+    import today
+    data=today.today()
+   except Exception: data=None
+   if data is None: return self.send_error(404)
+   return self.reply(200,json.dumps(data).encode(),'application/json; charset=utf-8')
   if path=='/ui.json':
    body=json.dumps({k:INFO.get(k) for k in ('title','purpose','description','navigation','access')}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   name=ASSETS.get(path)

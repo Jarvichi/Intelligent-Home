@@ -1,13 +1,13 @@
 {
   "title": "Discord AI Bot",
-  "purpose": "Handles AI-backed Discord requests through the configured assistant services.",
-  "description": "Answers messages on chosen Discord channel keys with the Intelligent Home AI layer, as a module of the ih_discord transport. It sends the text of an allow-listed user's message to the AI layer over its local API and posts the reply back through the transport. It holds no Discord token and no AI key. SHADOW mode by default: it logs what it would post and posts nothing. Maps no folders.",
+  "purpose": "Answers chosen Discord channels with the AI Layer.",
+  "description": "Answers messages in chosen Discord channels using the AI Layer. It only answers people on an approved list. It has no Discord login and no AI key of its own. It starts in test mode, where it only logs what it would post.",
   "health_port": 8803,
   "health_path": "/healthz",
   "navigation": [
-    "Bot health",
-    "request routing",
-    "shadow/live mode"
+    "Answers messages in chosen channels",
+    "Only answers approved people",
+    "Starts in test mode and posts nothing"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

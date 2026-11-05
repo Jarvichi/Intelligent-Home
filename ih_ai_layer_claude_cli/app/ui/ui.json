@@ -1,13 +1,13 @@
 {
   "title": "Claude CLI",
-  "purpose": "Runs the Claude CLI worker for delegated coding and review tasks.",
-  "description": "Agent of Intelligent Home - AI Layer. Answers general questions and summarizes text by running the Claude Code CLI (print mode, all tools off) with a login that the owner creates inside this add-on. No API key. Weekly usage gate and daily cap. Text is scrubbed of personal data first. No Home Assistant access. Maps no folders.",
+  "purpose": "Lets the AI Layer ask Claude, using your own Claude login.",
+  "description": "Lets the AI Layer ask Claude to answer general questions and summarise text. It uses a Claude login you set up inside this add-on, so no separate key is needed. It stops when the weekly or daily limit is reached, and removes personal details from the text first. It has no access to Home Assistant.",
   "health_port": 8814,
   "health_path": "/healthz",
   "navigation": [
-    "Worker availability",
-    "task execution",
-    "workspace integration"
+    "Answers general questions with Claude",
+    "Summarises text",
+    "Stops at the weekly and daily limits"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"
