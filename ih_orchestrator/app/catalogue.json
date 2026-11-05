@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.10.16",
+  "version": "0.10.17",
   "image": true,
   "ui": {
    "title": "Intelligent Home",
@@ -20,7 +20,7 @@
   "requires": [
    "mqtt"
   ],
-  "version": "0.10.6",
+  "version": "0.10.7",
   "image": true,
   "ui": {
    "title": "Discord Transport",
@@ -50,7 +50,7 @@
   "requires": [
    "ih_jobs"
   ],
-  "version": "0.1.8",
+  "version": "0.1.9",
   "image": true,
   "ui": {
    "title": "Jobs \u00b7 Backup",
@@ -65,7 +65,7 @@
   "requires": [
    "ih_jobs"
   ],
-  "version": "0.1.8",
+  "version": "0.1.9",
   "image": true,
   "ui": {
    "title": "Jobs \u00b7 Met Office",
@@ -81,7 +81,7 @@
    "ih_jobs",
    "ih_ai_layer"
   ],
-  "version": "0.1.7",
+  "version": "0.1.8",
   "image": true,
   "ui": {
    "title": "Jobs \u00b7 Trust",
@@ -97,7 +97,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.2.8",
+  "version": "0.2.9",
   "image": true,
   "ui": {
    "title": "Discord House",
@@ -145,7 +145,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.7",
+  "version": "0.1.8",
   "image": true,
   "ui": {
    "title": "Discord Task Channels",
@@ -161,7 +161,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.6",
+  "version": "0.1.7",
   "image": true,
   "ui": {
    "title": "Orchestration Inbox",
@@ -178,7 +178,7 @@
    "ih_ai_layer",
    "mqtt"
   ],
-  "version": "0.2.4",
+  "version": "0.2.5",
   "image": true,
   "ui": {
    "title": "Discord AI Bot",
@@ -194,7 +194,7 @@
    "ih_discord",
    "mqtt"
   ],
-  "version": "0.1.32",
+  "version": "0.1.33",
   "image": true,
   "ui": {
    "title": "Discord Codex",
@@ -207,7 +207,7 @@
   "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remember",
   "kind": "addon",
   "requires": [],
-  "version": "0.4.9",
+  "version": "0.4.10",
   "image": true,
   "ui": {
    "title": "AI Layer",
@@ -222,7 +222,7 @@
   "requires": [
    "ih_ai_layer"
   ],
-  "version": "0.1.2",
+  "version": "0.1.3",
   "image": true,
   "ui": {
    "title": "Claude CLI",
@@ -261,7 +261,7 @@
   "description": "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default.",
   "kind": "addon",
   "requires": [],
-  "version": "0.9.3",
+  "version": "0.9.4",
   "image": true,
   "ui": {
    "title": "Assistant",

@@ -1,5 +1,51 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Discord AI Bot · Intelligent Home</title><link rel="stylesheet" href="ih-ui.css"><link rel="stylesheet" href="ui.css"></head>
-<body><ih-app><header class="ih-topbar"><div><a class="ih-brand" href="./">Intelligent Home</a><span class="ih-separator">/</span><span id="app-name">Discord AI Bot</span></div><ih-status status="ok" id="refresh">Live status</ih-status></header><main class="ih-page"><section class="ih-hero"><p class="ih-eyebrow">ADD-ON CONSOLE</p><h1>Discord AI Bot</h1><p class="ih-lede">Handles AI-backed Discord requests through the configured assistant services.</p></section>
-<section class="ih-grid"><ih-card class="ih-card ih-status-card"><div class="ih-card-heading"><div><p class="ih-eyebrow">SERVICE</p><h2>Current status</h2></div><span class="ih-status-dot" id="dot"></span></div><p class="ih-status" id="status">Checking service…</p><p class="ih-muted" id="updated">Connecting to local health endpoint</p><button class="ih-button" id="check" type="button">Check again</button></ih-card><ih-card class="ih-card"><p class="ih-eyebrow">WHAT IT DOES</p><h2>Capabilities</h2><ul class="ih-list"><li>Bot health</li><li>request routing</li><li>shadow/live mode</li></ul></ih-card></section>
-<ih-card class="ih-card ih-about"><p class="ih-eyebrow">ABOUT THIS ADD-ON</p><p>Answers messages on chosen Discord channel keys with the Intelligent Home AI layer, as a module of the ih_discord transport. It sends the text of an allow-listed user&#x27;s message to the AI layer over its local API and posts the reply back through the transport. It holds no Discord token and no AI key. SHADOW mode by default: it logs what it would post and posts nothing. Maps no folders.</p><p class="ih-muted">This page reports service availability only. Configure options and secrets in the Home Assistant add-on settings.</p></ih-card><footer class="ih-footer">Intelligent Home · local add-on interface</footer></main></ih-app><script src="ih-ui.js"></script><script src="ui.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Intelligent Home</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-app class="status-app">
+    <main class="status-main">
+      <div class="ih-page-heading">
+        <h1 id="page-title">Intelligent Home</h1>
+        <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
+      </div>
+      <p id="purpose" class="status-purpose"></p>
+      <section class="ih-card-grid status-grid" aria-label="Add-on overview">
+        <ih-card class="status-card">
+          <h2>Status</h2>
+          <p id="state" class="status-state">Checking service…</p>
+          <p id="checked" class="ih-freshness" data-state="unknown">Connecting to the local health endpoint.</p>
+          <p id="detail" class="ih-metadata"></p>
+          <button id="check" class="ih-button" type="button">Check again</button>
+        </ih-card>
+        <ih-card class="status-card">
+          <h2>Capabilities</h2>
+          <ul id="capabilities" class="status-list"></ul>
+          <p id="capabilities-empty" class="ih-empty-inline" hidden>Loading capabilities…</p>
+        </ih-card>
+      </section>
+      <ih-card class="about-card">
+        <div class="about-heading">
+          <h2 id="about-heading">About this add-on</h2>
+          <button id="about-toggle" class="ih-disclosure" type="button" aria-expanded="false" aria-controls="about-body" aria-labelledby="about-heading"></button>
+        </div>
+        <div id="about-body" class="ih-detail-stack" hidden>
+          <p id="description" class="status-description"></p>
+          <p class="ih-metadata">This page reports service availability only. Configure options and secrets in the Home Assistant add-on settings.</p>
+        </div>
+      </ih-card>
+      <p id="access" class="ih-metadata status-access"></p>
+      <footer class="status-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator">Operations console</a></footer>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

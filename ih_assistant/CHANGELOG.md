@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.4] - 2026-11-05
+
+### Changed
+- Ingress status page now uses the shared Games-style layout (page heading with service health, status and capabilities cards, collapsible About).
+
 ## [0.9.3] - 2026-11-04
 
 ### Fixed

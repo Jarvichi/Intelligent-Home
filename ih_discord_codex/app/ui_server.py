@@ -3,7 +3,7 @@ import json, os, time, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
-ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
+ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
@@ -15,6 +15,8 @@ class Handler(BaseHTTPRequestHandler):
     with urllib.request.urlopen(req,timeout=2) as response: healthy=200<=response.status<400; detail='Health endpoint responded'
    except Exception as e: detail=type(e).__name__
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
+  if path=='/ui.json':
+   body=json.dumps({k:INFO.get(k) for k in ('title','purpose','description','navigation','access')}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   name=ASSETS.get(path)
   if not name:return self.send_error(404)
   try: body=(ROOT/name).read_bytes()

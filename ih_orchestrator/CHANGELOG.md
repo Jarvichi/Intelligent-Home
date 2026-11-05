@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.17] - 2026-11-05
+
+### Changed
+- Catalogue lists the 12 add-ons whose ingress status page now uses the shared Games-style layout.
+
 ## [0.10.16] - 2026-11-05
 
 ### Added

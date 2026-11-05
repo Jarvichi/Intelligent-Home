@@ -9,5 +9,6 @@
     "task execution",
     "workspace integration"
   ],
-  "access": "Home Assistant authenticated ingress only"
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
 }

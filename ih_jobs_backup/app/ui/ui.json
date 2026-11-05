@@ -9,5 +9,6 @@
     "signed run requests",
     "dry/live mode"
   ],
-  "access": "Home Assistant authenticated ingress only"
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
 }
