@@ -11,28 +11,50 @@
   <script defer src="./ih-ui.js"></script>
   <script defer src="./force-graph.min.js"></script>
   <script defer src="./markdown.js"></script>
+  <script defer src="./logic.js"></script>
   <script defer src="./ui.js"></script>
 </head>
-<body>
+<body data-view="search">
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Brain"></ih-nav>
   <ih-app>
-    <ih-header>
-      <span class="ih-kicker">Intelligent Home · Knowledge</span>
+    <header class="page-head">
       <h1>House Brain</h1>
-      <p>Search, browse, and read the home knowledge base.</p>
-    </ih-header>
-    <ih-card class="overview">
-      <div><span class="ih-kicker">BRAIN SERVICE</span><strong id="health">Connecting…</strong><small id="count">Loading notes</small></div>
-      <div class="search-wrap ih-toolbar"><ih-field><label for="query">Search all notes</label><input id="query" type="search" placeholder="Try a topic, device, or decision" autocomplete="off"></ih-field><button id="search" type="button">Search</button></div>
-    </ih-card>
-    <ih-tabs aria-label="Brain views" role="tablist">
-      <button type="button" role="tab" data-view="browse" aria-selected="true">Browse</button>
-      <button type="button" role="tab" data-view="recent" aria-selected="false">Recently changed</button>
-      <button type="button" role="tab" data-view="graph" aria-selected="false">Connections</button>
+      <span class="pill" id="health" role="status"><i class="dot"></i><span id="health-text">Connecting…</span></span>
+    </header>
+    <p class="lede" id="count">The house notes. Read-only here.</p>
+    <noscript><ih-error>This page needs JavaScript to list and read notes. Nothing is changed by opening it.</ih-error></noscript>
+    <ih-tabs aria-label="Brain views" role="tablist" class="view-tabs">
+      <button type="button" role="tab" data-view="search" aria-selected="true">Search</button>
+      <button type="button" role="tab" data-view="browse" aria-selected="false">Browse</button>
+      <button type="button" role="tab" data-view="recent" aria-selected="false">Recent</button>
+      <button type="button" role="tab" data-view="map" aria-selected="false">Map</button>
     </ih-tabs>
-    <div class="workspace">
-      <ih-card class="note-list"><div class="list-heading ih-toolbar"><h2 id="list-title">All notes</h2><label for="area">Area</label><select id="area"><option value="">All areas</option></select></div><p id="result-count" role="status" class="ih-metadata"></p><div id="results" aria-live="polite"><ih-loading>Loading Brain index…</ih-loading></div></ih-card>
-      <ih-card class="reader"><button type="button" id="back-to-list" class="back-to-list">← Back to results</button><div id="note"><ih-empty>Select a note to read it.</ih-empty></div></ih-card>
+    <div class="searchbar" id="searchbar">
+      <label class="search" for="query"><span aria-hidden="true">🔍</span><input id="query" type="search" placeholder="Search all notes" autocomplete="off" enterkeyhint="search" aria-label="Search all notes"><button type="button" class="x" id="clear" aria-label="Clear search" hidden>×</button></label>
+      <button type="button" id="search" class="btn primary">Search</button>
     </div>
+    <div class="workspace" data-view="search" data-reading="false">
+      <section class="note-list">
+        <div class="filters" id="filters"><label for="area">Show area</label><select id="area"><option value="">All areas</option></select></div>
+        <p id="result-count" role="status" class="ih-metadata meta"></p>
+        <div id="results" aria-live="polite"><ih-loading>Loading Brain index…</ih-loading></div>
+      </section>
+      <section class="reader"><button type="button" id="back-to-list" class="back-to-list">‹ Back to results</button><div id="note"><ih-empty>Select a note to read it.</ih-empty></div></section>
+    </div>
+    <section class="mapview" id="mapview" aria-label="Map of note connections" hidden>
+      <div class="map-canvas" id="brain-map" role="application" aria-label="Interactive map of Brain note connections. Drag to move, pinch to zoom, tap a note to read it."></div>
+      <div class="map-top" id="map-top"><label for="map-area" class="sr">Area</label><select id="map-area" aria-label="Show area on the map"><option value="">All areas</option></select><span class="map-stat" id="map-stat" role="status"></span></div>
+      <div class="map-ctl" id="map-ctl">
+        <button type="button" class="btn" id="map-list" aria-expanded="false">Top notes</button>
+        <button type="button" class="btn" id="map-key" aria-expanded="false">Key</button>
+        <button type="button" class="btn" data-zoom="in" aria-label="Zoom in">+</button>
+        <button type="button" class="btn" data-zoom="out" aria-label="Zoom out">−</button>
+        <button type="button" class="btn" data-zoom="fit">Fit</button>
+      </div>
+      <div class="map-key" id="map-keypanel" hidden aria-label="Note areas"></div>
+      <div class="map-sheet" id="map-sheet" hidden><h2>Most connected notes</h2><p class="meta" id="sheet-sub"></p><div class="list" id="sheet-list"></div></div>
+      <div class="map-msg" id="map-msg" role="status"></div>
+    </section>
     <footer>Private house knowledge stays on this Home Assistant instance.</footer>
   </ih-app>
 </body>

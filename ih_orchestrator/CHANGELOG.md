@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.3] - 2026-11-05
+
+### Changed
+- Catalogue: Brain is now 0.3.0 (Games-style page with a full-screen map).
+
 ## [0.11.2] - 2026-11-05
 
 ### Changed

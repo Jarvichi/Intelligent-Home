@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-11-05
+
+### Changed
+- Brain page redesigned in the Games style. Four views in a row of tabs at the top (Search, Browse, Recent, Map), above the search box. The search box shows only on Search and Browse. The big status card is now a small "Connected" pill. The Search view starts with "What's in the brain" (notes, links, areas, changed in 7 days, drafts, orphans, private count).
+- Search results show a text excerpt with the matching words highlighted. Browse shows area cards, then folders, then notes. Recent is grouped by day with a short excerpt. Notes marked `share: false` get a small "private" chip (title and text still shown, this page is admin-only).
+- The Map is full screen. The back bar and the view tabs float over it. Area filter, zoom, Fit, Key and "Top notes" (the most connected notes as a list) are small floating controls. Pinch and drag work; only the most connected notes have a label until you zoom in; the map fits the screen when it opens and uses a fixed layout.
+- A note shows its area path, status, updated date, "Links in this note", "Linked from" (backlinks) and "Exact source (Markdown)". On phones the sticky bar says "‹ Brain / note title" and goes back one level (to the map when the note was opened from the map).
+- Uses the shared sticky `ih-nav` bar (needs the UI kit from Intelligent Home PR 32).
+
+### Added
+- Read-only endpoints `/api/summary` and `/api/links?path=`; the recent, search and read endpoints also return `date`, `private` and (recent) `excerpt`. The ingress-only check is unchanged.
+
 ## [0.2.10] - 2026-11-04
 
 ### Added
