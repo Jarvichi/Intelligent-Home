@@ -53,6 +53,25 @@ class Discord:
         r = self.call('POST', '/channels/%s/messages' % channel, d)
         return bool(r and r.get('id'))
 
+    def send_file(self, channel, path, filename='reaction.gif'):
+        """0.9.10: post one small file (a GIF) with no text. Single try; raises DiscordError on any failure."""
+        boundary = 'ihassistant' + str(int(time.time() * 1000))
+        with open(path, 'rb') as f:
+            blob = f.read()
+        body = (('--%s\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n{}\r\n' % boundary).encode()
+                + ('--%s\r\nContent-Disposition: form-data; name="files[0]"; filename="%s"\r\nContent-Type: image/gif\r\n\r\n' % (boundary, filename)).encode()
+                + blob + ('\r\n--%s--\r\n' % boundary).encode())
+        h = dict(self._h); h['Content-Type'] = 'multipart/form-data; boundary=' + boundary
+        req = urllib.request.Request(API + '/channels/%s/messages' % channel, method='POST', headers=h, data=body)
+        try:
+            with self.opener(req, timeout=30) as r:
+                out = json.loads(r.read() or b'{}')
+            return bool(out.get('id'))
+        except urllib.error.HTTPError as e:
+            raise DiscordError('http %d' % e.code)
+        except (urllib.error.URLError, OSError) as e:
+            raise DiscordError(type(e).__name__)
+
     def react(self, channel, msg_id, emoji):
         self.call('PUT', '/channels/%s/messages/%s/reactions/%s/@me' % (channel, msg_id, urllib.parse.quote(emoji)))
 

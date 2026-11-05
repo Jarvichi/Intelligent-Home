@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.7] - 2026-11-05
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.9.10: GIFs sent as pictures, cached and reused.
+
 ## [0.11.6] - 2026-11-05
 
 ### Changed

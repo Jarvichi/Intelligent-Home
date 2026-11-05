@@ -28,7 +28,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `timezone` | No | Time zone for check-ins and quiet hours. Default: `Europe/London`. |
 | `facts_url` | No | Setting `facts_url`. |
 | `facts_key` | No | Setting `facts_key`. |
-| `giphy_api_key` | No | GIPHY key. With it, a reply that carries `gif` search words also sends one PG GIF link, if the persona's gif level allows and none went out in the last 6 hours. |
+| `giphy_api_key` | No | GIPHY key. With it, a reply that carries `gif` search words also sends one PG GIF picture (attached, not a link), if the persona's gif level allows and none went out in the last `gif_gap_minutes`. Half the time a fitting picture from the cache is reused. |
+| `gif_gap_minutes` | No | Minimum minutes between two GIFs in one chat. Default 10. |
 | `usage_sensor_session` | No | Setting `usage_sensor_session`. |
 | `usage_sensor_week` | No | Setting `usage_sensor_week`. |
 | `usage_sensor_session_reset` | No | Setting `usage_sensor_session_reset`. |
