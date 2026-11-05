@@ -45,7 +45,10 @@ AGREED_MAX = 20
 PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
 FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
 FACT_TIMEOUT_S = 5
-GIF_CHAT_GAP_S = 6 * 3600   # 0.9.9: one GIF per chat; a chat ends after 6 h without one
+GIF_MAX_BYTES = 8 * 1024 * 1024
+GIF_CACHE_MAX = 300   # pictures kept for reuse; the oldest go first
+GIF_REUSE_CHANCE = 0.5
+GIF_STOP = {'the', 'and', 'for', 'with', 'you', 'that', 'this', 'gif', 'your'}
 GIF_WORDS_MAX = 60
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
@@ -138,7 +141,7 @@ def load_options(path):
     return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
-            'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(),
+            'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
             'personas': personas}, problems
 
 
@@ -152,6 +155,7 @@ def in_quiet(now_min, start, end):
 class Assistant:
     def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
+        self.data_dir = data_dir
         self.gif_opener = gif_opener   # urlopen-like for GIPHY (tests inject a fake)
         self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
@@ -874,34 +878,103 @@ class Assistant:
         gif = self.send_gif(key, body.get('gif')) if ok and body.get('gif') else None
         return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed), 'gif': gif}
 
+    # ---- GIFs (0.9.9 sends links; 0.9.10 attaches the picture and keeps a cache) ----
+    def gif_tokens(self, words):
+        return sorted({w for w in re.findall(r'[a-z0-9]+', str(words or '').lower()) if len(w) > 2 and w not in GIF_STOP})
+
+    def gif_cache(self):
+        try:
+            with open(os.path.join(self.data_dir, 'gif_cache.json')) as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return []
+
+    def gif_cache_save(self, items):
+        items = items[-GIF_CACHE_MAX:]
+        d = os.path.join(self.data_dir, 'gifs')
+        keep = {i['file'] for i in items}
+        try:
+            for f in os.listdir(d):
+                if f not in keep:
+                    os.remove(os.path.join(d, f))
+        except OSError:
+            pass
+        tmp = os.path.join(self.data_dir, 'gif_cache.json.tmp')
+        with open(tmp, 'w') as f:
+            json.dump(items, f)
+        os.replace(tmp, os.path.join(self.data_dir, 'gif_cache.json'))
+
+    def gif_fits(self, tokens, item):
+        a, b = set(tokens), set(item.get('tokens') or [])
+        return bool(a and b) and len(a & b) / float(len(a | b)) >= 0.5
+
     def send_gif(self, key, words):
-        """0.9.9: send ONE GIF link after a reply, if the persona's gif level allows it (random draw), no GIF went out in the last
-        6 h of this chat, and a GIPHY key is set. Rating capped at PG. Never raises. -> short status word for the caller."""
+        """Send ONE GIF picture after a reply if the persona's gif level allows it (random draw) and none went out in the last
+        gif_gap_minutes (default 10). 50% of the time a fitting GIF from the cache is reused (saves a GIPHY call, keeps it varied);
+        otherwise GIPHY is searched (PG only), the picture downloaded (under 8 MB) and cached. Never raises. -> short status word."""
         try:
             words = re.sub(r'\s+', ' ', str(words or '')).strip()[:GIF_WORDS_MAX]
-            if not words:
+            tokens = self.gif_tokens(words)
+            if not tokens:
                 return 'no words'
-            if not self.opts.get('giphy_api_key'):
-                return 'no key'
             if not levels.gif_allowed(self.lv(key)['gif_level'], self.rng()):
                 return 'skipped: level'
             st, now = self.stores[key], self.clock()
-            if now - float(st.state().get('last_gif') or 0) < GIF_CHAT_GAP_S:
-                return 'skipped: one per chat'
-            q = urllib.parse.urlencode({'api_key': self.opts['giphy_api_key'], 'q': words, 'limit': 10, 'rating': 'pg', 'lang': 'en'})
-            with (self.gif_opener or urllib.request.urlopen)('https://api.giphy.com/v1/gifs/search?' + q, timeout=10) as r:
-                data = json.load(r).get('data') or []
-            links = [g['url'] for g in data[:5] if str(g.get('url', '')).startswith('https://giphy.com/')]
-            if not links:
-                return 'none found'
-            if not self.discord[key].send(self._channel(key), links[int(self.rng() * len(links)) % len(links)], None):
+            gap = max(0, int(self.opts.get('gif_gap_minutes', 10))) * 60
+            if now - float(st.state().get('last_gif') or 0) < gap:
+                return 'skipped: too soon'
+            cache = self.gif_cache()
+            fitting = [i for i in cache if self.gif_fits(tokens, i) and os.path.exists(os.path.join(self.data_dir, 'gifs', i['file']))]
+            item, how = None, 'new'
+            if fitting and self.rng() < GIF_REUSE_CHANCE:
+                item, how = fitting[int(self.rng() * len(fitting)) % len(fitting)], 'reused'
+            elif self.opts.get('giphy_api_key'):
+                try:
+                    item = self.gif_fetch(words, tokens, cache)
+                except Exception as e:
+                    self.log('persona %s: GIPHY failed (%s)' % (key, type(e).__name__))
+            if item is None and fitting:
+                item, how = fitting[0], 'reused'   # GIPHY unavailable: a cached one beats nothing
+            if item is None:
+                return 'none found' if self.opts.get('giphy_api_key') else 'no key'
+            if not self.discord[key].send_file(self._channel(key), os.path.join(self.data_dir, 'gifs', item['file'])):
                 return 'send failed'
             st.update_state(lambda s: s.__setitem__('last_gif', now))
-            self.log('persona %s: gif sent' % key)
-            return 'sent'
+            self.log('persona %s: gif sent (%s)' % (key, how))
+            return 'sent (%s)' % how
         except Exception as e:
             self.log('persona %s: gif failed (%s)' % (key, type(e).__name__))
             return 'failed'
+
+    def gif_fetch(self, words, tokens, cache):
+        """Search GIPHY, download one picture into the cache. -> the cache item, or None."""
+        opener = self.gif_opener or urllib.request.urlopen
+        q = urllib.parse.urlencode({'api_key': self.opts['giphy_api_key'], 'q': words, 'limit': 10, 'rating': 'pg', 'lang': 'en'})
+        with opener('https://api.giphy.com/v1/gifs/search?' + q, timeout=10) as r:
+            data = json.load(r).get('data') or []
+        cands = []
+        for g in data[:5]:
+            im = (g.get('images') or {})
+            url = ((im.get('downsized') or im.get('original') or {}).get('url') or '')
+            if re.fullmatch(r'[A-Za-z0-9]{3,40}', str(g.get('id', ''))) and re.match(r'https://[a-z0-9.\-]*giphy\.com/', url):
+                cands.append((g['id'], url))
+        if not cands:
+            return None
+        gid, url = cands[int(self.rng() * len(cands)) % len(cands)]
+        for i in cache:
+            if i['id'] == gid and os.path.exists(os.path.join(self.data_dir, 'gifs', i['file'])):
+                i['tokens'] = sorted(set(i.get('tokens') or []) | set(tokens)); self.gif_cache_save(cache)
+                return i
+        with opener(url, timeout=20) as r:
+            blob = r.read(GIF_MAX_BYTES + 1)
+        if not blob or len(blob) > GIF_MAX_BYTES or not blob.startswith(b'GIF8'):
+            return None
+        os.makedirs(os.path.join(self.data_dir, 'gifs'), exist_ok=True)
+        item = {'id': gid, 'file': gid + '.gif', 'tokens': tokens}
+        with open(os.path.join(self.data_dir, 'gifs', item['file']), 'wb') as f:
+            f.write(blob)
+        self.gif_cache_save(cache + [item])
+        return item
 
     def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""

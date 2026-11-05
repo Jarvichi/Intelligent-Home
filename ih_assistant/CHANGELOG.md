@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.10] - 2026-11-05
+
+### Changed
+- GIFs are sent as a picture (attached), not a link. Pictures are kept (up to 300) and half the time a fitting one is reused instead of a new GIPHY search, so it saves calls and stays varied.
+- The "one GIF per chat (6 h)" rule is replaced by a short gap: new option `gif_gap_minutes` (default 10). The persona's gif level decides how often.
+
 ## [0.9.9] - 2026-11-05
 
 ### Added

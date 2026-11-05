@@ -7,6 +7,7 @@
   "trace_url": "",
   "ingest_token": "",
   "giphy_api_key": "",
+  "gif_gap_minutes": 10,
   "personas": [
     {
       "key": "persona_a",
