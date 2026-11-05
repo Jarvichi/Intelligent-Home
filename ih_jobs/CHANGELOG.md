@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.16.2] - 2026-11-05
+
+### Changed
+- The add-on page has a sticky top bar with a one-tap "‹ Intelligent Home" link back to the Operations console (whole Home Assistant window). Job rows are unchanged.
+
 ## [0.16.1] - 2026-11-05
 
 ### Changed

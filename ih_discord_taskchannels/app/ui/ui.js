@@ -130,6 +130,7 @@
       const title = typeof i.title === 'string' && i.title ? i.title : 'Intelligent Home add-on';
       $('page-title').textContent = title;
       document.title = title + ' · Intelligent Home';
+      if (window.IHNav) IHNav.setTitle(title);
       $('purpose').textContent = typeof i.purpose === 'string' ? i.purpose : '';
       $('purpose').hidden = !$('purpose').textContent;
       $('description').textContent = typeof i.description === 'string' && i.description ? i.description : 'No description is provided.';

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Intelligent Home</title>
-<link rel="stylesheet" href="ih-ui.css">
+<link rel="stylesheet" href="ih-ui.css?v=nav1">
 <style>
 :root{--bg:var(--ih-bg);--surface:var(--ih-surface);--raised:var(--ih-surface-raised);--text:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--ok:var(--ih-ok);--warn:var(--ih-warn);--danger:var(--ih-danger);--accent:var(--ih-accent);--ink:var(--ih-accent-ink);--link:var(--ih-link);--shadow:var(--ih-shadow)}
 *{box-sizing:border-box}
@@ -16,7 +16,7 @@ h1{font-size:28px;margin:0;letter-spacing:-.02em;line-height:1.1}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
 .card h2{font-size:16px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
 .meta{color:var(--muted);font-size:13px;margin:0}
-.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:0;z-index:5}
+.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:var(--ih-nav-h,48px);z-index:5}
 .tab{min-height:44px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:0 2px;cursor:pointer;min-width:0}
 .tab[aria-selected=true]{background:var(--accent);color:var(--ink)}
 .tab:focus-visible,.btn:focus-visible,.disc:focus-visible,select:focus-visible,input:focus-visible,.sel:focus-visible{outline:3px solid var(--link);outline-offset:2px}
@@ -31,6 +31,9 @@ h1{font-size:28px;margin:0;letter-spacing:-.02em;line-height:1.1}
 @media(min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
 .tile{background:var(--raised);border-radius:12px;padding:12px;min-width:0}
 .tile b{display:block;font-size:26px;letter-spacing:-.03em;line-height:1.1;overflow-wrap:anywhere}.tile span{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;max-width:100%;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--link);font-weight:600;font-size:14px;text-decoration:none;overflow-wrap:anywhere}
+.chip:hover{border-color:var(--link)}.chip:focus-visible{outline:3px solid var(--link);outline-offset:2px}.chip.off{color:var(--muted);font-weight:500}
 .tile.warn b{color:var(--warn)}.tile.bad b{color:var(--danger)}.tile.ok b{color:var(--ok)}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:0 0 8px}
 .toolbar label{display:grid;gap:4px;font-size:12px;color:var(--muted);flex:1 1 150px;min-width:0}
@@ -83,6 +86,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding
 @media(prefers-reduced-motion:no-preference){.chev{transition:transform .15s}.state.loading:before{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style></head><body>
+<ih-nav data-title="Intelligent Home"></ih-nav>
 <div class="page">
  <div class="head"><h1>Intelligent Home</h1><span class="pill" id="pill" role="status"><span class="dot" aria-hidden="true"></span><span id="pilltext">Checking...</span></span></div>
  <p class="lede" id="lede">Manager: your add-ons, jobs and health in one place.</p>
@@ -96,13 +100,17 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding
  <div id="msg" class="fix hidden" role="status" aria-live="polite"></div>
  <main id="main" role="tabpanel" tabindex="-1">Loading...</main>
 </div>
+<script src="ih-ui.js?v=nav1"></script>
 <script src="manager-logic.js"></script>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
 var TABS=['today','addons','jobs','requests','health'],TAB='today',RID=0,SHOWALL=false;
 var AQ={q:'',show:'all',sort:'attn'},TQ={q:'',type:'',hide:false,sel:''},HQ={q:'',state:''},OPEN={},ARMED=null,ARMT=null,LASTOK=null,REPAINT=null,SHOWN='';
 var SRC={addons:'api/addons',health:'api/health',usage:'api/usage',plugins:'api/plugins',settings:'api/settings',traces:'api/traces'};
-var S={};
+var S={},BACKFN=null,WIDE=window.matchMedia('(min-width:900px)');
+/* The top bar's back step goes up one level: from a request's detail (phones) to the list, using the page's own Back handler. */
+function navSync(){if(!window.IHNav)return;if(BACKFN&&!WIDE.matches)IHNav.setTrail([{label:'Requests',onClick:BACKFN}],'Request details');else IHNav.setTrail([],'Intelligent Home')}
+if(WIDE.addEventListener)WIDE.addEventListener('change',navSync);
 function U(p){return B+p}
 function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
 function $(id){return document.getElementById(id)}
@@ -127,7 +135,7 @@ function paintHead(){var c=ctx(),p=IHM.pill(c),el=$('pill');el.className='pill'+
  var l=$('lede'),stale=Object.keys(S).filter(function(n){return S[n].stale});
  l.textContent=(c.failed.addons&&c.failed.health)?'Cannot reach the Manager data. Nothing below is current.':stale.length?'Could not refresh just now. Showing the last good data'+(LASTOK?' from '+LASTOK:'')+'.':'Manager: your add-ons, jobs and health in one place.'+(LASTOK?' Checked '+LASTOK+'.':'')}
 /* ---- Home Assistant navigation without a page load (the HA phone app treats link taps in the panel frame as navigation). */
-function goHA(path){try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
+function goHA(path){if(window.IHNav){IHNav.goTop(path);return}try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
 function cfgBtn(full,label){return btn(label||'Settings',function(){goHA(['','config','app',full,'config'].join('/'))})}
 function post(path){return fetch(U(path),{method:'POST'}).then(function(r){return r.json().then(function(j){return[r.status,j]})})}
 function act(a,s,extra){say(a+' '+s+' ...');post('api/action/'+a+'/'+s+(extra||'')).then(function(x){var c=x[0],j=x[1];
@@ -231,6 +239,8 @@ function tabToday(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);
   c1.appendChild(E('p',parts.join(' ')||'Reading...','sub'));
   var tl=E('div',null,'tiles');IHM.tiles(c).forEach(function(t){var d=E('div',null,'tile'+(t.tone?' '+t.tone:''));d.appendChild(E('b',t.value));d.appendChild(E('span',t.label));tl.appendChild(d)});c1.appendChild(tl);
   if(anyFail)c1.appendChild(btn('Try again',function(){show(true)}));holder.appendChild(c1);
+  var jt=IHM.jumpTargets(c.addons);
+  if(jt.length){var cj=card('Jump to','Open the page of any installed add-on.'),ch=E('div',null,'chips');ch.setAttribute('role','list');jt.forEach(function(t){var a=E('a',null,'chip'+(t.running?'':' off'));a.href=t.href;a.target='_top';a.setAttribute('role','listitem');var d=E('span',null,'dot'+(t.running?'':' off'));d.setAttribute('aria-hidden','true');a.appendChild(d);a.appendChild(document.createTextNode(t.name+(t.running?'':' (stopped)')));a.onclick=function(e){if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();goHA(t.href)};ch.appendChild(a)});cj.appendChild(ch);holder.appendChild(cj)}
   var c2=card('Worth a look','Things that are not right, or not finished.'),w=IHM.worthALook(c),shown=SHOWALL?w:w.slice(0,6);
   if(!w.length)c2.appendChild(stateBox('empty','Nothing needs a look right now.'));
   shown.forEach(function(x){c2.appendChild(row(x.tone,x.title,x.detail,btn('Open',function(){go(x.go)})))});
@@ -285,7 +295,7 @@ function tabRequests(m,rid){var holder=E('div',null,'cols');m.appendChild(holder
   var rc=IHM.routineCount(rows),tb2=toolbar(),hb=btn('',function(){TQ.hide=!TQ.hide;hb.setAttribute('aria-pressed',TQ.hide);hb.textContent=TQ.hide?'Show routine checks ('+rc+')':'Hide routine checks ('+rc+')';paintList()});hb.setAttribute('aria-pressed',TQ.hide);hb.textContent=TQ.hide?'Show routine checks ('+rc+')':'Hide routine checks ('+rc+')';
   var cb=btn('Clear filters',function(){clearT()});tb2.appendChild(hb);tb2.appendChild(cb);tl.appendChild(tb2);
   var cnt=E('p',null,'count');cnt.setAttribute('role','status');tl.appendChild(cnt);var lst=E('div',null,'scroll');tl.appendChild(lst);
-  var back=btn('← Back to list',function(){TQ.mobileDetail=false;tr.classList.remove('detail');var cur=lst.querySelector('[aria-current=true]');if(cur)cur.focus()},'back');td.appendChild(back);var dd=E('div');td.appendChild(dd);
+  var backFn=function(){TQ.mobileDetail=false;tr.classList.remove('detail');BACKFN=null;navSync();var cur=lst.querySelector('[aria-current=true]');if(cur)cur.focus()};var back=btn('← Back to list',backFn,'back');if(TQ.mobileDetail){BACKFN=backFn;navSync()}td.appendChild(back);var dd=E('div');td.appendChild(dd);
   function clearT(){TQ.q='';TQ.type='';TQ.hide=false;qi.value='';ts.value='';hb.setAttribute('aria-pressed','false');hb.textContent='Hide routine checks ('+rc+')';paintList()}
   var wide=window.matchMedia('(min-width:900px)');
   function paintList(){lst.textContent='';var hit=IHM.filterTraces(rows,{q:TQ.q,type:TQ.type,hideRoutine:TQ.hide});cb.hidden=!(TQ.q||TQ.type||TQ.hide);cnt.textContent=hit.length+' of '+rows.length+' requests shown';
@@ -294,7 +304,7 @@ function tabRequests(m,rid){var holder=E('div',null,'cols');m.appendChild(holder
    if(!hit.some(function(r){return r.trace_id==TQ.sel})){TQ.sel='';dd.textContent='';dd.appendChild(stateBox('empty','Tap a request to see its steps.'));if(wide.matches)choose(hit[0].trace_id,false)}
    else choose(TQ.sel,false)}
   function choose(id,user){var same=SHOWN==id&&dd.firstChild&&!dd.querySelector('.state');TQ.sel=id;Array.prototype.forEach.call(lst.querySelectorAll('.sel'),function(b){b.setAttribute('aria-current',b.dataset.id==id?'true':'false')});
-   if(user&&!wide.matches){TQ.mobileDetail=true;tr.classList.add('detail');window.scrollTo(0,0);back.focus()}
+   if(user&&!wide.matches){TQ.mobileDetail=true;tr.classList.add('detail');BACKFN=backFn;navSync();window.scrollTo(0,0);back.focus()}
    if(same&&!user)return;SHOWN=id;dd.textContent='';dd.appendChild(stateBox('loading','Loading the steps...'));
    fetch(U('api/trace/'+encodeURIComponent(id))).then(function(r){return r.json().then(function(j){return[r.status,j]})}).then(function(y){if(TQ.sel!==id)return;dd.textContent='';
     if(y[0]!=200){dd.appendChild(stateBox('fail','Could not load this request.',function(){choose(id,false)},y[1]&&y[1].error));return}
@@ -342,7 +352,7 @@ function tabHealth(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);
  Promise.all([load('health'),load('usage'),load('addons')]).then(function(){if(rid!==RID)return;paintHead();paint()})}
 /* ---- tabs */
 function jump(t){TAB=t;if(location.hash)try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}say('');disarm(false);show(false);window.scrollTo(0,0)}
-function show(silent){var rid=++RID;REPAINT=null;SHOWN='';var old=$('main'),m=E('main');m.id='main';m.setAttribute('role','tabpanel');m.tabIndex=-1;m.setAttribute('aria-labelledby','tab-'+TAB);
+function show(silent){var rid=++RID;REPAINT=null;SHOWN='';BACKFN=null;navSync();var old=$('main'),m=E('main');m.id='main';m.setAttribute('role','tabpanel');m.tabIndex=-1;m.setAttribute('aria-labelledby','tab-'+TAB);
  TABS.forEach(function(t){var b=$('tab-'+t);b.setAttribute('aria-selected',t==TAB?'true':'false');b.tabIndex=t==TAB?0:-1});
  if(silent&&(old.querySelector('pre')||ARMED)&&TAB=='addons'){return}
  old.replaceWith(m);({today:tabToday,addons:tabAddons,jobs:tabJobs,requests:tabRequests,health:tabHealth})[TAB](m,rid);

@@ -110,3 +110,18 @@ assert.strictEqual(M.tabFromHash('traces'), 'requests');
 assert.strictEqual(M.tabFromHash('#health'), 'health');
 assert.strictEqual(M.tabFromHash('#nope'), null);
 console.log('ok');
+
+// jumpTargets: installed add-ons with a page, plain names, sorted, never the Manager itself
+{
+  const J = (o) => A(Object.assign({ full: 'abc_' + (o.slug || 'ih_x'), ingress: true }, o));
+  const jt = M.jumpTargets([
+    J({ slug: 'ih_jobs', name: 'Intelligent Home - Jobs' }), J({ slug: 'ih_games', name: 'Intelligent Home - Games', state: 'stopped' }),
+    J({ slug: 'ih_orchestrator', name: 'Intelligent Home' }), J({ slug: 'ih_brain', name: 'Intelligent Home - Brain', ingress: false }),
+    J({ slug: 'ih_new', name: 'Intelligent Home - New', installed: false }), J({ slug: 'ih_jobs_backup', name: 'Intelligent Home - Jobs - Backup' }),
+    J({ slug: 'ih_nofull', name: 'X', full: null })]);
+  assert.deepStrictEqual(jt.map(t => t.name), ['Games', 'Jobs', 'Jobs - Backup']);
+  assert.deepStrictEqual(jt.map(t => t.running), [false, true, true]);
+  assert.strictEqual(jt[0].href, '/app/abc_ih_games');
+  assert.deepStrictEqual(M.jumpTargets(null), []);
+  assert.strictEqual(M.plainName({ slug: 's', name: '' }), 's');
+}

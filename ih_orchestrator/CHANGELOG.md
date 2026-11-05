@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.2] - 2026-11-05
+
+### Changed
+- Sticky top bar (title only: this is the hub). Today tab has a "Jump to" card with a 44px chip for every installed add-on page (plain names, sorted; stopped ones are marked). On phones, the bar's back step in a request's detail goes up to the list (same as the page's Back button). Open-page and Settings buttons use the shared whole-window navigation.
+
 ## [0.11.1] - 2026-11-05
 
 ### Changed
