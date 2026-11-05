@@ -6,13 +6,19 @@ Run backend metadata, title-index migration and ingress asset checks with tempor
 PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning -m unittest discover -s ih_brain/tests -v
 ```
 
+Run the pure page logic checks (Node 22):
+
+```
+node --test ih_brain/tests/logic.test.js
+```
+
 Run browser fixtures with Node 22 and an existing Chromium DevTools endpoint:
 
 ```
 IH_BROWSER_CDP=http://127.0.0.1:9222 node ih_brain/tests/reader_browser.js
 ```
 
-The browser test uses two synthetic notes, no Home Assistant session or production data, and rejects
+The browser test searches for the first note, then uses two synthetic notes, no Home Assistant session or production data, and rejects
 write requests. It checks four width/theme combinations, common Markdown structures, complete table
 cells, exact source disclosure, inert HTML/images/unsafe URLs, note links, history, pending feedback,
 retry and cancelled responses. Screenshots go to `/tmp/ih-reader-previews` unless

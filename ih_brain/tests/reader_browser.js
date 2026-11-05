@@ -20,7 +20,7 @@ const source = ['---','title: "Example note"','type: guide','share: false','---'
   '### Final section','All content is also retained in the exact source view.','',
   '[ref]: https://example.invalid/reference',''].join('\n');
 const second = '---\ntitle: "Second note"\nshare: false\n---\n# Second note\n\nLinked note content.\n';
-const fixtures = {'notes/example.md': {path:'notes/example.md',title:'Example note',content:source},'notes/second.md':{path:'notes/second.md',title:'Second note',content:second}};
+const fixtures = {'notes/example.md': {path:'notes/example.md',title:'Example note',private:true,content:source},'notes/second.md':{path:'notes/second.md',title:'Second note',private:true,content:second}};
 const assert = (value, message) => { if (!value) throw Error(message); };
 (async () => {
  fs.mkdirSync(output,{recursive:true});
@@ -38,13 +38,15 @@ const assert = (value, message) => { if (!value) throw Error(message); };
    let html=fs.readFileSync(path.join(ui,'index.html'),'utf8').replace(/<script[\s\S]*?<\/script>/g,'').replace(/<link[^>]*>/g,'');
    html=html.replace('</head>','<style>'+['ih-ui.css','ih-patterns.css','ui.css'].map(file=>fs.readFileSync(path.join(ui,file),'utf8')).join('\n')+'</style></head>');
    const tree=await send('Page.getFrameTree');await send('Page.setDocumentContent',{frameId:tree.frameTree.frame.id,html});
-   await evaluate(`window.readerFixtures=${JSON.stringify(fixtures)};window.readerUnsafe=false;window.readerFailNext=false;window.readerDelayNext=false;window.readerWriteAttempts=0;window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){readerWriteAttempts++;throw Error('Writes forbidden');}const parsed=new URL(url),p=parsed.pathname;let value;if(p.endsWith('/api/index'))value={count:2,areas:[{path:'notes',title:'Notes',count:2}],notes:Object.values(readerFixtures).map(({content,...row})=>row)};else if(p.endsWith('/api/read')){if(readerDelayNext){readerDelayNext=false;await new Promise(resolve=>setTimeout(resolve,80));}if(readerFailNext){readerFailNext=false;return {ok:false,status:503};}value=readerFixtures[parsed.searchParams.get('path')];}else value={notes:Object.values(readerFixtures).map(({content,...row})=>row)};return {ok:!!value,status:value?200:404,json:async()=>value};};`);
+   await evaluate(`window.readerFixtures=${JSON.stringify(fixtures)};window.readerUnsafe=false;window.readerFailNext=false;window.readerDelayNext=false;window.readerWriteAttempts=0;window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){readerWriteAttempts++;throw Error('Writes forbidden');}const parsed=new URL(url),p=parsed.pathname;let value;if(p.endsWith('/api/index'))value={count:2,areas:[{path:'notes',title:'Notes',count:2}],notes:Object.values(readerFixtures).map(({content,...row})=>row)};else if(p.endsWith('/api/summary'))value={notes:2,links:1,areas:1,changed_7d:2,drafts:0,orphans:1,orphan_rule:'rule',private:2,shareable:0,unmarked:0};else if(p.endsWith('/api/links'))value={out:[],in:[{path:'notes/example.md',title:'Example note'}]};else if(p.endsWith('/api/read')){if(readerDelayNext){readerDelayNext=false;await new Promise(resolve=>setTimeout(resolve,80));}if(readerFailNext){readerFailNext=false;return {ok:false,status:503};}value=readerFixtures[parsed.searchParams.get('path')];}else value={notes:Object.values(readerFixtures).map(({content,...row})=>row)};return {ok:!!value,status:value?200:404,json:async()=>value};};`);
    await evaluate(fs.readFileSync(path.join(ui,'ih-ui.js'),'utf8'));
    await evaluate(fs.readFileSync(path.join(ui,'markdown.js'),'utf8'));
    await evaluate(fs.readFileSync(path.join(ui,'ui.js'),'utf8'));
    await new Promise(resolve=>setTimeout(resolve,30));
    const result=await evaluate(`(async()=>{
     const check=(value,message)=>{if(!value)throw Error(message);},tick=()=>new Promise(resolve=>setTimeout(resolve,30));
+    document.querySelector('#query').value='example';document.querySelector('#search').click();await tick();
+    check(document.querySelector('.note-row .chip.private'),'Private chip missing');
     document.querySelector('[data-path="notes/example.md"]').click();await tick();
     const article=document.querySelector('.note-markdown');check(article,'Readable body missing');
     check(document.querySelector('.note-source pre').textContent===readerFixtures['notes/example.md'].content,'Source changed');
