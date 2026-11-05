@@ -875,7 +875,7 @@ class Assistant:
             if not st.profile()['introduced'] and st.state().get('intro_requested'):
                 st.merge_profile({'introduced': True})
         self.log('persona %s: sent %d chars' % (key, len(text)))
-        gif = self.send_gif(key, body.get('gif')) if ok and body.get('gif') else None
+        gif = self.send_gif(key, body.get('gif'), bool(body.get('gif_asked'))) if ok and body.get('gif') else None
         return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed), 'gif': gif}
 
     # ---- GIFs (0.9.9 sends links; 0.9.10 attaches the picture and keeps a cache) ----
@@ -908,7 +908,7 @@ class Assistant:
         a, b = set(tokens), set(item.get('tokens') or [])
         return bool(a and b) and len(a & b) / float(len(a | b)) >= 0.5
 
-    def send_gif(self, key, words):
+    def send_gif(self, key, words, asked=False):
         """Send ONE GIF picture after a reply if the persona's gif level allows it (random draw) and none went out in the last
         gif_gap_minutes (default 10). 50% of the time a fitting GIF from the cache is reused (saves a GIPHY call, keeps it varied);
         otherwise GIPHY is searched (PG only), the picture downloaded (under 8 MB) and cached. Never raises. -> short status word."""
@@ -917,11 +917,11 @@ class Assistant:
             tokens = self.gif_tokens(words)
             if not tokens:
                 return 'no words'
-            if not levels.gif_allowed(self.lv(key)['gif_level'], self.rng()):
+            if not asked and not levels.gif_allowed(self.lv(key)['gif_level'], self.rng()):   # 0.9.11: the person asked for one -> no dice roll, no gap
                 return 'skipped: level'
             st, now = self.stores[key], self.clock()
             gap = max(0, int(self.opts.get('gif_gap_minutes', 10))) * 60
-            if now - float(st.state().get('last_gif') or 0) < gap:
+            if not asked and now - float(st.state().get('last_gif') or 0) < gap:
                 return 'skipped: too soon'
             cache = self.gif_cache()
             fitting = [i for i in cache if self.gif_fits(tokens, i) and os.path.exists(os.path.join(self.data_dir, 'gifs', i['file']))]

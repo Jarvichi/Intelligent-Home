@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.8] - 2026-11-05
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.9.11: a GIF the person asked for is never skipped by chance.
+
 ## [0.11.7] - 2026-11-05
 
 ### Changed
