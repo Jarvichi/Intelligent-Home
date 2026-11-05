@@ -1,12 +1,12 @@
 {
   "title": "Jobs · Trust",
   "purpose": "Tests each month how good the outside AIs are.",
-  "description": "Once a month it asks the outside AIs the same fixed, non-private questions through the AI Layer and scores their answers. It then adds a to-do item to review the results. It starts in test mode, where it only logs what it would do.",
+  "description": "Once a month it asks every ready outside AI the same 8 fixed, non-private questions through the AI Layer, one AI at a time, and scores their answers. OpenAI is skipped unless you allow it. It then adds a to-do item to review the results. It starts in test mode, where it only logs what it would do.",
   "health_port": 8810,
   "health_path": "/healthz",
   "navigation": [
-    "Asks the AIs fixed test questions each month",
-    "Scores their answers",
+    "Asks each AI the same fixed test questions each month",
+    "Scores each AI on its own",
     "Adds a to-do item to review them",
     "Starts in test mode"
   ],

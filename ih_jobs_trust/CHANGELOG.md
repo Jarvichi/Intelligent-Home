@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.11] - 2026-11-05
+
+### Fixed
+- The test asked all 8 questions to whichever AI the layer picked (Groq), so only one AI was scored. It now asks every ready chat AI the same 8 questions, one AI at a time, forcing each by its model name.
+
+### Added
+- Options `providers` (list to test) and `exclude` (default `openai`). The ready AIs are read from the layer at run time.
+- A question answered by a different AI than the one asked is marked `misrouted` and not scored.
+- Run files use `results[ai][question]` (`format` 2). Old files are still read by the score summary and the Today card.
+- The review to-do lists each AI's score.
+
 ## [0.1.10] - 2026-11-05
 
 ### Changed

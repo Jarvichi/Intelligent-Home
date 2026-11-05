@@ -77,19 +77,15 @@ def build(result, opts, now=None):
         done = datetime.fromisoformat(str(result.get('finished'))).astimezone(tz)
     except (TypeError, ValueError):
         done = None
-    res = result['results']
-    by = {}
-    for q, r in res.items():
-        if q in trustjob.QUESTIONS and isinstance(r, dict) and r.get('agent') and r.get('ok'):
-            by.setdefault(str(r['agent']), {})[q] = r
     rows = []
-    for agent, qs in by.items():
+    for agent, qs in trustjob.by_agent(result['results']).items():      # handles old files (one agent per question) and new ones (per AI)
         s = trustjob.summarise(qs)
         if s['test'] is None:
+            rows.append({'name': label(agent), 'plain': True, 'note': 'No marks (no usable answers)'})
             continue
         rows.append({'name': label(agent), 'score': s['test'], 'pct': float(s['test']),
                      'note': 'Marks for %d of %d questions' % (s['scored'], len(trustjob.QUESTIONS)) + ('. Made something up' if s['invented'] else '')})
-    rows.sort(key=lambda r: (-r['score'], r['name']))
+    rows.sort(key=lambda r: (-r.get('score', -1), r['name']))
     if not rows:
         rows = [{'name': 'Last test', 'plain': True, 'note': 'No scored answers'}]
     sub = 'Score out of 100 on %d fixed questions' % len(trustjob.QUESTIONS)

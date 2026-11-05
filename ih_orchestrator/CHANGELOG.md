@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.1] - 2026-11-05
+
+### Changed
+- Catalogue: AI Trust Test is now 0.1.11 (tests every ready AI, not just one).
+
 ## [0.11.0] - 2026-11-05
 
 ### Changed
