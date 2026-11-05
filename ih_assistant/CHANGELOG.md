@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.8] - 2026-11-05
+
+### Changed
+- "Typing…" appears the moment a message is seen, before the persona's Claude has started, and stays until the reply. The add-on also checks Discord every 3 seconds instead of 8, so a reply starts sooner.
+
 ## [0.9.7] - 2026-11-05
 
 ### Changed

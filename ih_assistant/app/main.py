@@ -46,7 +46,7 @@ PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until 
 FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
 FACT_TIMEOUT_S = 5
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
-POLL_S = 8
+POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
 TYPING_MAX_S = 300
 ASK_KEEP_S = 86400
 ASK_MAX = 10
@@ -270,11 +270,22 @@ class Assistant:
             added += 1
         st.update_state(lambda s: s.__setitem__('last_seen', newest))
         if added:
+            self.typing_now(key, newest)
             try:
                 self.usage_autoreply(key, added)
             except Exception as e:
                 self.log('persona %s: usage auto-reply error %s' % (key, type(e).__name__))
         return added
+
+    def typing_now(self, key, msg_id):
+        """0.9.8: show "typing" the moment a message is seen (before the persona's Claude has even started) and keep it
+        until the persona answers. Never raises: a failed typing call must not lose the message."""
+        try:
+            if self.is_live(key) and key in self.discord:
+                self.discord[key].typing(self._channel(key))
+            self.typing(key, {'msg_id': str(msg_id)})
+        except Exception as e:
+            self.log('persona %s: instant typing failed (%s)' % (key, type(e).__name__))
 
     # ---- behaviour levels (0.7.0) ----
     def lv(self, key):
