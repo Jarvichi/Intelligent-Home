@@ -1,13 +1,14 @@
 {
   "title": "Jobs · Trust",
-  "purpose": "Publishes house trust and service availability checks.",
-  "description": "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent.",
+  "purpose": "Tests each month how good the outside AIs are.",
+  "description": "Once a month it asks the outside AIs the same fixed, non-private questions through the AI Layer and scores their answers. It then adds a to-do item to review the results. It starts in test mode, where it only logs what it would do.",
   "health_port": 8810,
   "health_path": "/healthz",
   "navigation": [
-    "Trust checks",
-    "latest job status",
-    "service health"
+    "Asks the AIs fixed test questions each month",
+    "Scores their answers",
+    "Adds a to-do item to review them",
+    "Starts in test mode"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

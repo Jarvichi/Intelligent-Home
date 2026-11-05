@@ -1,13 +1,13 @@
 {
   "title": "Jobs · Backup",
-  "purpose": "Publishes backup storage status and handles signed backup run requests.",
-  "description": "Child of Intelligent Home - Jobs. Publishes the backup storage sensors (local disk, optional Google Drive). DRY-RUN by default. Registers with the parent.",
+  "purpose": "Reports how much backup space is used.",
+  "description": "Reports how much space is used on the local disk and, if set up, on Google Drive for backups. It starts in test mode, where it only logs what it would do.",
   "health_port": 8798,
   "health_path": "/healthz",
   "navigation": [
-    "Disk and drive status",
-    "signed run requests",
-    "dry/live mode"
+    "Reports local disk space",
+    "Reports Google Drive space",
+    "Starts in test mode"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

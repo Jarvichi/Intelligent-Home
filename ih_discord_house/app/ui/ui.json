@@ -1,13 +1,14 @@
 {
   "title": "Discord House",
-  "purpose": "Handles house-oriented Discord commands and Home Assistant actions.",
-  "description": "House status commands (who is home, alarm, bins, heating, status of one device) as a module of the ih_discord transport. It talks to the transport over a signed MQTT bus and never holds a Discord token. All house details are options. SHADOW mode by default: it answers nothing, it only logs what it would post. Maps no folders.",
+  "purpose": "Answers questions about the house in Discord.",
+  "description": "Answers house questions in Discord, such as who is home, the alarm, the bins, the heating and the state of one device. It has no Discord login of its own. It starts in test mode, where it only logs what it would say.",
   "health_port": 8796,
   "health_path": "/healthz",
   "navigation": [
-    "Command transport",
-    "house module status",
-    "shadow/live mode"
+    "Says who is home",
+    "Reports the alarm, bins and heating",
+    "Reports the state of one device",
+    "Starts in test mode and posts nothing"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

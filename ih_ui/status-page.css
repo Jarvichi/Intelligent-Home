@@ -6,16 +6,25 @@
 .livepill[status=ok]:before{background:var(--ih-ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ih-ok) 14%,transparent)}
 .livepill[status=error]:before{background:var(--ih-danger);box-shadow:0 0 0 4px color-mix(in srgb,var(--ih-danger) 14%,transparent)}
 .status-purpose{margin:0 0 16px;color:var(--ih-muted);font-size:14px;line-height:1.5}.status-purpose[hidden]{display:none}
-.status-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));margin-bottom:16px}
-.status-card{padding:16px;border-radius:17px}
+.status-card{margin-bottom:16px;padding:16px;border-radius:17px}.status-card[hidden]{display:none}
 .status-card h2,.about-card h2{margin:0 0 12px;font-size:17px;letter-spacing:-.02em}
-.status-state{margin:0;font-size:22px;font-weight:750;letter-spacing:-.03em;line-height:1.2}
-.status-card .ih-freshness{margin:6px 0 0}
-.status-card .ih-metadata{margin:6px 0 0}.status-card .ih-metadata[hidden]{display:none}
-.status-card .ih-button{margin-top:12px}
-.status-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-.status-list li{padding:10px 12px;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-bg);font-size:13px;font-weight:650;overflow-wrap:anywhere}
-.status-list:empty{display:none}
+.status-card .ih-metadata{margin:8px 0 0}.status-card .ih-metadata[hidden]{display:none}
+.status-line{display:flex;align-items:center;justify-content:space-between;gap:12px}.status-line-text{min-width:0}
+.status-state{display:block;font-size:17px;font-weight:750;letter-spacing:-.02em;line-height:1.3}
+.status-line .ih-freshness{display:block;margin:2px 0 0}
+.status-card .ih-button{flex:0 0 auto;min-width:44px;padding:8px 16px}
+.status-card h2{margin:0 0 4px}
+.status-sub{margin:0 0 12px;color:var(--ih-muted);font-size:13px;line-height:1.45}.status-sub[hidden]{display:none}
+.status-bullets{margin:8px 0 0;padding-left:20px;color:var(--ih-muted);font-size:14px;line-height:1.5}.status-bullets li{margin:2px 0;overflow-wrap:anywhere}.status-bullets:empty{display:none}
+.today-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-top:1px solid var(--ih-line)}.today-row:first-child{border-top:0}
+.today-name{min-width:0;font-weight:650;overflow-wrap:anywhere}
+.today-score{font-weight:750;text-align:right;font-variant-numeric:tabular-nums}
+.today-model{grid-column:1/-1;color:var(--ih-muted);font-size:13px;overflow-wrap:anywhere}
+.today-bar{grid-column:1/-1;height:6px;border-radius:3px;background:var(--ih-surface-raised);overflow:hidden}
+.today-bar i{display:block;height:100%;border-radius:3px;background:var(--ih-ok)}.today-bar i.full{background:var(--ih-warn)}
+.today-use{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--ih-muted);font-size:13px}.today-use span:first-child{min-width:0;overflow-wrap:anywhere}
+.today-tag{flex:0 0 auto;padding:1px 8px;border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-muted);font-size:12px}
+.today-note{grid-column:1/-1;color:var(--ih-muted);font-size:12px}
 .status-card .ih-empty-inline[hidden]{display:none}
 .about-card{padding:16px;border-radius:17px}
 .about-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.about-heading h2{margin:0}

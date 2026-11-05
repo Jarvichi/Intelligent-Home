@@ -1,13 +1,14 @@
 {
   "title": "Assistant",
-  "purpose": "Provides the shared Intelligent Home assistant API and its registered capabilities.",
-  "description": "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default.",
+  "purpose": "Looks after private chats and check-in messages for each person in the house.",
+  "description": "Reads each person's private Discord messages through their own bot, queues check-in messages, and sends replies that are written elsewhere. Each person's chats are kept completely separate. It starts in test mode, where it only logs what it would do.",
   "health_port": 8830,
   "health_path": "/healthz",
   "navigation": [
-    "Assistant health",
-    "capability endpoint",
-    "request service"
+    "Reads each person's private messages",
+    "Queues check-in messages",
+    "Sends replies",
+    "Keeps each person's data separate"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

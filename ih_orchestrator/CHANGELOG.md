@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.18] - 2026-11-05
+
+### Changed
+- Catalogue: add-on purposes reworded in plain language; add-on versions updated for the status page v2.
+
 ## [0.10.17] - 2026-11-05
 
 ### Changed

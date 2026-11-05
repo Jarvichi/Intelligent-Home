@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.34] - 2026-11-05
+
+### Changed
+- Ingress status page v2: one status line with a Check button, a plain "What it does" list, and a plain-language description.
+
 ## [0.1.33] - 2026-11-05
 
 ### Changed

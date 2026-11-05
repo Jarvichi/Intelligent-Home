@@ -1,14 +1,14 @@
 {
   "title": "AI Layer",
-  "purpose": "Routes approved AI requests to configured providers and tracks provider performance.",
-  "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. Providers can run in shadow (test) or live mode. No Home Assistant access. Maps no folders.",
+  "purpose": "Sends questions to the best available AI and learns which one answers well.",
+  "description": "Sends a question to one of several AI services (such as Gemini, Groq or Mistral) and returns the answer. It remembers which service answers each kind of question best. It can run in test mode, where it only pretends, or live mode, where it really asks. It is not connected to Discord or Home Assistant.",
   "health_port": 8801,
   "health_path": "/healthz",
   "navigation": [
-    "Request routing",
-    "provider health",
-    "shadow/live mode",
-    "response quality"
+    "Sends questions to the best AI",
+    "Keeps track of each AI's daily allowance",
+    "Learns which AI answers best",
+    "Switches between test and live mode"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"
