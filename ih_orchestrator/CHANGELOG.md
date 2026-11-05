@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.20] - 2026-11-05
+
+### Changed
+- Catalogue lists Jobs 0.16.1 (Games-style Jobs page).
+
 ## [0.10.19] - 2026-11-05
 
 ### Changed
