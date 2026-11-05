@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.9] - 2026-11-05
+
+### Added
+- GIFs are sent by the add-on. A reply can carry `gif` search words; the add-on searches GIPHY (PG only), sends ONE link after the reply, follows the persona's gif level, and allows one per chat (6 h). New option `giphy_api_key`. The reply answer has a `gif` word: sent / skipped: level / skipped: one per chat / no key / none found / failed.
+
 ## [0.9.8] - 2026-11-05
 
 ### Changed
