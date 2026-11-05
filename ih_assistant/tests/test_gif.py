@@ -57,6 +57,11 @@ class GifTests(unittest.TestCase):
         a.opts['giphy_api_key'] = ''
         self.assertEqual(a.send_gif('pp', 'monday morning coffee'), 'no key')   # nothing fits, no key
 
+    def test_asked_gif_ignores_level_roll_and_gap(self):
+        a = self.make(level=0)
+        self.assertEqual(a.send_gif('pp', 'celebrate', asked=True), 'sent (new)')
+        self.assertEqual(a.send_gif('pp', 'celebrate more', asked=True), 'sent (new)')
+
     def test_gates_and_failures(self):
         self.assertEqual(self.make(level=0).send_gif('pp', 'celebrate'), 'skipped: level')
         self.assertEqual(self.make(key='').send_gif('pp', 'celebrate'), 'no key')

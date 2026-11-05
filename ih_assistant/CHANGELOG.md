@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.11] - 2026-11-05
+
+### Fixed
+- When the person asks for a GIF, the reply can say so (`gif_asked`) and the add-on then skips the gif-level dice roll and the gap. Before, a GIF the person asked for could be skipped by the roll (about 1 in 10 at level 9).
+
 ## [0.9.10] - 2026-11-05
 
 ### Changed
