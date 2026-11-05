@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.35] - 2026-11-05
+
+### Changed
+- Ingress status page: the shared page can now show rows without a score and bars without used/cap (for other add-ons' Today cards). No change to this add-on's own page.
+
 ## [0.1.34] - 2026-11-05
 
 ### Changed

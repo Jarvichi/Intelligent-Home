@@ -11,6 +11,15 @@
 ### Added
 - `manager-logic.js` (page logic, served next to the page) and unit tests for it. No API changes.
 
+## [0.10.20] - 2026-11-05
+
+### Changed
+- Catalogue lists Jobs 0.16.1 (Games-style Jobs page).
+
+## [0.10.19] - 2026-11-05
+
+### Changed
+- Catalogue updated for the shared status page change and the new Today cards (Backup, Met Office, AI Trust Test, Task Channels).
 
 ## [0.10.18] - 2026-11-05
 
