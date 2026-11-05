@@ -1,0 +1,15 @@
+{
+  "title": "Work",
+  "purpose": "Shows the list of jobs for Claude and when they run.",
+  "description": "Keeps one line of jobs for Claude. A job runs only when Claude's weekly allowance is far enough under its pace. In the day the pace must be well under. At night it can be closer. One job runs at a time, at most three in an hour. This page only shows the line. You change jobs on the Agents dashboard. The add-on starts in test mode: it keeps the line but hands out nothing.",
+  "health_port": 8802,
+  "health_path": "/healthz",
+  "navigation": [
+    "Keeps one line of jobs, first in, first out",
+    "Hands a job out only when the pace allows it",
+    "Takes the job back if its helper goes quiet",
+    "Starts in test mode and hands out nothing"
+  ],
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
+}

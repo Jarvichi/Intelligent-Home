@@ -1,0 +1,20 @@
+{
+  "log_payloads": false,
+  "mode": "dry",
+  "api_token": "",
+  "stop": false,
+  "timezone": "Europe/London",
+  "lease_minutes": 20,
+  "day_start": -5.0,
+  "day_stop": -4.0,
+  "night_start": -1.0,
+  "night_stop": 0.0,
+  "night_from": "23:00",
+  "night_to": "06:00",
+  "week_usage_entity": "",
+  "session_usage_entity": "",
+  "weekly_reset_entity": "",
+  "feed_backlog": false,
+  "todo_entity": "todo.claude_to_do",
+  "feed_prefixes": ["IH:", "Check:", "Review:"]
+}

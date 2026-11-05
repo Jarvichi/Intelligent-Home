@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Intelligent Home</title>
+  <link rel="stylesheet" href="ih-ui.css?v=nav1">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator"></ih-nav>
+  <ih-app class="status-app">
+    <main class="status-main">
+      <div class="ih-page-heading">
+        <h1 id="page-title">Intelligent Home</h1>
+        <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
+      </div>
+      <p id="purpose" class="status-purpose"></p>
+      <ih-card class="status-card">
+        <div class="status-line">
+          <div class="status-line-text">
+            <b id="state" class="status-state">Checking…</b>
+            <span id="checked" class="ih-freshness" data-state="unknown">Checking now</span>
+          </div>
+          <button id="check" class="ih-button" type="button">Check</button>
+        </div>
+        <p id="detail" class="ih-metadata"></p>
+      </ih-card>
+      <ih-card id="today-card" class="status-card" hidden>
+        <h2 id="today-title">Today</h2>
+        <p id="today-sub" class="status-sub"></p>
+        <div id="today-rows"></div>
+        <p id="today-foot" class="ih-metadata" hidden></p>
+      </ih-card>
+      <ih-card class="status-card">
+        <h2>What it does</h2>
+        <ul id="capabilities" class="status-bullets"></ul>
+        <p id="capabilities-empty" class="ih-empty-inline" hidden>Loading…</p>
+      </ih-card>
+      <ih-card class="about-card">
+        <div class="about-heading">
+          <h2 id="about-heading">About this add-on</h2>
+          <button id="about-toggle" class="ih-disclosure" type="button" aria-expanded="false" aria-controls="about-body" aria-labelledby="about-heading"></button>
+        </div>
+        <div id="about-body" class="ih-detail-stack" hidden>
+          <p id="description" class="status-description"></p>
+          <p class="ih-metadata">This page reports service availability only. Configure options and secrets in the Home Assistant add-on settings.</p>
+        </div>
+      </ih-card>
+      <p id="access" class="ih-metadata status-access"></p>
+      <footer class="status-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator" target="_top">Operations console</a></footer>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js?v=nav1"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
