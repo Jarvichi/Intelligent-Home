@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.5] - 2026-11-05
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.9.8: instant "typing" and 3-second Discord checks.
+
 ## [0.11.4] - 2026-11-05
 
 ### Changed
