@@ -607,7 +607,7 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
-                if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css"):
+                if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/manager-logic.js"):
                     name = p[1:]
                     body = (Path(__file__).parent / "ui" / name).read_bytes()
                     return self._send(200, body, "text/css; charset=utf-8" if name.endswith(".css") else "text/javascript; charset=utf-8")

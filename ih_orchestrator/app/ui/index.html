@@ -1,152 +1,356 @@
-<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=theme-color content='#101511'><title>Intelligent Home</title><link rel=stylesheet href="ih-ui.css"><script defer src="ih-ui.js"></script>
-<link rel="stylesheet" href="ih-patterns.css">
-<style>:root{--bg:var(--ih-bg);--panel:var(--ih-surface);--panel2:var(--ih-surface-raised);--ink:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--accent:var(--ih-accent);--accent-ink:var(--ih-accent-ink);--blue:var(--ih-link);--ok:var(--ih-ok);--bad:var(--ih-danger);--warn:var(--ih-warn);--warn-bg:var(--ih-surface-raised);--shadow:var(--ih-shadow);--empty:var(--ih-surface-raised)}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 82% -12%,#a8f06b20,transparent 35%),var(--bg);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}#shell{max-width:1440px;margin:auto;padding:26px clamp(16px,3vw,44px) 60px}.brand{display:flex;align-items:center;gap:13px;margin:0 0 27px}.mark{width:42px;height:42px;border-radius:15px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-size:23px;font-weight:900;box-shadow:0 6px 22px #a8f06b33}.brand h1{font-size:15px;line-height:1.15;margin:0;letter-spacing:.12em;text-transform:uppercase}.brand small{display:block;margin-top:5px;color:var(--muted);font-size:12px;letter-spacing:0;text-transform:none}.topline{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:17px}.eyebrow{color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.15em;text-transform:uppercase}h2{font-size:clamp(27px,4vw,42px);line-height:1.06;letter-spacing:-.04em;margin:5px 0 8px}.lead{margin:0;color:var(--muted);max-width:680px}.livepill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:12px;color:var(--muted)}.livepill[data-state=unavailable]:before{background:var(--bad)}.livepill:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:8px;box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent)}
-.addon-toolbar label{display:grid;gap:4px;color:var(--muted)}.addon-toolbar input{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--ih-radius-control);background:var(--panel);color:var(--ink)}nav{display:flex;gap:5px;overflow:auto;position:sticky;top:0;z-index:4;padding:8px;margin:25px -8px 22px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(18px)}nav a{min-height:44px;display:inline-flex;align-items:center;cursor:pointer;user-select:none;padding:9px 15px;border-radius:11px;text-decoration:none;color:var(--muted);font-size:13px;font-weight:650;white-space:nowrap;transition:.18s}nav a:hover{background:var(--panel2);color:var(--ink)}nav a.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 4px 14px #a8f06b26}
-#msg{padding:11px 14px;border:1px solid var(--line);border-radius:12px;margin:0 0 16px;display:none;background:var(--panel);box-shadow:var(--shadow)}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:13px;margin-top:16px}.card{border:1px solid var(--line);border-radius:17px;padding:17px;min-width:0;background:var(--panel);box-shadow:var(--shadow);transition:transform .18s,border-color .18s}.card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--blue) 55%,var(--line))}.card.s-started{border-top:2px solid var(--ok)}.card.s-stopped,.card.s-error{border-top:2px solid var(--bad)}.card h3{margin:0 0 5px;font-size:15px;letter-spacing:-.01em;overflow-wrap:anywhere}.d{font-size:12px;color:var(--muted)}.r{color:var(--bad);font-weight:700}.g{color:var(--ok);font-weight:650}.o{color:var(--warn);font-weight:700}.kv{display:flex;flex-wrap:wrap;gap:8px 14px;margin:14px 0 3px;font-size:12px}.kv>span{min-width:calc(50% - 14px)}.btns{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}button,a.b{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--ink);font:inherit;font-size:12px;font-weight:650;text-decoration:none;cursor:pointer;transition:.15s}button:hover,a.b:hover{border-color:var(--blue);transform:translateY(-1px)}button:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:2px}.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:24px;padding:clamp(22px,4vw,38px);background:linear-gradient(120deg,var(--panel),color-mix(in srgb,var(--panel2) 70%,var(--panel)));box-shadow:var(--shadow)}.hero:after{content:"IH";position:absolute;right:4%;top:50%;transform:translateY(-50%);font-size:clamp(100px,20vw,230px);font-weight:900;letter-spacing:-.1em;color:color-mix(in srgb,var(--blue) 8%,transparent);pointer-events:none}.hero>*{position:relative;z-index:1}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0 26px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:17px;box-shadow:var(--shadow)}.stat b{display:block;font-size:clamp(25px,4vw,34px);letter-spacing:-.05em;line-height:1.1}.stat span{display:block;margin-top:6px;color:var(--muted);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.1em}.sectionhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:25px 0 10px}.sectionhead h3{margin:0;font-size:17px;letter-spacing:-.02em}.quietlink{border:0;background:none;color:var(--blue);padding:4px;font-size:12px}.servicegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px}.service{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;cursor:pointer;text-align:left;min-width:0}.service:hover{border-color:var(--blue)}.service .dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent)}.service.off .dot{background:var(--bad);box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 14%,transparent)}.service .svcname{font-size:13px;font-weight:700;overflow-wrap:anywhere}.service .svcmeta{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}.shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.shortcut{padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--panel);cursor:pointer;text-align:left;color:var(--ink);font:inherit}.shortcut strong{display:block;font-size:13px}.shortcut span{display:block;color:var(--muted);font-size:11px;margin-top:4px}.shortcut:hover{border-color:var(--blue)}pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase}.w{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:15px}.chip{display:inline-block;margin:4px 5px 8px 0;padding:7px 13px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:12px;color:var(--muted)}.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.trace-layout{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);gap:14px;align-items:start}.trace-list,.trace-detail{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}.trace-filter-label{display:block;margin-bottom:4px;color:var(--muted);font-size:13px}.trace-search{box-sizing:border-box;min-height:44px;width:100%;padding:10px 12px;margin-bottom:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}.trace-row{display:flex;width:100%;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;background:var(--bg);margin:0 0 7px;padding:11px}.trace-row.selected{border-color:var(--blue);box-shadow:inset 3px 0 var(--blue)}.trace-id{font:11px ui-monospace,SFMono-Regular,monospace;color:var(--muted);overflow-wrap:anywhere}.trace-timeline{position:relative;margin:18px 0 0 8px;padding-left:24px}.trace-timeline:before{content:"";position:absolute;left:6px;top:7px;bottom:7px;width:2px;background:var(--line)}.trace-span{position:relative;padding:12px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.trace-dot{position:absolute;left:-24px;top:17px;width:12px;height:12px;border-radius:50%;background:var(--blue);border:3px solid var(--panel);box-sizing:content-box}.trace-span.trace-ok .trace-dot{background:var(--ok)}.trace-span.trace-error .trace-dot{background:var(--bad)}.trace-span-head{display:flex;align-items:center;gap:9px;justify-content:space-between}.trace-span-head strong{font-size:13px}.trace-status{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.trace-status.ok{color:var(--ok)}.trace-status.error{color:var(--bad)}.trace-status.skipped,.trace-status.unknown{color:var(--warn)}.trace-attrs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.trace-attr{display:inline-block;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font-size:11px;overflow-wrap:anywhere}.trace-reason{font-size:11px;color:var(--warn);margin-top:4px}.trace-detail h3{margin:7px 0;font-size:14px}.trace-detail time{display:block;margin-top:5px;font-size:10px}
-@media(max-width:700px){#shell{padding:18px 14px 38px}.brand{margin-bottom:22px}.topline{align-items:flex-start}.livepill{font-size:12px;padding:10px}.livepill[data-state=unavailable]:before{background:var(--bad)}.livepill:before{margin:0}.stats{grid-template-columns:repeat(2,1fr);gap:9px}.stat{padding:14px}.shortcuts{grid-template-columns:repeat(2,1fr)}nav{margin-top:17px}td,th{padding:9px 8px}}@media(max-width:700px){.trace-layout{grid-template-columns:minmax(0,1fr)}.trace-list{max-height:36vh;max-height:36dvh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}.trace-detail{scroll-margin-top:12px}.trace-timeline{margin-left:0;padding-left:20px}.trace-dot{left:-20px}.trace-span{padding:12px;min-width:0}.trace-span-head{align-items:flex-start;flex-wrap:wrap}.trace-span-head strong{min-width:0;overflow-wrap:anywhere}.trace-status{flex-shrink:0}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
-.addon-report{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:var(--ih-radius-nested);background:var(--panel2)}.addon-report>p{margin:5px 0}.addon-report .kv{margin-top:8px}
-</style><div id=shell><header class=brand><div class=mark>✳</div><h1>Intelligent Home<small>Operations console · Home Assistant</small></h1></header><div class="topline ih-page-heading"><div><div class=eyebrow>Control room</div><h2 id=pagetitle>Good to see you.</h2><p class=lead id=pagesub>One clear view of your home services and their health.</p></div><div class=livepill id=connection role=status>Checking connection…</div></div>
-<nav id=nav><a data-t=overview>Overview</a><a data-t=addons>Add-ons</a><a data-t=install>Catalogue</a><a data-t=plugins>Jobs</a><a data-t=traces>Traces</a><a data-t=settings>Settings</a><a data-t=health>Health</a><a data-t=usage>Usage</a></nav>
-<div id=msg></div><div id=main>Loading your control room…</div></div>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Intelligent Home</title>
+<link rel="stylesheet" href="ih-ui.css">
+<style>
+:root{--bg:var(--ih-bg);--surface:var(--ih-surface);--raised:var(--ih-surface-raised);--text:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--ok:var(--ih-ok);--warn:var(--ih-warn);--danger:var(--ih-danger);--accent:var(--ih-accent);--ink:var(--ih-accent-ink);--link:var(--ih-link);--shadow:var(--ih-shadow)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 Inter,system-ui,-apple-system,sans-serif;min-width:320px}
+.page{max-width:1100px;margin:auto;padding:16px;display:grid;gap:12px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:28px;margin:0;letter-spacing:-.02em;line-height:1.1}
+.pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;min-height:32px;font-size:14px;font-weight:600;white-space:nowrap;color:var(--muted)}
+.pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--danger)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.dot.off{background:var(--muted)}
+.pill .dot{background:currentColor}
+.lede{margin:0;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:16px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.meta{color:var(--muted);font-size:13px;margin:0}
+.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:0;z-index:5}
+.tab{min-height:44px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:0 2px;cursor:pointer;min-width:0}
+.tab[aria-selected=true]{background:var(--accent);color:var(--ink)}
+.tab:focus-visible,.btn:focus-visible,.disc:focus-visible,select:focus-visible,input:focus-visible,.sel:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+.btn{min-height:44px;border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:8px;padding:0 14px;font:inherit;font-size:14px;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--ink);border-color:transparent;font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.armed{border-color:var(--warn);color:var(--warn);font-weight:600}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.tiles+.btn{margin-top:12px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media(min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
+.tile{background:var(--raised);border-radius:12px;padding:12px;min-width:0}
+.tile b{display:block;font-size:26px;letter-spacing:-.03em;line-height:1.1;overflow-wrap:anywhere}.tile span{font-size:12px;color:var(--muted)}
+.tile.warn b{color:var(--warn)}.tile.bad b{color:var(--danger)}.tile.ok b{color:var(--ok)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:0 0 8px}
+.toolbar label{display:grid;gap:4px;font-size:12px;color:var(--muted);flex:1 1 150px;min-width:0}
+.toolbar input,.toolbar select{min-height:44px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:15px}
+.count{margin:0 0 4px;font-size:13px;color:var(--muted)}
+.list{display:grid;gap:8px}
+@media(min-width:900px){.list.two{grid-template-columns:1fr 1fr;align-items:start}}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0}
+.disc{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center;width:100%;min-height:56px;background:transparent;color:var(--text);border:0;padding:10px 14px;font:inherit;text-align:left;cursor:pointer}
+.disc .t{font-weight:600;overflow-wrap:anywhere;min-width:0}.disc .s{grid-column:2;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.disc .chev{grid-row:1/3;grid-column:3;color:var(--link);font-size:22px;line-height:1}
+.disc .dot{grid-row:1/3}
+.item .body{padding:0 14px 14px;border-top:1px solid var(--line)}
+.item.open .chev{transform:rotate(180deg)}
+.tag{display:inline-block;font-size:12px;font-weight:500;border-radius:99px;padding:1px 8px;background:var(--raised);color:var(--muted);margin-right:4px}
+.tag.warn{color:var(--warn)}.tag.bad{color:var(--danger)}.tag.ok{color:var(--ok)}
+dl.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:12px 0 0;font-size:14px}
+dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0}
+dd.warn{color:var(--warn)}dd.bad{color:var(--danger)}dd.ok{color:var(--ok)}
+.row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);min-height:44px}
+.row:first-child{border-top:0}.row .grow{flex:1;min-width:0}.row b{display:block;overflow-wrap:anywhere}.row span.m{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.bar{height:6px;border-radius:3px;background:var(--raised);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--ok)}
+.days{display:inline-flex;align-items:flex-end;gap:2px;height:22px;margin-top:6px}.days i{display:inline-block;width:8px;background:var(--link);min-height:2px}.days i.z{background:var(--raised)}
+.scroll{max-height:340px;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;padding:6px;background:var(--bg)}
+.scroll.tall{max-height:520px}
+.hidden,[hidden]{display:none!important}
+.sel{display:block;width:100%;text-align:left;min-height:56px;margin:0 0 6px;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:12px;font:inherit;cursor:pointer}
+.sel[aria-current=true]{border-color:var(--link);box-shadow:inset 3px 0 var(--link)}
+.sel small{display:block;color:var(--muted);overflow-wrap:anywhere}
+.mono{font:12px ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
+.span{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;background:var(--bg);min-width:0}
+.span.err{border-color:var(--danger)}
+.span .hd{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.span .hd b{overflow-wrap:anywhere;min-width:0}
+.sect{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
+.cols{display:grid;gap:12px}
+@media(min-width:900px){.trace{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:12px;align-items:start}}
+.back{display:none}
+@media(max-width:899px){.trace.detail .tl{display:none}.trace:not(.detail) .td{display:none}.trace.detail .back{display:inline-flex;align-items:center;margin-bottom:8px}}
+.fix{padding:10px 12px;border-radius:12px;background:var(--raised);font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fix .txt{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.state{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:14px}
+.state.fail{border:1px solid var(--danger);color:var(--text)}
+.state.fail b{color:var(--danger)}
+.state p{margin:0 0 8px}.state p:last-child{margin:0}
+.state.loading:before{content:"";display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--link);border-radius:50%;margin-right:8px;vertical-align:-2px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:12px 0 0}
+.report{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--raised)}
+.report p{margin:4px 0}
+.warnt{color:var(--warn)}.badt{color:var(--danger)}.body p,.report p{margin:8px 0 0;font-size:13px}.report p:first-of-type{margin-top:6px}
+@media(prefers-reduced-motion:no-preference){.chev{transition:transform .15s}.state.loading:before{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style></head><body>
+<div class="page">
+ <div class="head"><h1>Intelligent Home</h1><span class="pill" id="pill" role="status"><span class="dot" aria-hidden="true"></span><span id="pilltext">Checking...</span></span></div>
+ <p class="lede" id="lede">Manager: your add-ons, jobs and health in one place.</p>
+ <div class="tabs" role="tablist" aria-label="Manager sections" id="nav">
+  <button type="button" class="tab" role="tab" id="tab-today" data-t="today">Today</button>
+  <button type="button" class="tab" role="tab" id="tab-addons" data-t="addons">Add-ons</button>
+  <button type="button" class="tab" role="tab" id="tab-jobs" data-t="jobs">Jobs</button>
+  <button type="button" class="tab" role="tab" id="tab-requests" data-t="requests">Requests</button>
+  <button type="button" class="tab" role="tab" id="tab-health" data-t="health">Health</button>
+ </div>
+ <div id="msg" class="fix hidden" role="status" aria-live="polite"></div>
+ <main id="main" role="tabpanel" tabindex="-1">Loading...</main>
+</div>
+<script src="manager-logic.js"></script>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
-var TABS=['overview','addons','install','plugins','traces','settings','health','usage'],TAB='overview',FILT='All',OPEN={},DATA=null;
+var TABS=['today','addons','jobs','requests','health'],TAB='today',RID=0,SHOWALL=false;
+var AQ={q:'',show:'all',sort:'attn'},TQ={q:'',type:'',hide:false,sel:''},HQ={q:'',state:''},OPEN={},ARMED=null,ARMT=null,LASTOK=null,REPAINT=null,SHOWN='';
+var SRC={addons:'api/addons',health:'api/health',usage:'api/usage',plugins:'api/plugins',settings:'api/settings',traces:'api/traces'};
+var S={};
 function U(p){return B+p}
 function E(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined&&txt!==null)e.textContent=txt;if(cls)e.className=cls;return e}
-function say(t){var m=document.getElementById('msg');m.style.display=t?'block':'none';m.textContent=t||''}
-function btn(label,fn){var b=E('button',label);b.type='button';b.onclick=fn;return b}
-/* No confirm(): the HA phone app can crash on dialogs inside the panel frame (28 Oct 2026). Two taps instead. */
-function ask(b,text,fn){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label;fn();return}b.dataset.label=b.textContent;b.dataset.armed=1;b.textContent='Tap again to confirm';say(text);setTimeout(function(){if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label}},5000)}
-function T(x){if(!x)return null;var d=new Date(typeof x=='number'?x*1000:x);return isNaN(d)?String(x):d.toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
-function kv(card,pairs){var d=E('div',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;var s=E('span');s.appendChild(E('span',p[0]+' ','d'));s.appendChild(E('span',String(p[1]),p[2]));d.appendChild(s)});card.appendChild(d)}
-function connection(ok){var c=document.getElementById('connection');c.textContent=ok?'Connected · checked '+new Date().toLocaleTimeString():'Connection unavailable · retry a view';c.dataset.state=ok?'current':'unavailable'}
-function read(path){return fetch(U(path),{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}).then(function(j){if(j.error)throw Error(j.error);connection(true);return j}).catch(function(e){connection(false);throw e})}
-function J(r){return r.json().then(function(j){return[r.status,j]})}
-function post(path){return fetch(U(path),{method:'POST'}).then(J)}
+function $(id){return document.getElementById(id)}
+function T(x){if(!x)return null;var d=new Date(typeof x=='number'?x*1000:x);return isNaN(d)?String(x):d.toLocaleString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+function clock(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+function btn(label,fn,cls){var b=E('button',label,'btn'+(cls?' '+cls:''));b.type='button';if(fn)b.onclick=fn;return b}
+/* ---- the message bar. Two taps instead of a browser dialog: the HA phone app can crash on browser dialogs inside the panel frame (28 Oct 2026). */
+function say(t,extra){var m=$('msg');m.textContent='';if(!t){m.classList.add('hidden');return}m.classList.remove('hidden');m.appendChild(E('span',t,'txt'));if(extra)m.appendChild(extra)}
+function disarm(clear){if(ARMT){clearTimeout(ARMT);ARMT=null}if(ARMED){var b=ARMED;ARMED=null;if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label;b.classList.remove('armed')}if(clear)say('')}}
+function ask(b,text,fn){if(b.dataset.armed){disarm(false);fn();return}disarm(false);b.dataset.label=b.textContent;b.dataset.armed='1';b.textContent='Tap again to confirm';b.classList.add('armed');ARMED=b;say(text,btn('Cancel',function(){disarm(true)}));ARMT=setTimeout(function(){disarm(true)},8000)}
+document.addEventListener('click',function(e){if(ARMED&&!ARMED.contains(e.target)&&!$('msg').contains(e.target))disarm(true)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&ARMED)disarm(true)});
+function stateBox(kind,msg,retry,detail){var s=E('div',null,'state '+kind);s.setAttribute('role',kind=='fail'?'alert':'status');if(kind=='fail'){var p=E('p');p.appendChild(E('b',msg));s.appendChild(p);if(detail)s.appendChild(E('p',detail));if(retry)s.appendChild(btn('Try again',retry))}else{s.appendChild(document.createTextNode(msg));if(retry){s.appendChild(document.createTextNode(' '));s.appendChild(btn('Clear filters',retry))}}return s}
+/* ---- reading data. A failed read keeps the old data if there is any, and is never shown as empty. */
+function load(name){var s=S[name]||(S[name]={state:'idle',data:null,err:null});if(!s.data)s.state='loading';
+ return fetch(U(SRC[name]),{cache:'no-store'}).then(function(r){return r.json().then(function(j){return[r.status,j]},function(){return[r.status,{}]})}).then(function(x){
+  if(x[0]!==200||(x[1]&&x[1].error))throw Error(x[1]&&x[1].error?String(x[1].error):'Request failed ('+x[0]+')');
+  s.data=x[1];s.state='ok';s.err=null;s.stale=false;LASTOK=clock()}).catch(function(e){s.err=String(e&&e.message||e);if(s.data){s.stale=true;s.state='ok'}else s.state='fail'})}
+function loadAll(names){return Promise.all(names.map(load)).then(paintHead)}
+function ctx(){var c={failed:{}};['addons','health','usage','plugins','settings','traces'].forEach(function(n){var s=S[n];c.failed[n]=!!s&&s.state=='fail';c[n]=s&&s.data?(n=='addons'?s.data.addons:n=='traces'?s.data.traces||[]:s.data):null});return c}
+function paintHead(){var c=ctx(),p=IHM.pill(c),el=$('pill');el.className='pill'+(p.tone?' '+p.tone:'');$('pilltext').textContent=p.text;
+ var l=$('lede'),stale=Object.keys(S).filter(function(n){return S[n].stale});
+ l.textContent=(c.failed.addons&&c.failed.health)?'Cannot reach the Manager data. Nothing below is current.':stale.length?'Could not refresh just now. Showing the last good data'+(LASTOK?' from '+LASTOK:'')+'.':'Manager: your add-ons, jobs and health in one place.'+(LASTOK?' Checked '+LASTOK+'.':'')}
+/* ---- Home Assistant navigation without a page load (the HA phone app treats link taps in the panel frame as navigation). */
+function goHA(path){try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
+function cfgBtn(full,label){return btn(label||'Settings',function(){goHA(['','config','app',full,'config'].join('/'))})}
+function post(path){return fetch(U(path),{method:'POST'}).then(function(r){return r.json().then(function(j){return[r.status,j]})})}
 function act(a,s,extra){say(a+' '+s+' ...');post('api/action/'+a+'/'+s+(extra||'')).then(function(x){var c=x[0],j=x[1];
  if(c==202)return poll(j.job);
- if(c==409&&j.warning){if(j.installable&&j.installable.length){say(j.warning);var m=document.getElementById('msg');m.appendChild(E('br'));m.appendChild(btn('Install those first, then '+s,function(){act(a,s,'?with_requires=1')}));return}say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
+ if(c==409&&j.warning){if(j.installable&&j.installable.length){say(j.warning,btn('Install those first, then '+s,function(){act(a,s,'?with_requires=1')}));return}say(j.warning+(j.external&&j.external.length?' ('+j.external.join(', ')+' is not ours: install it from the add-on store)':''));return}
  say(j.error||j.warning||('failed '+c))}).catch(function(e){say('error: '+e)})}
 function poll(id){fetch(U('api/job/'+id)).then(function(r){return r.json()}).then(function(j){
- say(j.label+': '+j.state+(j.steps.length?' ('+j.steps[j.steps.length-1]+')':'')+(j.error?' ERROR '+j.error:''));
- if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else show()})}
-function age(x){if(!x||x.age_s==null)return '-';var a=x.age_s;return (x.state||'')+' '+(a<90?a+'s':a<5400?Math.round(a/60)+'m':Math.round(a/3600)+'h')}
-/* HA navigation without a page load (the old /hassio/addon path is a 404 since the apps rename). */
-function goHA(path){try{window.top.history.pushState(null,'',path);window.top.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}))}catch(e){window.top.location.href=path}}
-function cfgLink(full,label){return btn(label||'Open config',function(){goHA(['','config','app',full,'config'].join('/'))})}
-function logs(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
- fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:j.lines.join('\\n')})}
-function usedTxt(u){if(!u)return null;return u.today+' today'+(u.failed_today?' ('+u.failed_today+' failed)':'')+', last '+(u.last?(u.last_day==u.today_day||!u.last_day?u.last:u.last+' on '+u.last_day.slice(5)):'never seen')}
-function imgTxt(a){return a.image?'yes (tag '+(a.latest||a.version||'?')+')':'no (built on the Pi)'}
-function jump(t){TAB=t;DATA=null;say('');show()}
-function tabOverview(m){m.appendChild(E('div','Reading live add-on and health data…','d'));Promise.all([read('api/addons'),read('api/health')]).then(function(x){var d=x[0],h=x[1];m.textContent='';if(d.error)throw Error(d.error);DATA=d;
- var installed=d.addons.filter(function(a){return a.installed}),started=installed.filter(function(a){return a.state=='started'}),updates=installed.filter(function(a){return a.update}),cn=h.counts||{},fails=cn.FAIL||0;
- if(h.stale||h.error||!h.counts)m.appendChild(E('p','Health data is stale or unavailable. Open Health and review the checks before relying on this overview.','o'));
- var hero=E('section',null,'hero');hero.appendChild(E('div','YOUR HOME, AT A GLANCE','eyebrow'));hero.appendChild(E('h2',(h.stale||h.error||!h.counts)?'Health data needs review':fails?fails+' service'+(fails==1?' needs':'s need')+' attention':'Everything in its place.'));hero.appendChild(E('p',(h.stale||h.error||!h.counts)?'Health data needs review. Open Health for details.':fails?'A health check found an issue. Open Health to see what needs attention.':'Your services are running and the system is keeping watch.','lead'));var hb=E('div',null,'btns');hb.appendChild(btn('Open health overview →',function(){jump('health')}));hb.appendChild(btn('Manage add-ons',function(){jump('addons')}));hero.appendChild(hb);m.appendChild(hero);
- var stats=E('div',null,'stats');[[started.length,'Running'],[installed.length,'Installed'],[updates.length,'Updates available'],[fails,(h.stale?'Health checks · stale':'Health checks failing')]].forEach(function(a,i){var s=E('div',null,'stat');s.appendChild(E('b',String(a[0]),i==3&&a[0]?'r':''));s.appendChild(E('span',a[1]));stats.appendChild(s)});m.appendChild(stats);
- var sh=E('div',null,'sectionhead');sh.appendChild(E('h3','Your services'));sh.appendChild(btn('View all →',function(){jump('addons')}));m.appendChild(sh);var grid=E('div',null,'servicegrid');installed.slice(0,12).forEach(function(a){var b=btn('');b.className='service'+(a.state=='started'?'':' off');b.appendChild(E('i',null,'dot'));var wrap=E('span');wrap.appendChild(E('span',a.slug,'svcname'));wrap.appendChild(E('span',(a.state||'unknown')+(a.version?' · v'+a.version:'')+(a.update?' · update':''),'svcmeta'));b.appendChild(wrap);b.onclick=function(){jump('addons')};grid.appendChild(b)});if(!installed.length)grid.appendChild(E('p','No IH add-ons are installed yet.','d'));m.appendChild(grid);
- var hh=E('div',null,'sectionhead');hh.appendChild(E('h3','Common tasks'));m.appendChild(hh);var shortcuts=E('div',null,'shortcuts');[['Install an add-on','Browse the IH catalogue','install'],['Review scheduled jobs','See runs, mode and recent results','plugins'],['Trace a request','Follow a Discord AI request through IH','traces'],['Check shared settings','Find missing configuration','settings'],['Inspect usage','See recent invocation trends','usage']].forEach(function(a){var b=btn('');b.className='shortcut';b.appendChild(E('strong',a[0]+' ↗'));b.appendChild(E('span',a[1]));b.onclick=function(){jump(a[2])};shortcuts.appendChild(b)});m.appendChild(shortcuts)
- }).catch(function(e){m.textContent='';m.appendChild(E('p','Could not load the overview: '+e,'r'));m.appendChild(btn('Try again',function(){show()}))})}
-function tabAddons(m,d,h){var byName={},contributions={};(h.services||[]).forEach(function(s){byName[s.name]=s});(h.ui_contributions||[]).forEach(function(v){contributions[v.source]=v});var toolbar=E('div',null,'addon-toolbar'),label=E('label','Search add-ons'),search=E('input'),count=E('p',null,'d');search.type='search';label.appendChild(search);toolbar.appendChild(label);m.appendChild(toolbar);m.appendChild(count);var c=E('div',null,'cards');d.addons.filter(function(a){return a.installed}).forEach(function(a){
- var k=E('div',null,'card s-'+(a.state||'none')),ui=a.ui||{},check=byName[a.slug],health=h.stale?'Stale':check?(check.state||'UNKNOWN'):'Not reported';k.appendChild(E('h3',ui.title||a.name||a.slug));k.appendChild(E('div',a.slug,'d'));k.appendChild(E('p',ui.purpose||a.description,'d'));k.appendChild(E('div','Health: '+health,health=='OK'?'g':health=='FAIL'?'r':'o'));if(!h.stale&&check&&check.checks&&check.checks.length)k.appendChild(E('div',check.checks.join('; '),'d'));
- var contribution=contributions[a.slug];if(contribution){var panel=E('section',null,'addon-report');panel.appendChild(E('strong','Add-on report'));if(contribution.stale){panel.appendChild(E('p','Report stale; open the add-on UI or check its logs.','o'))}else{panel.appendChild(E('p',contribution.summary,contribution.state=='attention'?'o':'d'));var metrics=(contribution.metrics||[]).map(function(x){return[x.label,String(x.value)]});if(contribution.last_activity_at!=null)metrics.push(['Last useful work',T(contribution.last_activity_at)]);kv(panel,metrics);panel.appendChild(E('p','Next: '+contribution.next_step,'d'))}k.appendChild(panel)}
- kv(k,[['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:''),a.update?'o':''],['Prebuilt image',imgTxt(a),a.image?'g':''],['State',a.state||'-',a.state=='started'?'g':'r'],
-  ['CPU',a.cpu==null?null:a.cpu+' %'],['Mem',a.mem_mb==null?null:a.mem_mb+' MB'],['Seen',age(a.seen)],
-  ['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'o':''],['Used',usedTxt(a.used),a.used&&a.used.failed_today?'o':'']]);
- var b=E('div',null,'btns');
- if(a.full){var ub=btn(a.ingress?'Open UI ↗':'Open UI · update required',function(){goHA('/app/'+encodeURIComponent(a.full))});if(!a.ingress){ub.disabled=true;ub.title='The installed add-on version does not expose its ingress UI yet.'}b.appendChild(ub)}
+ say(j.label+': '+j.state+(j.steps&&j.steps.length?' ('+j.steps[j.steps.length-1]+')':'')+(j.error?' ERROR '+j.error:''));
+ if(j.state=='queued'||j.state=='running')setTimeout(function(){poll(id)},2000);else reload()}).catch(function(e){say('error: '+e)})}
+function reload(){if(TAB=='today'||TAB=='addons'||TAB=='jobs')show(true)}
+/* ---- building blocks */
+function card(title,sub){var c=E('div',null,'card');if(title)c.appendChild(E('h2',title));if(sub)c.appendChild(E('p',sub,'sub'));return c}
+function row(tone,title,detail,action){var r=E('div',null,'row');r.appendChild(E('span',null,'dot'+(tone?' '+tone:'')));var g=E('div',null,'grow');g.appendChild(E('b',title));if(detail)g.appendChild(E('span',detail,'m'));r.appendChild(g);if(action)r.appendChild(action);return r}
+function toolbar(){return E('div',null,'toolbar')}
+function field(label,control){var l=E('label');l.appendChild(document.createTextNode(label));l.appendChild(control);return l}
+function sel(opts,val,fn){var s=E('select');opts.forEach(function(o){var op=E('option',o[1]);op.value=o[0];s.appendChild(op)});s.value=val;s.onchange=function(){fn(s.value)};return s}
+function search(ph,val,fn,label){var i=E('input');i.type='search';i.placeholder=ph;i.value=val;i.setAttribute('aria-label',label||ph);i.oninput=function(){fn(i.value)};return i}
+var UID=0;
+function item(key,tone,titleTxt,tags,subTxt,bodyFn){var it=E('div',null,'item'),id='d'+(++UID);var h=E('button',null,'disc');h.type='button';h.setAttribute('aria-controls',id);h.appendChild(E('span',null,'dot'+(tone?' '+tone:'')));
+ var t=E('span',titleTxt,'t');(tags||[]).forEach(function(g){t.appendChild(document.createTextNode(' '));t.appendChild(E('span',g[0],'tag '+(g[1]||'')))});h.appendChild(t);h.appendChild(E('span',subTxt,'s'));var ch=E('span','⌄','chev');ch.setAttribute('aria-hidden','true');h.appendChild(ch);it.appendChild(h);
+ var body=null;function open(o){if(o){if(!body){body=E('div',null,'body');body.id=id;bodyFn(body)}it.appendChild(body);body.hidden=false}else if(body)body.hidden=true;it.classList.toggle('open',o);h.setAttribute('aria-expanded',o?'true':'false');if(key)OPEN[key]=o}
+ h.onclick=function(){open(!it.classList.contains('open'))};open(!!(key&&OPEN[key]));return it}
+function kvl(pairs){var d=E('dl',null,'kv');pairs.forEach(function(p){if(p[1]===null||p[1]===undefined)return;d.appendChild(E('dt',p[0]));d.appendChild(E('dd',String(p[1]),p[2]))});return d}
+/* ---- Add-ons */
+function healthOf(a){var h=S.health&&S.health.data;if(!h)return{txt:'Not reported',cls:'',checks:[]};if(h.stale)return{txt:'Stale',cls:'warn',checks:[]};
+ var c=(h.services||[]).filter(function(s){return s.name==a.slug})[0];if(!c)return{txt:'Not reported',cls:'',checks:[]};return{txt:c.state||'UNKNOWN',cls:c.state=='OK'?'ok':c.state=='FAIL'?'bad':'warn',checks:c.checks||[]}}
+function contributionOf(slug){var h=S.health&&S.health.data;return h&&h.ui_contributions?h.ui_contributions.filter(function(v){return v.source==slug})[0]:null}
+function reportBlock(c){var p=E('section',null,'report');p.appendChild(E('b','Add-on report'));if(c.stale){p.appendChild(E('p','Report out of date: open the add-on page or check its logs.','warnt'))}else{p.appendChild(E('p',c.summary,c.state=='attention'?'warnt':'meta'));var m=(c.metrics||[]).map(function(x){return[x.label,String(x.value)]});if(c.last_activity_at!=null)m.push(['Last useful work',T(c.last_activity_at)]);if(m.length)p.appendChild(kvl(m));p.appendChild(E('p','Next: '+c.next_step,'meta'))}return p}
+function logsToggle(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
+ fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:(j.lines||[]).join('\n')}).catch(function(){p.textContent='Could not read the logs. Try again.'})}
+function addonBody(b,a){var h=healthOf(a),sd=S.settings&&S.settings.data?S.settings.data.addons.filter(function(x){return x.slug==a.slug})[0]:null,con=contributionOf(a.slug);
+ if(con)b.appendChild(reportBlock(con));
+ var purpose=(a.ui&&a.ui.purpose)||a.description;if(purpose)b.appendChild(E('p',purpose,'meta')).style.marginTop='10px';
+ b.appendChild(kvl([['Id',a.slug],['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:' (up to date)'),a.update?'warn':''],['Prebuilt image',IHM.imgTxt(a),a.image?'ok':''],['State',a.state||'-',a.state=='started'?'ok':'bad'],['Health',h.txt,h.cls],
+  ['CPU',a.cpu==null?null:a.cpu+' %'],['Memory',a.mem_mb==null?null:a.mem_mb+' MB'],['Last seen',IHM.seenText(a.seen)],['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'warn':''],['Used',IHM.usedTxt(a.used),a.used&&a.used.failed_today?'warn':'']]));
+ if(h.checks.length)b.appendChild(E('p','Health: '+h.checks.join('; '),'meta')).style.marginTop='8px';
+ if(sd){if(sd.missing.length)b.appendChild(E('p','Missing: '+sd.missing.join(', '),'warnt')).style.marginTop='8px';if(sd.optional_empty&&sd.optional_empty.length)b.appendChild(E('p','Optional, not set: '+sd.optional_empty.join(', '),'meta')).style.marginTop='8px';if(sd.error)b.appendChild(E('p',sd.error,'badt')).style.marginTop='8px'}
+ if(a.needs&&a.needs.length)b.appendChild(E('p','Needs: '+a.needs.map(function(x){return x.slug+' ('+(x.status=='ok'?'ok':'missing: '+x.status)+')'}).join(', '),'meta')).style.marginTop='8px';
+ if(a.needed_by&&a.needed_by.length)b.appendChild(E('p','Needed by: '+a.needed_by.map(function(x){return x.slug}).join(', '),'meta')).style.marginTop='8px';
+ if(a.state!='started')b.appendChild(E('p','Next: check the logs and settings before starting.','meta')).style.marginTop='8px';
+ if(a.missing_settings)b.appendChild(E('p','Next: fill the missing settings.','warnt')).style.marginTop='8px';
+ var bs=E('div',null,'btns');
+ if(a.full){var ub=btn(a.ingress?'Open page':'Open page (update needed)',function(){goHA('/app/'+encodeURIComponent(a.full))},a.ingress?'primary':'');if(!a.ingress){ub.disabled=true;ub.title='The installed add-on version does not expose its page yet.'}bs.appendChild(ub)}
  if(a.can_act){
-  if(a.state=='started')b.appendChild(btn('Stop',function(){act('stop',a.slug)}));else b.appendChild(btn('Start',function(){act('start',a.slug)}));
-  b.appendChild(btn('Restart',function(){act('restart',a.slug)}));
-  if(a.update)b.appendChild(btn('Update to '+a.latest,function(){act('update',a.slug)}));
-  b.appendChild(btn('Logs',function(){logs(a.slug,k)}));if(a.full)b.appendChild(cfgLink(a.full));k.appendChild(b)}
- else if(a.full){b.appendChild(cfgLink(a.full));k.appendChild(b)}
- if(a.state!='started')k.appendChild(E('p','Next: inspect logs and configuration before starting.','d'));if(a.missing_settings)k.appendChild(E('p','Next: fill missing settings in configuration.','o'));c.appendChild(k)});m.appendChild(c);search.oninput=function(){var q=search.value.trim().toLowerCase(),n=0;Array.prototype.forEach.call(c.children,function(k){k.hidden=!k.textContent.toLowerCase().includes(q);if(!k.hidden)n++});count.textContent=n+' add-ons'+(n?'':' match. Clear search to see all add-ons.')};search.oninput()}
-function tabInstall(m,d){var c=E('div',null,'cards'),n=0;d.addons.filter(function(a){return !a.installed&&a.can_act}).forEach(function(a){n++;
- var k=E('div',null,'card');k.appendChild(E('h3',a.name+' ('+a.slug+')'));k.appendChild(E('div',a.description));kv(k,[['Prebuilt image',imgTxt(a),a.image?'g':'']]);
- var w=E('div',null,'kv');a.needs.forEach(function(x){w.appendChild(E('span','needs '+x.slug+': '+(x.status=='ok'?'ok':'missing ('+x.status+')'),x.status=='ok'?'g':'r'))});if(!a.needs.length)w.appendChild(E('span','needs nothing','d'));k.appendChild(w);
- var b=E('div',null,'btns');b.appendChild(btn('Install '+(a.latest||''),function(){act('install',a.slug)}));k.appendChild(b);c.appendChild(k)});
- m.appendChild(n?c:E('p','Everything in the catalogue is installed.'))}
-function tabPlugins(m){m.appendChild(E('p','Loading plugins...'));fetch(U('api/plugins')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- if(!j.installed){m.appendChild(E('p','The ih_jobs add-on is not installed.'));return}
- if(!j.running)m.appendChild(E('p','The jobs add-on did not answer: live details are missing.','o'));
- m.appendChild(E('p','Results are since jobs started. Success includes expected skips and dry runs; it does not confirm delivery.'));
- if(!j.plugins.length)m.appendChild(E('p','No plugins are listed in the ih_jobs configuration.'));
- var c=E('div',null,'cards');j.plugins.forEach(function(p){var k=E('div',null,'card s-'+(p.live?'started':'none'));k.appendChild(E('h3',p.name));
-  kv(k,[['Mode',p.live?'Live':'Dry',p.live?'g':'o'],['Running as',p.mode],['Schedule',p.schedule?(p.schedule.kind=='daily'?'daily at '+p.schedule.at:p.schedule.kind=='every'?'every '+p.schedule.minutes+' min':p.schedule.kind):'-'],['Next',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Errors',p.errors],['Last result',p.last_ok===true?'Succeeded':p.last_ok===false?'Failed':'Unknown',p.last_ok===false?'r':''],['Last success',T(p.last_success)],['Success mode',p.last_success_mode],['Last error',p.last_error,p.last_error?'r':''],
-   ['Settings',p.settings_keys.length?p.settings_keys.join(', '):null]]);
-  var b=E('div',null,'btns');b.appendChild(btn(p.live?'Make dry':'Make live',function(){var me=this;
-   ask(me,(p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? ih_jobs will restart.',function(){
-   say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'dry')+'; ih_jobs restarted':(y[1].error||'failed'));show()})})}));
-  k.appendChild(b);c.appendChild(k)});m.appendChild(c)})}
-function tabSettings(m){m.appendChild(E('p','Loading settings...'));fetch(U('api/settings')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- var t=E('div',null,'btns');t.appendChild(btn('Fill now',function(){var me=this;ask(me,'Run the settings hub now? It fills empty options of the add-ons.',function(){say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')})})}));
- t.appendChild(cfgLink(j.config_slug,'Shared settings list (orchestrator config)'));m.appendChild(t);
- if(!j.provisioner)m.appendChild(E('p','The settings hub is off. Turn on provision in the orchestrator configuration.','o'));
- var c=E('div',null,'cards');j.addons.forEach(function(a){var k=E('div',null,'card s-'+(a.missing.length?'stopped':'started'));k.appendChild(E('h3',a.slug));
-  k.appendChild(E('div',a.missing.length?'Missing: '+a.missing.join(', '):'All settings filled',a.missing.length?'o':'g'));if(a.optional_empty&&a.optional_empty.length)k.appendChild(E('div','Optional, not set: '+a.optional_empty.join(', '),'d'));if(a.error)k.appendChild(E('div',a.error,'r'));
-  if(a.full){var b=E('div',null,'btns');b.appendChild(cfgLink(a.full));k.appendChild(b)}c.appendChild(k)});m.appendChild(c)})}
-function tabHealth(m){m.appendChild(E('p','Loading health...'));fetch(U('api/health')).then(J).then(function(x){m.textContent='';var j=x[1];
- var cn=j.counts||{};m.appendChild(E('p',(cn.OK||0)+' OK, '+(cn.FAIL||0)+' FAIL, '+(cn.UNKNOWN||0)+' unknown'+(j.stale?' (STALE data)':''),j.stale||cn.FAIL?'o':'g'));
- ['All','FAIL','OK'].forEach(function(f){var c=E('button',f,'chip'+(FILT==f?' on':''));c.onclick=function(){FILT=f;show()};m.appendChild(c)});
- var w=E('div',null,'w'),t=E('table'),h=E('tr');['Service','State','Kind','Checks'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
- j.services.filter(function(s){return FILT=='All'||s.state==FILT}).forEach(function(s){var r=E('tr');
-  [s.name,s.state,s.kind||'',(s.checks||[]).join('; ')].forEach(function(v,i){r.appendChild(E('td',v,i==1?(v=='OK'?'g':v=='FAIL'?'r':'o'):''))});t.appendChild(r)});
- w.appendChild(t);m.appendChild(w);
- m.appendChild(E('h3','Consumer progress'));
- var p=j.consumer_progress||[];
- if(!p.length){m.appendChild(E('p','No consumer outcome streams reported yet.','d'));return}
- var pw=E('div',null,'w'),pt=E('table'),ph=E('tr');['Consumer','State','Pending','Oldest pending','No progress','Reason'].forEach(function(z){ph.appendChild(E('th',z))});pt.appendChild(ph);
- p.forEach(function(s){var r=E('tr'),state=s.status||'unknown',tone=state=='idle'?'g':state=='stalled'?'r':state=='disabled'?'d':'o';
-  [s.consumer,state,s.pending==null?'—':String(s.pending),s.oldest_pending_age_s==null?'—':String(Math.floor(s.oldest_pending_age_s))+' s',s.no_progress_s==null?'—':String(Math.floor(s.no_progress_s))+' s',s.reason||''].forEach(function(v,i){r.appendChild(E('td',v,i==1?tone:''))});pt.appendChild(r)});
- pw.appendChild(pt);m.appendChild(pw)})}
-function tabUsage(m){m.appendChild(E('p','Loading usage...'));fetch(U('api/usage')).then(J).then(function(x){m.textContent='';var j=x[1];
- if(x[0]!=200){m.appendChild(E('p',j.error||'failed','r'));return}
- m.appendChild(E('p','Invocations per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are highlighted.','d'));
- var mx=1;j.addons.forEach(function(a){a.per_day.forEach(function(n){if(n>mx)mx=n})});
- var w=E('div',null,'w'),t=E('table'),h=E('tr');['Add-on','7 days','Total','Failed','Last'].forEach(function(z){h.appendChild(E('th',z))});t.appendChild(h);
- j.addons.forEach(function(a){var r=E('tr'),dead=a.total==0;if(dead)r.style.background='var(--warn-bg)';
-  r.appendChild(E('td',a.slug+(a.state=='started'?'':' ('+(a.state||'stopped')+')')+(a.unreadable?' (log unreadable)':'')));
-  var c=E('td'),bars=E('span');bars.style.cssText='display:inline-flex;align-items:flex-end;gap:2px;height:22px';
-  a.per_day.forEach(function(n,i){var b=E('span');b.title=j.days[i]+': '+n;b.style.cssText='display:inline-block;width:8px;background:var('+(n?'--blue':'--empty')+');height:'+(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(b)});c.appendChild(bars);r.appendChild(c);
-  r.appendChild(E('td',dead?'not used in 7 days':String(a.total),dead?'o':''));r.appendChild(E('td',String(a.failed),a.failed?'r':''));
-  r.appendChild(E('td',a.last?(a.last+(a.last_day?' '+a.last_day.slice(5):'')):'-'));t.appendChild(r)});
- w.appendChild(t);m.appendChild(w)})}
-function attrChips(a){var o=[];if(!a||typeof a!=='object')return o;function n(v){return typeof v=='number'?v:parseInt(v,10)||0}function B(v){v=n(v);return v>=1048576?(v/1048576).toFixed(1)+' MB':v>=1024?(v/1024).toFixed(1)+' KB':v+' B'}
- var L={sender:function(v){return 'from '+v},persona:function(v){return 'persona '+v},kind:function(v){return 'kind '+v},in_bytes:function(v){return 'in '+B(v)},out_bytes:function(v){return 'out '+B(v)},attachments:function(v){return n(v)+(n(v)==1?' attachment':' attachments')},items:function(v){return n(v)+(n(v)==1?' item':' items')},http_status:function(v){return 'HTTP '+v},retries:function(v){return n(v)+(n(v)==1?' retry':' retries')},chars:function(v){return n(v)+' chars'},capability:function(v){return v+(a.classified===1?' (auto)':'')},agent:function(v){return '\u2192 '+v},model:function(v){return 'model '+v},score:function(v){return 'score '+(n(v)/1000).toFixed(3)},candidates:function(v){return n(v)+(n(v)==1?' candidate':' candidates')},tries:function(v){return n(v)+(n(v)==1?' try':' tries')},results:function(v){return n(v)+(n(v)==1?' result':' results')}};
- Object.keys(L).forEach(function(k){if(a[k]!==undefined&&a[k]!==null)o.push(L[k](a[k]))});return o}
-function tabTraces(m){m.appendChild(E('p','Loading recent request traces…','d'));fetch(U('api/traces')).then(J).then(function(x){m.textContent='';if(x[0]!=200){m.appendChild(E('p',x[1].error||'Could not load traces','r'));return}var rows=x[1].traces||[];
- var intro=E('p','Follow a request across the components that handled it. Traces contain component names, timing, outcomes and a few typed counts (sender name, sizes, attachments); message text and Discord IDs are never stored. Traces are kept locally for up to 7 days.','d');m.appendChild(intro);
- var layout=E('div',null,'trace-layout'),left=E('div',null,'trace-list'),right=E('div',null,'trace-detail');layout.appendChild(left);layout.appendChild(right);m.appendChild(layout);
- var search=E('input');search.type='search';search.placeholder='Filter by trace ID';search.setAttribute('aria-label','Filter traces by ID');search.className='trace-search';left.appendChild(search);
- var typeLabel=E('label','Trace type','trace-filter-label'),type=E('select');type.id='trace-type';type.className='trace-search';typeLabel.htmlFor=type.id;left.appendChild(typeLabel);left.appendChild(type);
- var all=E('option','All types');all.value='';type.appendChild(all);Array.from(new Set(rows.map(function(r){return r.root||'unknown'}))).sort().forEach(function(t){var o=E('option',t);o.value=t;type.appendChild(o)});
- var count=E('p',null,'d');count.setAttribute('role','status');count.setAttribute('aria-live','polite');left.appendChild(count);var clear=btn('Clear filters',function(){search.value='';type.value='';render()});clear.type='button';left.appendChild(clear);
- var items=E('div');left.appendChild(items);var selectedId='';
- function choose(id){selectedId=id;Array.prototype.forEach.call(items.querySelectorAll('button'),function(b){b.className='trace-row'+(b.dataset.id==id?' selected':'')});right.textContent='Loading trace…';fetch(U('api/trace/'+id)).then(J).then(function(y){if(selectedId!==id)return;right.textContent='';if(y[0]!=200){right.appendChild(E('p',y[1].error||'Could not load trace','r'));return}var tr=y[1];right.appendChild(E('div','REQUEST TRACE','eyebrow'));right.appendChild(E('h3',tr.trace_id,'trace-id'));right.appendChild(E('p',tr.spans.length+' steps · content-free metadata','d'));
-  var line=E('div',null,'trace-timeline'),by={};tr.spans.forEach(function(s){by[s.span_id]=s});tr.spans.forEach(function(s){var depth=0,p=s.parent_span_id,seen={};while(p&&by[p]&&!seen[p]&&depth<5){seen[p]=1;depth++;p=by[p].parent_span_id}var node=E('article',null,'trace-span '+(s.status=='error'?'trace-error':s.status=='ok'?'trace-ok':''));node.style.marginLeft=Math.min(depth,4)*(window.matchMedia('(max-width:700px)').matches?8:18)+'px';node.appendChild(E('i',null,'trace-dot'));var head=E('div',null,'trace-span-head');head.appendChild(E('strong',s.operation));head.appendChild(E('span',s.status,'trace-status '+s.status));node.appendChild(head);node.appendChild(E('div',s.component+' · '+s.duration_ms+' ms','d'));if(s.reason)node.appendChild(E('div','Reason: '+s.reason,'trace-reason'));var chips=attrChips(s.attrs);if(chips.length){var ch=E('div',null,'trace-attrs');chips.forEach(function(t){ch.appendChild(E('span',t,'trace-attr'))});node.appendChild(ch)}node.appendChild(E('time',T(s.started_at),'d'));line.appendChild(node)});right.appendChild(line)
- })}
-function render(){items.textContent='';var q=search.value.toLowerCase().trim(),hit=rows.filter(function(r){return (!q||r.trace_id.indexOf(q)>=0)&&(!type.value||(r.root||'unknown')===type.value)});count.textContent=hit.length+' of '+rows.length+' traces';clear.hidden=!q&&!type.value;if(!hit.length){selectedId='';items.appendChild(E('p',rows.length?'No traces match these filters.':'No traces yet. Traces appear after a supported request reaches IH.','d'));right.textContent='';return}hit.forEach(function(r){var b=btn('');b.type='button';b.className='trace-row'+(r.trace_id===selectedId?' selected':'');b.dataset.id=r.trace_id;b.appendChild(E('strong',r.root+' · '+r.spans+' steps'));b.appendChild(E('span',r.trace_id,'trace-id'));b.appendChild(E('span',T(r.started_at)+' · '+r.status,'d'));b.onclick=function(){choose(r.trace_id)};items.appendChild(b)});if(!hit.some(function(r){return r.trace_id==selectedId}))selectedId='';if(!selectedId)choose(hit[0].trace_id)}
- search.oninput=render;type.onchange=render;render()
- }).catch(function(e){m.textContent='';m.appendChild(E('p','Could not load traces: '+e,'r'))})}
-function show(){var previous=document.getElementById('main');if(TAB==='addons'&&DATA&&previous.querySelectorAll('pre').length)return;var m=E('main');m.id='main';previous.replaceWith(m);var titles={overview:['Good to see you.','One clear view of your home services and their health.'],traces:['Request traces','See how a request moved through IH, step by step.'],addons:['Your add-ons','Start, update and inspect the services that make up Intelligent Home.'],install:['Add to your home','Browse available IH modules and install what you need.'],plugins:['House jobs','Review scheduled work, recent runs and operating mode.'],settings:['Shared settings','See which add-ons are configured and what still needs attention.'],health:['System health','Check service status and consumer progress.'],usage:['Usage trends','See how often your add-ons have been called over the last week.']};var title=titles[TAB]||titles.overview;document.getElementById('pagetitle').textContent=title[0];document.getElementById('pagesub').textContent=title[1];
- Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.className=a.dataset.t==TAB?'on':'';a.setAttribute('aria-current',a.dataset.t==TAB?'page':'false')});
- if(TAB=='overview'){m.textContent='';tabOverview(m);return}
- if(TAB=='plugins'){m.textContent='';tabPlugins(m);return}
- if(TAB=='settings'){m.textContent='';tabSettings(m);return}
- if(TAB=='health'){m.textContent='';tabHealth(m);return}
- if(TAB=='traces'){m.textContent='';tabTraces(m);return}
- if(TAB=='usage'){m.textContent='';tabUsage(m);return}
- Promise.all([read('api/addons'),TAB=='addons'?read('api/health').catch(function(){return {stale:true,services:[]}}):Promise.resolve({services:[]})]).then(function(x){var d=x[0],h=x[1];
-  if(d.error){m.textContent='Could not load add-ons. Try again.';return}
-  var keep=m.querySelectorAll('pre').length;if(keep&&TAB=='addons'&&DATA)return;
-  m.textContent='';DATA=d;if(TAB=='install')tabInstall(m,d);else tabAddons(m,d,h)}).catch(function(e){m.textContent='Add-ons unavailable. Select the view again to retry.'})}
-/* Tabs switch in JS: no hash links (the HA phone app treats link taps in the panel frame as navigation). #name on first load still works. */
-if(TABS.indexOf(location.hash.slice(1))>=0)TAB=location.hash.slice(1);
-Array.prototype.forEach.call(document.querySelectorAll('nav a'),function(a){a.setAttribute('role','button');a.tabIndex=0;a.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();jump(a.dataset.t)}};a.onclick=function(){jump(a.dataset.t)}});show();
-setInterval(function(){if(!document.hidden&&(TAB=='addons'||TAB=='install'))show()},30000);
-</script>
+  if(a.state=='started')bs.appendChild(btn('Stop',function(){var me=this;ask(me,'Stop '+IHM.addonName(a)+'?',function(){act('stop',a.slug)})}));else bs.appendChild(btn('Start',function(){var me=this;ask(me,'Start '+IHM.addonName(a)+'?',function(){act('start',a.slug)})}));
+  bs.appendChild(btn('Restart',function(){var me=this;ask(me,'Restart '+IHM.addonName(a)+'?',function(){act('restart',a.slug)})}));
+  if(a.update)bs.appendChild(btn('Update to '+a.latest,function(){var me=this;ask(me,'Update '+IHM.addonName(a)+' to '+a.latest+'?',function(){act('update',a.slug)})}));
+  bs.appendChild(btn('Logs',function(){logsToggle(a.slug,b)}))}
+ if(a.full)bs.appendChild(cfgBtn(a.full,'Settings'));
+ b.appendChild(bs)}
+function notInstalledBody(b,a){b.appendChild(E('p',a.description,'meta')).style.marginTop='10px';b.appendChild(kvl([['Prebuilt image',IHM.imgTxt(a),a.image?'ok':'']]));
+ var n=a.needs||[];b.appendChild(E('p',n.length?'Needs: '+n.map(function(x){return x.slug+' ('+(x.status=='ok'?'ok':'missing: '+x.status)+')'}).join(', '):'Needs nothing else.','meta')).style.marginTop='8px';
+ var bs=E('div',null,'btns');bs.appendChild(btn('Install '+(a.latest||''),function(){var me=this;ask(me,'Install '+IHM.addonName(a)+'?',function(){act('install',a.slug)})},'primary'));b.appendChild(bs)}
+function addonItem(a,usage){var m=IHM.missing(a),stopped=IHM.isStopped(a),tags=[];
+ if(!a.installed)return item('n:'+a.slug,'off',IHM.addonName(a),[['Not installed','']],(a.description||'').slice(0,90),function(b){notInstalledBody(b,a)});
+ if(stopped)tags.push(['Stopped','bad']);if(m)tags.push([m+(m==1?' setting missing':' settings missing'),'warn']);if(a.update)tags.push(['Update','warn']);
+ var u=IHM.usageFor(usage,a.slug);if(IHM.callsFailing(u))tags.push(['Calls failing','warn']);
+ var st=a.state=='started'?'Running':a.state=='stopped'?'Stopped':(a.state||'Unknown');
+ return item('a:'+a.slug,stopped?'bad':(m||a.update)?'warn':a.state=='started'?'':'off',IHM.addonName(a),tags,st+' · v'+(a.version||'?')+(a.used&&a.used.today?' · '+a.used.today+' calls today':''),function(b){addonBody(b,a)})}
+function tabAddons(m,rid){
+ var top=E('div'),sharedHolder=E('div'),tb=toolbar(),cnt=E('p',null,'count'),lst=E('div',null,'list two');cnt.setAttribute('role','status');
+ var qi=search('Name or id',AQ.q,function(v){AQ.q=v;paintList()},'Search add-ons'),ss=sel([['attn','Needs a look first'],['name','Name'],['used','Most used']],AQ.sort,function(v){AQ.sort=v;paintList()});
+ var SHOWS=[['all','All installed'],['running','Running'],['stopped','Stopped'],['setup','Needs setup'],['update','Update available'],['notinst','Not installed']];
+ var sf=sel(SHOWS.map(function(o){return[o[0],o[1]]}),AQ.show,function(v){AQ.show=v;paintList()});
+ function paintCounts(c){Array.prototype.forEach.call(sf.options,function(o,i){var k=SHOWS[i][0];o.textContent=SHOWS[i][1]+' ('+(k=='all'?c.all:c[k])+')'})}
+ tb.appendChild(field('Search add-ons',qi));tb.appendChild(field('Show',sf));tb.appendChild(field('Sort by',ss));
+ function paintShared(){sharedHolder.textContent='';var st=S.settings,c=card();var rowsA=S.addons&&S.addons.data?S.addons.data.addons:[];
+  var g=E('div',null,'row');g.style.cssText='border:0;padding:0';var gg=E('div',null,'grow');gg.appendChild(E('b','Shared settings'));
+  if(!st||st.state=='loading'||st.state=='idle')gg.appendChild(E('span','Reading the shared settings...','m'));
+  else if(st.state=='fail')gg.appendChild(E('span','Could not read the shared settings: '+st.err,'m'));
+  else{var d=st.data,miss=d.addons.filter(function(x){return x.missing.length}),tot=miss.reduce(function(n,x){return n+x.missing.length},0);
+   gg.appendChild(E('span',(d.provisioner?'Settings hub on. ':'Settings hub off. ')+(miss.length?miss.length+(miss.length==1?' add-on has ':' add-ons have ')+tot+(tot==1?' empty setting.':' empty settings.'):'Every add-on has its settings filled.'),'m'));
+   if(!d.provisioner)gg.appendChild(E('span',' Turn on provision in the Manager settings.','m'))}
+  g.appendChild(gg);c.appendChild(g);var bs=E('div',null,'btns');
+  bs.appendChild(btn('Fill now',function(){var me=this;ask(me,'Run the settings hub now? It fills empty options of the add-ons.',function(){say('provision ...');post('api/provision').then(function(y){if(y[0]==202)poll(y[1].job);else say(y[1].error||'failed')}).catch(function(e){say('error: '+e)})})},'primary'));
+  var own=(st&&st.data&&st.data.config_slug)||((rowsA.filter(function(x){return x.slug=='ih_orchestrator'})[0]||{}).full);
+  if(own)bs.appendChild(cfgBtn(own,'Open shared settings list'));
+  if(st&&st.state=='fail')bs.appendChild(btn('Try again',function(){load('settings').then(function(){paintShared();paintList()})}));
+  c.appendChild(bs);sharedHolder.appendChild(c)}
+ function paintList(){var s=S.addons;lst.textContent='';
+  if(!s||s.state=='loading'||s.state=='idle'){cnt.textContent='';lst.appendChild(stateBox('loading','Reading the add-ons...'));return}
+  if(s.state=='fail'){cnt.textContent='';lst.classList.remove('two');lst.appendChild(stateBox('fail','Could not read the add-ons.',function(){show(true)},s.err));return}
+  lst.classList.add('two');var rows=s.data.addons,r=IHM.filterAddons(rows,{q:AQ.q,show:AQ.show,sort:AQ.sort,usage:S.usage&&S.usage.data}),c=r.counts;
+  paintCounts(c);
+  cnt.textContent=r.list.length+' of '+r.total+(AQ.show=='notinst'?' add-ons not installed':AQ.show=='all'?' installed add-ons':' add-ons shown');
+  if(!r.list.length){lst.classList.remove('two');
+   if(!c.all&&AQ.show=='all'&&!AQ.q)lst.appendChild(stateBox('empty','No IH add-ons are installed yet. Choose "Not installed" to add one.'));
+   else if(AQ.q&&r.total)lst.appendChild(stateBox('empty','No add-on matches "'+AQ.q+'" here.',function(){AQ.q='';qi.value='';paintList()}));
+   else lst.appendChild(stateBox('empty',AQ.show=='notinst'?'Everything in the catalogue is installed. Nothing to add.':AQ.show=='update'?'No add-on has an update waiting.':AQ.show=='stopped'?'No add-on is stopped.':AQ.show=='setup'?'No add-on needs setup.':AQ.show=='running'?'No add-on is running.':'Nothing to show.'));return}
+  r.list.forEach(function(a){lst.appendChild(addonItem(a,S.usage&&S.usage.data))})}
+ m.appendChild(top);top.className='cols';top.appendChild(tb);top.appendChild(cnt);top.appendChild(sharedHolder);top.appendChild(lst);
+ paintShared();paintList();REPAINT=function(){paintShared();paintList()};
+ Promise.all([load('addons'),load('health'),load('settings'),load('usage')]).then(function(){if(rid!==RID)return;paintHead();REPAINT()})}
+/* ---- Today */
+function tabToday(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);
+ function paint(){holder.textContent='';var c=ctx();
+  var anyFail=Object.keys(c.failed).some(function(k){return c.failed[k]&&k!='settings'});
+  var c1=card('What matters now');var inst=IHM.installed(c.addons),run=inst.filter(function(a){return a.state=='started'}).length,hc=c.health&&c.health.counts||{};
+  var parts=[];if(c.addons)parts.push(run+' of '+inst.length+' add-ons are running.');if(c.health&&!IHM.healthUnreadable(c))parts.push((hc.FAIL?hc.FAIL+' health '+(hc.FAIL==1?'check is':'checks are')+' failing.':'All '+(hc.OK||0)+' health checks pass.'));
+  if(anyFail)parts.push('Some data could not be read, shown as ?.');
+  c1.appendChild(E('p',parts.join(' ')||'Reading...','sub'));
+  var tl=E('div',null,'tiles');IHM.tiles(c).forEach(function(t){var d=E('div',null,'tile'+(t.tone?' '+t.tone:''));d.appendChild(E('b',t.value));d.appendChild(E('span',t.label));tl.appendChild(d)});c1.appendChild(tl);
+  if(anyFail)c1.appendChild(btn('Try again',function(){show(true)}));holder.appendChild(c1);
+  var c2=card('Worth a look','Things that are not right, or not finished.'),w=IHM.worthALook(c),shown=SHOWALL?w:w.slice(0,6);
+  if(!w.length)c2.appendChild(stateBox('empty','Nothing needs a look right now.'));
+  shown.forEach(function(x){c2.appendChild(row(x.tone,x.title,x.detail,btn('Open',function(){go(x.go)})))});
+  if(w.length>6){var mb=btn(SHOWALL?'Show fewer':'Show all '+w.length,function(){SHOWALL=!SHOWALL;paint()});mb.style.marginTop='8px';c2.appendChild(mb)}
+  holder.appendChild(c2);
+  var c3=card('Add-on reports','What the add-ons say about themselves.');
+  if(c.failed.health)c3.appendChild(stateBox('fail','Could not read the add-on reports.',function(){show(true)},S.health.err));
+  else if(!c.health)c3.appendChild(stateBox('loading','Reading the reports...'));
+  else{var cons=c.health.ui_contributions||[],nm={};(c.addons||[]).forEach(function(a){nm[a.slug]=IHM.addonName(a)});
+   if(!cons.length)c3.appendChild(stateBox('empty','No add-on has sent a report yet.'));
+   cons.forEach(function(v){var det=v.stale?'Report out of date: open the add-on page or check its logs.':v.summary+(v.metrics&&v.metrics.length?' · '+v.metrics.map(function(x){return x.label+' '+x.value}).join(', '):'')+(v.last_activity_at!=null?' · last useful work '+T(v.last_activity_at):'');
+    var r=row(v.stale||v.state=='attention'?'warn':v.state=='unknown'?'off':'',nm[v.source]||v.source,det);if(!v.stale&&v.next_step){r.querySelector('.grow').appendChild(E('span','Next: '+v.next_step,'m')).style.display='block'}c3.appendChild(r)})}
+  holder.appendChild(c3)}
+ holder.appendChild(stateBox('loading','Reading live add-ons, health, jobs and requests...'));
+ REPAINT=paint;
+ Promise.all(['addons','health','usage','plugins','traces'].map(load)).then(function(){if(rid!==RID)return;paintHead();paint()})}
+function go(g){if(g.q!==undefined){AQ.q=g.q;AQ.show=g.show||'all';OPEN['a:'+g.q]=true}jump(g.tab)}
+/* ---- Jobs */
+function tabJobs(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);holder.appendChild(stateBox('loading','Reading the jobs...'));
+ function paint(){holder.textContent='';var s=S.plugins;
+  if(s.state=='fail'){holder.appendChild(stateBox('fail','Could not read the jobs.',function(){show(true)},s.err));return}
+  var j=s.data,pl=j.plugins||[],live=pl.filter(function(p){return p.live}).length;
+  var c1=card('House jobs',j.installed?live+' live, '+(pl.length-live)+' in test mode. Results are since the Jobs add-on started. A success can be a skip or a test run, so it does not prove delivery.':'The Jobs add-on is not installed.');
+  var jobsRow=S.addons&&S.addons.data?S.addons.data.addons.filter(function(a){return a.slug=='ih_jobs'})[0]:null;
+  if(jobsRow&&jobsRow.full&&jobsRow.ingress){var bs=E('div',null,'btns');bs.style.marginTop='0';bs.appendChild(btn('Open the full Jobs page',function(){goHA('/app/'+encodeURIComponent(jobsRow.full))}));c1.appendChild(bs)}
+  if(s.stale)c1.appendChild(E('p','Could not refresh just now. Showing the last good data.','meta'));
+  if(j.installed&&!j.running)c1.appendChild(E('p','The Jobs add-on did not answer: live details are missing.','warnt')).style.marginTop='8px';
+  holder.appendChild(c1);
+  if(!j.installed)return;
+  if(s.err&&!s.stale){}
+  if(!pl.length){holder.appendChild(stateBox('empty','No jobs are listed in the Jobs add-on configuration.'));return}
+  var lst=E('div',null,'list two'),sorted=pl.map(function(p,i){return[p,i]}).sort(function(x,y){return(IHM.jobProblem(y[0])-IHM.jobProblem(x[0]))||x[1]-y[1]}).map(function(x){return x[0]});
+  sorted.forEach(function(p){var bad=IHM.jobProblem(p);
+   lst.appendChild(item('j:'+p.name,bad?'bad':p.live?'':'warn',p.name,[[p.live?'Live':'Test mode',p.live?'ok':'warn']],IHM.schedText(p.schedule)+' · last '+(T(p.last_run)||'not yet')+' · next '+(T(p.next_run)||'-'),function(b){
+    b.appendChild(kvl([['Mode',p.live?'Live':'Test mode (dry)',p.live?'ok':'warn'],['Running as',p.mode],['Schedule',IHM.schedText(p.schedule)],['Next run',T(p.next_run)],['Last run',T(p.last_run)],['Runs',p.runs],['Errors',p.errors],['Last result',p.last_ok===true?'Succeeded':p.last_ok===false?'Failed':'No run yet',p.last_ok===false?'bad':''],['Last success',T(p.last_success)],['Success mode',p.last_success_mode],['Last error',p.last_error,p.last_error?'bad':''],['Settings',p.settings_keys&&p.settings_keys.length?p.settings_keys.join(', '):null]]));
+    var bs=E('div',null,'btns');bs.appendChild(btn(p.live?'Make test mode':'Make live',function(){var me=this;
+     ask(me,(p.live?'Make '+p.name+' DRY (stops real actions)':'Make '+p.name+' LIVE (real actions)')+'? The Jobs add-on will restart.',function(){
+      say('saving ...');post('api/plugin/'+encodeURIComponent(p.name)+'/'+(p.live?'dry':'live')).then(function(y){say(y[0]==200?p.name+' is now '+(y[1].live?'live':'in test mode')+'. The Jobs add-on restarted.':(y[1].error||'failed'));show(true)}).catch(function(e){say('error: '+e)})})},'danger'));b.appendChild(bs)}))});
+  holder.appendChild(lst)}
+ Promise.all([load('plugins'),load('addons')]).then(function(){if(rid!==RID)return;paintHead();paint()})}
+/* ---- Requests */
+function tabRequests(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);holder.appendChild(stateBox('loading','Reading recent requests...'));
+ function paint(){holder.textContent='';var s=S.traces;
+  if(s.state=='fail'){holder.appendChild(stateBox('fail','Could not read the requests.',function(){show(true)},s.err));return}
+  var rows=s.data.traces||[],days=s.data.retention_days||7;
+  var c1=card('Requests','Follow a request through the add-ons that handled it. Traces hold names, timing, outcomes and a few counts. Message text and Discord IDs are never stored. Kept up to '+days+' days.'+(rows.length?' Last '+rows.length+' shown.':''));holder.appendChild(c1);
+  if(!rows.length){holder.appendChild(stateBox('empty','No requests traced yet. Traces appear after a supported request reaches IH.'));return}
+  var tr=E('div',null,'trace'+(TQ.mobileDetail?' detail':'')),tl=E('div',null,'tl'),td=E('div',null,'td card');tr.appendChild(tl);tr.appendChild(td);holder.appendChild(tr);
+  var tb=toolbar(),qi=search('Trace ID',TQ.q,function(v){TQ.q=v;paintList()},'Find by trace ID'),types=IHM.traceTypes(rows);
+  var ts=sel([['','All types ('+rows.length+')']].concat(types.map(function(t){return[t,t+' ('+rows.filter(function(r){return(r.root||'unknown')==t}).length+')']})),TQ.type,function(v){TQ.type=v;paintList()});
+  tb.appendChild(field('Find by ID',qi));tb.appendChild(field('Type',ts));tl.appendChild(tb);
+  var rc=IHM.routineCount(rows),tb2=toolbar(),hb=btn('',function(){TQ.hide=!TQ.hide;hb.setAttribute('aria-pressed',TQ.hide);hb.textContent=TQ.hide?'Show routine checks ('+rc+')':'Hide routine checks ('+rc+')';paintList()});hb.setAttribute('aria-pressed',TQ.hide);hb.textContent=TQ.hide?'Show routine checks ('+rc+')':'Hide routine checks ('+rc+')';
+  var cb=btn('Clear filters',function(){clearT()});tb2.appendChild(hb);tb2.appendChild(cb);tl.appendChild(tb2);
+  var cnt=E('p',null,'count');cnt.setAttribute('role','status');tl.appendChild(cnt);var lst=E('div',null,'scroll');tl.appendChild(lst);
+  var back=btn('← Back to list',function(){TQ.mobileDetail=false;tr.classList.remove('detail');var cur=lst.querySelector('[aria-current=true]');if(cur)cur.focus()},'back');td.appendChild(back);var dd=E('div');td.appendChild(dd);
+  function clearT(){TQ.q='';TQ.type='';TQ.hide=false;qi.value='';ts.value='';hb.setAttribute('aria-pressed','false');hb.textContent='Hide routine checks ('+rc+')';paintList()}
+  var wide=window.matchMedia('(min-width:900px)');
+  function paintList(){lst.textContent='';var hit=IHM.filterTraces(rows,{q:TQ.q,type:TQ.type,hideRoutine:TQ.hide});cb.hidden=!(TQ.q||TQ.type||TQ.hide);cnt.textContent=hit.length+' of '+rows.length+' requests shown';
+   if(!hit.length){lst.appendChild(stateBox('empty','No requests match these filters.',clearT));dd.textContent='';dd.appendChild(stateBox('empty','Nothing selected.'));return}
+   hit.forEach(function(r){var b=E('button',null,'sel');b.type='button';b.dataset.id=r.trace_id;b.setAttribute('aria-current',r.trace_id==TQ.sel?'true':'false');b.appendChild(E('b',(r.root||'unknown')+' · '+r.spans+(r.spans==1?' step':' steps')));b.appendChild(E('small',r.trace_id,'mono'));b.appendChild(E('small',(T(r.started_at)||'')+' · '+r.status));b.onclick=function(){choose(r.trace_id,true)};lst.appendChild(b)});
+   if(!hit.some(function(r){return r.trace_id==TQ.sel})){TQ.sel='';dd.textContent='';dd.appendChild(stateBox('empty','Tap a request to see its steps.'));if(wide.matches)choose(hit[0].trace_id,false)}
+   else choose(TQ.sel,false)}
+  function choose(id,user){var same=SHOWN==id&&dd.firstChild&&!dd.querySelector('.state');TQ.sel=id;Array.prototype.forEach.call(lst.querySelectorAll('.sel'),function(b){b.setAttribute('aria-current',b.dataset.id==id?'true':'false')});
+   if(user&&!wide.matches){TQ.mobileDetail=true;tr.classList.add('detail');window.scrollTo(0,0);back.focus()}
+   if(same&&!user)return;SHOWN=id;dd.textContent='';dd.appendChild(stateBox('loading','Loading the steps...'));
+   fetch(U('api/trace/'+encodeURIComponent(id))).then(function(r){return r.json().then(function(j){return[r.status,j]})}).then(function(y){if(TQ.sel!==id)return;dd.textContent='';
+    if(y[0]!=200){dd.appendChild(stateBox('fail','Could not load this request.',function(){choose(id,false)},y[1]&&y[1].error));return}
+    var t=y[1];dd.appendChild(E('p','Request trace','sect'));dd.appendChild(E('h2',t.trace_id,'mono')).style.cssText='font-size:14px;color:var(--text);margin:4px 0';dd.appendChild(E('p',t.spans.length+' steps, content-free metadata.','meta'));
+    var by={};t.spans.forEach(function(s){by[s.span_id]=s});
+    t.spans.forEach(function(s){var depth=0,p=s.parent_span_id,seen={};while(p&&by[p]&&!seen[p]&&depth<5){seen[p]=1;depth++;p=by[p].parent_span_id}
+     var n=E('div',null,'span'+(s.status=='error'?' err':''));n.style.marginLeft=Math.min(depth,4)*10+'px';var hd=E('div',null,'hd');hd.appendChild(E('b',s.operation));hd.appendChild(E('span',s.status,'tag '+(s.status=='ok'?'ok':s.status=='error'?'bad':'warn')));n.appendChild(hd);
+     n.appendChild(E('div',s.component+' · '+s.duration_ms+' ms','meta'));if(s.reason)n.appendChild(E('div','Reason: '+s.reason,'meta warnt'));
+     IHM.attrChips(s.attrs).forEach(function(c){n.appendChild(E('span',c,'tag'))});n.appendChild(E('div',T(s.started_at),'meta'));dd.appendChild(n)})
+   }).catch(function(e){if(TQ.sel!==id)return;dd.textContent='';dd.appendChild(stateBox('fail','Could not load this request.',function(){choose(id,false)},String(e&&e.message||e)))})}
+  paintList()}
+ load('traces').then(function(){if(rid!==RID)return;paintHead();paint()})}
+/* ---- Health */
+function tabHealth(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);holder.appendChild(stateBox('loading','Reading health...'));
+ function paint(){holder.textContent='';var s=S.health;
+  if(s.state=='fail'){holder.appendChild(stateBox('fail','Could not read the health checks.',function(){show(true)},s.err))}
+  else{var j=s.data,cn=j.counts||{},svc=j.services||[],unk=svc.filter(function(x){return x.state!='OK'&&x.state!='FAIL'}).length;
+   var c1=card('Health checks',(cn.OK||0)+' OK, '+(cn.FAIL||0)+' failing, '+unk+' unknown. '+(j.stale?'Data is OUT OF DATE.':'Data is current.'));holder.appendChild(c1);
+   if(j.stale)c1.appendChild(E('p','The health data is stale or unavailable. Do not rely on these numbers.','warnt'));
+   var tb=toolbar(),cnt=E('p',null,'count'),lst=E('div',null,'scroll tall');cnt.setAttribute('role','status');
+   tb.appendChild(field('Search',search('Service name',HQ.q,function(v){HQ.q=v;paintL()},'Search health checks')));tb.appendChild(field('Show',sel([['','All ('+svc.length+')'],['FAIL','Failing ('+(cn.FAIL||0)+')'],['OK','OK ('+(cn.OK||0)+')'],['UNKNOWN','Unknown ('+unk+')']],HQ.state,function(v){HQ.state=v;paintL()})));
+   c1.appendChild(tb);c1.appendChild(cnt);c1.appendChild(lst);
+   function paintL(){lst.textContent='';var hit=IHM.filterHealth(svc,HQ);cnt.textContent=hit.length+' of '+svc.length+' checks shown';
+    if(!svc.length){lst.appendChild(stateBox('empty','No health checks were reported. This is not the same as healthy.'));return}
+    if(!hit.length){lst.appendChild(stateBox('empty',HQ.state=='FAIL'&&!HQ.q?'No failing checks. Everything that reported passes.':'No checks match.',(HQ.q||HQ.state)?function(){HQ.q='';HQ.state='';show(true)}:null));return}
+    var nmh={};((S.addons&&S.addons.data&&S.addons.data.addons)||[]).forEach(function(a){nmh[a.slug]=IHM.addonName(a)});hit=hit.map(function(x,i){return[x,i]}).sort(function(p,q){var r=function(z){return z.state=='FAIL'?0:z.state=='OK'?2:1};return r(p[0])-r(q[0])||p[1]-q[1]}).map(function(p){return p[0]});
+    hit.forEach(function(x){var tone=x.state=='OK'?'':x.state=='FAIL'?'bad':'warn';var it=item('h:'+x.name,tone,nmh[x.name]||x.name,[],(x.state||'UNKNOWN')+(x.kind?' · '+x.kind:''),function(b){b.appendChild(kvl([['State',x.state||'UNKNOWN',x.state=='OK'?'ok':x.state=='FAIL'?'bad':'warn'],['Kind',x.kind],['Version',x.version]]));(x.checks||[]).forEach(function(c){b.appendChild(E('p',c,'meta')).style.marginTop='8px'});if(!(x.checks||[]).length)b.appendChild(E('p','No detail was reported.','meta')).style.marginTop='8px'});it.style.marginBottom='6px';lst.appendChild(it)})}
+   paintL();
+   var c2=card('Consumers','Is anything waiting for an answer?');var p=j.consumer_progress||[];
+   if(!p.length)c2.appendChild(stateBox('empty','No consumer outcome streams reported yet.'));
+   p.forEach(function(x){var st=x.status||'unknown',tone=st=='idle'?'':st=='stalled'?'bad':st=='disabled'?'off':'warn';var d=[st.charAt(0).toUpperCase()+st.slice(1).replace(/_/g,' ')+'.',(x.pending==null?'Pending unknown':x.pending+' pending')+'.'];if(x.oldest_pending_age_s!=null)d.push('Oldest pending '+Math.floor(x.oldest_pending_age_s)+' s.');if(x.no_progress_s!=null)d.push('No progress '+Math.floor(x.no_progress_s)+' s.');if(x.reason)d.push('Reason: '+String(x.reason).replace(/_/g,' ')+'.');c2.appendChild(row(tone,x.consumer,d.join(' ')))});
+   holder.appendChild(c2)}
+  holder.appendChild(usageItem())}
+ function usageItem(){var u=S.usage,box=E('div');
+  var it=item('usage',u&&u.state=='fail'?'bad':'off','Usage, last 7 days',[],u&&u.data?'Calls per add-on. '+u.data.addons.length+' add-ons, '+u.data.addons.filter(function(a){return a.total==0}).length+' not used.':u&&u.state=='fail'?'Could not read.':'Reading...',function(b){
+   if(!u||u.state=='fail'){b.appendChild(stateBox('fail','Could not read the usage.',function(){show(true)},u&&u.err)).style.marginTop='10px';return}
+   var j=u.data,mx=1;j.addons.forEach(function(a){a.per_day.forEach(function(n){if(n>mx)mx=n})});
+   b.appendChild(E('p','Calls per day, last 7 days (oldest left, today right). Counted from the recent log of each add-on and saved, so older days are kept. Add-ons not used in 7 days are marked.','meta')).style.marginTop='10px';
+   if(!j.addons.length)b.appendChild(stateBox('empty','No installed add-ons to count.'));
+   var nm={};((S.addons&&S.addons.data&&S.addons.data.addons)||[]).forEach(function(a){nm[a.slug]=IHM.addonName(a)});
+   j.addons.forEach(function(a){var dead=a.total==0,r=E('div',null,'row'),g=E('div',null,'grow'),bt=E('b',(nm[a.slug]||a.slug)+(a.state=='started'?'':' ('+(a.state||'stopped')+')')+(a.unreadable?' (log unreadable)':''));if(dead){bt.appendChild(document.createTextNode(' '));bt.appendChild(E('span','not used in 7 days','tag warn'))}
+    g.appendChild(bt);g.appendChild(E('span',a.total+' calls · '+a.failed+' failed'+(a.last?' · last '+a.last+(a.last_day?' '+a.last_day.slice(5):''):''),'m'));
+    var bars=E('div',null,'days');bars.setAttribute('role','img');bars.setAttribute('aria-label','Calls per day: '+a.per_day.join(', '));a.per_day.forEach(function(n,i){var s=E('i',null,n?'':'z');s.title=j.days[i]+': '+n;s.style.height=(n?Math.max(2,Math.round(22*n/mx)):2)+'px';bars.appendChild(s)});g.appendChild(bars);r.appendChild(g);b.appendChild(r)})});
+  return it}
+ Promise.all([load('health'),load('usage'),load('addons')]).then(function(){if(rid!==RID)return;paintHead();paint()})}
+/* ---- tabs */
+function jump(t){TAB=t;if(location.hash)try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}say('');disarm(false);show(false);window.scrollTo(0,0)}
+function show(silent){var rid=++RID;REPAINT=null;SHOWN='';var old=$('main'),m=E('main');m.id='main';m.setAttribute('role','tabpanel');m.tabIndex=-1;m.setAttribute('aria-labelledby','tab-'+TAB);
+ TABS.forEach(function(t){var b=$('tab-'+t);b.setAttribute('aria-selected',t==TAB?'true':'false');b.tabIndex=t==TAB?0:-1});
+ if(silent&&(old.querySelector('pre')||ARMED)&&TAB=='addons'){return}
+ old.replaceWith(m);({today:tabToday,addons:tabAddons,jobs:tabJobs,requests:tabRequests,health:tabHealth})[TAB](m,rid);
+ if(TAB!='today'&&TAB!='addons'&&TAB!='health'&&!S.health)loadAll(['addons','health']).then(function(){})}
+TABS.forEach(function(t,i){var b=$('tab-'+t);b.onclick=function(){jump(t)};b.onkeydown=function(e){var n=e.key=='ArrowRight'?i+1:e.key=='ArrowLeft'?i-1:e.key=='Home'?0:e.key=='End'?TABS.length-1:-1;if(n<0)return;n=(n+TABS.length)%TABS.length;e.preventDefault();$('tab-'+TABS[n]).focus();jump(TABS[n])}});
+var first=IHM.tabFromHash(location.hash);if(first)TAB=first;if(location.hash=='#install')AQ.show='notinst';
+show(false);
+/* refresh quietly while a data tab is open; never while logs are open or a button is armed */
+setInterval(function(){if(document.hidden||ARMED||!REPAINT)return;var rid=RID,names=TAB=='addons'?['addons','health','settings','usage']:TAB=='today'?['addons','health','usage','plugins','traces']:null;if(!names||$('main').querySelector('pre'))return;
+ Promise.all(names.map(load)).then(function(){if(rid!==RID||ARMED||$('main').querySelector('pre'))return;paintHead();REPAINT()})},30000);
+</script></body></html>

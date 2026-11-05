@@ -14,7 +14,7 @@ The hub of Intelligent Home. It shows a status page for the other add-ons and se
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home**.
 2. Set `ingest_token` to a long random text. Other add-ons use it to push their status.
 3. Start the add-on and open **Intelligent Home** in the sidebar.
-4. The **Traces** tab shows correlated Discord AI requests when the bot has an `ingest_token`. It stores component names, safe operation/status codes and timings only; no request or response content. Entries expire after 7 days and are capped at 5,000 spans.
+4. The **Requests** tab shows correlated Discord AI requests when the bot has an `ingest_token`. It stores component names, safe operation/status codes and timings only; no request or response content. Entries expire after 7 days and are capped at 5,000 spans.
 5. Optional: turn on `provision` to let the settings hub fill shared keys of the other add-ons (see More details).
 
 ## Options
@@ -86,10 +86,10 @@ The manager accepts metadata-only trace batches at `POST /trace`, authenticated 
 
 ### Usage (0.8.0)
 
-The page tab **Usage** and the line "Used: N today (M failed), last HH:MM" on each Add-ons card show which add-ons are really being used. The background refresher reads the recent log of each installed add-on every 5 minutes and counts invocation lines (`request id=` for `ih_ai_layer`, `ask id=` for the AI providers, `invoke id=` for jobs, games, cooking, discord and the orchestrator itself, and any line with `ok=True` / `ok=False` for other add-ons). The formats are in the table `USAGE_FORMATS` in `app/manager.py`; add a row for a new one.
+The **Usage** disclosure on the Health tab and the line "Used: N today (M failed), last HH:MM" on each Add-ons card show which add-ons are really being used. The background refresher reads the recent log of each installed add-on every 5 minutes and counts invocation lines (`request id=` for `ih_ai_layer`, `ask id=` for the AI providers, `invoke id=` for jobs, games, cooking, discord and the orchestrator itself, and any line with `ok=True` / `ok=False` for other add-ons). The formats are in the table `USAGE_FORMATS` in `app/manager.py`; add a row for a new one.
 
 - Only counts and times are stored or shown, never log text. Counts are kept per day (14 days) in `/data/usage.json`, so they survive log rotation and restarts; a line is never counted twice.
 - Logs hold only a limited tail, so counts start when this version first ran. Log lines have a time but no date; a quiet spell longer than a day can date very old lines a day late.
-- "Not used in 7 days" is highlighted in the Usage tab: those add-ons are candidates to stop or remove.
+- "Not used in 7 days" is highlighted in the Usage disclosure: those add-ons are candidates to stop or remove.
 
 Jobs may relay up to 20 child reports from its signed registration channel. Child source names stay within the Jobs family. Reports retain the child sample timestamp for freshness and expire after six hours; forwarding does not replace service health, add credentials, send error text or confirm external delivery.

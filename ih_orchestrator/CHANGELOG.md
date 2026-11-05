@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0] - 2026-11-05
+
+### Changed
+- Manager page redesigned in the Games style: 8 tabs become 5 (Today, Add-ons, Jobs, Requests, Health). Today shows "What matters now" numbers, "Worth a look" and the add-on reports. Add-ons has a labelled search, Show (including Needs setup and Not installed) and Sort by, a visible count, and one card per add-on with all its details and actions inside. All add-ons are listed (the old Overview showed only the first 12). Shared settings (Fill now, shared list) sit on the Add-ons tab; missing settings show per add-on. Jobs keep the two-tap Make live / Make test mode. Requests keep the ID and type filters and add "Hide routine checks" (off by default); on phones a tapped request opens with a Back button. Health is a readable list; usage is in a disclosure.
+- Start, Stop, Restart, Update and Install now also ask for a second tap (no browser dialogs).
+- A failed read shows "Could not read" with Try again, never an empty list or a calm 0.
+- Old #links (#plugins, #traces, #settings, #usage, #install, #overview) still open the right tab.
+
+### Added
+- `manager-logic.js` (page logic, served next to the page) and unit tests for it. No API changes.
+
 ## [0.10.20] - 2026-11-05
 
 ### Changed
