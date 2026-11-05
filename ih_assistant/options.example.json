@@ -6,6 +6,7 @@
   "facts_key": "",
   "trace_url": "",
   "ingest_token": "",
+  "giphy_api_key": "",
   "personas": [
     {
       "key": "persona_a",

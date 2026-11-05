@@ -45,6 +45,8 @@ AGREED_MAX = 20
 PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
 FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
 FACT_TIMEOUT_S = 5
+GIF_CHAT_GAP_S = 6 * 3600   # 0.9.9: one GIF per chat; a chat ends after 6 h without one
+GIF_WORDS_MAX = 60
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
 TYPING_MAX_S = 300
@@ -136,7 +138,7 @@ def load_options(path):
     return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
-            'ingest_token': str(o.get('ingest_token') or '').strip(),
+            'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(),
             'personas': personas}, problems
 
 
@@ -148,8 +150,9 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
+        self.gif_opener = gif_opener   # urlopen-like for GIPHY (tests inject a fake)
         self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
@@ -845,7 +848,7 @@ class Assistant:
             self._count_out(key, 'reply')
             st.update_state(lambda s: s.pop('keepers', None))
             self.log('persona %s: [DRY] would send %d chars' % (key, len(text)))
-            return 200, {'ok': True, 'sent': False, 'dry': True, 'chars': len(text)}
+            return 200, {'ok': True, 'sent': False, 'dry': True, 'chars': len(text), 'gif': 'dry' if body.get('gif') else None}
         if key not in self.discord:
             return 409, {'ok': False, 'why': 'no bot configured'}
         try:
@@ -868,7 +871,37 @@ class Assistant:
             if not st.profile()['introduced'] and st.state().get('intro_requested'):
                 st.merge_profile({'introduced': True})
         self.log('persona %s: sent %d chars' % (key, len(text)))
-        return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed)}
+        gif = self.send_gif(key, body.get('gif')) if ok and body.get('gif') else None
+        return 200, {'ok': ok, 'sent': ok, 'dry': False, 'chars': len(text), 'completion_recorded': bool(ok and rt and completed), 'gif': gif}
+
+    def send_gif(self, key, words):
+        """0.9.9: send ONE GIF link after a reply, if the persona's gif level allows it (random draw), no GIF went out in the last
+        6 h of this chat, and a GIPHY key is set. Rating capped at PG. Never raises. -> short status word for the caller."""
+        try:
+            words = re.sub(r'\s+', ' ', str(words or '')).strip()[:GIF_WORDS_MAX]
+            if not words:
+                return 'no words'
+            if not self.opts.get('giphy_api_key'):
+                return 'no key'
+            if not levels.gif_allowed(self.lv(key)['gif_level'], self.rng()):
+                return 'skipped: level'
+            st, now = self.stores[key], self.clock()
+            if now - float(st.state().get('last_gif') or 0) < GIF_CHAT_GAP_S:
+                return 'skipped: one per chat'
+            q = urllib.parse.urlencode({'api_key': self.opts['giphy_api_key'], 'q': words, 'limit': 10, 'rating': 'pg', 'lang': 'en'})
+            with (self.gif_opener or urllib.request.urlopen)('https://api.giphy.com/v1/gifs/search?' + q, timeout=10) as r:
+                data = json.load(r).get('data') or []
+            links = [g['url'] for g in data[:5] if str(g.get('url', '')).startswith('https://giphy.com/')]
+            if not links:
+                return 'none found'
+            if not self.discord[key].send(self._channel(key), links[int(self.rng() * len(links)) % len(links)], None):
+                return 'send failed'
+            st.update_state(lambda s: s.__setitem__('last_gif', now))
+            self.log('persona %s: gif sent' % key)
+            return 'sent'
+        except Exception as e:
+            self.log('persona %s: gif failed (%s)' % (key, type(e).__name__))
+            return 'failed'
 
     def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""
@@ -1278,7 +1311,7 @@ def worker(app, key):
 
 def main():
     opts, problems = load_options(os.environ.get('IHP_OPTIONS', '/data/options.json'))
-    secrets = [opts['api_token'], opts['facts_key']] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
+    secrets = [opts['api_token'], opts['facts_key'], opts.get('giphy_api_key', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
     lg = logging.getLogger('ih_assistant'); lg.setLevel(logging.INFO)
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     log = ihlog.Logger(lg.info, [s for s in secrets if len(s) >= 4])

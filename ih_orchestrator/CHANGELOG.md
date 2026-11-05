@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.6] - 2026-11-05
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.9.9: sends GIFs itself.
+
 ## [0.11.5] - 2026-11-05
 
 ### Changed
