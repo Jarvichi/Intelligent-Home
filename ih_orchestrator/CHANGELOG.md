@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.4] - 2026-11-05
+
+### Changed
+- Catalogue: new add-on Work (`ih_work` 0.1.0): the work queue for Claude with a pace gate and a task view. The "Jump to" card lists it automatically once it is installed (it is built from the installed add-ons, not from a fixed list).
+
 ## [0.11.3] - 2026-11-05
 
 ### Changed

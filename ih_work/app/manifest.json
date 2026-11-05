@@ -1,0 +1,25 @@
+{
+ "name": "ih_work",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Work queue for Claude: first-in-first-out line of jobs with leases, a pace gate with day and night levels, a token-protected API and a task view. Test mode by default.",
+ "owner": "local add-on ih_work",
+ "start": "Supervisor add-on 32c8114c_ih_work (boot manual)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8802/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8802,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token"
+ ],
+ "restore": "Stop the add-on. Uninstall to remove. The queue lives in the add-on's own data and is lost on uninstall.",
+ "requires": []
+}

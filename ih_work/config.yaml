@@ -1,0 +1,65 @@
+name: "Intelligent Home - Work"
+version: "0.1.0"
+slug: ih_work
+image: "ghcr.io/jarvichi/{arch}-ih_work"
+description: "The work queue for Claude: one line of jobs (first in, first out) with leases, the pace gate (day and night levels) and a task view. A helper claims a job over a token-protected local API and must report it done. Optional backlog feeder from the Claude to-do list (off by default). TEST MODE by default: the line is kept, nothing is handed out."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself (the default here). To start with Home Assistant, set boot: auto (Supervisor option "Start on boot").
+# watchdog: add  watchdog: http://[HOST]:[PORT:8802]/healthz  once boot is auto; the Supervisor then restarts the add-on if /healthz stops answering.
+boot: manual
+init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Work"
+panel_icon: mdi:format-list-checks
+panel_admin: true
+homeassistant_api: true
+ports:
+  8802/tcp: 8802
+ports_description:
+  8802/tcp: "Work queue API (bearer api_token); /healthz is open"
+options:
+  log_payloads: false
+  mode: "dry"
+  api_token: ""
+  stop: false
+  timezone: "Europe/London"
+  lease_minutes: 20
+  day_start: -5.0
+  day_stop: -4.0
+  night_start: -1.0
+  night_stop: 0.0
+  night_from: "23:00"
+  night_to: "06:00"
+  week_usage_entity: ""
+  session_usage_entity: ""
+  weekly_reset_entity: ""
+  feed_backlog: false
+  todo_entity: "todo.claude_to_do"
+  feed_prefixes:
+    - "IH:"
+    - "Check:"
+    - "Review:"
+schema:
+  log_payloads: bool?
+  mode: list(dry|live)
+  api_token: password
+  stop: bool
+  timezone: str
+  lease_minutes: int(1,120)
+  day_start: float(-100,100)
+  day_stop: float(-100,100)
+  night_start: float(-100,100)
+  night_stop: float(-100,100)
+  night_from: str
+  night_to: str
+  week_usage_entity: str?
+  session_usage_entity: str?
+  weekly_reset_entity: str?
+  feed_backlog: bool
+  todo_entity: str
+  feed_prefixes:
+    - str
