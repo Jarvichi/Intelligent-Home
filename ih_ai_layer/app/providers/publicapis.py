@@ -3,11 +3,11 @@ and 'api_offerings'. Only the read-only tools are used (search_apis, get_api, ge
 (start_deal, send_message, get_deal: buying listings) are deliberately NOT implemented.
 The request text is a search query or an API slug, so it is NOT scrubbed (same reasoning as SerpApi) and it is never logged. Answers are cached
 (setting cache_hours); errors are never cached. One MCP session is kept per process and re-created once if the server says it expired."""
-import hashlib, json, re, threading, urllib.error, urllib.request
-from .base import Provider, USER_AGENT
+import hashlib, json, re
+from .base import Provider
+from .mcp_client import McpClient, extract
 
 MCP_URL = 'https://publicapis.io/mcp'
-PROTOCOL = '2025-06-18'
 SLUG_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$')
 AUTHS = ('none', 'api_key', 'oauth')
 LANGS = ('javascript', 'python', 'curl')
@@ -35,9 +35,7 @@ class PublicApis(Provider):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.cache_hits = 0
-        self.sid = None                       # MCP session id (one per process)
-        self.sess_lock = threading.Lock()
-        self.rpc_id = 0
+        self.client = McpClient(MCP_URL, self.opener, self.VERSION)      # one MCP session per process
 
     # ---- argument mapping ----
     @staticmethod
@@ -77,72 +75,12 @@ class PublicApis(Provider):
             return {'slug': slug, 'language': lang if lang in LANGS else 'python'}
         return {'slug': slug}
 
-    # ---- MCP transport ----
-    def _post(self, payload, timeout, sid=None, want_body=True):
-        h = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'User-Agent': USER_AGENT}
-        if sid:
-            h['Mcp-Session-Id'] = sid
-        req = urllib.request.Request(MCP_URL, data=json.dumps(payload).encode(), method='POST', headers=h)
-        with self.opener(req, timeout=timeout) as x:
-            raw = x.read(2000000)
-            hd = getattr(x, 'headers', None)
-            new_sid = hd.get('mcp-session-id') if hd is not None else None
-        if not want_body:
-            return None, new_sid
-        return self._parse(raw), new_sid
-
-    @staticmethod
-    def _parse(raw):
-        t = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
-        t = t.strip()
-        if t.startswith('{'):
-            return json.loads(t)
-        last = None
-        for line in t.splitlines():
-            if line.startswith('data:') and line[5:].strip():
-                last = line[5:].strip()
-        if last is None:
-            raise ValueError('no data')
-        return json.loads(last)
-
-    def _next_id(self):
-        self.rpc_id += 1
-        return self.rpc_id
-
-    def _init_session(self, timeout):
-        body, sid = self._post({'jsonrpc': '2.0', 'id': self._next_id(), 'method': 'initialize',
-                                'params': {'protocolVersion': PROTOCOL, 'capabilities': {}, 'clientInfo': {'name': 'intelligent-home-ai-layer', 'version': self.VERSION}}}, timeout)
-        if not isinstance(body, dict) or 'result' not in body:
-            raise ValueError('initialize failed')
-        self._post({'jsonrpc': '2.0', 'method': 'notifications/initialized'}, timeout, sid, want_body=False)
-        self.sid = sid
-        return sid
-
+    # ---- MCP transport (shared client in mcp_client.py) ----
     def call_tool(self, name, args, timeout):
         """-> the JSON-RPC response dict. One session per process; re-initialised once if the server rejects it (HTTP 400/404)."""
-        with self.sess_lock:
-            for attempt in (0, 1):
-                if not self.sid:
-                    self._init_session(timeout)
-                try:
-                    body, _ = self._post({'jsonrpc': '2.0', 'id': self._next_id(), 'method': 'tools/call', 'params': {'name': name, 'arguments': args}}, timeout, self.sid)
-                    return body
-                except urllib.error.HTTPError as e:
-                    if attempt == 0 and e.code in (400, 404):
-                        self.sid = None
-                        continue
-                    raise
+        return self.client.call_tool(name, args, timeout)
 
-    @staticmethod
-    def extract(result):
-        """-> (text, is_error) from a tools/call result."""
-        if not isinstance(result, dict):
-            return '', True
-        parts = [c.get('text', '') for c in result.get('content') or [] if isinstance(c, dict) and c.get('type', 'text') == 'text' and isinstance(c.get('text'), str)]
-        txt = '\n'.join(p for p in parts if p).strip()
-        if not txt and result.get('structuredContent') is not None:
-            txt = json.dumps(result['structuredContent'], ensure_ascii=False)
-        return txt, bool(result.get('isError'))
+    extract = staticmethod(extract)
 
     # ---- answering ----
     def ask(self, obj, timeout=None):

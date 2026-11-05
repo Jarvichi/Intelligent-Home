@@ -5,7 +5,7 @@
   "description": "Status page (modules may push with a source name). The host pushes status to it (POST /ingest, bearer token). Maps no folders, holds no secrets. Secrets broker parked (off). Scheduler (MQTT, messages signed per module with module_keys) off unless enable_scheduler and the mqtt_* options are set.",
   "kind": "addon",
   "requires": [],
-  "version": "0.10.15",
+  "version": "0.10.16",
   "image": true,
   "ui": {
    "title": "Intelligent Home",
@@ -207,7 +207,7 @@
   "description": "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remember",
   "kind": "addon",
   "requires": [],
-  "version": "0.4.8",
+  "version": "0.4.9",
   "image": true,
   "ui": {
    "title": "AI Layer",

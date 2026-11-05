@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.16] - 2026-11-05
+
+### Added
+- Catalogue lists AI Layer 0.4.9.
+
 ## [0.10.15] - 2026-11-05
 
 ### Added
