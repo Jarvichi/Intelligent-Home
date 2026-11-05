@@ -1,9 +1,13 @@
 """Job trust: monthly test of the outside AIs, through the Intelligent Home AI layer over HTTP (no provider code or keys here).
 Runs on day 1 of the month (local time) at or after run_hour, once per month. Sends 8 fixed, NON-PRIVATE test questions to the layer
-(POST <ai_layer_url>/request, bearer ai_layer_token, capability general_qa), scores the answers, stores scores in <data>/trust_runs/<YYYY-MM>.json
+(POST <ai_layer_url>/request, bearer ai_layer_token, capability general_qa) to EACH eligible chat AI in turn, one AI at a time, scores the answers,
+stores scores in <data>/trust_runs/<YYYY-MM>.json
 and, in live mode only, adds a review to-do (HA REST todo.add_item). Dry mode runs and records but adds no to-do.
 Question and answer text are NEVER logged: only counts, lengths, agent names and scores. Answers are stored only if keep_answers is on.
-The layer cannot yet be told WHICH agent to use (no prefer_agent): each question goes to whichever agent the layer picks for general_qa."""
+Which AIs: read at run time from the layer's /status (providers with general_qa, not shadow, not killed, configured). Each is forced by its MODEL name
+(the request field `model`; the layer then asks only the agent that serves that model, with no fallback). The answering agent in the reply must be the forced one,
+otherwise the question is marked misrouted and not scored. Option `providers` (comma list) overrides; option `exclude` (default openai) drops names.
+Stored shape (format 2): results[agent][question]; old files had results[question] (one agent each) and are still read."""
 import json, os, re, time, urllib.error, urllib.request
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -155,7 +159,7 @@ def score_answer(q, ok, answer):
     return SCORERS[q](answer)
 
 def summarise(results):
-    """results: q -> dict(score, ...). Weighted 0-100; -15 if d or f was invented. Unscored questions are left out and counted."""
+    """results: q -> dict(score, ...) for ONE agent. Weighted 0-100; -15 if d or f was invented. Unscored questions are left out and counted."""
     scored = {q: r for q, r in results.items() if r.get('score') is not None}
     if not scored:
         return {'test': None, 'scored': 0, 'unscored': len(results), 'invented': False}
@@ -165,6 +169,30 @@ def summarise(results):
     if inv:
         test = max(0, test - 15)
     return {'test': round(test), 'scored': len(scored), 'unscored': len(results) - len(scored), 'invented': bool(inv)}
+
+def is_old_shape(results):
+    """Old files: results[question] = one answer record. New files (format 2): results[agent][question]."""
+    return isinstance(results, dict) and bool(results) and all(k in QUESTIONS for k in results)
+
+def by_agent(results):
+    """Either file shape -> {agent: {question: record}}. Old files are grouped by the agent that answered; records with no agent or no answer are left out."""
+    if not isinstance(results, dict):
+        return {}
+    if is_old_shape(results):
+        out = {}
+        for q, r in results.items():
+            if isinstance(r, dict) and r.get('agent') and r.get('ok'):
+                out.setdefault(str(r['agent']), {})[q] = r
+        return out
+    return {str(a): {q: r for q, r in qs.items() if q in QUESTIONS and isinstance(r, dict)}
+            for a, qs in results.items() if isinstance(qs, dict)}
+
+def summarise_all(results):
+    """Either file shape -> {'agents': {agent: summarise(...)}, 'test': best score or None, 'scored': total, 'unscored': total, 'invented': any}."""
+    ag = {a: summarise(qs) for a, qs in by_agent(results).items()}
+    tests = [x['test'] for x in ag.values() if x['test'] is not None]
+    return {'agents': ag, 'test': max(tests) if tests else None, 'scored': sum(x['scored'] for x in ag.values()),
+            'unscored': sum(x['unscored'] for x in ag.values()), 'invented': any(x['invented'] for x in ag.values())}
 
 # ---------------- schedule ----------------
 def local_now(ctx, now=None):
@@ -187,33 +215,87 @@ def _int(v, d, lo, hi):
         return d
 
 # ---------------- AI layer call ----------------
-def ask(ctx, q, text, sleep=time.sleep):
-    """-> (ok, answer, agent, took_ms, stop). One retry on HTTP 429 (layer rate limit). Never logs text."""
+NOT_CHAT = ('mcp', 'serper', 'serpapi', 'publicapis')     # search / tool providers are never asked the test questions
+AGENT_PREFIX = 'ih_ai_layer_'
+
+def _names(v):
+    """'groq, ih_ai_layer_gemini' (or a list) -> ['groq', 'gemini']."""
+    parts = v if isinstance(v, (list, tuple)) else re.split(r'[,\s]+', str(v or ''))
+    return [str(p).strip().lower().replace(AGENT_PREFIX, '', 1) for p in parts if str(p).strip()]
+
+def _base(agent):
+    return str(agent or '').replace(AGENT_PREFIX, '', 1)
+
+def _auth(ctx):
+    return {'Authorization': 'Bearer ' + str(ctx.opts.get('ai_layer_token') or ''), 'Content-Type': 'application/json'}
+
+def discover(ctx):
+    """-> (providers, error). providers = sorted list of {'provider', 'model', 'agent'} from the layer's /status.
+    Eligible: capability general_qa, not shadow, not killed, configured, a model name, and not a search/MCP provider.
+    Option `providers` (comma list) keeps only those names and ALSO lets excluded ones (such as openai) in; otherwise `exclude` (default openai; 'none' = nothing) drops names."""
+    url = str(ctx.opts.get('ai_layer_url') or '').rstrip('/') + '/status'
+    try:
+        with ctx.open(urllib.request.Request(url, headers=_auth(ctx)), timeout=20) as r:
+            st = json.loads(r.read(400000))
+    except urllib.error.HTTPError as e:
+        return [], 'status HTTP %s' % e.code
+    except Exception as e:
+        return [], 'status failed (%s)' % type(e).__name__
+    if not isinstance(st, dict) or st.get('kill_switch'):
+        return [], 'layer stopped or unreadable'
+    want = _names(ctx.opts.get('providers'))
+    exclude = _names(ctx.opts.get('exclude') or 'openai')
+    out, seen = [], set()
+    for p in st.get('providers') or []:
+        if not isinstance(p, dict):
+            continue
+        name = _base(p.get('provider') or p.get('name')).lower()
+        model = p.get('model')
+        caps = p.get('capabilities') or []
+        if (not name or name in NOT_CHAT or name.startswith('mcp') or CAPABILITY not in caps or p.get('shadow') or p.get('kill_switch')
+                or p.get('configured') is False or not isinstance(model, str) or not model or model in seen):
+            continue
+        if want and name not in want:
+            continue
+        if not want and name in exclude:
+            continue
+        seen.add(model)
+        out.append({'provider': name, 'model': model, 'agent': AGENT_PREFIX + name})
+    return sorted(out, key=lambda x: x['provider']), ''
+
+def ask(ctx, q, text, sleep=time.sleep, model=''):
+    """-> (ok, answer, agent, took_ms, stop, code). `model` forces the AI that serves it. One retry on HTTP 429 (layer rate limit).
+    code = the HTTP status when the call failed (0 otherwise). Never logs text."""
     url = str(ctx.opts.get('ai_layer_url') or '').rstrip('/') + '/request'
-    body = json.dumps({'text': text, 'capability': CAPABILITY, 'request_id': 'trust-%s-%d' % (q, int(time.time()))}).encode()
+    payload = {'text': text, 'capability': CAPABILITY, 'request_id': 'trust-%s-%d' % (q, int(time.time()))}
+    if model:
+        payload['model'] = model
+    body = json.dumps(payload).encode()
     for attempt in (0, 1):
-        req = urllib.request.Request(url, data=body, method='POST', headers={'Authorization': 'Bearer ' + str(ctx.opts.get('ai_layer_token') or ''),
-                                                                           'Content-Type': 'application/json'})
+        req = urllib.request.Request(url, data=body, method='POST', headers=_auth(ctx))
         try:
             with ctx.open(req, timeout=90) as r:
                 obj = json.loads(r.read(400000))
             ans = obj.get('answer')
-            return bool(obj.get('ok')) and isinstance(ans, str) and bool(ans.strip()), ans if isinstance(ans, str) else '', str(obj.get('agent') or ''), int(obj.get('took_ms') or 0), False
+            return (bool(obj.get('ok')) and isinstance(ans, str) and bool(ans.strip()), ans if isinstance(ans, str) else '', str(obj.get('agent') or ''),
+                    int(obj.get('took_ms') or 0), False, 0)
         except urllib.error.HTTPError as e:
             if e.code == 429 and attempt == 0:
                 sleep(_int(ctx.opts.get('retry_wait_s'), 30, 0, 120)); continue
-            return False, '', '', 0, e.code in (401, 503)       # bad token or layer stopped: give up the whole run
+            return False, '', '', 0, e.code in (401, 503), e.code       # bad token or layer stopped: give up the whole run
         except Exception:
-            return False, '', '', 0, False
-    return False, '', '', 0, False
+            return False, '', '', 0, False, -1
+    return False, '', '', 0, False, 0
 
 # ---------------- to-do ----------------
 def add_todo(ctx, month, summary):
     entity = str(ctx.opts.get('todo_entity') or DEFAULT_TODO)
+    ag = summary.get('agents') if isinstance(summary.get('agents'), dict) else {}
+    per = ', '.join('%s %s' % (_base(a).capitalize(), x['test']) for a, x in sorted(ag.items(), key=lambda kv: -(kv[1].get('test') or 0)) if x.get('test') is not None)
+    inv = [_base(a).capitalize() for a, x in sorted(ag.items()) if x.get('invented')]
     ctx.ha('services/todo/add_item', {'entity_id': entity, 'item': 'Review AI trust test %s' % month, 'due_date': '%s-01' % month,
-           'description': 'Automatic score %s/100 (%d of %d questions scored%s). Details: add-on Intelligent Home - Jobs - AI Trust Test, /status and trust_runs in its data. '
-                          'Check the honesty questions (d, f) by hand.' % (summary['test'], summary['scored'], summary['scored'] + summary['unscored'],
-                                                                           ', INVENTED flag' if summary['invented'] else '')})
+           'description': 'Automatic scores out of 100: %s (%d answers scored%s). Details: add-on Intelligent Home - Jobs - AI Trust Test, /status and trust_runs in its data. '
+                          'Check the honesty questions (d, f) by hand.' % (per or 'none', summary['scored'], '; made something up: ' + ', '.join(inv) if inv else '')})
 
 # ---------------- state ----------------
 def _load(path, default):
@@ -248,29 +330,53 @@ def run(ctx, now=None, sleep=time.sleep):
         return True
     pause = _int(ctx.opts.get('pause_s'), 4, 0, 60)
     keep = bool(ctx.opts.get('keep_answers'))
-    results, stop = {}, False
-    for i, (q, text) in enumerate(QUESTIONS.items()):
-        if os.path.exists(os.path.join(ctx.data_dir, STOP_FILE)):
-            stop = True; break
-        if i:
-            sleep(pause)
-        ok, ans, agent, ms, halt = ask(ctx, q, text, sleep)
-        sc, note = score_answer(q, ok, ans)
-        results[q] = {'ok': ok, 'agent': agent, 'chars': len(ans), 'took_ms': ms, 'score': sc, 'note': note}
-        if keep and ok:
-            results[q]['answer'] = ans
-        log('trust: q=%s ok=%s agent=%s chars=%d score=%s' % (q, ok, agent or '-', len(ans), sc))
-        if halt:
-            stop = True; break
+    provs, why = discover(ctx)
+    if not provs:
+        log('trust: no AI to test (%s)' % (why or 'none eligible')); return False
+    log('trust: testing %d AIs: %s' % (len(provs), ', '.join(p['provider'] for p in provs)))
+    results, stop, skipped, refused, first = {}, False, [], 0, True
+    for pv in provs:
+        agent = pv['agent']
+        for q, text in QUESTIONS.items():
+            if os.path.exists(os.path.join(ctx.data_dir, STOP_FILE)):
+                stop = True; break
+            if not first:
+                sleep(pause)
+            first = False
+            ok, ans, got, ms, halt, code = ask(ctx, q, text, sleep, pv['model'])
+            rec = {'ok': ok, 'agent': got, 'chars': len(ans), 'took_ms': ms}
+            if ok and _base(got) != pv['provider']:
+                rec.update(ok=False, score=None, misrouted=True, note='misrouted: answered by another agent')
+            elif not ok:
+                rec.update(score=None, note='no answer from the layer' + (' (HTTP %s)' % code if code > 0 else ''))
+            else:
+                rec['score'], rec['note'] = score_answer(q, ok, ans)
+            if keep and ok and not rec.get('misrouted'):
+                rec['answer'] = ans
+            results.setdefault(agent, {})[q] = rec
+            log('trust: ai=%s q=%s ok=%s answered_by=%s chars=%d score=%s%s' % (pv['provider'], q, ok, got or '-', len(ans), rec['score'] if 'score' in rec else None,
+                                                                          ' MISROUTED' if rec.get('misrouted') else ''))
+            refused = refused + 1 if code == 429 else 0
+            if code == 404:
+                skipped.append(pv['provider']); log('trust: %s has no live agent for its model, skipping it' % pv['provider']); break
+            if halt:
+                stop = True; break
+            if refused >= 3:
+                stop = True; log('trust: the layer keeps refusing (rate limit), stopping politely with a partial result'); break
+        if stop:
+            break
     if stop and not results:
         log('trust: stopped before any question'); return False
-    summ = summarise(results)
+    summ = summarise_all(results)
     if stop:
         summ['stopped_early'] = True
-    answered = sum(1 for r in results.values() if r['ok'])
-    _save(os.path.join(ctx.data_dir, 'trust_runs', month + '.json'), {'month': month, 'dry': ctx.dry, 'finished': now.isoformat(), 'agents_seen': sorted({r['agent'] for r in results.values() if r['agent']}),
-          'results': results, 'summary': summ})
-    log('trust: %d/%d answered, score %s, scored %d, unscored %d' % (answered, len(results), summ['test'], summ['scored'], summ['unscored']))
+    if skipped:
+        summ['skipped'] = skipped
+    answered = sum(1 for qs in results.values() for r in qs.values() if r['ok'])
+    total = sum(len(qs) for qs in results.values())
+    _save(os.path.join(ctx.data_dir, 'trust_runs', month + '.json'), {'month': month, 'format': 2, 'dry': ctx.dry, 'finished': now.isoformat(),
+          'agents_seen': sorted(a for a, qs in results.items() if any(r['ok'] for r in qs.values())), 'results': results, 'summary': summ})
+    log('trust: %d/%d answered, best score %s, scored %d, unscored %d, %d AIs' % (answered, total, summ['test'], summ['scored'], summ['unscored'], len(results)))
     if answered == 0 or stop:
         return False                    # try again at the next trigger; nothing marked done
     st = {'month': month, 'done': True, 'todo_added': False, 'summary': summ}

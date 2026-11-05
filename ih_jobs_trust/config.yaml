@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - AI Trust Test"
-version: "0.1.10"
+version: "0.1.11"
 slug: ih_jobs_trust
 image: "ghcr.io/jarvichi/{arch}-ih_jobs_trust"
 description: "Child of Intelligent Home - Jobs. Monthly test of the outside AIs through the AI layer (fixed non-private questions, scored), then a review to-do. Shadow (dry) by default. Registers with the parent."
@@ -34,6 +34,8 @@ options:
   run_hour: "3"
   todo_entity: "todo.claude_to_do"
   pause_s: "4"
+  providers: ""
+  exclude: "openai"
   keep_answers: false
   timezone: "Europe/London"
 schema:
@@ -49,5 +51,7 @@ schema:
   run_hour: str
   todo_entity: str
   pause_s: str
+  providers: str?
+  exclude: str?
   keep_answers: bool
   timezone: str

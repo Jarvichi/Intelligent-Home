@@ -11,6 +11,8 @@
   "run_hour": "3",
   "todo_entity": "todo.claude_to_do",
   "pause_s": "4",
+  "providers": "",
+  "exclude": "openai",
   "keep_answers": false,
   "timezone": "Europe/London"
 }

@@ -54,5 +54,14 @@ Only fixed, non-private test questions are sent, through the AI layer to the out
 ### Shadow (dry) and live
 Default `mode: dry` (shadow): it asks the layer, scores and records, but adds **no** to-do (logs "[DRY] would add to-do"). Live needs `mode: live`, `old_loops_disabled: true` (stop the tmux `trustmo` loop) and no `/data/STOP_LIVE`. If you run dry first and go live later in the same month, the to-do is added from the stored result without asking the AIs again. A `/data/STOP` file stops the job at once.
 
-### Per-agent testing: needs a layer change (not made here)
-The layer chooses the agent itself (best score for the capability) and accepts no way to name one. So this version tests whichever agent the layer picks for `general_qa`, and the run file lists the agents seen. To test every agent each month, the layer needs an optional request field **`prefer_agent`**. Small change in `addon_ai_layer/app/ailayer.py`, `request()`: read `pa = obj.get('prefer_agent')` (validate with `NAME_RE`; a bad value gives 400) and, after `order = self.ranked(cap)`, set `order = [pa] if pa in order else []` (no fallback to another agent, so the test measures that agent); when the list is empty return "No agent ...". Then this job would loop over `/agents` names that have `general_qa`.
+### Every AI gets the same questions
+Each month the test asks the AI Layer which chat AIs are ready (its `/status` list: able to answer general questions, not in test mode, not switched off, set up). It then sends the same 8 questions to each AI, one AI at a time, and forces the AI by its model name (the layer's `model` field, so there is no fallback to another AI). If a different AI answers than the one asked, that question is marked `misrouted` and gets no mark. Search and tool providers are never asked.
+
+OpenAI is left out by default because its billing is not known. Eight calls a month is small, but the default stays. To include it, put `openai` in `providers`.
+
+- `providers`: comma list of AI names to test (for example `groq, gemini, openai`). Empty = every ready chat AI. A name in this list is tested even if `exclude` names it.
+- `exclude`: comma list of AI names to skip when `providers` is empty. Default `openai`. Use `none` to skip nothing.
+
+The run waits `pause_s` seconds between calls and retries once after a rate-limit answer. If the layer keeps refusing (3 in a row), the run stops and keeps what it has (marked "stopped early"). A bad token or a stopped layer ends the run at once. An AI the layer cannot serve is skipped.
+
+Scores are 0-100 per AI with the same marking as the old script. A question with no usable answer (error, misroute) gets no mark and is not counted as zero. Run files (`trust_runs/<month>.json`, `format` 2) hold `results[ai][question]`; files from before (one AI per question) are still read. Question and answer text is never logged.

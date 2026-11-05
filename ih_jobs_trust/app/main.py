@@ -10,4 +10,4 @@ SPEC = dict(job='trust', source='ih_jobs_trust', slug='ih_jobs_trust', title='In
 
 if __name__ == '__main__':
     jobs_child.main(SPEC, extra_str=[('ai_layer_url', 'http://172.30.32.1:8801'), ('ai_layer_token', ''), ('run_hour', '3'), ('todo_entity', 'todo.claude_to_do'),
-                                     ('pause_s', '4'), ('timezone', 'Europe/London')], extra_bool=[('keep_answers', False)])
+                                     ('pause_s', '4'), ('providers', ''), ('exclude', 'openai'), ('timezone', 'Europe/London')], extra_bool=[('keep_answers', False)])
