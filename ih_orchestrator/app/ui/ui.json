@@ -1,16 +1,13 @@
 {
   "title": "Intelligent Home",
-  "purpose": "Operate and inspect the add-on system, jobs, health, traces, settings, and usage.",
+  "purpose": "Operate and inspect the add-on system: what matters now, add-ons, jobs, requests and health.",
   "navigation": [
-    "Overview",
+    "Today",
     "Add-ons",
-    "Open UI for each installed add-on",
-    "Health",
     "Jobs",
-    "Traces",
-    "Settings",
-    "Usage",
-    "Install"
+    "Requests",
+    "Health",
+    "Open page for each installed add-on"
   ],
   "access": "Supervisor-gateway-only authenticated ingress"
 }
