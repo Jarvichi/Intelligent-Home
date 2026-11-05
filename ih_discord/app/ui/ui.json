@@ -9,5 +9,6 @@
     "module connectivity",
     "message routing"
   ],
-  "access": "Home Assistant authenticated ingress only"
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
 }

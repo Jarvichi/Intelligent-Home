@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.33] - 2026-11-05
+
+### Changed
+- Ingress status page now uses the shared Games-style layout (page heading with service health, status and capabilities cards, collapsible About).
+
 ## [0.1.32] - 2026-11-04
 - Send a visible acknowledgement before starting normal prompts or `/code` work, and a delayed progress note if a turn lasts over a minute.
 - Report safe failure categories and clear `/status` guidance when a turn or reply needs review.

@@ -9,5 +9,6 @@
     "review flow",
     "module health"
   ],
-  "access": "Home Assistant authenticated ingress only"
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
 }

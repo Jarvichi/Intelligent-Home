@@ -9,5 +9,6 @@
     "capability endpoint",
     "request service"
   ],
-  "access": "Home Assistant authenticated ingress only"
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
 }
