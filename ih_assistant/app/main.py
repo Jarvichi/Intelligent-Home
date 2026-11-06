@@ -1134,8 +1134,7 @@ class Assistant:
         err, srv, href, etag, ics, was = self._cal_target(key, body)
         if err:
             return err
-        names = {caldavmod.prop_name(l) for l in caldavmod.unfold(ics)}
-        if names & {'RRULE', 'RECURRENCE-ID', 'RDATE'}:
+        if caldavmod.is_recurring(ics):
             return 400, {'ok': False, 'why': 'recurring event: delete it in the calendar app'}
         st = self.stores[key]
         if not self.is_live(key):

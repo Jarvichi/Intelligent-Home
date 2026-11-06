@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.1] - 2026-11-06
+
+### Fixed
+- Calendar edit and delete against real iCloud: finding an event no longer uses a UID search (iCloud refuses it with 412); it opens the event file by its UID and, if that fails, scans a wide date range. XML requests use `text/xml`. Time-zone blocks inside an event file (they contain RRULE/RDATE lines) no longer make the event look recurring. Tested live: create, edit and delete of a throwaway event.
+
 ## [0.11.0] - 2026-11-06
 
 ### Added
