@@ -15,6 +15,7 @@ from ihlib import ha as ihha
 from ihlib import trace as ihtrace
 import planner
 import levels
+import caldav as caldavmod
 import random
 
 VERSION = '0.9.3'
@@ -141,7 +142,7 @@ def load_options(path):
     return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
-            'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
+            'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
             'personas': personas}, problems
 
 
@@ -153,9 +154,11 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None, caldav_factory=None):
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
         self.data_dir = data_dir
+        self._caldav = None
+        self.caldav_factory = caldav_factory
         self.gif_opener = gif_opener   # urlopen-like for GIPHY (tests inject a fake)
         self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
@@ -1004,7 +1007,8 @@ class Assistant:
                     allday = 'date' in s and 'dateTime' not in s
                     out.append({'calendar': ent, 'summary': str(ev.get('summary') or '')[:200], 'all_day': allday,
                                 'start': s.get('dateTime') or s.get('date') or '', 'end': e.get('dateTime') or e.get('date') or '',
-                                'location': str(ev.get('location') or '')[:200]})
+                                'location': str(ev.get('location') or '')[:200], 'uid': str(ev.get('uid') or '')[:120],
+                                'recurring': bool(ev.get('rrule') or ev.get('recurrence_id'))})
             except Exception as ex:
                 bad.append(ent); self.log('persona %s: calendar %s unreadable (%s)' % (key, ent, type(ex).__name__))
         out.sort(key=lambda x: x['start'])
@@ -1051,6 +1055,100 @@ class Assistant:
         st.log_outbox({'kind': 'calendar_add', 'calendar': cal, 'chars': len(summ), 'mode': 'live', 'ok': True})
         self.log('persona %s: event added to %s' % (key, cal))
         return 200, {'ok': True, 'added': True, 'dry': False, 'calendar': cal, 'start': data.get('start_date_time') or data.get('start_date')}
+
+    # ---- calendar edit and delete (0.11.0, CalDAV) ----
+    def cal_server(self):
+        if self._caldav is None:
+            o = self.opts
+            if not (o.get('caldav_user') and o.get('caldav_password')):
+                return None
+            self._caldav = (self.caldav_factory or caldavmod.CalDAV)(o['caldav_user'], o['caldav_password'], o.get('caldav_url') or 'https://caldav.icloud.com')
+        return self._caldav
+
+    def _cal_target(self, key, body):
+        """Shared checks for edit and delete. -> (error tuple | None, server, href, etag, ics, summary)."""
+        cal, uid = str(body.get('calendar') or ''), str(body.get('uid') or '').strip()
+        if cal not in self.cfg[key].get('calendar_write', []):
+            return (403, {'ok': False, 'why': 'this persona may not change %s' % (cal or 'that calendar')}), None, None, None, None, None
+        if not re.fullmatch(r'[A-Za-z0-9@._\-]{4,120}', uid):
+            return (400, {'ok': False, 'why': 'uid required (from the calendar listing)'}), None, None, None, None, None
+        srv = self.cal_server()
+        if srv is None:
+            return (503, {'ok': False, 'why': 'no calendar login is set (caldav_user / caldav_password)'}), None, None, None, None, None
+        try:
+            href, etag, ics = srv.find(cal, uid)
+        except caldavmod.CalDAVError as e:
+            return (404, {'ok': False, 'why': str(e)}), None, None, None, None, None
+        summ = caldavmod.ics_unescape(caldavmod.ics_prop(ics, 'SUMMARY'))
+        want = re.sub(r'\s+', ' ', str(body.get('summary_was') or '')).strip().lower()
+        if not want or want != re.sub(r'\s+', ' ', summ).strip().lower():
+            return (409, {'ok': False, 'why': 'name the event exactly as it is now in summary_was', 'current': summ[:200]}), None, None, None, None, None
+        return None, srv, href, etag, ics, summ
+
+    def _local_to_utc(self, text):
+        t = datetime.datetime.strptime(text, '%Y-%m-%d %H:%M')
+        if self.tz:
+            t = t.replace(tzinfo=self.tz)
+        else:
+            t = t.replace(tzinfo=datetime.timezone.utc)
+        return t.astimezone(datetime.timezone.utc)
+
+    def calendar_edit(self, key, body):
+        """Change ONE non-recurring event. body: calendar, uid, summary_was (its current title, must match), and any of summary, start, end, location, description.
+        start / end are 'YYYY-MM-DD' (all day) or 'YYYY-MM-DD HH:MM' local. -> (code, body)."""
+        err, srv, href, etag, ics, was = self._cal_target(key, body)
+        if err:
+            return err
+        ch = {}
+        try:
+            for f in ('summary', 'location', 'description'):
+                if f in body:
+                    ch[f] = str(body[f])[:500]
+            for f, k in (('start', 'dtstart'), ('end', 'dtend')):
+                v = str(body.get(f) or '').strip()
+                if not v:
+                    continue
+                ch[k] = ('date', datetime.date.fromisoformat(v)) if re.fullmatch(r'\d{4}-\d\d-\d\d', v) else ('utc', self._local_to_utc(v))
+            if not ch:
+                return 400, {'ok': False, 'why': 'nothing to change'}
+            if 'dtstart' in ch and 'dtend' not in ch:
+                return 400, {'ok': False, 'why': 'give end together with start'}
+            new = caldavmod.edit_ics(ics, ch, self.now())
+        except (ValueError, caldavmod.CalDAVError) as e:
+            return 400, {'ok': False, 'why': str(e) if isinstance(e, caldavmod.CalDAVError) else 'start and end are YYYY-MM-DD or YYYY-MM-DD HH:MM'}
+        st = self.stores[key]
+        if not self.is_live(key):
+            st.log_outbox({'kind': 'calendar_edit', 'calendar': body['calendar'], 'mode': 'dry'})
+            return 200, {'ok': True, 'changed': False, 'dry': True}
+        try:
+            srv.put(href, new, etag)
+        except caldavmod.CalDAVError as e:
+            self.log('persona %s: calendar edit failed (%s)' % (key, e))
+            return 502, {'ok': False, 'why': 'calendar server refused (%s)' % e}
+        st.log_outbox({'kind': 'calendar_edit', 'calendar': body['calendar'], 'fields': sorted(ch), 'mode': 'live', 'ok': True})
+        self.log('persona %s: event changed in %s (%s)' % (key, body['calendar'], ','.join(sorted(ch))))
+        return 200, {'ok': True, 'changed': True, 'dry': False, 'fields': sorted(ch)}
+
+    def calendar_delete(self, key, body):
+        """Delete ONE non-recurring event. summary_was must match its current title. Not undoable. -> (code, body)."""
+        err, srv, href, etag, ics, was = self._cal_target(key, body)
+        if err:
+            return err
+        names = {caldavmod.prop_name(l) for l in caldavmod.unfold(ics)}
+        if names & {'RRULE', 'RECURRENCE-ID', 'RDATE'}:
+            return 400, {'ok': False, 'why': 'recurring event: delete it in the calendar app'}
+        st = self.stores[key]
+        if not self.is_live(key):
+            st.log_outbox({'kind': 'calendar_delete', 'calendar': body['calendar'], 'mode': 'dry'})
+            return 200, {'ok': True, 'deleted': False, 'dry': True}
+        try:
+            srv.delete(href, etag)
+        except caldavmod.CalDAVError as e:
+            self.log('persona %s: calendar delete failed (%s)' % (key, e))
+            return 502, {'ok': False, 'why': 'calendar server refused (%s)' % e}
+        st.log_outbox({'kind': 'calendar_delete', 'calendar': body['calendar'], 'chars': len(was), 'mode': 'live', 'ok': True})
+        self.log('persona %s: event deleted from %s' % (key, body['calendar']))
+        return 200, {'ok': True, 'deleted': True, 'dry': False}
 
     def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""
@@ -1421,6 +1519,10 @@ def make_handler(app):
                 return self._send(*app.complete_message(key, body))
             if act == 'calendar' and len(parts) == 4 and parts[3] == 'add':
                 return self._send(*app.calendar_add(key, body))
+            if act == 'calendar' and len(parts) == 4 and parts[3] == 'edit':
+                return self._send(*app.calendar_edit(key, body))
+            if act == 'calendar' and len(parts) == 4 and parts[3] == 'delete':
+                return self._send(*app.calendar_delete(key, body))
             if act == 'typing' and len(parts) == 3:
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:
@@ -1465,7 +1567,7 @@ def worker(app, key):
 
 def main():
     opts, problems = load_options(os.environ.get('IHP_OPTIONS', '/data/options.json'))
-    secrets = [opts['api_token'], opts['facts_key'], opts.get('giphy_api_key', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
+    secrets = [opts['api_token'], opts['facts_key'], opts.get('giphy_api_key', ''), opts.get('caldav_password', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
     lg = logging.getLogger('ih_assistant'); lg.setLevel(logging.INFO)
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     log = ihlog.Logger(lg.info, [s for s in secrets if len(s) >= 4])

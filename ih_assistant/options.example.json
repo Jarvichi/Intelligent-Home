@@ -7,6 +7,9 @@
   "trace_url": "",
   "ingest_token": "",
   "giphy_api_key": "",
+  "caldav_url": "https://caldav.icloud.com",
+  "caldav_user": "",
+  "caldav_password": "",
   "gif_gap_minutes": 10,
   "personas": [
     {
