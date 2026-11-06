@@ -37,6 +37,7 @@
       "min_gap_h": 3,
       "calendars": [],
       "calendar_read": [],
+      "location_entities": [],
       "calendar_write": [],
       "meal_plan_entity": "",
       "meal_fact": "",

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.12] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.12.0: the personas can see where their person is and who is home.
+
 ## [0.11.11] - 2026-11-06
 
 ### Changed

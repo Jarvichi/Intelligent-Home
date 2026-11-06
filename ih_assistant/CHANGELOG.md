@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.12.0] - 2026-11-06
+
+### Added
+- Location awareness for the personas: `GET /persona/<key>/where` and a per-persona option `location_entities`. Returns where this person is (GPS with place and distance from home when available, otherwise the home/away switch as the fallback; a disagreement between signals is flagged), who else is home (home or away only), and the person's calendar events around now with their location text so the two can be cross-checked.
+
 ## [0.11.1] - 2026-11-06
 
 ### Fixed
