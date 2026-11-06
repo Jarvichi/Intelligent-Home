@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.13.0] - 2026-11-06
+
+### Added
+- Dated reminders (birthdays and similar) inside the add-on. Per persona options `dates`, `dates_leads`, `dates_at`, `dates_latest`. Once a day in the window it queues one `reminder_due` event (source `dates`) and the persona writes the message itself. Replaces the host script that did this.
+
+### Changed
+- Compiled Python files (`__pycache__`) are no longer tracked in git (they had been added by mistake in earlier releases).
+
 ## [0.12.1] - 2026-11-06
 
 ### Fixed
