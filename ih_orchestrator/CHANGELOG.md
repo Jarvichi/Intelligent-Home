@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.13] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.12.1: replies no longer use up the check-in allowance.
+
 ## [0.11.12] - 2026-11-06
 
 ### Changed

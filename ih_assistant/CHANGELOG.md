@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.12.1] - 2026-11-06
+
+### Fixed
+- Replies to the person's own messages no longer use up the daily check-in allowance (`max_per_day`). On a chatty day every planned check-in was skipped with "max per day". Only check-ins count now.
+
 ## [0.12.0] - 2026-11-06
 
 ### Added

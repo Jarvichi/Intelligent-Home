@@ -250,6 +250,12 @@ class Assistant:
         o = self.stores[key].state().get('out', {})
         return (int(o.get('reply', 0)) + int(o.get('checkin', 0))) if o.get('day') == self._day() else 0
 
+    def checkins_today(self, key):
+        """0.12.1: check-ins started today. Replies to the person's own messages do NOT count against the check-in allowance
+        (a chatty day used to block every check-in)."""
+        o = self.stores[key].state().get('out', {})
+        return int(o.get('checkin', 0)) if o.get('day') == self._day() else 0
+
     # ---- scheduled work ----
     def tick_poll(self, key):
         """Fetch new private messages of the person into the persona's inbox. -> number added."""
@@ -457,7 +463,7 @@ class Assistant:
                 continue
             if delta > CHECKIN_WINDOW_MIN:
                 st.update_state(lambda s, t=t: done_for(s).append(t)); continue   # missed (add-on was off): drop, never fire late
-            skip = in_quiet(nm, c['quiet_start'], c['quiet_end']) or self.out_today(key) >= self.checkin_cap(key)
+            skip = in_quiet(nm, c['quiet_start'], c['quiet_end']) or self.checkins_today(key) >= self.checkin_cap(key)
             st.update_state(lambda s, t=t: done_for(s).append(t))
             if skip:
                 continue
@@ -643,7 +649,7 @@ class Assistant:
         c = self.cfg[key]
         if in_quiet(nm, c['quiet_start'], c['quiet_end']):
             return 'quiet hours'
-        if self.out_today(key) >= self.checkin_cap(key):
+        if self.checkins_today(key) >= self.checkin_cap(key):
             return 'max per day'
         age = self.minutes_since_message(key)
         if age is not None and age < c['quiet_if_messaged_h'] * 60:
