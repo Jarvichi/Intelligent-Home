@@ -5,7 +5,7 @@ import caldav as C
 from store import PersonaStore
 from main import Assistant
 
-ICS = ('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ABC-123\r\nSUMMARY:Vet\\, Nacho\r\n'
+ICS = ('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ABC-123\r\nSUMMARY:Vet\\, Rex\r\n'
        'DTSTART;TZID=Europe/London:20261107T150000\r\nDTEND;TZID=Europe/London:20261107T160000\r\nSEQUENCE:2\r\n'
        'DESCRIPTION:long line that is\r\n  folded\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
 NOW = datetime.datetime(2026, 11, 6, 9, 0, tzinfo=datetime.timezone.utc)
@@ -13,9 +13,9 @@ NOW = datetime.datetime(2026, 11, 6, 9, 0, tzinfo=datetime.timezone.utc)
 
 class IcsTests(unittest.TestCase):
     def test_edit_title_and_time(self):
-        out = C.edit_ics(ICS, {'summary': 'Vet; Nacho, jab', 'dtstart': ('utc', datetime.datetime(2026, 11, 7, 16, 0, tzinfo=datetime.timezone.utc)),
+        out = C.edit_ics(ICS, {'summary': 'Vet; Rex, jab', 'dtstart': ('utc', datetime.datetime(2026, 11, 7, 16, 0, tzinfo=datetime.timezone.utc)),
                                'dtend': ('utc', datetime.datetime(2026, 11, 7, 17, 0, tzinfo=datetime.timezone.utc))}, NOW)
-        self.assertIn('SUMMARY:Vet\; Nacho\\, jab', out)
+        self.assertIn('SUMMARY:Vet\; Rex\\, jab', out)
         self.assertIn('DTSTART:20261107T160000Z', out)
         self.assertNotIn('TZID', out)
         self.assertIn('SEQUENCE:3', out)
@@ -55,7 +55,7 @@ class AssistantTests(unittest.TestCase):
         return a
 
     def body(self, **k):
-        b = {'calendar': 'calendar.mine', 'uid': 'ABC-123', 'summary_was': 'vet, nacho'}; b.update(k); return b
+        b = {'calendar': 'calendar.mine', 'uid': 'ABC-123', 'summary_was': 'vet, rex'}; b.update(k); return b
 
     def test_edit_changes_and_puts_with_etag(self):
         a = self.make()
@@ -68,7 +68,7 @@ class AssistantTests(unittest.TestCase):
     def test_wrong_name_wrong_calendar_and_no_login_are_refused(self):
         a = self.make()
         c, r = a.calendar_edit('aa', self.body(summary_was='Dentist', summary='x'))
-        self.assertEqual((c, r['current']), (409, 'Vet, Nacho'))
+        self.assertEqual((c, r['current']), (409, 'Vet, Rex'))
         self.assertEqual(a.calendar_delete('aa', self.body(summary_was=''))[0], 409)
         self.assertEqual(a.calendar_delete('aa', self.body(calendar='calendar.fam'))[0], 403)
         self.assertEqual(a.calendar_delete('aa', self.body(uid='nope1'))[0], 404)

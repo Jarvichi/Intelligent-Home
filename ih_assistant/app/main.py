@@ -16,6 +16,7 @@ from ihlib import trace as ihtrace
 import planner
 import levels
 import caldav as caldavmod
+import dates as datesmod
 import random
 
 VERSION = '0.9.3'
@@ -58,7 +59,7 @@ ASK_KEEP_S = 86400
 ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
-PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'dates': [], 'dates_leads': '7,3', 'dates_at': '18:00', 'dates_latest': '21:30', 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
                  'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
                  'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': ''}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
@@ -126,7 +127,7 @@ def load_options(path):
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
-            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'location_entities': ents(p.get('location_entities')), 'calendar_write': ents(p.get('calendar_write')),
+            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'dates': [str(x)[:120] for x in (p.get('dates') or []) if isinstance(x, str)][:300] if isinstance(p.get('dates'), list) else [], 'dates_leads': str(p.get('dates_leads') or '7,3')[:20], 'dates_at': hhmm(p.get('dates_at'), '18:00'), 'dates_latest': hhmm(p.get('dates_latest'), '21:30'), 'location_entities': ents(p.get('location_entities')), 'calendar_write': ents(p.get('calendar_write')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
@@ -255,6 +256,27 @@ class Assistant:
         (a chatty day used to block every check-in)."""
         o = self.stores[key].state().get('out', {})
         return int(o.get('checkin', 0)) if o.get('day') == self._day() else 0
+
+    def tick_dates(self, key):
+        """0.13.0: hand the persona a reminder_due event for birthdays and other dates, once per day, between dates_at and dates_latest.
+        The persona writes the message itself. -> True if an event was queued."""
+        c, st, now = self.cfg[key], self.stores[key], self.now()
+        if not c['dates']:
+            return False
+        nm = now.hour * 60 + now.minute
+        if not (to_min(c['dates_at']) <= nm <= to_min(c['dates_latest'])) or in_quiet(nm, c['quiet_start'], c['quiet_end']):
+            return False
+        day = now.strftime('%Y-%m-%d')
+        if st.state().get('dates_done') == day:
+            return False
+        st.update_state(lambda s: s.__setitem__('dates_done', day))   # mark first: never twice, even if the hand-over below fails
+        r = datesmod.due(now.date(), datesmod.parse(c['dates']), datesmod.leads(c['dates_leads']))
+        if not r:
+            return False
+        self.maybe_intro(key)
+        st.append_event({'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]})
+        self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
+        return True
 
     # ---- scheduled work ----
     def tick_poll(self, key):
@@ -798,6 +820,10 @@ class Assistant:
                 fn(key)
             except DiscordError as e:
                 self.log('persona %s: %s failed (%s)' % (key, fn.__name__, e))
+        try:
+            self.tick_dates(key)
+        except Exception as e:
+            self.log('persona %s: dates failed (%s)' % (key, type(e).__name__))
         try:
             f = len(self.tick_checkins(key))
         except StoreError as e:

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.14] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.13.0: dated reminders inside the add-on.
+
 ## [0.11.13] - 2026-11-06
 
 ### Changed

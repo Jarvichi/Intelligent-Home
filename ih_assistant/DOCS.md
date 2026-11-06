@@ -102,6 +102,8 @@ If Home Assistant was down when the day's plan was made, the add-on retries ever
 
 **Where everyone is (0.12.0).** `GET /persona/<key>/where` (read only). Per persona option `location_entities`: entity ids that tell where THIS person is (a `person.*` or `device_tracker.*` with a GPS position, and/or a home/away switch such as `switch.x_home`); `presence_entity` is used too. The best signal is GPS (state, named place, distance from home in km, accuracy), with the home/away switch as the fallback; all signals are returned and a disagreement is flagged. The answer also has `household` (everyone else: home or away only, nothing more) and `calendar_now` (timed events from the persona's readable calendars from 30 minutes ago to 3 hours ahead, with their location text) so the persona can check the two against each other.
 
+**Dated reminders (0.13.0).** Per persona: `dates` (lines `YYYY-MM-DD|Name|family` for a birth date, so the age is shown, or `MM-DD|Name|other`), `dates_leads` (days before, default `7,3`), `dates_at` / `dates_latest` (window, default 18:00 to 21:30). Once a day inside the window the add-on queues one `reminder_due` event (source `dates`) with the facts and a suggested text; the persona writes the message in its own voice. Quiet hours are respected, and a day is marked done before the event is queued, so it never repeats.
+
 Calendars, the meal sensor and the presence entity are read from Home Assistant (`homeassistant_api` is on). If Home Assistant cannot be reached the plan is still made, without calendars, and the log names the error type.
 
 **Not ported from the host script:** the game follow-up question after a gaming session. The Games add-on sends `game_session` events to the persona instead.
