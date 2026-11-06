@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.0] - 2026-11-06
+
+### Added
+- Calendar edit and delete through CalDAV (iCloud), because Home Assistant can only create events there. New options `caldav_user`, `caldav_password`, `caldav_url`. New calls `POST /persona/<key>/calendar/edit` and `/calendar/delete`; the caller must give the event's current title (`summary_was`) or the call is refused. Only calendars in the persona's own `calendar_write` list; non-recurring events only; dry mode changes nothing. The calendar listing now includes each event's `uid` and `recurring` flag.
+
 ## [0.10.0] - 2026-11-06
 
 ### Added

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.10] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.11.0: calendar edit and delete (CalDAV).
+
 ## [0.11.9] - 2026-11-06
 
 ### Changed
