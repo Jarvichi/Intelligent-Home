@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.11] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.11.1: calendar edit and delete fixed for real iCloud.
+
 ## [0.11.10] - 2026-11-06
 
 ### Changed

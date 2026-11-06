@@ -48,17 +48,32 @@ def prop_name(line):
     return re.split(r'[;:]', line, 1)[0].upper()
 
 
+def vevent_lines(lines):
+    """The lines of the first VEVENT (VTIMEZONE blocks carry RRULE/RDATE lines that must not count)."""
+    b = next((i for i, l in enumerate(lines) if l.upper() == 'BEGIN:VEVENT'), None)
+    if b is None:
+        raise CalDAVError('not a single event')
+    e = next((i for i in range(b, len(lines)) if lines[i].upper() == 'END:VEVENT'), None)
+    if e is None:
+        raise CalDAVError('not a single event')
+    return b, e
+
+
+def is_recurring(ics):
+    lines = unfold(ics)
+    b, e = vevent_lines(lines)
+    return bool({prop_name(l) for l in lines[b + 1:e]} & {'RRULE', 'RECURRENCE-ID', 'RDATE', 'EXDATE'})
+
+
 def edit_ics(ics, changes, now=None):
     """changes: dict of summary / location / description (text) and start / end ('YYYY-MM-DD' all day, or an aware UTC datetime pair in
     'dtstart' / 'dtend' as ('date', date) or ('utc', datetime)). Returns new ICS text. Raises CalDAVError for recurring or multi-event files."""
     lines = unfold(ics)
-    if sum(1 for l in lines if l.upper() == 'BEGIN:VEVENT') != 1:
+    if sum(1 for l in lines if l.upper() == 'BEGIN:VEVENT') != 1:   # one event per file
         raise CalDAVError('not a single event')
-    names = {prop_name(l) for l in lines}
-    if 'RRULE' in names or 'RECURRENCE-ID' in names or 'RDATE' in names:
+    if is_recurring(ics):
         raise CalDAVError('recurring event: change it in the calendar app')
-    b = next(i for i, l in enumerate(lines) if l.upper() == 'BEGIN:VEVENT')
-    e = next(i for i, l in enumerate(lines) if l.upper() == 'END:VEVENT')
+    b, e = vevent_lines(lines)
     head, ev, tail = lines[:b + 1], lines[b + 1:e], lines[e:]
     now = now or datetime.datetime.now(datetime.timezone.utc)
 
@@ -121,7 +136,7 @@ class CalDAV:
         raise CalDAVError('too many redirects')
 
     def _xml(self, method, url, body, depth):
-        st, _, raw = self._req(method, url, body, {'Content-Type': 'application/xml; charset=utf-8', 'Depth': str(depth)})
+        st, _, raw = self._req(method, url, body, {'Content-Type': 'text/xml; charset=utf-8', 'Depth': str(depth)})
         try:
             return ET.fromstring(raw)
         except ET.ParseError:
@@ -163,14 +178,27 @@ class CalDAV:
         url = cals.get(entity.split('.', 1)[-1])
         if not url:
             raise CalDAVError('calendar not found on the server: %s' % entity)
+        uid = re.sub(r'[^A-Za-z0-9@._\-]', '', uid)
+        # 1) the usual case: the file is named after the UID (iCloud answers a UID text-match query with 412, so do not use one)
+        try:
+            href = urllib.parse.urljoin(url, urllib.parse.quote(uid) + '.ics')
+            st, hd, raw = self._req('GET', href)
+            ics = raw.decode('utf-8', 'replace')
+            if ics_prop(ics, 'UID') == uid:
+                et = {k.lower(): v for k, v in hd.items()}.get('etag', '')
+                return href, et, ics
+        except CalDAVError:
+            pass
+        # 2) otherwise scan a wide time range and match the UID inside each event
+        now = datetime.datetime.now(datetime.timezone.utc)
+        t0, t1 = (now - datetime.timedelta(days=400)).strftime('%Y%m%dT000000Z'), (now + datetime.timedelta(days=800)).strftime('%Y%m%dT000000Z')
         q = ('<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>'
-             '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:prop-filter name="UID"><c:text-match collation="i;octet">%s</c:text-match>'
-             '</c:prop-filter></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>') % re.sub(r'[<>&"]', '', uid)
+             '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="%s" end="%s"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>') % (t0, t1)
         x = self._xml('REPORT', url, q, 1)
         found = []
         for r in x.findall('d:response', NS):
             d, et, h = r.find('.//c:calendar-data', NS), r.find('.//d:getetag', NS), r.find('d:href', NS)
-            if d is not None and d.text and h is not None:
+            if d is not None and d.text and h is not None and ics_prop(d.text, 'UID') == uid:
                 found.append((urllib.parse.urljoin(url, h.text), (et.text if et is not None else '') or '', d.text))
         if len(found) != 1:
             raise CalDAVError('event not found' if not found else 'more than one event with that id')

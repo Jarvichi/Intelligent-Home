@@ -95,3 +95,15 @@ class AssistantTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TimezoneBlockTests(unittest.TestCase):
+    TZ = ('BEGIN:VTIMEZONE\r\nTZID:Europe/London\r\nBEGIN:DAYLIGHT\r\nDTSTART:19700329T010000\r\nRRULE:FREQ=YEARLY;BYMONTH=3\r\nRDATE:19810329T010000\r\n'
+          'TZOFFSETFROM:+0000\r\nTZOFFSETTO:+0100\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n')
+
+    def test_rrule_inside_vtimezone_does_not_make_an_event_recurring(self):
+        ics = ICS.replace('BEGIN:VEVENT', self.TZ + 'BEGIN:VEVENT', 1)
+        self.assertFalse(C.is_recurring(ics))
+        out = C.edit_ics(ics, {'summary': 'x'}, NOW)
+        self.assertIn('BEGIN:VTIMEZONE', out); self.assertIn('SUMMARY:x', out)
+        self.assertTrue(C.is_recurring(ICS.replace('SEQUENCE:2', 'EXDATE:20261201T000000Z')))
