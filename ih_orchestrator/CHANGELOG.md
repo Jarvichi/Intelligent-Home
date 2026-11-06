@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.9] - 2026-11-06
+
+### Changed
+- Catalogue: Assistant (`ih_assistant`) 0.10.0: calendar read and add for the personas.
+
 ## [0.11.8] - 2026-11-05
 
 ### Changed
