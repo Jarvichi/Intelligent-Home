@@ -58,7 +58,7 @@ ASK_KEEP_S = 86400
 ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
-PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
                  'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
                  'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': ''}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
@@ -126,7 +126,7 @@ def load_options(path):
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
-            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'calendar_write': ents(p.get('calendar_write')),
+            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'location_entities': ents(p.get('location_entities')), 'calendar_write': ents(p.get('calendar_write')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
@@ -1149,6 +1149,77 @@ class Assistant:
         self.log('persona %s: event deleted from %s' % (key, body['calendar']))
         return 200, {'ok': True, 'deleted': True, 'dry': False}
 
+    # ---- where is everyone (0.12.0) ----
+    @staticmethod
+    def _haversine_km(a, b):
+        import math
+        la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+        h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+        return 6371.0 * 2 * math.asin(math.sqrt(h))
+
+    def _loc_signals(self, key, home_ll):
+        """Signals for ONE person, best first: GPS (person / device_tracker with a position) before plain home/away switches."""
+        c, out = self.cfg[key], []
+        ents = list(c.get('location_entities') or []) + ([c['presence_entity']] if c.get('presence_entity') else [])
+        for ent in dict.fromkeys(ents):
+            try:
+                s = self.ha.get('states/' + ent) or {}
+            except Exception:
+                continue
+            st, a = s.get('state'), s.get('attributes') or {}
+            if st in (None, 'unknown', 'unavailable'):
+                continue
+            gps = ent.split('.')[0] in ('person', 'device_tracker') and a.get('latitude') is not None and a.get('longitude') is not None
+            sig = {'entity': ent, 'kind': 'gps' if gps else 'presence', 'home': st in ('home', 'on'), 'state': st, 'since': s.get('last_changed')}
+            if gps:
+                if st not in ('home', 'not_home'):
+                    sig['place'] = st
+                if home_ll:
+                    sig['distance_km'] = round(self._haversine_km(home_ll, (float(a['latitude']), float(a['longitude']))), 1)
+                if a.get('gps_accuracy') is not None:
+                    sig['accuracy_m'] = int(float(a['gps_accuracy']))
+            out.append(sig)
+        out.sort(key=lambda x: x['kind'] != 'gps')   # GPS first, then home/away presence as the fallback
+        return out
+
+    def where_view(self, key):
+        """Where this person is (GPS if available, else home/away), who else is home, and what their calendar says about now. Read only.
+        Others' details are limited to home/away. -> (code, body)"""
+        if self.ha is None:
+            return 503, {'ok': False, 'why': 'no Home Assistant access'}
+        home_ll = None
+        try:
+            z = self.ha.get('states/zone.home') or {}
+            home_ll = (float(z['attributes']['latitude']), float(z['attributes']['longitude']))
+        except Exception:
+            pass
+        mine = self._loc_signals(key, home_ll)
+        you = {'known': bool(mine)}
+        if mine:
+            b = mine[0]
+            you.update({'home': b['home'], 'source': b['kind'], 'place': b.get('place'), 'distance_km': b.get('distance_km'), 'since': b.get('since'), 'signals': mine})
+            if len({s['home'] for s in mine}) > 1:
+                you['conflict'] = 'signals disagree: trust GPS if its accuracy is good, otherwise ask'
+        others = []
+        for k in self.cfg:
+            if k == key:
+                continue
+            sig = self._loc_signals(k, home_ll)
+            others.append({'who': self.stores[k].profile().get('person_name') or k, 'home': sig[0]['home'] if sig else None})
+        now_ev = []
+        try:
+            n = self.now()
+            for ent in self.cal_readable(key):
+                for ev in self.ha.calendar_events(ent, n - datetime.timedelta(minutes=30), n + datetime.timedelta(hours=3)) or []:
+                    s = ev.get('start') or {}
+                    if 'dateTime' in s:
+                        now_ev.append({'summary': str(ev.get('summary') or '')[:120], 'location': str(ev.get('location') or '')[:160], 'start': s.get('dateTime')})
+        except Exception as ex:
+            self.log('persona %s: where: calendar unreadable (%s)' % (key, type(ex).__name__))
+        now_ev.sort(key=lambda e: e['start'])
+        return 200, {'ok': True, 'you': you, 'household': others, 'calendar_now': now_ev[:8],
+                     'note': 'Compare the calendar location with where they are; a mismatch is a reason to ask, not to assume. Do not tell anyone else where they are beyond home/away.'}
+
     def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""
         try:
@@ -1494,6 +1565,8 @@ def make_handler(app):
             if method == 'GET' and act == 'calendar' and len(parts) == 3:
                 q = parse_qs(u.query)
                 return self._send(*app.calendar_view(key, (q.get('days') or ['14'])[0], (q.get('start') or [None])[0]))
+            if method == 'GET' and act == 'where' and len(parts) == 3:
+                return self._send(*app.where_view(key))
             if method == 'GET' and act == 'behaviour' and len(parts) == 3:
                 return self._send(200, app.behaviour(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
