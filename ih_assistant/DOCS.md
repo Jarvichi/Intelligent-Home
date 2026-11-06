@@ -96,6 +96,8 @@ Also skipped (random only): the persona sent a reply or question in the last `qu
 
 If Home Assistant was down when the day's plan was made, the add-on retries every minute and, once it answers, rebuilds the plan: only random times still in the future change; agreed times and finished ones stay.
 
+**Calendar access (0.10.0).** Per persona: `calendar_read` (extra calendars it may read; the planning `calendars` are readable too) and `calendar_write` (calendars it may ADD events to; also readable). `GET /persona/<key>/calendar?days=14&start=YYYY-MM-DD` returns the events (soonest first, at most 80, up to 90 days). `POST /persona/<key>/calendar/add` with `{calendar, summary, start, end?, location?, description?}` adds one event: `start` is `YYYY-MM-DD` (all day) or `YYYY-MM-DD HH:MM` in local time; end defaults to one day or one hour. Add only: no edit, no delete. A calendar not in the persona's own `calendar_write` list is refused (403). Dry mode adds nothing. Each add is counted in the outbox (calendar name and title length, not the title).
+
 Calendars, the meal sensor and the presence entity are read from Home Assistant (`homeassistant_api` is on). If Home Assistant cannot be reached the plan is still made, without calendars, and the log names the error type.
 
 **Not ported from the host script:** the game follow-up question after a gaming session. The Games add-on sends `game_session` events to the persona instead.

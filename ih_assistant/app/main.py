@@ -57,7 +57,7 @@ ASK_KEEP_S = 86400
 ASK_MAX = 10
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
-PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'busy_windows': [], 'free_windows': [],
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
                  'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
                  'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': ''}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
@@ -125,7 +125,7 @@ def load_options(path):
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
-            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')),
+            'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'calendar_write': ents(p.get('calendar_write')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
@@ -976,6 +976,82 @@ class Assistant:
         self.gif_cache_save(cache + [item])
         return item
 
+    # ---- calendars (0.10.0): the persona reads and adds events, only in the calendars set for that person ----
+    CAL_MAX_DAYS, CAL_MAX_EVENTS = 90, 80
+
+    def cal_readable(self, key):
+        c = self.cfg[key]
+        return list(dict.fromkeys(c.get('calendars', []) + c.get('calendar_read', []) + c.get('calendar_write', [])))
+
+    def calendar_view(self, key, days=14, start=None):
+        """Events from this persona's calendars, soonest first. -> (code, body). Read only."""
+        if self.ha is None:
+            return 503, {'ok': False, 'why': 'no Home Assistant access'}
+        cals = self.cal_readable(key)
+        if not cals:
+            return 404, {'ok': False, 'why': 'no calendars are set for this persona'}
+        try:
+            days = max(1, min(self.CAL_MAX_DAYS, int(days)))
+            now = self.now()
+            t0 = datetime.datetime.combine(datetime.date.fromisoformat(start), datetime.time(0, 0), tzinfo=now.tzinfo) if start else now.replace(hour=0, minute=0, second=0, microsecond=0)
+        except (ValueError, TypeError):
+            return 400, {'ok': False, 'why': 'days is a number and start is YYYY-MM-DD'}
+        t1, out, bad = t0 + datetime.timedelta(days=days), [], []
+        for ent in cals:
+            try:
+                for ev in self.ha.calendar_events(ent, t0, t1) or []:
+                    s, e = ev.get('start') or {}, ev.get('end') or {}
+                    allday = 'date' in s and 'dateTime' not in s
+                    out.append({'calendar': ent, 'summary': str(ev.get('summary') or '')[:200], 'all_day': allday,
+                                'start': s.get('dateTime') or s.get('date') or '', 'end': e.get('dateTime') or e.get('date') or '',
+                                'location': str(ev.get('location') or '')[:200]})
+            except Exception as ex:
+                bad.append(ent); self.log('persona %s: calendar %s unreadable (%s)' % (key, ent, type(ex).__name__))
+        out.sort(key=lambda x: x['start'])
+        return 200, {'ok': True, 'from': t0.date().isoformat(), 'days': days, 'events': out[:self.CAL_MAX_EVENTS], 'truncated': len(out) > self.CAL_MAX_EVENTS,
+                     'unreadable': bad, 'writable': self.cfg[key].get('calendar_write', [])}
+
+    def calendar_add(self, key, body):
+        """Add ONE event to a calendar in this persona's calendar_write list. Add only: no edit, no delete. -> (code, body)."""
+        cal, summ = str(body.get('calendar') or ''), re.sub(r'\s+', ' ', str(body.get('summary') or '')).strip()
+        if cal not in self.cfg[key].get('calendar_write', []):
+            return 403, {'ok': False, 'why': 'this persona may not add to %s' % (cal or 'that calendar'), 'writable': self.cfg[key].get('calendar_write', [])}
+        if not summ or len(summ) > 200:
+            return 400, {'ok': False, 'why': 'summary required (1..200 characters)'}
+        start, end = str(body.get('start') or '').strip(), str(body.get('end') or '').strip()
+        try:
+            if re.fullmatch(r'\d{4}-\d\d-\d\d', start):   # all-day event
+                d0 = datetime.date.fromisoformat(start)
+                d1 = datetime.date.fromisoformat(end) if re.fullmatch(r'\d{4}-\d\d-\d\d', end) else d0 + datetime.timedelta(days=1)
+                if d1 <= d0:
+                    d1 = d0 + datetime.timedelta(days=1)
+                data = {'start_date': d0.isoformat(), 'end_date': d1.isoformat()}
+            else:
+                t0 = datetime.datetime.strptime(start, '%Y-%m-%d %H:%M')
+                t1 = datetime.datetime.strptime(end, '%Y-%m-%d %H:%M') if end else t0 + datetime.timedelta(minutes=60)
+                if t1 <= t0:
+                    t1 = t0 + datetime.timedelta(minutes=60)
+                data = {'start_date_time': t0.strftime('%Y-%m-%d %H:%M:%S'), 'end_date_time': t1.strftime('%Y-%m-%d %H:%M:%S')}
+        except ValueError:
+            return 400, {'ok': False, 'why': 'start is YYYY-MM-DD (all day) or YYYY-MM-DD HH:MM (local time)'}
+        data.update({'entity_id': cal, 'summary': summ})
+        for f in ('location', 'description'):
+            if body.get(f):
+                data[f] = str(body[f])[:500]
+        st = self.stores[key]
+        if not self.is_live(key) or self.ha is None:
+            st.log_outbox({'kind': 'calendar_add', 'calendar': cal, 'chars': len(summ), 'mode': 'dry'})
+            self.log('persona %s: [DRY] would add an event to %s' % (key, cal))
+            return 200, {'ok': True, 'added': False, 'dry': True}
+        try:
+            self.ha.call_service('calendar', 'create_event', data)
+        except Exception as ex:
+            self.log('persona %s: calendar add failed (%s)' % (key, type(ex).__name__))
+            return 502, {'ok': False, 'why': 'Home Assistant refused (%s)' % type(ex).__name__}
+        st.log_outbox({'kind': 'calendar_add', 'calendar': cal, 'chars': len(summ), 'mode': 'live', 'ok': True})
+        self.log('persona %s: event added to %s' % (key, cal))
+        return 200, {'ok': True, 'added': True, 'dry': False, 'calendar': cal, 'start': data.get('start_date_time') or data.get('start_date')}
+
     def trace_reply(self, key, msg_id, reply_chars=None, reply_bytes=None):
         """Close the external Claude bridge and Discord send spans for a replied-to DM."""
         try:
@@ -1318,6 +1394,9 @@ def make_handler(app):
                 self.send_response(200); self.send_header('Content-Type', ct); self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(body)
                 return
+            if method == 'GET' and act == 'calendar' and len(parts) == 3:
+                q = parse_qs(u.query)
+                return self._send(*app.calendar_view(key, (q.get('days') or ['14'])[0], (q.get('start') or [None])[0]))
             if method == 'GET' and act == 'behaviour' and len(parts) == 3:
                 return self._send(200, app.behaviour(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
@@ -1340,6 +1419,8 @@ def make_handler(app):
                 return self._send(*app.reply(key, body))
             if act == 'complete' and len(parts) == 3:
                 return self._send(*app.complete_message(key, body))
+            if act == 'calendar' and len(parts) == 4 and parts[3] == 'add':
+                return self._send(*app.calendar_add(key, body))
             if act == 'typing' and len(parts) == 3:
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:

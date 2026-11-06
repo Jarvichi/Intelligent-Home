@@ -33,6 +33,8 @@
       "wake_end": "21:30",
       "min_gap_h": 3,
       "calendars": [],
+      "calendar_read": [],
+      "calendar_write": [],
       "meal_plan_entity": "",
       "meal_fact": "",
       "presence_entity": "",

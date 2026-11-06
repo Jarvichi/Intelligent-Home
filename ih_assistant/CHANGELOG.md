@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.0] - 2026-11-06
+
+### Added
+- Calendar access for the personas. New per-persona options `calendar_read` and `calendar_write`. A persona can read its calendars (`GET /persona/<key>/calendar`) and ADD events to the calendars in its own `calendar_write` list (`POST /persona/<key>/calendar/add`). Add only: no edit, no delete. Another person's calendar is refused (403). Dry mode adds nothing.
+
 ## [0.9.11] - 2026-11-05
 
 ### Fixed
