@@ -51,10 +51,10 @@ assert.strictEqual(w[0].title, 'X failed its health check');
 assert.strictEqual(w[0].tone, 'bad');
 w = M.worthALook(ctx({ health: null, failed: { health: true } }));
 assert.ok(w.some(x => x.tone === 'bad' && /health checks/.test(x.title)));
-w = M.worthALook(ctx({ plugins: { installed: true, plugins: [{ name: 'car', last_ok: false, last_error: 'timeout' }] } }));
-assert.strictEqual(w[0].title, 'Job car did not succeed last time');
-w = M.worthALook(ctx({ health: H({ consumer_progress: [{ consumer: 'rob', status: 'stalled' }] }) }));
-assert.ok(/rob looks stuck/.test(w[0].title));
+w = M.worthALook(ctx({ plugins: { installed: true, plugins: [{ name: 'demo', last_ok: false, last_error: 'timeout' }] } }));
+assert.strictEqual(w[0].title, 'Job demo did not succeed last time');
+w = M.worthALook(ctx({ health: H({ consumer_progress: [{ consumer: 'userb', status: 'stalled' }] }) }));
+assert.ok(/userb looks stuck/.test(w[0].title));
 
 // tiles: a failed read is "?" and never a calm 0
 let t = M.tiles(ctx({ addons: null, failed: { addons: true } }));

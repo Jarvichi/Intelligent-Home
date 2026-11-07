@@ -27,15 +27,15 @@ test('formatDate', () => {
   assert.strictEqual(L.formatDate(''), ''); assert.strictEqual(L.formatDate('unknown'), '');
 });
 test('snippetParts highlights matches and trims around the first hit', () => {
-  const text = 'x '.repeat(100) + 'the Kindle refresh runs often ' + 'y '.repeat(100);
-  const parts = L.snippetParts(text, L.searchTerms('kindle refresh'), 100);
-  assert.ok(parts.some(p => p.hit && p.text.toLowerCase() === 'kindle'));
+  const text = 'x '.repeat(100) + 'the widget refresh runs often ' + 'y '.repeat(100);
+  const parts = L.snippetParts(text, L.searchTerms('widget refresh'), 100);
+  assert.ok(parts.some(p => p.hit && p.text.toLowerCase() === 'widget'));
   assert.ok(parts.some(p => p.hit && p.text.toLowerCase() === 'refresh'));
   assert.ok(parts[0].text.startsWith('…'));
   assert.deepStrictEqual(L.snippetParts('', ['a']), []);
   assert.deepStrictEqual(L.snippetParts('plain words', []).map(p => p.hit), [false]);
 });
-test('searchTerms drops one-letter words', () => assert.deepStrictEqual(L.searchTerms('a Kindle-x b ok'), ['kindle-x', 'ok']));
+test('searchTerms drops one-letter words', () => assert.deepStrictEqual(L.searchTerms('a widget-x b ok'), ['widget-x', 'ok']));
 test('mostConnected ranks by total links and counts inbound', () => {
   const nodes = [{id: 'a', t: 'A', g: 'g'}, {id: 'b', t: 'B'}, {id: 'c', t: 'C'}], links = [{s: 'a', t: 'b'}, {s: 'c', t: 'b'}, {s: 'a', t: 'c'}];
   const top = L.mostConnected(nodes, links, 2);

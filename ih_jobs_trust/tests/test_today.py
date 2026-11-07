@@ -1,3 +1,4 @@
+import string
 """AI Trust Test 'Last test' card: scores per AI, dates, no results, old results, no secrets or answer text. No network."""
 import json, os, sys, tempfile, unittest
 from datetime import datetime, timezone
@@ -54,7 +55,7 @@ class T(unittest.TestCase):
 
     def test_unknown_agent_label_is_clean(self):
         self.assertEqual(today.label('ih_ai_layer_mcp_x'), 'MCP')
-        self.assertTrue(set(today.label('https://evil/' + SECRET)) <= set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-'))
+        self.assertTrue(set(today.label('https://evil/' + SECRET)) <= set(string.ascii_letters + string.digits + ' _-'))
         self.assertLessEqual(len(today.label('x' * 100)), 30)
         self.assertEqual(today.label(''), 'AI')
 
