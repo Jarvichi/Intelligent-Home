@@ -57,6 +57,8 @@ POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
 TYPING_MAX_S = 300
 ASK_KEEP_S = 86400
 ASK_MAX = 10
+WATCH_KEEP_S = 21600   # 0.13.1: plain persona messages are watched for reactions for 6 h
+WATCH_MAX = 8
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'dates': [], 'dates_leads': '7,3', 'dates_at': '18:00', 'dates_latest': '21:30', 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
@@ -392,6 +394,8 @@ class Assistant:
                     except DiscordError as e:
                         ok = False
                         self.log('persona %s: check-in send failed (%s)' % (key, e))
+                    if ok:
+                        self.watch_sent(key)
                     st.log_outbox({'kind': 'checkin', 'chars': len(text), 'mode': 'live', 'ok': ok})
                     ev['sent'] = bool(ok)
         st.append_event(ev)
@@ -457,6 +461,8 @@ class Assistant:
             ok = self.discord[key].send(self._channel(key), text, None)
         except DiscordError as e:
             self.log('persona %s: usage reply failed (%s)' % (key, e)); return False
+        if ok:
+            self.watch_sent(key)
         st.log_outbox({'kind': 'usage_reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
         if ok:
             st.update_state(lambda s: s.__setitem__('usage_reply_ts', self.clock()))
@@ -895,6 +901,8 @@ class Assistant:
         except DiscordError as e:
             self.log('persona %s: send failed (%s)' % (key, e))
             return 502, {'ok': False, 'why': 'discord: %s' % e}
+        if ok:
+            self.watch_sent(key)
         st.log_outbox({'kind': 'reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
         if ok:
             st.update_state(lambda s: s.pop('keepers', None))
@@ -1336,6 +1344,17 @@ class Assistant:
         self.log('persona %s: asked, %d chars' % (key, len(text)))
         return 200, {'ok': True, 'sent': True, 'dry': False, 'msg_id': mid}
 
+    def watch_sent(self, key):
+        """0.13.1: remember the message the persona's bot just sent so the person's emoji reactions on it become 'reaction' events."""
+        mid = getattr(self.discord.get(key), 'last_id', None)
+        if not mid:
+            return
+        now = self.clock()
+        def add(s):
+            w = [x for x in s.get('watch', []) if now - x['ts'] < WATCH_KEEP_S][-(WATCH_MAX - 1):]
+            w.append({'msg_id': str(mid), 'ts': now}); s['watch'] = w
+        self.stores[key].update_state(add)
+
     def tick_reactions(self, key):
         """Look at the reactions of the person on recent asks; new ones (and re-added ones) become 'reaction' events. -> number added."""
         if key not in self.discord:
@@ -1343,6 +1362,7 @@ class Assistant:
         st, d, uid, now = self.stores[key], self.discord[key], self.cfg[key]['user_id'], self.clock()
         s0 = st.state()
         asks = [a for a in s0.get('asks', []) if now - a['ts'] < ASK_KEEP_S]
+        asks += [a for a in s0.get('watch', []) if now - a['ts'] < WATCH_KEEP_S and a['msg_id'] not in {x['msg_id'] for x in asks}]
         if not asks or now - s0.get('react_at', 0) < REACT_EVERY_S:
             return 0
         st.update_state(lambda s: s.__setitem__('react_at', now))

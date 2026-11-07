@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.13.1] - 2026-11-07
+
+### Fixed
+- A person's emoji reaction on any normal persona message (reply, check-in, usage reply) now becomes a `reaction` event in the inbox. Before, only messages posted with `ask` were watched, so reactions on ordinary messages never reached the persona. The last 8 sent messages are watched for 6 hours.
+
 ## [0.13.0] - 2026-11-06
 
 ### Added

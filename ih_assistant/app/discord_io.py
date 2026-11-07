@@ -51,6 +51,7 @@ class Discord:
         if reply_to:
             d['message_reference'] = {'message_id': reply_to, 'fail_if_not_exists': False}
         r = self.call('POST', '/channels/%s/messages' % channel, d)
+        self.last_id = str(r['id']) if r and r.get('id') else None   # 0.13.1: lets the caller watch this message for reactions
         return bool(r and r.get('id'))
 
     def send_file(self, channel, path, filename='reaction.gif'):
