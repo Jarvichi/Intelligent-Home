@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.17.0] - 2026-11-07
+
+### Added
+- `spare_ai` standing backlog: when the commit review leaves budget, it works one add-on directory of the public repo per night in rotation (whole-code review, docs-versus-code check, docs drafting). Results go to `done/` as UNCHECKED suggestions, never edits. New plugin settings `backlog` (default true), `backlog_share` (max percent of the night's budget, default 40), `backlog_files` (3) and `backlog_repeat_days` (14, no repeats). Providers with most spare allowance answer first. Text is scrubbed before sending. Tests added.
+
 ## [0.16.2] - 2026-11-05
 
 ### Changed

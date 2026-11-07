@@ -12,6 +12,8 @@ import ihlib.http
 import ihlib.state
 from plugins import spare_ai as S
 
+IP = '.'.join(['10', '9', '8', '7'])
+MACX = ':'.join(['aa'] * 6)
 TOKEN = 'tok-secret-123456'
 NOW = datetime.datetime(2026, 11, 5, 22, 30, tzinfo=datetime.timezone.utc)
 
@@ -36,6 +38,7 @@ class Fake:
     def __init__(self, providers, fail=(), commits=None, answer=None):
         self.providers, self.fail, self.commits = providers, set(fail), commits or []
         self.requests, self.answer = [], answer
+        self.tree, self.files = [], {}
 
     def __call__(self, req, timeout=0):
         url = req.full_url
@@ -49,6 +52,12 @@ class Fake:
             if model.split('-')[0] in self.fail:
                 return Resp({'ok': False, 'error': 'x'})
             return Resp({'ok': True, 'answer': (self.answer or 'ans from ') + model, 'agent': 'a', 'mode': 'live'})
+        if '/git/trees/' in url:
+            return Resp({'tree': [{'type': 'blob', 'path': p, 'size': z} for p, z in self.tree]})
+        if '/contents/' in url:
+            import base64, urllib.parse
+            path = urllib.parse.unquote(url.split('/contents/', 1)[1])
+            return Resp({'encoding': 'base64', 'content': base64.b64encode(self.files.get(path, 'x = 1\n').encode()).decode()})
         if '/commits?' in url:
             return Resp(self.commits)
         if '/commits/' in url:
@@ -200,6 +209,66 @@ class Tests(unittest.TestCase):
         fake = Fake([prov('gemini'), prov('groq'), prov('mistral')])
         S.run(Ctx(self.tmp, fake, max_calls=4))
         self.assertLessEqual(len(fake.requests), 4)
+
+    def _bl_fake(self):
+        fake = Fake([prov('gemini'), prov('groq', cap=900), prov('mistral'), prov('openrouter'), prov('pollinations')])
+        fake.tree = [('ih_a/config.yaml', 90), ('ih_a/DOCS.md', 90), ('ih_a/README.md', 90), ('ih_a/CHANGELOG.md', 90), ('ih_a/app/main.py', 5000), ('ih_a/app/b.py', 900),
+                     ('ih_a/tests/t.py', 9000), ('ih_b/config.yaml', 90), ('ih_b/DOCS.md', 90), ('ih_b/app/main.py', 800)]
+        fake.files = {'ih_a/app/main.py': 'def f():\n    ip = "' + IP + '"\n' + 'y = 2\n' * 900, 'ih_a/DOCS.md': 'docs a', 'ih_a/config.yaml': 'version: 1'}
+        return fake
+
+    def test_backlog_one_addon_per_night_rotates_and_no_repeat(self):
+        fake = self._bl_fake()
+        ctx = Ctx(self.tmp, fake, repo='o/n', backlog_share=100)
+        ctx.http = ihlib.http.Http(fake, sleep=lambda s: None)
+        S.run(ctx)
+        text = ' '.join(r['text'] for r in fake.requests)
+        self.assertIn('=== ih_a/app/main.py ===', text)
+        self.assertNotIn('ih_b/', text)
+        self.assertNotIn('tests/t.py', text)
+        self.assertNotIn(IP, text)          # scrubbed
+        self.assertTrue(all(len(r['text']) <= 3800 for r in fake.requests))
+        self.assertTrue(all(r['model'].split('-')[0] in ('gemini', 'groq', 'mistral', 'openrouter', 'pollinations') for r in fake.requests))
+        done = os.listdir(os.path.join(self.tmp, 'sp', 'done'))
+        self.assertTrue(any('bl-docscheck-ih_a' in n for n in done) and any('bl-docsdraft-ih_a' in n for n in done) and any('bl-code-ih_a' in n for n in done))
+        st = ctx.state.load('state')['backlog']
+        self.assertEqual(st['ptr'], 'ih_a')
+        n1 = len(fake.requests)
+        S.run(ctx)                                      # night 2: next add-on
+        text2 = ' '.join(r['text'] for r in fake.requests[n1:])
+        self.assertIn('ih_b/', text2)
+        self.assertNotIn('ih_a/', text2)
+        n2 = len(fake.requests)
+        S.run(ctx)                                      # night 3: both done within 14 days
+        self.assertEqual(len(fake.requests), n2)
+        ctx.now = NOW + datetime.timedelta(days=15)     # after 14 days it repeats
+        S.run(ctx)
+        self.assertGreater(len(fake.requests), n2)
+
+    def test_backlog_off_share_cap_and_dry(self):
+        fake = self._bl_fake()
+        ctx = Ctx(self.tmp, fake, repo='o/n', backlog=False)
+        ctx.http = ihlib.http.Http(fake, sleep=lambda s: None)
+        S.run(ctx)
+        self.assertEqual(fake.requests, [])
+        fake = self._bl_fake()
+        ctx = Ctx(self.tmp, fake, repo='o/n', max_calls=20, backlog_share=25)   # cap 5 calls
+        ctx.http = ihlib.http.Http(fake, sleep=lambda s: None)
+        S.run(ctx)
+        self.assertLessEqual(len(fake.requests), 5)
+        self.assertGreater(len(fake.requests), 0)
+        fake = self._bl_fake()
+        ctx = Ctx(self.tmp + '/d', fake, dry=True, repo='o/n')
+        ctx.http = ihlib.http.Http(fake, sleep=lambda s: None)
+        S.run(ctx)
+        self.assertEqual(fake.requests, [])
+        self.assertTrue(any('backlog: add-on ih_a' in l for l in ctx.logs))
+
+    def test_scrub(self):
+        t = S.scrub('ip ' + IP + ' mac ' + MACX + ' token = abcdef123 ok')
+        self.assertNotIn(IP, t)
+        self.assertNotIn(MACX, t)
+        self.assertNotIn('abcdef123', t)
 
 
 if __name__ == '__main__':
