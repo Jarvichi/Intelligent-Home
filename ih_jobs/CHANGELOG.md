@@ -3,6 +3,25 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.18.1] - 2026-11-08
+
+### Changed
+- `bus_watch` matches the old scripts more closely. Vehicle type lookup has all three tiers: the vehicle page, the operator fleet list page (setting `fleet_list_url`, cached 24 h) and, last, an outside AI through the `ih_ai_layer` add-on (options `ai_layer_url`, `ai_layer_token`; settings `operator_name`, `ai_order`, `ai_retry_days`). The AI step is off without the token, never runs in dry, sends only the operator name and fleet number, keeps one short plain-text model name marked "(AI, unverified)" and never decides a promise verdict. Unusable answers are not asked again for 7 days; layer trouble retries after an hour.
+- The sensor `deck` uses the old script's full double-decker list.
+- The pass interval is now 30 s. The tracker asks the feed every `poll_seconds` (90) and the sensors and page data publish every `publish_interval` (120 s) exactly, whatever the pass. No feed calls outside windows.
+- A return-journey "would send" line is logged when the bus is about to arrive (shadow only, as before).
+
+## [0.18.0] - 2026-11-08
+
+### Added
+- `bus_watch` return journey: a second journey in the other direction (settings `return_leg`, `return_route_stops`) is tracked and recorded like the morning one. Shadow rows and promise records carry `"journey": "return"`; return records are never the promised journey. The usual bus is the first departure a set time after the lesson ends.
+- `bus_watch` publishes its data as Home Assistant entities (live only; dry logs): `publish_entity` (return sensor, same state text and attributes as the old script), `morning_entity` (same for the morning journey), `promise_entity` (record count, newest rows under 60 KB, counts, summary) and `schedule_entity` (week rules and closed days). A dashboard only reads them; no script has to run. Settings `publish_interval` (120 s), `publish_name`, `morning_name`, `promise_rows`, `return_row_prefix`, `direction_label`.
+- Tracker and sensors share one feed fetch per pass; outside a window there is no feed call.
+
+### Changed
+- Promise records now have a `journey` field (`morning` for all earlier records) and are matched per journey.
+- `promise_webhook_url` is no longer the way to feed a dashboard (the option still works).
+
 ## [0.17.1] - 2026-11-08
 
 ### Fixed
