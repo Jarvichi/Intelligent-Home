@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.14] - 2026-11-08
+
+### Fixed
+- `scrub` no longer turns a plain date such as 2026-11-05 into `[number]` (the phone-number rule matched it). The nightly code reviews were reporting "placeholder [number] in the changelog" for about 20 commits. Phone numbers and long digit runs are still hidden.
+
 ## [0.4.13] - 2026-11-05
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.17.1] - 2026-11-08
+
+### Fixed
+- `spare_ai` reviews: text is cut at a whole line and ends with a note that a cut-off last line is not a bug (reviews were reporting half lines as bugs).
+- `spare_ai` reads `<folder>/decisions.json`, a ledger of findings a person already checked, and tells the AIs not to report them again (stops the same false finding coming back night after night).
+
 ## [0.17.0] - 2026-11-07
 
 ### Added

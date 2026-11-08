@@ -67,6 +67,35 @@ def scrub(text):
     return SECRET_RE.sub('<redacted>', text)
 
 
+CUT_NOTE = '\n[text cut here: a cut-off last line is NOT a bug, do not report it]'
+LEDGER_MAX = 700
+LEDGER = ''   # set per run from <folder>/decisions.json
+
+
+def cut_lines(text, n):
+    """First n characters, cut at the last whole line, with a note saying the rest was cut (so a half line is never reported as a bug)."""
+    if len(text) <= n:
+        return text
+    head = text[:n]
+    return (head.rsplit('\n', 1)[0] if '\n' in head else head) + CUT_NOTE
+
+
+def ledger_text(folder):
+    """Findings already checked by a person (decisions.json: {"settled": [{"claim", "verdict", "reason"}]}) as a 'do not report again' block for the review prompts."""
+    try:
+        with open(os.path.join(folder, 'decisions.json'), encoding='utf-8') as f:
+            items = [x for x in (json.load(f).get('settled') or []) if isinstance(x, dict) and x.get('claim')]
+    except (OSError, ValueError, AttributeError):
+        return ''
+    out = ''
+    for x in items:
+        line = '- %s (already checked: %s)\n' % (str(x['claim'])[:140], str(x.get('reason') or x.get('verdict') or 'not a bug')[:100])
+        if len(out) + len(line) > LEDGER_MAX:
+            break
+        out += line
+    return ('ALREADY CHECKED BY A PERSON, do not report these again unless the code clearly changed:\n' + out + '\n') if out else ''
+
+
 def _int(v, d, lo, hi):
     try:
         return max(lo, min(hi, int(v)))
@@ -271,7 +300,7 @@ def commit_text(ctx, repo, sha, max_chars):
             text += '--- %s ---\n%s\n' % (f.get('filename', '?'), f['patch'])
         if len(text) >= max_chars:
             break
-    return text[:max_chars], ''
+    return cut_lines(text, max_chars), ''
 
 
 def repo_files(ctx, repo, addon_filter=None):
@@ -341,7 +370,7 @@ def backlog_tasks(ctx, repo, addon, files, due, n_files):
         for p, _ in code_files:
             t = file_text(ctx, repo, p)
             if t:
-                out.append(('code_review', 'bl-code-%s-%s' % (addon, os.path.basename(p).replace('.', '_')[:24]), (BL_PROMPTS['code_review'] + '=== %s ===\n' % p + scrub(t[:BL_CHUNK]))[:MAX_TASK_CHARS]))
+                out.append(('code_review', 'bl-code-%s-%s' % (addon, os.path.basename(p).replace('.', '_')[:24]), (LEDGER + BL_PROMPTS['code_review'] + '=== %s ===\n' % p + scrub(cut_lines(t, BL_CHUNK)))[:MAX_TASK_CHARS]))
     return out
 
 
@@ -360,6 +389,8 @@ def run(ctx):
     provs, total = budget(status, s['order'], s['reserve'], s['max_calls'])
     ctx.log('budget: %d calls (%s), max_calls=%d' % (total, ', '.join('%s=%d' % (k, v['spare']) for k, v in provs.items()) or 'no usable provider', s['max_calls']))
     folder, date = s['folder'], ctx.now.strftime('%Y%m%d')
+    global LEDGER
+    LEDGER = ledger_text(folder)
     state = ctx.state.load('state')
     seen = list(state.get('reviewed') or [])
     good, bad = read_queue(folder)
@@ -410,7 +441,7 @@ def run(ctx):
             if 'rate' in why:
                 break
             continue
-        res = r.task('repo-' + c['sha'][:7], 'review', REVIEW_PROMPT + txt, 2)
+        res = r.task('repo-' + c['sha'][:7], 'review', LEDGER + REVIEW_PROMPT + txt, 2)
         if res is None:
             break
         if res['answers']:
