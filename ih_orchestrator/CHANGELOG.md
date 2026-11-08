@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.15] - 2026-11-08
+
+### Fixed
+- Compiled `.pyc` files are no longer tracked in git (they were already ignored by `.gitignore`). No code change.
+
 ## [0.11.14] - 2026-11-06
 
 ### Changed
