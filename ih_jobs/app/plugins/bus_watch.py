@@ -26,6 +26,26 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
                            (GET /plugin/bus_watch/file/promise_log.jsonl with the files_token option). Empty = not posted.
   keep_days [90]          shadow log rows older than this are dropped once a day
   seconds [90]            pass interval
+RETURN JOURNEY (0.18.0). A second journey in the other direction, tracked and recorded the same way (shadow rows and promise records carry "journey": "return").
+  return_leg              {direction ['outbound'], label (text for the sensor attribute 'direction'; default = direction), stop (key in its stops), stops {key: {name, code, lat, lon}},
+                           min_gap_min [15], departures ['HH:MM', ...] at that stop, lesson_end {mon..sun: 'HH:MM'}, notes {day: text}, schedule {day: [{stop, time}]} (optional: fixed
+                           rules that win over the computed one)}. The usual bus of a day = the first departure at least min_gap_min after lesson_end. Same shape as the old
+                           config.json section "return", so it can be pasted or seeded as is. Empty = no return journey.
+  return_route_stops      [{code, lat, lon, name}] stops of the return route in order (the old route_stops_outbound.json 'stops'; or put that file in plugin state as route_stops_outbound.json).
+                           Required for the return journey. The stop's code must be in this list.
+  The return journey uses the same start_before_min / shadow_after_min / closed days / Monday-Friday rule as the morning one. It never sends a DM.
+SENSORS AND PAGE DATA (0.18.0, live only; the dashboard only READS these entities, no script has to run). Every entity id is a setting; empty = not published. All are
+written with the HA state API every publish_interval seconds (HA forgets REST states when it restarts). Dry logs what it would publish and writes nothing.
+  publish_entity          return-journey sensor (state text and attributes as the old publish_return script: state, eta_min, updated, direction, note, stop, usual, arrives, late_min,
+                           deck, vehicle, last_seen_near, km_away, data_age_min, others + friendly_name, icon). Asks the feed only inside the window (usual time minus
+                           start_before_min .. plus 10 minutes), shared with the tracker (one fetch per pass).
+  morning_entity          the same sensor for the morning journey (replaces the command_line sensor that ran the old status script)
+  publish_name            friendly_name of the return sensor [''= 'Bus home']; morning_name for the morning one [''= 'Bus']
+  promise_entity          state = number of promise records; attributes rows (newest first, at most promise_rows [40] per journey, kept under 60 KB), counts, compare, summary, updated
+  schedule_entity         state = number of rules; attributes rows ({mon..sun: [[stop name, 'HH:MM'], ...]} morning rules, then the return rule of each day with return_row_prefix
+                           ['Bus home: '] before the stop name) and closed ([[from, to, reason]])
+  publish_interval [120]  seconds between publishes (a multiple of the pass interval in practice)
+  direction_label         text for the morning sensor attribute 'direction' [default = direction]
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
 route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in:
 seeding is done with POST /plugin/bus_watch/import (option files_token, header Authorization: Bearer ...).
@@ -48,7 +68,9 @@ DEFAULTS = {'operator_ref': '', 'line_ref': '', 'feed_url': 'https://data.bus-da
             'presence_entity': '', 'direction': 'inbound', 'stops': {}, 'schedule': {}, 'closed': [], 'route_stops': [], 'route_polyline': [],
             'start_before_min': 25, 'shadow_after_min': 25, 'dm_when_eta_min': 15, 'avg_speed_kmh': 35, 'road_factor': 1.25, 'stale_min': 5,
             'sweep_start': '07:00', 'sweep_end': '09:00', 'sweep_km': 1.5, 'sweep_stop': '', 'promise_stop': '',
-            'vehicle_page_url': 'https://bustimes.org/vehicles/{veh}', 'promise_webhook_url': '', 'keep_days': 90, 'seconds': 90}
+            'vehicle_page_url': 'https://bustimes.org/vehicles/{veh}', 'promise_webhook_url': '', 'keep_days': 90, 'seconds': 90,
+            'return_leg': {}, 'return_route_stops': [], 'publish_entity': '', 'morning_entity': '', 'promise_entity': '', 'schedule_entity': '', 'publish_name': '',
+            'morning_name': '', 'publish_interval': 120, 'promise_rows': 40, 'return_row_prefix': 'Bus home: ', 'direction_label': ''}
 NS = {'s': 'http://www.siri.org.uk/siri'}
 DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 _MEM = {}   # dry-run memory, per state folder
@@ -79,7 +101,7 @@ def route(s, stop_key):
     if rs:
         pts = [[x['lat'], x['lon']] for x in rs]
         codes = [x['code'] for x in rs]
-        return pts + [s['route_polyline'][-1]], codes.index(st['code'])
+        return pts + ([] if s.get('no_closing_point') else [s['route_polyline'][-1]]), codes.index(st['code'])
     return s['route_polyline'][:2] + [[st['lat'], st['lon']]] + s['route_polyline'][-1:], 2
 
 
@@ -163,18 +185,22 @@ def verdict(veh, kind, timetabled=True):
     return {'double': 'kept', 'single': 'broken'}.get(kind, 'unknown')
 
 
-def make_record(day, stop, stop_name, sched, veh, vtype, first, last, day_type='college', source='live (Bus Open Data)', timetabled=True, promise_stop=''):
+def make_record(day, stop, stop_name, sched, veh, vtype, first, last, day_type='college', source='live (Bus Open Data)', timetabled=True, promise_stop='', journey='morning'):
     kind = classify(vtype) if veh else 'unknown'
-    return {'date': day, 'stop': stop, 'stop_name': stop_name, 'scheduled': sched, 'promise_journey': stop == promise_stop, 'day_type': day_type, 'source': source,
+    return {'date': day, 'stop': stop, 'stop_name': stop_name, 'scheduled': sched, 'journey': journey, 'promise_journey': journey == 'morning' and stop == promise_stop, 'day_type': day_type, 'source': source,
             'vehicle': veh, 'vehicle_type': vtype if veh else None, 'deck': kind, 'bus_seen': bool(veh), 'first_seen': first, 'last_seen': last, 'timetabled': timetabled,
             'verdict': verdict(veh, kind, timetabled)}
+
+
+def journey_of(r):
+    return r.get('journey', 'morning')   # records without the field are morning records
 
 
 def upsert_rows(rows, rec):
     """-> (new rows, changed). Idempotent per (date, stop, scheduled). A decided verdict is never overwritten by unknown/no_bus/no_info."""
     out, found, changed = [], False, False
     for r in rows:
-        if r['date'] == rec['date'] and r['stop'] == rec['stop'] and r['scheduled'] == rec['scheduled']:
+        if r['date'] == rec['date'] and r['stop'] == rec['stop'] and r['scheduled'] == rec['scheduled'] and journey_of(r) == journey_of(rec):
             found = True
             if r['verdict'] in ('kept', 'broken') and rec['verdict'] in ('unknown', 'no_bus', 'no_info'):
                 out.append(r)
@@ -330,7 +356,7 @@ def flush_webhook(ctx, box, s):
         ctx.log('promise log posted (%d records)' % len(rows))
 
 
-def poll_rule(ctx, box, s, rule, sess, buses, now):
+def poll_rule(ctx, box, s, rule, sess, buses, now, journey='morning'):
     """One poll of the shadow tracker for one rule. Mutates sess. Same decisions as the old shadow1 loop body."""
     u = dt.datetime.combine(now.date(), dt.time.fromisoformat(rule['time']), now.tzinfo)
     stop = s['stops'][rule['stop']]
@@ -354,6 +380,8 @@ def poll_rule(ctx, box, s, rule, sess, buses, now):
     if c:
         row = {'kind': 'poll', 'stop': rule['stop'], 'due': rule['time'], 't': now.isoformat(), 'veh': veh, 'lat': c['lat'], 'lon': c['lon'], 'rem_km': round(c['rem_km'], 2),
                'eta_min': round(c['eta_min'], 1), 'pred_arrival': (now + dt.timedelta(minutes=c['eta_min'])).isoformat(), 'route': 'stops' if s.get('route_stops') else 'memory'}
+        if journey == 'return':
+            row['journey'] = 'return'
         if not sess['dm_done'] and c['eta_min'] <= s['dm_when_eta_min'] and c['eta_min'] > 3:
             row['would_dm'] = True
             sess['dm_done'] = True
@@ -361,12 +389,12 @@ def poll_rule(ctx, box, s, rule, sess, buses, now):
         sess['prev_t'] = now.isoformat()
         ctx.log('tracking %s: %.1f km to the stop, about %.0f min' % (veh, c['rem_km'], c['eta_min']))
     elif sess['prev_t'] and b:
-        box.shadow({'kind': 'passed', 'stop': rule['stop'], 'veh': veh, 'last_before': sess['prev_t'], 'first_past': now.isoformat(), 'closest_km': round(sess['mind_d'], 2), 'closest_t': sess['mind_t']})
+        box.shadow({'kind': 'passed', **({'journey': 'return'} if journey == 'return' else {}), 'stop': rule['stop'], 'veh': veh, 'last_before': sess['prev_t'], 'first_past': now.isoformat(), 'closest_km': round(sess['mind_d'], 2), 'closest_t': sess['mind_t']})
         ctx.log('bus passed the stop')
         sess['done'] = True
 
 
-def finish_rule(ctx, box, s, rule, sess, now):
+def finish_rule(ctx, box, s, rule, sess, now, journey='morning'):
     """Write the ONE promise record for a tracked rule (after a pass or the end of its window)."""
     if sess['recorded']:
         return
@@ -376,7 +404,7 @@ def finish_rule(ctx, box, s, rule, sess, now):
     veh = sess['pveh']
     vtype = vehicle_type(ctx, box, s, veh) if veh else None
     rec = make_record(now.date().isoformat(), rule['stop'], s['stops'][rule['stop']]['name'], rule['time'], veh, vtype, sess['first'], sess['last'], 'college',
-                      promise_stop=s['promise_stop'] or s['sweep_stop'])
+                      promise_stop=s['promise_stop'] or s['sweep_stop'], journey=journey)
     record_promise(ctx, box, s, rec)
 
 
@@ -407,6 +435,259 @@ def finish_sweep(ctx, box, s, sess, now):
                                                 'live (Bus Open Data)', False, ps))
 
 
+# ---------------- return journey and sensors (0.18.0) ----------------
+def _mins(hhmm):
+    h, m = hhmm.split(':')
+    return int(h) * 60 + int(m)
+
+
+def pick_departure(departures, lesson_end, gap_min):
+    """First 'HH:MM' in departures that is at least gap_min after lesson_end, else None."""
+    lim = _mins(lesson_end) + gap_min
+    return next((d for d in sorted(departures, key=_mins) if _mins(d) >= lim), None)
+
+
+def return_rules_day(s, day_key):
+    """Return-journey rules for one weekday ('mon'..'sun'): [{stop, time, note, lesson_end}] (empty on days with no lesson)."""
+    ret = s.get('return_leg') or {}
+    fixed = (ret.get('schedule') or {}).get(day_key)
+    if fixed:
+        return [dict(x) for x in fixed]
+    end = (ret.get('lesson_end') or {}).get(day_key)
+    if not end or not ret.get('stop'):
+        return []
+    dep = pick_departure(ret.get('departures') or [], end, ret.get('min_gap_min', 15))
+    return [{'stop': ret['stop'], 'time': dep, 'note': (ret.get('notes') or {}).get(day_key, ''), 'lesson_end': end}] if dep else []
+
+
+def return_ready(s):
+    ret = s.get('return_leg') or {}
+    st = (ret.get('stops') or {}).get(ret.get('stop'))
+    codes = [x.get('code') for x in s.get('return_route_stops') or []]
+    return bool(st and st.get('code') in codes)
+
+
+def journey_settings(s, journey):
+    """The settings the shared functions read, for one journey (the morning ones are s itself)."""
+    if journey != 'return':
+        return s
+    ret = s.get('return_leg') or {}
+    return dict(s, stops=ret.get('stops') or {}, direction=ret.get('direction', 'outbound'), route_stops=s.get('return_route_stops') or [], no_closing_point=True)
+
+
+def label_for(s, journey):
+    if journey == 'return':
+        ret = s.get('return_leg') or {}
+        return ret.get('label') or ret.get('direction', 'outbound')
+    return s.get('direction_label') or s['direction']
+
+
+def rules_for_journey(s, now, journey):
+    return return_rules_day(s, DAYS[now.weekday()]) if journey == 'return' else rules_today(s, now)
+
+
+def deck_of(text):
+    """The old sensor's deck: 'double' for a double-deck type text, 'single' for any other known text, None when unknown."""
+    if not text or text == '?':
+        return None
+    return 'double' if DOUBLE.search(text) else 'single'
+
+
+def nearest_stop(js, p):
+    st = js.get('route_stops') or []
+    return min(st, key=lambda x: km(p, (x['lat'], x['lon'])))['name'] if st else None
+
+
+def status(ctx, box, s, journey, getbuses, now):
+    """The sensor payload for one journey (same state text and keys as the old status script). Asks the feed only inside a rule's window."""
+    js = journey_settings(s, journey)
+    why = closed_reason(s['closed'], now.date())
+    rs = rules_for_journey(s, now, journey)
+    out = {'state': 'Off', 'eta_min': None, 'updated': now.isoformat(timespec='seconds'), 'direction': label_for(s, journey)}
+    if why or not rs:
+        out.update(state='No college bus', note=why or 'No bus today')
+        return out
+    act = None
+    nxt = []
+    for r in rs:
+        u = dt.datetime.combine(now.date(), dt.time.fromisoformat(r['time']), now.tzinfo)
+        if u - dt.timedelta(minutes=s['start_before_min']) <= now <= u + dt.timedelta(minutes=10):
+            act = r
+            break
+        if u > now:
+            nxt.append(u)
+    if not act:
+        out.update(state='Off', note='Next check ' + ('%s' % (min(nxt) - dt.timedelta(minutes=s['start_before_min'])).strftime('%H:%M') if nxt else 'tomorrow'))
+        return out
+    u = dt.datetime.combine(now.date(), dt.time.fromisoformat(act['time']), now.tzinfo)
+    out.update(stop=js['stops'][act['stop']]['name'], usual=u.strftime('%H:%M'))
+    try:
+        buses = [b for b in getbuses() if b['dir'] == js['direction']]
+    except Exception as e:
+        out.update(state='No data', note='BODS fetch failed: ' + type(e).__name__)
+        return out
+    c = candidates(js, act['stop'], buses, now)
+    live = [r for r in c if not r['stale']]
+    if not c:
+        out.update(state='No bus yet', note='No %s no. %s bus before your stop right now' % (js['direction'], s['line_ref']))
+        return out
+    if not live:
+        b = c[0]
+        out.update(state='No live data', note='Last GPS %.0f min old' % b['age_min'], last_seen_near=nearest_stop(js, (b['lat'], b['lon'])))
+        return out
+    pick = min(live, key=lambda r: abs((now + dt.timedelta(minutes=r['eta_min']) - u).total_seconds()))
+    clock = now + dt.timedelta(minutes=pick['eta_min'])
+    late = (clock - u).total_seconds() / 60
+    n = round(pick['eta_min'])
+    out.update(state='Due' if n < 2 else '%d min' % n, eta_min=round(pick['eta_min'], 1), arrives=clock.strftime('%H:%M'), late_min=round(late),
+               deck=deck_of(vehicle_type(ctx, box, s, pick['veh'])), vehicle=pick['veh'], last_seen_near=nearest_stop(js, (pick['lat'], pick['lon'])),
+               km_away=round(pick['rem_km'], 1), data_age_min=round(pick['age_min'], 1),
+               others=[{'veh': r['veh'], 'eta_min': round(r['eta_min'])} for r in live if r is not pick])
+    return out
+
+
+def sensor_payload(out, name):
+    attrs = {k: v for k, v in out.items() if k != 'state'}
+    attrs.update(friendly_name=name, icon='mdi:bus-clock')
+    return out['state'], attrs
+
+
+LABEL = {'kept': 'Kept (double-decker)', 'broken': 'Broken (single-decker)', 'unknown': 'Unknown (bus type not confirmed)', 'no_bus': 'No bus seen in the feed',
+         'no_info': 'No bus seen (no timetable info for this day)'}
+GROUPS = ('college', 'holiday', 'weekend')
+PAYLOAD_MAX = 60000
+
+
+def row_text(r):
+    n = (r.get('stop_name') or r['stop']).split(' (')[0]
+    return '%s %s' % (r['scheduled'], n) + ('' if r.get('promise_journey') else ' (not the promised journey)') + ('' if r.get('day_type', 'college') == 'college' else ' (no college)')
+
+
+def promise_counts(rows):
+    """Promised-journey counts over college days, morning records only (same as the old report)."""
+    pj = [r for r in rows if journey_of(r) == 'morning' and r.get('day_type', 'college') == 'college' and r.get('promise_journey')]
+    c = {k: sum(1 for r in pj if r['verdict'] == k) for k in LABEL}
+    decided = c['kept'] + c['broken']
+    c.update(decided=decided, pct_kept=round(100 * c['kept'] / decided) if decided else None, days=len(pj))
+    return c
+
+
+def promise_compare(rows):
+    out = {}
+    for g in GROUPS:
+        rs = [r for r in rows if journey_of(r) == 'morning' and r.get('promise_journey')
+              and {'non_college': 'holiday'}.get(r.get('day_type', 'college'), r.get('day_type', 'college')) == g]
+        d, sg = sum(r['verdict'] == 'kept' for r in rs), sum(r['verdict'] == 'broken' for r in rs)
+        out[g] = {'days': len({r['date'] for r in rs}), 'double': d, 'single': sg, 'unknown': sum(r['verdict'] == 'unknown' for r in rs),
+                  'no_bus': sum(r['verdict'] in ('no_bus', 'no_info') for r in rs), 'pct_double': round(100 * d / (d + sg)) if d + sg else None}
+    return out
+
+
+def promise_summary(c):
+    if not c['days']:
+        return 'No college days recorded yet.'
+    pct = ('%s%% kept (%d of %d days with a confirmed bus type)' % (c['pct_kept'], c['kept'], c['decided'])) if c['decided'] else 'no day with a confirmed bus type yet'
+    return 'Promised journey, %d day(s) recorded: %d kept, %d broken, %d unknown, %d no bus seen. %s.' % (c['days'], c['kept'], c['broken'], c['unknown'], c['no_bus'], pct)
+
+
+def promise_payload(s, rows, now):
+    """(state, attributes) for the promise entity: rows newest first (at most promise_rows per journey, JSON kept under PAYLOAD_MAX bytes)."""
+    c = promise_counts(rows)
+    n = max(1, int(s['promise_rows']))
+    while True:
+        out = []
+        for j in ('morning', 'return'):
+            sel = sorted((r for r in rows if journey_of(r) == j), key=lambda r: (r['date'], r['scheduled']), reverse=True)[:n]
+            for r in sel:
+                out.append({'date': r['date'], 'journey': j, 'scheduled': r['scheduled'], 'stop': r['stop'], 'stop_name': r.get('stop_name'), 'day_type': r.get('day_type', 'college'),
+                            'promise_journey': bool(r.get('promise_journey')), 'vehicle': r.get('vehicle'), 'vehicle_type': r.get('vehicle_type'), 'deck': r.get('deck'),
+                            'verdict': r['verdict'], 'label': LABEL.get(r['verdict'], r['verdict']), 'text': row_text(r),
+                            'bus': (r['vehicle'] + (' (%s)' % r['vehicle_type'] if r.get('vehicle_type') and r['vehicle_type'] != '?' else '')) if r.get('vehicle') else '-'})
+        attrs = {'rows': out, 'counts': c, 'compare': promise_compare(rows), 'summary': promise_summary(c), 'updated': now.isoformat(timespec='seconds'),
+                 'friendly_name': 'Bus promise log', 'icon': 'mdi:bus-double-decker'}
+        if len(json.dumps(attrs)) <= PAYLOAD_MAX or n <= 1:
+            return str(len(rows)), attrs
+        n = n * 3 // 4
+
+
+def schedule_payload(s):
+    """(state, attributes): rows = {mon..sun: [[stop name, 'HH:MM'], ...]}, closed = [[from, to, reason]]."""
+    rows = {d: [[s['stops'][x['stop']]['name'], x['time']] for x in v if x['stop'] in s['stops']] for d, v in (s.get('schedule') or {}).items()}
+    if return_ready(s):
+        ret = s['return_leg']
+        for d in DAYS:
+            rows.setdefault(d, []).extend([[s['return_row_prefix'] + ret['stops'][x['stop']]['name'], x['time']] for x in return_rules_day(s, d) if x['stop'] in ret['stops']])
+    n = sum(len(v) for v in rows.values())
+    return str(n), {'rows': rows, 'closed': [list(c) for c in s['closed']], 'friendly_name': 'Bus schedule', 'icon': 'mdi:calendar-clock'}
+
+
+def publish_all(ctx, box, s, getbuses, now):
+    """Publish the sensors and page data every publish_interval seconds (live: HA state API; dry: log only). -> ok."""
+    names = ('publish_entity', 'morning_entity', 'promise_entity', 'schedule_entity')
+    if not any(s[k] for k in names):
+        return True
+    last = box.load('publish').get('t')
+    if last and (now - dt.datetime.fromisoformat(last)).total_seconds() < float(s['publish_interval']) - float(s['seconds']) / 2:
+        return True
+    items = []
+    if s['publish_entity']:
+        if return_ready(s):
+            items.append((s['publish_entity'],) + sensor_payload(status(ctx, box, s, 'return', getbuses, now), s['publish_name'] or 'Bus home'))
+        else:
+            ctx.log('publish_entity set but the return journey is not configured (needs return_leg and return_route_stops)')
+    if s['morning_entity']:
+        items.append((s['morning_entity'],) + sensor_payload(status(ctx, box, s, 'morning', getbuses, now), s['morning_name'] or 'Bus'))
+    if s['promise_entity']:
+        items.append((s['promise_entity'],) + promise_payload(s, box.promise_rows(), now))
+    if s['schedule_entity']:
+        items.append((s['schedule_entity'],) + schedule_payload(s))
+    ok = True
+    for ent, state, attrs in items:
+        if ctx.dry:
+            ctx.log('[DRY] would publish %s: %s' % (ent, state))
+            continue
+        try:
+            ctx.ha.post('states/' + ent, {'state': state, 'attributes': attrs})
+            ctx.log('published %s: %s' % (ent, state))
+        except Exception as e:
+            ctx.log('publish %s failed: %s' % (ent, type(e).__name__))
+            ok = False
+    if ok:
+        box.save('publish', {'t': now.isoformat()})
+    return ok
+
+
+def track(ctx, box, s, rs, sessions, now, getbuses, journey):
+    """Track the rules of one journey in order, one at a time (the body of the old morning loop). -> ok."""
+    day = now.date()
+    for r in rs:
+        key = day.isoformat() + ('|' if journey == 'morning' else '|ret|') + '%s|%s' % (r['stop'], r['time'])
+        u = dt.datetime.combine(day, dt.time.fromisoformat(r['time']), now.tzinfo)
+        start, end = u - dt.timedelta(minutes=s['start_before_min']), u + dt.timedelta(minutes=s['shadow_after_min'])
+        sess = sessions.get(key)
+        if now >= end or (sess and sess['done']):
+            if sess and not sess['recorded']:
+                finish_rule(ctx, box, s, r, sess, now, journey)
+            continue
+        if now < start:
+            continue
+        if sess is None:
+            sess = sessions[key] = new_session(now)
+            if box.load('pruned').get('day') != day.isoformat():
+                box.prune_shadow((day - dt.timedelta(days=int(s['keep_days']))).isoformat())
+                box.save('pruned', {'day': day.isoformat()})
+        try:
+            buses = [b for b in getbuses() if b['dir'] == s['direction']]
+        except Exception as e:
+            ctx.log('feed failed: ' + type(e).__name__)
+            return False
+        poll_rule(ctx, box, s, r, sess, buses, now, journey)
+        if sess['done']:
+            finish_rule(ctx, box, s, r, sess, now, journey)
+        break   # one rule at a time, in order, like the old script
+    return True
+
+
 def load_cfg(ctx):
     s = dict(ctx.settings)
     old = ctx.state.load('config')
@@ -415,6 +696,10 @@ def load_cfg(ctx):
             s[k] = old[k]
     if not s.get('route_stops'):
         s['route_stops'] = ctx.state.load('route_stops').get('stops') or []
+    if not s.get('return_leg') and old.get('return'):
+        s['return_leg'] = old['return']
+    if not s.get('return_route_stops'):
+        s['return_route_stops'] = ctx.state.load('route_stops_outbound').get('stops') or []
     return s
 
 
@@ -432,35 +717,23 @@ def run(ctx):
     why = closed_reason(s['closed'], day)
     rs = rules_today(s, now)
     college = bool(rs and not why and now.weekday() <= 4)
+    feed = {}
+
+    def getbuses():
+        """All buses of the feed, fetched at most once per pass (an error is remembered for the pass)."""
+        if 'err' in feed:
+            raise feed['err']
+        if 'b' not in feed:
+            try:
+                feed['b'] = parse(fetch(ctx, s))
+            except Exception as e:
+                feed['err'] = e
+                raise
+        return feed['b']
     ok = True
     try:
         if college:
-            for r in rs:
-                key = '%s|%s|%s' % (day.isoformat(), r['stop'], r['time'])
-                u = dt.datetime.combine(day, dt.time.fromisoformat(r['time']), now.tzinfo)
-                start, end = u - dt.timedelta(minutes=s['start_before_min']), u + dt.timedelta(minutes=s['shadow_after_min'])
-                sess = sessions.get(key)
-                if now >= end or (sess and sess['done']):
-                    if sess and not sess['recorded']:
-                        finish_rule(ctx, box, s, r, sess, now)
-                    continue
-                if now < start:
-                    continue
-                if sess is None:
-                    sess = sessions[key] = new_session(now)
-                    if box.load('pruned').get('day') != day.isoformat():
-                        box.prune_shadow((day - dt.timedelta(days=int(s['keep_days']))).isoformat())
-                        box.save('pruned', {'day': day.isoformat()})
-                try:
-                    buses = [b for b in parse(fetch(ctx, s)) if b['dir'] == s['direction']]
-                except Exception as e:
-                    ctx.log('feed failed: ' + type(e).__name__)
-                    ok = False
-                    break
-                poll_rule(ctx, box, s, r, sess, buses, now)
-                if sess['done']:
-                    finish_rule(ctx, box, s, r, sess, now)
-                break   # one rule at a time, in order, like the old script
+            ok = track(ctx, box, s, rs, sessions, now, getbuses, 'morning')
         else:
             key = day.isoformat() + '|sweep'
             h0, m0 = (int(x) for x in s['sweep_start'].split(':'))
@@ -474,12 +747,21 @@ def run(ctx):
                 if sess is None:
                     sess = sessions[key] = new_session(now)
                 try:
-                    buses = [b for b in parse(fetch(ctx, s)) if b['dir'] == s['direction']]
+                    buses = [b for b in getbuses() if b['dir'] == s['direction']]
                     sweep_poll(ctx, s, sess, buses, now)
                 except Exception as e:
                     ctx.log('feed failed: ' + type(e).__name__)
                     ok = False
+        if return_ready(s) and not why and now.weekday() <= 4:
+            rrs = return_rules_day(s, DAYS[now.weekday()])
+            if rrs:
+                ok = track(ctx, box, journey_settings(s, 'return'), rrs, sessions, now, getbuses, 'return') and ok
     finally:
         box.save('sessions', sessions)
+    try:
+        ok = publish_all(ctx, box, s, getbuses, now) and ok
+    except Exception as e:
+        ctx.log('publish failed: ' + type(e).__name__)
+        ok = False
     flush_webhook(ctx, box, s)
     return ok

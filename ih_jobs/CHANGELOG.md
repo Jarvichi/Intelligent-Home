@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.18.0] - 2026-11-08
+
+### Added
+- `bus_watch` return journey: a second journey in the other direction (settings `return_leg`, `return_route_stops`) is tracked and recorded like the morning one. Shadow rows and promise records carry `"journey": "return"`; return records are never the promised journey. The usual bus is the first departure a set time after the lesson ends.
+- `bus_watch` publishes its data as Home Assistant entities (live only; dry logs): `publish_entity` (return sensor, same state text and attributes as the old script), `morning_entity` (same for the morning journey), `promise_entity` (record count, newest rows under 60 KB, counts, summary) and `schedule_entity` (week rules and closed days). A dashboard only reads them; no script has to run. Settings `publish_interval` (120 s), `publish_name`, `morning_name`, `promise_rows`, `return_row_prefix`, `direction_label`.
+- Tracker and sensors share one feed fetch per pass; outside a window there is no feed call.
+
+### Changed
+- Promise records now have a `journey` field (`morning` for all earlier records) and are matched per journey.
+- `promise_webhook_url` is no longer the way to feed a dashboard (the option still works).
+
 ## [0.17.1] - 2026-11-08
 
 ### Fixed

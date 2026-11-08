@@ -269,10 +269,33 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change (page rebuild stays on the host). Empty = not posted.
   keep_days [90]          shadow log rows older than this are dropped once a day
   seconds [90]            pass interval
+RETURN JOURNEY (0.18.0). A second journey in the other direction, tracked and recorded the same way (shadow rows and promise records carry "journey": "return").
+  return_leg              {direction ['outbound'], label (text for the sensor attribute 'direction'; default = direction), stop (key in its stops), stops {key: {name, code, lat, lon}},
+                           min_gap_min [15], departures ['HH:MM', ...] at that stop, lesson_end {mon..sun: 'HH:MM'}, notes {day: text}, schedule {day: [{stop, time}]} (optional: fixed
+                           rules that win over the computed one)}. The usual bus of a day = the first departure at least min_gap_min after lesson_end. Same shape as the old
+                           config.json section "return", so it can be pasted or seeded as is. Empty = no return journey.
+  return_route_stops      [{code, lat, lon, name}] stops of the return route in order (the old route_stops_outbound.json 'stops'; or put that file in plugin state as route_stops_outbound.json).
+                           Required for the return journey. The stop's code must be in this list.
+  The return journey uses the same start_before_min / shadow_after_min / closed days / Monday-Friday rule as the morning one. It never sends a DM.
+SENSORS AND PAGE DATA (0.18.0, live only; the dashboard only READS these entities, no script has to run). Every entity id is a setting; empty = not published. All are
+written with the HA state API every publish_interval seconds (HA forgets REST states when it restarts). Dry logs what it would publish and writes nothing.
+  publish_entity          return-journey sensor (state text and attributes as the old publish_return script: state, eta_min, updated, direction, note, stop, usual, arrives, late_min,
+                           deck, vehicle, last_seen_near, km_away, data_age_min, others + friendly_name, icon). Asks the feed only inside the window (usual time minus
+                           start_before_min .. plus 10 minutes), shared with the tracker (one fetch per pass).
+  morning_entity          the same sensor for the morning journey (replaces the command_line sensor that ran the old status script)
+  publish_name            friendly_name of the return sensor [''= 'Bus home']; morning_name for the morning one [''= 'Bus']
+  promise_entity          state = number of promise records; attributes rows (newest first, at most promise_rows [40] per journey, kept under 60 KB), counts, compare, summary, updated
+  schedule_entity         state = number of rules; attributes rows ({mon..sun: [[stop name, 'HH:MM'], ...]} morning rules, then the return rule of each day with return_row_prefix
+                           ['Bus home: '] before the stop name) and closed ([[from, to, reason]])
+  publish_interval [120]  seconds between publishes (a multiple of the pass interval in practice)
+  direction_label         text for the morning sensor attribute 'direction' [default = direction]
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
 route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in.
 Files in /data/bus_watch/: shadow.jsonl (same rows as the old shadow.jsonl), promise_log.jsonl (same records as the old promise_log.jsonl), sessions.json, vehicle_types.json.
+More seed files (0.18.0): route_stops_outbound.json (the return route; config.json may hold the old "return" section).
 ```
+
+Swap (0.18.0): the sensors and page data above are plain REST states, so the old sensor they replace (a command_line sensor with the same entity id) must be removed first, and the old host loop stopped, or the two overwrite each other. Outside a window the plugin does not touch the bus feed; it still writes the Off sensor to Home Assistant every `publish_interval` because Home Assistant forgets REST states on restart.
 
 Page rebuild: the page generator stays on the host. After every change to the promise log (live only) the plugin POSTs `{"source": "bus_watch", "rows": [...]}` to `promise_webhook_url`. A failed post is retried on the next pass. The host side must (1) write the rows to its `promise_log.jsonl` and (2) run its page builder; that receiver is not part of this add-on. The same rows are also on disk in `/data/bus_watch/promise_log.jsonl`.
 
