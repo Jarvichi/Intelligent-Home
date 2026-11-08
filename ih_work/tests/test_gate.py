@@ -98,12 +98,9 @@ class Limits(unittest.TestCase):
         self.assertIn('5-hour session at 90%', r.reason)
         self.assertTrue(d('idle', -9, session=None).ok)
 
-    def test_hourly_limit(self):
-        self.assertTrue(d('idle', -9, recent=2).ok)
-        r = d('idle', -9, recent=3)
-        self.assertFalse(r.ok)
-        self.assertEqual(r.reason, 'rate limit: 3 items already in the last hour')
-        self.assertEqual(r.mode, 'draining')
+    def test_no_item_cap(self):
+        self.assertTrue(d('idle', -9, recent=50).ok)      # 0.1.1: pace is the only limit
+        self.assertFalse(d('idle', -3.5, recent=0, when=DAY).ok)
 
     def test_stop_switch_and_unreadable(self):
         r = d('draining', -9, stopped=True)

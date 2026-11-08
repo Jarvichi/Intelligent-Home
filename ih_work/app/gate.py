@@ -6,12 +6,12 @@ Each band has a START and a STOP level (start < stop):
   DRAINING: keep taking work one item at a time while pace < STOP. At STOP or higher, stop (a running item finishes) and go IDLE.
 Day (default 06:00-23:00): start below -5.0, stop at -4.0.  Night (23:00-06:00): start below -1.0, stop at 0.0.
 When the clock moves from one band to the other, DRAINING is dropped at once, so the next item starts only if the NEW band allows a start.
-Other safeguards: 5-hour session < 85%, week < 90%, at most 3 claims an hour, STOP switch, pace unreadable = nothing runs."""
+Other safeguards: 5-hour session < 85%, week < 90%, no item cap (pace is the limit), STOP switch, pace unreadable = nothing runs."""
 from collections import namedtuple
 
 SESSION_STOP = 85
 WEEK_STOP = 90
-PER_HOUR = 3
+PER_HOUR = 0    # no item cap: the pace levels are the only limit (0.1.1). Set a number here only for a hard hourly cap.
 PACE_PER_HOUR = 100 / 168     # pace falls this many points an hour with no more usage
 
 Bands = namedtuple('Bands', 'day_start day_stop night_start night_stop night_from night_to')
@@ -82,6 +82,6 @@ def decide(mode, last_band, pace, session, week, recent_claims, stopped, local_d
     ok, new, why = step(mode, pace, session, week, start, stop, band)
     if not ok and new == 'idle' and pace >= start:
         why += '; pace below %g in about %s h if no more is used' % (start, eta_hours(pace, start))
-    if ok and recent_claims >= PER_HOUR:
+    if ok and PER_HOUR and recent_claims >= PER_HOUR:
         return Decision(False, new, band, 'rate limit: %d items already in the last hour' % PER_HOUR, start, stop)
     return Decision(ok, new, band, why, start, stop)

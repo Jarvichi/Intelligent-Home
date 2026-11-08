@@ -101,10 +101,8 @@ class Claim(Base):
             self.svc.store.finish(r['item']['id'], 'w', True)
             self.c.move(minutes=1)
         r = self.svc.claim('w')
-        self.assertFalse(r['claimed'])
-        self.assertEqual(r['reason'], 'rate limit: 3 items already in the last hour')
-        self.c.move(minutes=61); self.pace(-6.0)
-        self.assertTrue(self.svc.claim('w')['claimed'])
+        self.assertTrue(r['claimed'])        # 0.1.1: no hourly item cap, pace decides
+        self.svc.store.finish(r['item']['id'], 'w', True)
 
     def test_drain_stops_at_band_stop(self):
         self.make()
@@ -147,9 +145,8 @@ class Claim(Base):
         self.assertEqual(r['would_claim']['id'], a['id'])
         self.assertEqual(self.svc.store.get(a['id'])['status'], 'queued')
         self.assertTrue(any('[DRY] would hand out' in l for l in self.logs))
-        for _ in range(3):
-            self.svc.claim('w')
-        self.assertIn('rate limit', self.svc.claim('w')['reason'])      # dry follows the same limit
+        for _ in range(5):
+            self.assertTrue(self.svc.claim('w')['dry'])      # no item cap in dry mode either
 
     def test_override_is_python_only(self):
         self.make(); self.add(); self.pace(5.0)
