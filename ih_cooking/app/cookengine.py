@@ -685,22 +685,26 @@ class Engine:
         keys = self.load('shownext.json', [])
         return keys[row] if 0 <= row < len(keys) else None
 
-    DOUBLE_TAP_S = 30
+    SNAP_S = 90   # 0.6.11: for this long after a DONE, a tap on row N means the row Andrew SAW (the list before that DONE), not the re-ordered list
 
     def done(self, row=0, did=False):
         with self.lock:
             p = self.load('plan.json', None)
             if not p: return {'ok': False, 'why': 'no plan'}
             st = self.load('state.json', {'done': []})
-            if self.ts() - st.get('last_done_ts', 0) < self.DOUBLE_TAP_S:
-                self.log('DONE ignored (within %d s of the last tap)' % self.DOUBLE_TAP_S); return {'ok': False, 'why': 'double tap'}
             keys = self.load('shownext.json', [])
+            snap = st.get('snap') or {}
+            if snap.get('keys') and self.ts() - snap.get('ts', 0) < self.SNAP_S:
+                keys = snap['keys']   # tapping several rows in a row: use the rows as they were on screen at the first tap
+            if row < len(keys) and keys[row] in st['done']:
+                self.log('DONE ignored (already done): ' + keys[row]); return {'ok': False, 'why': 'already done'}
             if row < len(keys) and keys[row] not in st['done']:
                 k = keys[row]
                 s0 = next((x for x in p['steps'] if x['at'] + ' ' + x['text'] == k), None)
                 if not (s0 and s0.get('gate')) and k not in st.get('told', []):
                     self.log('DONE blocked (not announced yet): ' + k); return {'ok': False, 'why': 'not announced yet'}
                 st.setdefault('done_rows', {})[str(row)] = self.ts()
+                st['snap'] = {'keys': keys, 'ts': self.ts()}
                 st['done'].append(k); st['last_done_ts'] = self.ts(); self.log('done (wall display, did it): ' + k if did else 'done (wall display): ' + k)
                 s = next((x for x in p['steps'] if x['at'] + ' ' + x['text'] == k), None)
                 if s and s.get('anchor') and not did:

@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.11] - 2026-11-08
+
+### Fixed
+- Tapping DONE on several rows of the wall display in a row now registers every tap. The old rule ignored any DONE within 30 seconds of the last one (tonight 14 of about 25 taps were ignored). For 90 seconds after a DONE, a tap on row N now means the row that was on screen at the first tap. A repeat tap on a finished step does nothing, and a step that has not been announced yet is still blocked, so a double tap can never clear the next step.
+
 ## [0.6.10] - 2026-11-04
 
 ### Changed
