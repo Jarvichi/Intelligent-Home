@@ -2,7 +2,7 @@
 
 ## What it does
 
-Keeps one line of jobs for Claude (first in, first out). A job is handed out only when Claude's weekly allowance is far enough under its pace. By day the pace must be well under; at night it may be closer. One job runs at a time, at most three in an hour. A helper (the "runner") claims a job over a protected local API, keeps a lease alive while it works, and must report the job done or failed. This add-on does **not** run jobs; the runner stays where the `claude` command lives.
+Keeps one line of jobs for Claude (first in, first out). A job is handed out only when Claude's weekly allowance is far enough under its pace. By day the pace must be well under; at night it may be closer. One job runs at a time. A helper (the "runner") claims a job over a protected local API, keeps a lease alive while it works, and must report the job done or failed. This add-on does **not** run jobs; the runner stays where the `claude` command lives.
 
 ## Requires
 
@@ -43,7 +43,7 @@ Keeps one line of jobs for Claude (first in, first out). A job is handed out onl
 
 ## The pace gate
 
-Each level has a start and a stop. Idle: a job starts only when pace is below the start. Draining: jobs follow one at a time while pace stays below the stop; at the stop or higher, the running job finishes and nothing more starts. Safeguards in both: 5-hour session under 85%, week under 90%, at most 3 claims an hour, STOP switch, and if the sensors cannot be read nothing runs.
+Each level has a start and a stop. Idle: a job starts only when pace is below the start. Draining: jobs follow one at a time while pace stays below the stop; at the stop or higher, the running job finishes and nothing more starts. Safeguards in both: 5-hour session under 85%, week under 90%, STOP switch, and if the sensors cannot be read nothing runs.
 
 When the clock moves between night and day, draining is dropped at once. The next job then starts only if the new level allows a start. The reason text always names the level, for example `day band: pace -3.2, above -4, nothing runs` or `day band: pace -4.5, waiting until it drops below -5`. The service keeps the mode current every 30 seconds, also when the line is empty.
 
