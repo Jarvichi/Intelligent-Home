@@ -57,12 +57,13 @@ class Ctx:
         self.ha = ha or FakeHA()
         self.state = ihlib.state.Store(folder)
         self.logs = []
+        self.opts = {}
 
     def log(self, m):
         self.logs.append(m)
 
     def option(self, name):
-        return 'test-key'
+        return self.opts.get(name, 'test-key' if name == 'bods_api_key' else '')
 
 
 def base_settings(**over):

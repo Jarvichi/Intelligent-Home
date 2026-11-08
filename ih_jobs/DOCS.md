@@ -268,7 +268,12 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   vehicle_page_url        page per vehicle with an og:description type text; {veh} = vehicle ref lower case (bustimes style); looked up 1 per second, cached
   promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change (page rebuild stays on the host). Empty = not posted.
   keep_days [90]          shadow log rows older than this are dropped once a day
-  seconds [90]            pass interval
+  seconds [30]            pass interval (the timers below are checked every pass, so keep it a divisor of poll_seconds and publish_interval)
+  poll_seconds [90]       the tracker asks the feed this often inside a window (the old script's poll_seconds)
+  fleet_list_url          operator fleet list page (tier 2 of the vehicle-type lookup; cached 24 h in plugin state). Empty = tier 2 off.
+  operator_name           operator's public name, used only in the AI question (tier 3). Empty = tier 3 off.
+  ai_order ['gemini','groq','openrouter'], ai_retry_days [7]  tier 3 asks through the ih_ai_layer add-on (options ai_layer_url, ai_layer_token; no token = off). Only the operator name,
+                           fleet number and bus code are sent. The answer is kept as 'Model (AI, unverified)' and never decides a promise verdict. Dry never asks.
 RETURN JOURNEY (0.18.0). A second journey in the other direction, tracked and recorded the same way (shadow rows and promise records carry "journey": "return").
   return_leg              {direction ['outbound'], label (text for the sensor attribute 'direction'; default = direction), stop (key in its stops), stops {key: {name, code, lat, lon}},
                            min_gap_min [15], departures ['HH:MM', ...] at that stop, lesson_end {mon..sun: 'HH:MM'}, notes {day: text}, schedule {day: [{stop, time}]} (optional: fixed
@@ -287,7 +292,7 @@ written with the HA state API every publish_interval seconds (HA forgets REST st
   promise_entity          state = number of promise records; attributes rows (newest first, at most promise_rows [40] per journey, kept under 60 KB), counts, compare, summary, updated
   schedule_entity         state = number of rules; attributes rows ({mon..sun: [[stop name, 'HH:MM'], ...]} morning rules, then the return rule of each day with return_row_prefix
                            ['Bus home: '] before the stop name) and closed ([[from, to, reason]])
-  publish_interval [120]  seconds between publishes (a multiple of the pass interval in practice)
+  publish_interval [120]  seconds between publishes (checked every pass, so it is kept within one pass of the interval)
   direction_label         text for the morning sensor attribute 'direction' [default = direction]
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
 route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in.

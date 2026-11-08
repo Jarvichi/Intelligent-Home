@@ -25,7 +25,12 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change. Optional: leave it empty and the host pulls the log instead
                            (GET /plugin/bus_watch/file/promise_log.jsonl with the files_token option). Empty = not posted.
   keep_days [90]          shadow log rows older than this are dropped once a day
-  seconds [90]            pass interval
+  seconds [30]            pass interval (the timers below are checked every pass, so keep it a divisor of poll_seconds and publish_interval)
+  poll_seconds [90]       the tracker asks the feed this often inside a window (the old script's poll_seconds)
+  fleet_list_url          operator fleet list page (tier 2 of the vehicle-type lookup; cached 24 h in plugin state). Empty = tier 2 off.
+  operator_name           operator's public name, used only in the AI question (tier 3). Empty = tier 3 off.
+  ai_order ['gemini','groq','openrouter'], ai_retry_days [7]  tier 3 asks through the ih_ai_layer add-on (options ai_layer_url, ai_layer_token; no token = off). Only the operator name,
+                           fleet number and bus code are sent. The answer is kept as 'Model (AI, unverified)' and never decides a promise verdict. Dry never asks.
 RETURN JOURNEY (0.18.0). A second journey in the other direction, tracked and recorded the same way (shadow rows and promise records carry "journey": "return").
   return_leg              {direction ['outbound'], label (text for the sensor attribute 'direction'; default = direction), stop (key in its stops), stops {key: {name, code, lat, lon}},
                            min_gap_min [15], departures ['HH:MM', ...] at that stop, lesson_end {mon..sun: 'HH:MM'}, notes {day: text}, schedule {day: [{stop, time}]} (optional: fixed
@@ -44,7 +49,7 @@ written with the HA state API every publish_interval seconds (HA forgets REST st
   promise_entity          state = number of promise records; attributes rows (newest first, at most promise_rows [40] per journey, kept under 60 KB), counts, compare, summary, updated
   schedule_entity         state = number of rules; attributes rows ({mon..sun: [[stop name, 'HH:MM'], ...]} morning rules, then the return rule of each day with return_row_prefix
                            ['Bus home: '] before the stop name) and closed ([[from, to, reason]])
-  publish_interval [120]  seconds between publishes (a multiple of the pass interval in practice)
+  publish_interval [120]  seconds between publishes (checked every pass, so it is kept within one pass of the interval)
   direction_label         text for the morning sensor attribute 'direction' [default = direction]
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
 route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in:
@@ -61,14 +66,16 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 
 import ihlib.log
+from plugins import spare_ai
 
 NAME = 'bus_watch'
-SCHEDULE = {'kind': 'service', 'seconds': 90}
+SCHEDULE = {'kind': 'service', 'seconds': 30}
 DEFAULTS = {'operator_ref': '', 'line_ref': '', 'feed_url': 'https://data.bus-data.dft.gov.uk/api/v1/datafeed/', 'bods_key_option': 'bods_api_key',
             'presence_entity': '', 'direction': 'inbound', 'stops': {}, 'schedule': {}, 'closed': [], 'route_stops': [], 'route_polyline': [],
             'start_before_min': 25, 'shadow_after_min': 25, 'dm_when_eta_min': 15, 'avg_speed_kmh': 35, 'road_factor': 1.25, 'stale_min': 5,
             'sweep_start': '07:00', 'sweep_end': '09:00', 'sweep_km': 1.5, 'sweep_stop': '', 'promise_stop': '',
-            'vehicle_page_url': 'https://bustimes.org/vehicles/{veh}', 'promise_webhook_url': '', 'keep_days': 90, 'seconds': 90,
+            'vehicle_page_url': 'https://bustimes.org/vehicles/{veh}', 'promise_webhook_url': '', 'keep_days': 90, 'seconds': 30, 'poll_seconds': 90,
+            'fleet_list_url': '', 'operator_name': '', 'ai_order': ['gemini', 'groq', 'openrouter'], 'ai_retry_days': 7,
             'return_leg': {}, 'return_route_stops': [], 'publish_entity': '', 'morning_entity': '', 'promise_entity': '', 'schedule_entity': '', 'publish_name': '',
             'morning_name': '', 'publish_interval': 120, 'promise_rows': 40, 'return_row_prefix': 'Bus home: ', 'direction_label': ''}
 NS = {'s': 'http://www.siri.org.uk/siri'}
@@ -168,10 +175,15 @@ DOUBLE = re.compile(r'(?-i:(?<![A-Za-z])[A-Z0-9]*DD\b)|Enviro ?400|Enviro ?500|S
 SINGLE = re.compile(r'Enviro ?(200|300|350)|StreetLite|Solo|Versa|B7RLE|B8RLE|B7R\b|Citaro|Sprinter|Dart(?! ?\w*DD)|MMC|Streetair|Yutong E1[0-9]|Tourismo|OmniLink|Wright Eclipse(?! Gemini)|Plaxton Pointer|Optare', re.I)
 
 
+DOUBLE_RE = re.compile(r'DD\b|Enviro ?400|Enviro ?500|Streetdeck|Olympian|Gemini|B9TL|Trident|Dart ?\w*DD|Routemaster|Double|Titan|Scania N\d+UD|Volvo B5TL|Wright Eclipse Gemini|Citaro? ?DD|Alexander Dennis Enviro (400|500)', re.I)   # the old status script's list (used for the sensor's deck); DOUBLE above is the promise log's
+
+
 def classify(text):
     """'double' / 'single' / 'unknown' from a vehicle-type description. Single only for known single-deck models."""
     if not text or text == '?':
         return 'unknown'
+    if '(AI, unverified)' in text:
+        return 'unknown'   # an AI guess never decides kept/broken
     if DOUBLE.search(text):
         return 'double'
     if SINGLE.search(text):
@@ -304,17 +316,128 @@ def fetch(ctx, s):
     return ctx.http.get_bytes(s['feed_url'] + '?' + q, timeout=30)
 
 
+def page_type(h):
+    m = re.search(r'og:description" content="([^"]+)"', h)
+    return m.group(1) if m else None
+
+
+def fleet_row(html, num):
+    """-> (slug, type text from the row or None) for fleet number num, or (None, None)."""
+    m = re.search(r'<tr id="([a-z0-9]+-%s(?:-[a-z0-9]+)?)">(.*?)</tr>' % re.escape(num), html, re.S | re.I)
+    if not m:
+        return None, None
+    c = re.search(r'<td>\s*([^<>\s][^<>]*?)\s*</td>', m.group(2))
+    return m.group(1).lower(), (c.group(1) if c else None)
+
+
+def _page(ctx, url):
+    return ctx.http.get_bytes(url, min_interval=1.0, timeout=15).decode('utf8', 'ignore')
+
+
+def fleet_html(ctx, box, s):
+    """The operator's fleet list page, cached 24 h in the plugin state (fleet_cache). None when fleet_list_url is not set."""
+    if not s['fleet_list_url']:
+        return None
+    c = box.load('fleet_cache')
+    now = ctx.now.timestamp()
+    if c.get('html') and now - float(c.get('t', 0)) < 86400:
+        return c['html']
+    h = _page(ctx, s['fleet_list_url'])
+    box.save('fleet_cache', {'t': now, 'html': h})
+    return h
+
+
+def tier2(ctx, box, s, veh):
+    html = fleet_html(ctx, box, s)
+    if not html:
+        return None
+    slug, t = fleet_row(html, veh.split('-')[-1])
+    if t or not slug:
+        return t
+    return page_type(_page(ctx, s['vehicle_page_url'].format(veh=slug)))
+
+
+AI_BAD = re.compile(r"unknown|not sure|cannot|can't|unable", re.I)
+AI_OK = re.compile(r"[A-Za-z0-9 .,+/()&'-]+")
+
+
+def ai_answer_line(text):
+    """The model name from an AI answer: first real line, 60 characters at most, plain characters only. The answer is data, never instructions. None if unusable."""
+    for l in str(text).splitlines():
+        if l.startswith('#') or l.startswith('by ') or l.startswith('---'):
+            continue
+        l = l.strip().strip('*` ').strip()
+        if l and not l.lower().startswith('what bus model'):
+            if AI_BAD.search(l) or len(l) > 60 or not AI_OK.fullmatch(l):
+                return None
+            return l
+    return None
+
+
+def ai_type(ctx, box, s, veh):
+    """Tier 3: ask an outside AI through the ih_ai_layer add-on (public facts only: operator name and fleet number). -> 'Model (AI, unverified)' or None.
+    Off unless the add-on option ai_layer_token and the setting operator_name are set. An unusable answer is not asked again for ai_retry_days; trouble reaching the layer retries in an hour."""
+    token = ctx.option('ai_layer_token').strip()
+    if not token or not s['operator_name']:
+        return None
+    num = veh.split('-')[-1]
+    now = ctx.now.timestamp()
+    pend = box.load('ai_pending')
+    retry = float(s['ai_retry_days']) * 86400
+    if num in pend and now - pend[num] < retry:
+        return None
+    if ctx.dry:
+        ctx.log('[DRY] would ask the AI layer for the model of fleet number %s' % num)
+        return None
+    q = ('What bus model (manufacturer and type, e.g. "ADL Enviro400") is %s fleet number %s (bustimes.org code %s)? '
+         'Answer with the model name on the first line, or UNKNOWN. Public facts only.' % (s['operator_name'], num, veh))
+    ans = None
+    try:
+        layer = spare_ai.Layer(ctx.option('ai_layer_url').strip() or spare_ai.DEFAULT_URL, token, getattr(ctx.http, 'opener', None))
+        provs, _ = spare_ai.budget(layer.status(), [p for p in s['ai_order'] if isinstance(p, str)], 0, 3)
+        reached = False
+        for name, v in provs.items():
+            if v['spare'] <= 0:
+                continue
+            ok, text, _ms = layer.ask(q, v['model'], 'bus-%s' % re.sub(r'[^A-Za-z0-9]', '', num)[:20])
+            if ok:
+                reached = True
+                ans = ai_answer_line(text)
+                break
+        if not reached:
+            raise RuntimeError('no answer')
+    except Exception:   # layer trouble: try again in an hour
+        pend[num] = now - retry + 3600
+        box.save('ai_pending', pend)
+        return None
+    if not ans:
+        pend[num] = now
+        box.save('ai_pending', pend)
+        return None
+    return '%s (AI, unverified)' % ans
+
+
 def vehicle_type(ctx, box, s, veh):
-    """Vehicle type text from the vehicle page (cached by the number after the last '-'). '?' when the lookup failed (not cached); None if the page has no text."""
+    """Vehicle type text, cached by the number after the last '-'. Tiers (same as the old script): 1 the vehicle page, 2 the operator fleet list page, 3 an outside AI
+    ('(AI, unverified)'). '?' when every lookup failed (not cached); None if the page has no text."""
     num = veh.split('-')[-1]
     cache = box.load('vehicle_types')
     if num not in cache:
+        t = None
         try:
-            h = ctx.http.get_bytes(s['vehicle_page_url'].format(veh=veh.lower()), min_interval=1.0, timeout=15).decode('utf8', 'ignore')
-            m = re.search(r'og:description" content="([^"]+)"', h)
-            t = m.group(1) if m else None
+            t = page_type(_page(ctx, s['vehicle_page_url'].format(veh=veh.lower())))
         except Exception:
-            return '?'
+            try:
+                t = tier2(ctx, box, s, veh)
+            except Exception:
+                t = None
+            if not t:
+                try:
+                    t = ai_type(ctx, box, s, veh)
+                except Exception:
+                    t = None
+            if not t:
+                return '?'
         cache[num] = t
         box.save('vehicle_types', cache)
     return cache[num]
@@ -385,6 +508,8 @@ def poll_rule(ctx, box, s, rule, sess, buses, now, journey='morning'):
         if not sess['dm_done'] and c['eta_min'] <= s['dm_when_eta_min'] and c['eta_min'] > 3:
             row['would_dm'] = True
             sess['dm_done'] = True
+            if journey == 'return':   # shadow only: the old script wrote this line to shadow_return.log, never sent it
+                ctx.log('WOULD SEND (not sent): \U0001F68C Your bus home (the %s) is about %d min from %s.' % (s['line_ref'], max(1, round(c['eta_min'])), stop['name']))
         box.shadow(row)
         sess['prev_t'] = now.isoformat()
         ctx.log('tracking %s: %.1f km to the stop, about %.0f min' % (veh, c['rem_km'], c['eta_min']))
@@ -490,7 +615,7 @@ def deck_of(text):
     """The old sensor's deck: 'double' for a double-deck type text, 'single' for any other known text, None when unknown."""
     if not text or text == '?':
         return None
-    return 'double' if DOUBLE.search(text) else 'single'
+    return 'double' if DOUBLE_RE.search(text) else 'single'
 
 
 def nearest_stop(js, p):
@@ -657,7 +782,7 @@ def publish_all(ctx, box, s, getbuses, now):
     return ok
 
 
-def track(ctx, box, s, rs, sessions, now, getbuses, journey):
+def track(ctx, box, s, rs, sessions, now, getbuses, journey, poll_due=lambda: True):
     """Track the rules of one journey in order, one at a time (the body of the old morning loop). -> ok."""
     day = now.date()
     for r in rs:
@@ -676,6 +801,9 @@ def track(ctx, box, s, rs, sessions, now, getbuses, journey):
             if box.load('pruned').get('day') != day.isoformat():
                 box.prune_shadow((day - dt.timedelta(days=int(s['keep_days']))).isoformat())
                 box.save('pruned', {'day': day.isoformat()})
+        if not poll_due():
+            break
+        box.save('poll', {'t': now.isoformat()})
         try:
             buses = [b for b in getbuses() if b['dir'] == s['direction']]
         except Exception as e:
@@ -718,6 +846,9 @@ def run(ctx):
     rs = rules_today(s, now)
     college = bool(rs and not why and now.weekday() <= 4)
     feed = {}
+    last_poll = box.load('poll').get('t')
+    # the tracker asks the feed every poll_seconds (the old script's poll_seconds), whatever the pass interval; this is decided once per pass
+    due = not last_poll or (now - dt.datetime.fromisoformat(last_poll)).total_seconds() >= float(s['poll_seconds']) - float(s['seconds']) / 2
 
     def getbuses():
         """All buses of the feed, fetched at most once per pass (an error is remembered for the pass)."""
@@ -733,7 +864,7 @@ def run(ctx):
     ok = True
     try:
         if college:
-            ok = track(ctx, box, s, rs, sessions, now, getbuses, 'morning')
+            ok = track(ctx, box, s, rs, sessions, now, getbuses, 'morning', lambda: due)
         else:
             key = day.isoformat() + '|sweep'
             h0, m0 = (int(x) for x in s['sweep_start'].split(':'))
@@ -746,16 +877,18 @@ def run(ctx):
             elif now >= start:
                 if sess is None:
                     sess = sessions[key] = new_session(now)
-                try:
-                    buses = [b for b in getbuses() if b['dir'] == s['direction']]
-                    sweep_poll(ctx, s, sess, buses, now)
-                except Exception as e:
-                    ctx.log('feed failed: ' + type(e).__name__)
-                    ok = False
+                if due:
+                    box.save('poll', {'t': now.isoformat()})
+                    try:
+                        buses = [b for b in getbuses() if b['dir'] == s['direction']]
+                        sweep_poll(ctx, s, sess, buses, now)
+                    except Exception as e:
+                        ctx.log('feed failed: ' + type(e).__name__)
+                        ok = False
         if return_ready(s) and not why and now.weekday() <= 4:
             rrs = return_rules_day(s, DAYS[now.weekday()])
             if rrs:
-                ok = track(ctx, box, journey_settings(s, 'return'), rrs, sessions, now, getbuses, 'return') and ok
+                ok = track(ctx, box, journey_settings(s, 'return'), rrs, sessions, now, getbuses, 'return', lambda: due) and ok
     finally:
         box.save('sessions', sessions)
     try:
