@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-08
+
+### Added
+- Urgent handoffs. An item of kind `other` whose ref starts with `handoff-` (a request an assistant passed on while a person waits) is claimed first, even ahead of older items, and it skips the pace pause. The STOP switch, the 5-hour session limit (85%), the week limit (90%) and a cap of 30 such claims in 24 hours still apply. Ordinary items are unchanged. The gate override is still not available over the API.
+
 ## [0.1.1] - 2026-11-08
 
 ### Changed

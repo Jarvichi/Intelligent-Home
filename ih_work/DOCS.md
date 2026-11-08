@@ -4,6 +4,9 @@
 
 Keeps one line of jobs for Claude (first in, first out). A job is handed out only when Claude's weekly allowance is far enough under its pace. By day the pace must be well under; at night it may be closer. One job runs at a time. A helper (the "runner") claims a job over a protected local API, keeps a lease alive while it works, and must report the job done or failed. This add-on does **not** run jobs; the runner stays where the `claude` command lives.
 
+## Urgent handoffs (0.2.0)
+An item of kind `other` whose ref starts with `handoff-` is a request an assistant passed on while a person waits. It is claimed first and skips the pace pause. The STOP switch, the 5-hour session limit (85%), the week limit (90%) and a cap of 30 such claims in 24 hours still apply.
+
 ## Requires
 
 - Home Assistant OS or Supervised (add-ons need the Supervisor)
