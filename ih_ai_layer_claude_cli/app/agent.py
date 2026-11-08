@@ -35,6 +35,7 @@ _MAC = re.compile(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b')
 _IPV4 = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 _PHONE = re.compile(r'(?<![\w])\+?\d[\d ()\-.]{7,}\d(?![\w])')
 _DIGITS = re.compile(r'\d{6,}')
+_ISODATE = re.compile(r'(?:19|20)\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])')
 _TOKEN = re.compile(r'\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b')
 
 
@@ -56,7 +57,7 @@ def scrub(text):
     t = _URL.sub(r'\1', t)
     t = _MAC.sub('[mac]', t)
     t = _IPV4.sub('[ip]', t)
-    t = _PHONE.sub('[number]', t)
+    t = _PHONE.sub(lambda m: m.group(0) if _ISODATE.fullmatch(m.group(0)) else '[number]', t)   # a plain date (2026-11-05) is not a phone number
     t = _DIGITS.sub('[number]', t)
     t = _TOKEN.sub('[token]', t)
     return t

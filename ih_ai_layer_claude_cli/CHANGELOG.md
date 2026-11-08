@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.7] - 2026-11-08
+
+### Fixed
+- Same date fix in the add-on's own `scrub`: a plain date is no longer replaced with `[number]`.
+
 ## [0.1.6] - 2026-11-05
 
 ### Changed

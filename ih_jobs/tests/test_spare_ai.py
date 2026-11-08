@@ -95,6 +95,26 @@ class Tests(unittest.TestCase):
     def tearDown(self):
         self.d.cleanup()
 
+    def test_cut_lines_never_leaves_half_a_line(self):
+        text = 'line one\nline two\nline three is long'
+        out = S.cut_lines(text, 22)
+        self.assertTrue(out.startswith('line one\nline two'))
+        self.assertNotIn('line three', out)
+        self.assertIn('NOT a bug', out)
+        self.assertEqual(S.cut_lines('short', 100), 'short')
+
+    def test_ledger_text_lists_settled_findings_and_is_capped(self):
+        self.assertEqual(S.ledger_text(self.tmp), '')                      # no file: nothing added
+        with open(os.path.join(self.tmp, 'decisions.json'), 'w') as f:
+            json.dump({'settled': [{'claim': 'changelog shows [number]', 'verdict': 'false', 'reason': 'real date, scrubbed'}] + [{'claim': 'x' * 100}] * 30}, f)
+        t = S.ledger_text(self.tmp)
+        self.assertIn('changelog shows [number]', t)
+        self.assertIn('do not report these again', t)
+        self.assertLessEqual(len(t), S.LEDGER_MAX + 150)
+        with open(os.path.join(self.tmp, 'decisions.json'), 'w') as f:
+            f.write('not json')
+        self.assertEqual(S.ledger_text(self.tmp), '')                      # a broken file never stops the review
+
     def test_budget_reserve_and_max_calls(self):
         st = {'providers': [prov('gemini', used=10, cap=50), prov('groq', used=48, cap=50), prov('mistral', cap=30)]}
         b, total = S.budget(st, ['gemini', 'groq', 'mistral'], 5, 120)
