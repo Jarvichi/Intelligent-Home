@@ -184,8 +184,8 @@ class Store:
                 return i
         raise StoreError('missing', 'no such item')
 
-    def claim(self, consumer, lease_s):
-        """Give the lowest-seq queued item to `consumer` with a lease. Returns the item, or None when the queue is empty.
+    def claim(self, consumer, lease_s, iid=None):
+        """Give the lowest-seq queued item (or the queued item `iid`) to `consumer` with a lease. Returns the item, or None when the queue is empty.
         Raises conflict when another item is still held (one at a time)."""
         if not isinstance(consumer, str) or not CONSUMER_RE.match(consumer):
             raise StoreError('bad', 'consumer must be 1-40 letters, digits, . _ -')
@@ -194,7 +194,7 @@ class Store:
             held = next((i for i in items if i['status'] in ACTIVE), None)
             if held:
                 raise StoreError('conflict', 'an item is already held')
-            head = next((i for i in items if i['status'] == 'queued'), None)
+            head = next((i for i in items if i['status'] == 'queued' and (iid is None or i['id'] == iid)), None)
             if not head:
                 return None
             head.update(status='claimed', claimed_by=consumer, started_at=iso(now), heartbeat_at=iso(now), lease_expires_at=iso(now + timedelta(seconds=lease_s)))

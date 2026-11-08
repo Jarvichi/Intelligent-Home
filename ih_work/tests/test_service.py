@@ -148,6 +148,34 @@ class Claim(Base):
         for _ in range(5):
             self.assertTrue(self.svc.claim('w')['dry'])      # no item cap in dry mode either
 
+    def handoff(self, n='1'):
+        return self.svc.store.enqueue('other', 'handoff-clara-2026110810%s' % n.zfill(4), 'Handoff from clara: x', 'do it')
+
+    def test_handoff_skips_pace_pause_and_goes_first(self):
+        self.make(); self.add('plain'); h = self.handoff(); self.pace(5.0)          # gate closed for ordinary items
+        r = self.svc.claim('w')
+        self.assertTrue(r['claimed']); self.assertEqual(r['item']['id'], h['id']); self.assertIn('urgent handoff', r['reason'])
+
+    def test_ordinary_items_stay_gated_when_a_handoff_is_not_waiting(self):
+        self.make(); self.add('plain'); self.pace(5.0)
+        self.assertFalse(self.svc.claim('w')['claimed'])
+
+    def test_handoff_still_obeys_stop_session_week_and_daily_cap(self):
+        self.make(); self.handoff(); self.pace(5.0)
+        self.r.v['session'] = 90.0; self.svc._reading = (0, None, '')
+        self.assertIn('session', self.svc.claim('w')['reason'])
+        self.r.v['session'] = 10.0; self.r.v['week'] = 95.0; self.svc._reading = (0, None, '')
+        self.assertIn('week', self.svc.claim('w')['reason'])
+        self.r.v['week'] = 40.0; self.svc._reading = (0, None, '')
+        self.svc.URGENT_PER_DAY = 2
+        for n in ('1', '2'):
+            self.handoff(n); r = self.svc.claim('w'); self.assertTrue(r['claimed'], r); self.svc.store.finish(r['item']['id'], 'w', True)
+        self.handoff('9'); self.assertIn('handoffs in the last 24 hours', self.svc.claim('w')['reason'])
+
+    def test_handoff_in_stop_mode_waits(self):
+        self.make(stop=True); self.handoff()
+        self.assertFalse(self.svc.claim('w')['claimed'])
+
     def test_override_is_python_only(self):
         self.make(); self.add(); self.pace(5.0)
         self.assertFalse(self.svc.claim('w')['claimed'])

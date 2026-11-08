@@ -7,7 +7,7 @@ import feed
 import gate as G
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -93,6 +93,23 @@ class Service:
         return dict(state=state, reason=reason, mode=d.mode, band=d.band, start=d.start, stop=d.stop)
 
     # ---- gate-guarded claim ----
+    URGENT_KIND, URGENT_PREFIX, URGENT_PER_DAY = 'other', 'handoff-', 30   # 0.2.0: a person is waiting for a handoff from an assistant: it goes first and ignores the pace pause
+
+    def urgent_head(self, items):
+        """The first queued handoff item (kind other, ref handoff-...), or None."""
+        return next((i for i in items if i['status'] == 'queued' and i.get('kind') == self.URGENT_KIND and str(i.get('ref', '')).startswith(self.URGENT_PREFIX)), None)
+
+    def urgent_ok(self, st, r, now):
+        """-> (ok, reason). Hard stops still apply to urgent items: STOP switch (checked by the caller), session and week limits, a daily cap."""
+        if r is not None and r.get('session') is not None and r['session'] >= G.SESSION_STOP:
+            return False, 'urgent item waits: 5-hour session at %g%% (limit %d%%)' % (r['session'], G.SESSION_STOP)
+        if r is not None and r.get('week') is not None and r['week'] >= G.WEEK_STOP:
+            return False, 'urgent item waits: week at %g%% (stop %d%%)' % (r['week'], G.WEEK_STOP)
+        cut = now - timedelta(hours=24)
+        if len([t for t in st.get('urgent_claims', []) if (parse(t) or cut) > cut]) >= self.URGENT_PER_DAY:
+            return False, 'urgent item waits: %d handoffs in the last 24 hours' % self.URGENT_PER_DAY
+        return True, ''
+
     def claim(self, consumer, lease_s=None, override=False):
         if not isinstance(consumer, str) or not CONSUMER_RE.match(consumer):
             raise StoreError('bad', 'consumer must be 1-40 letters, digits, . _ -')
@@ -112,6 +129,19 @@ class Service:
             d, r = self.decide(st, now)
             if d.mode != st.get('mode') or d.band != st.get('band'):
                 st.update(mode=d.mode, band=d.band, mode_since=iso(now))
+            urgent = self.urgent_head(items)
+            if urgent:   # handoffs jump the line and skip the pace pause (hard stops above still apply)
+                ok_u, why_u = self.urgent_ok(st, r, now)
+                if not ok_u:
+                    self.save_state(st)
+                    return dict(claimed=False, reason=why_u, gate=self.gate_line(d, r))
+                if self.opts.get('mode') != 'live':
+                    self.log('[DRY] would hand out urgent item %s: %s' % (urgent['id'], urgent['title']))
+                    return dict(claimed=False, dry=True, would_claim=brief(urgent), reason='test mode: would hand out urgent item %s' % urgent['id'], gate=self.gate_line(d, r))
+                it = self.store.claim(consumer, lease, iid=urgent['id'])
+                st['urgent_claims'] = [t for t in st.get('urgent_claims', []) if (parse(t) or now) > now - timedelta(hours=24)] + [iso(now)]
+                self.save_state(st)
+                return dict(claimed=True, item=it, lease_expires_at=it['lease_expires_at'], reason='urgent handoff: pace pause skipped', gate=self.gate_line(d, r))
             if override:
                 d = d._replace(ok=True, reason='override: ' + d.reason)
             if not d.ok:
