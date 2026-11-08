@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [0.4.14] - 2026-11-08
 
 ### Fixed
+- Compiled `.pyc` files are no longer tracked in git (already ignored). No code change.
 - `scrub` no longer turns a plain date such as 2026-11-05 into `[number]` (the phone-number rule matched it). The nightly code reviews were reporting "placeholder [number] in the changelog" for about 20 commits. Phone numbers and long digit runs are still hidden.
 
 ## [0.4.13] - 2026-11-05
