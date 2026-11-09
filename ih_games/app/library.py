@@ -3,9 +3,9 @@ Entry: id, title, platform, first_seen, last_seen, playtime_min (or None), sourc
 Generic code: player keys, display names and titles all come from options or the user."""
 import datetime, json, os, re, tempfile, threading
 
-PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "destiny": None}
+PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "destiny": None}
 DESTINY_PLATFORM = {1: "xbox", 2: "psn", 3: "steam", 5: "stadia"}
-FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "destiny": "bungie"}
+FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "destiny": "bungie"}
 _LOCK = threading.Lock()
 
 

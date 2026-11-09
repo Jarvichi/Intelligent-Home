@@ -7,6 +7,8 @@
       "display_name": "Player A",
       "trophy_prefix": "player_a",
       "psn_online_id": "",
+      "steam_id": "",
+      "steam_profile_url": "",
       "xbox_prefix": "player_a",
       "speaker": "bot_alpha"
     },
@@ -15,12 +17,15 @@
       "display_name": "Player B",
       "trophy_prefix": "player_b",
       "psn_online_id": "",
+      "steam_id": "",
+      "steam_profile_url": "",
       "speaker": "bot_beta"
     }
   ],
   "providers_enabled": [
     "psn_trophies",
-    "psn_trophy_names"
+    "psn_trophy_names",
+    "steam_achievements"
   ],
   "quiet_start": "22:00",
   "quiet_end": "08:00",
@@ -40,6 +45,7 @@
   "ai_layer_art_token": "",
   "bungie_api_key": "REPLACE_ME",
   "psn_npsso": "",
+  "steam_api_key": "",
   "destiny_poll_s": 900,
   "admin_token": "",
   "arc_data_dir": "",

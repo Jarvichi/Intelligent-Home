@@ -24,6 +24,10 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 
 Follow [PSN_TROPHY_SETUP.md](PSN_TROPHY_SETUP.md) to configure the PSN Online ID and NPSSO password option. Never send the token in chat or put it in source control. Live API lookups require your own token.
 
+### Steam achievement names
+
+Follow [STEAM_ACHIEVEMENT_SETUP.md](STEAM_ACHIEVEMENT_SETUP.md) to configure the Steam profile URL you supplied and the private Steam API key option. The provider reads the current game and App ID from Home Assistant's Steam Online integration. Steam's Web API returns earned achievements and the game's published schema; profile game details must be public for the lookup to work.
+
 ## Options
 
 Set these in the add-on Configuration tab. Required = must be filled before it can work (the settings hub may fill it).

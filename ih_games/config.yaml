@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.7.7"
+version: "0.7.8"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -38,6 +38,7 @@ options:
   providers_enabled:
     - "psn_trophies"
     - "psn_trophy_names"
+    - "steam_achievements"
   quiet_start: "22:00"
   quiet_end: "08:00"
   timezone: "Europe/London"
@@ -56,6 +57,7 @@ options:
   ai_layer_art_token: ""
   bungie_api_key: ""
   psn_npsso: ""
+  steam_api_key: ""
   destiny_poll_s: 900
   admin_token: ""
   arc_data_dir: ""
@@ -74,6 +76,8 @@ schema:
       xbox_gamerscore_entity: str?
       xbox_now_playing_entity: str?
       steam_prefix: str?
+      steam_id: str?
+      steam_profile_url: str?
       steam_now_playing_entity: str?
       steam_level_entity: str?
       destiny_type: int?
@@ -104,6 +108,7 @@ schema:
   ai_layer_art_token: password?
   bungie_api_key: password
   psn_npsso: password?
+  steam_api_key: password?
   destiny_poll_s: int(60,86400)
   admin_token: password?
   arc_data_dir: str?
