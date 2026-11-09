@@ -20,6 +20,10 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 6. Open the add-on's **Open Web UI** page for the single Games dashboard. It includes each player's library, complete game details, and the Games research queue. The old `/house-games/<player>` tabs now open the matching player view in this add-on. The UI uses the existing `admin_token` on the server; it is not sent to the browser.
 7. To add cover art, use **Find official box art** on a game's card. This asks the IH AI Layer's scoped image-search capability, then keeps the image under this add-on's `/data/artwork` store and serves it locally. Search uses the configured AI Layer provider quota. Only results linked to recognized official store or publisher pages are accepted.
 
+### PlayStation trophy names
+
+Follow [PSN_TROPHY_SETUP.md](PSN_TROPHY_SETUP.md) to configure the PSN Online ID and NPSSO password option. Never send the token in chat or put it in source control. Live API lookups require your own token.
+
 ## Options
 
 Set these in the add-on Configuration tab. Required = must be filled before it can work (the settings hub may fill it).
@@ -45,6 +49,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `assistant_url` | No | str, password |
 | `assistant_token` | No | str, password |
 | `bungie_api_key` | Yes | Your own Bungie API key (only for the Destiny provider). |
+| `psn_npsso` | No | Optional PSN session token for trophy-name lookups. Configure privately in add-on options. |
 | `destiny_poll_s` | No | How often the Destiny provider polls, in seconds. Default: `900`. |
 | `admin_token` | No | Setting `admin_token`. |
 | `ai_layer_url` | No | IH AI Layer request endpoint. Default: `http://172.30.32.1:8801`. |

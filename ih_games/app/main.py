@@ -9,9 +9,9 @@ sys.path.insert(0, HERE)
 from ihlib import trace
 import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod, artwork
 from jobs import common
-from providers import psn_trophies, xbox_gamerscore, destiny, steam_presence
+from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence
 
-VERSION = "0.7.5"
+VERSION = "0.7.6"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -25,6 +25,7 @@ START_DELAY_S = 60
 
 PROVIDERS = {
     "psn_trophies": psn_trophies,
+    "psn_trophy_names": psn_trophy_names,
     "xbox_gamerscore": xbox_gamerscore,
     "destiny": destiny,
     "steam_presence": steam_presence,
@@ -56,6 +57,7 @@ def load_options(path=None):
         "ai_layer_url": str(o.get("ai_layer_url") or "http://172.30.32.1:8801").strip().rstrip("/"),
         "ai_layer_art_token": str(o.get("ai_layer_art_token") or "").strip(),
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
+        "psn_npsso": str(o.get("psn_npsso") or "").strip(),
         "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
         "log_payloads": o.get("log_payloads") is True,
         "admin_token": str(o.get("admin_token") or "").strip(),
