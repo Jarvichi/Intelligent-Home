@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.16] - 2026-11-09
+
+### Fixed
+- Keep the phone-scrubbing test data from matching the publication scanner's real-phone-number pattern.
+
 ## [0.4.15] - 2026-11-08
 
 ### Fixed

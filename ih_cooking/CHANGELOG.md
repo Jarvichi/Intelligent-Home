@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.12] - 2026-11-09
+
+### Changed
+- Rephrase a source comment to remove a private name caught by the publication privacy scan.
+
 ## [0.6.11] - 2026-11-08
 
 ### Fixed

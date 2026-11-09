@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.6] - 2026-11-09
+
+### Added
+- Optional PlayStation trophy-name lookups using a privately configured NPSSO token and each player's PSN Online ID.
+- Named trophy events replace aggregate sensor announcements for the same game and tier.
+- Setup instructions in PSN_TROPHY_SETUP.md. The provider establishes a quiet baseline and does not announce older trophies on first configuration.
+
 ## [0.7.5] - 2026-11-05
 
 ### Changed

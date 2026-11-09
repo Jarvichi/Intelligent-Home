@@ -114,6 +114,22 @@ def run(ctx, now=None):
                     except Exception:
                         pass
 
+        # Named trophy events replace aggregate sensor events for the same
+        # tier/game, preventing duplicate announcements when PSN details exist.
+        named = [e for e in events_to_process if e.get("kind") == "trophy_named"]
+        if named:
+            def is_replaced(e):
+                if e.get("kind") != "trophy":
+                    return False
+                try:
+                    t = datetime.datetime.fromisoformat(e.get("time", ""))
+                    return any(n.get("tier") == e.get("tier") and n.get("game") == e.get("game")
+                               and abs((t - datetime.datetime.fromisoformat(n.get("time", ""))).total_seconds()) <= 300
+                               for n in named)
+                except (TypeError, ValueError):
+                    return False
+            events_to_process = [e for e in events_to_process if not is_replaced(e)]
+
         # Filter out events already sent
         handled = [_dt(m["event_time"]) for m in sent_messages if m["player"] == pkey and m.get("event_time")]
         handled_upto = max([h for h in handled if h] or [None])   # dry runs count as handled too (no log spam)
