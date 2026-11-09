@@ -138,7 +138,20 @@ def run(ctx, player):
     except (OSError, ValueError):
         feed = {"events": []}
     events = list(feed.get("events", []))
+    history_path = os.path.join(ctx.data_dir, f"trophy_history_{pkey}.jsonl")
+    try:
+        seen_ids = {json.loads(l).get("id") for l in open(history_path) if l.strip()} if os.path.exists(history_path) else set()
+    except (OSError, ValueError):
+        seen_ids = set()
     for trophy in fresh:
+        if trophy["id"] not in seen_ids:
+            try:
+                os.makedirs(os.path.dirname(history_path), exist_ok=True)
+                with open(history_path, "a") as hist:
+                    hist.write(json.dumps({"time": now, "id": trophy["id"], "game": game, "tier": trophy["tier"],
+                                           "name": trophy["name"], "earned_at": trophy.get("earned_at")}) + "\n")
+            except OSError:
+                pass
         events.append({"time": now, "kind": "trophy_named", "tier": trophy["tier"], "count": 1,
                        "game": game, "achievement": trophy["name"], "big": trophy["tier"] == "platinum",
                        "text": f"Earned {trophy['tier']} trophy: {trophy['name']} in {game}"})
