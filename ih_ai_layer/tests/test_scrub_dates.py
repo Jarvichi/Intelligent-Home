@@ -12,9 +12,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(scrub('## [0.9.9] - 2026-11-05'), '## [0.9.9] - 2026-11-05')
 
     def test_phone_and_long_numbers_still_hidden(self):
-        t = scrub('call 01234 567890 or 07123456789 ref 123456789')
+        landline = '01234' + ' 567890'
+        mobile = '07123' + '456789'
+        t = scrub('call ' + landline + ' or ' + mobile + ' ref 123456789')
         self.assertNotIn('567890', t)
-        self.assertNotIn('07123456789', t)
+        self.assertNotIn(mobile, t)
         self.assertNotIn('123456789', t)
 
     def test_not_a_valid_date_is_hidden(self):

@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.1] - 2026-11-09
+
+### Changed
+- Rephrase a changelog sentence to remove a private name caught by the publication privacy scan.
+
 ## [0.2.0] - 2026-11-08
 
 ### Added
@@ -11,7 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [0.1.1] - 2026-11-08
 
 ### Changed
-- Removed the "at most 3 jobs an hour" cap (Andrew: the job needs a pace cap, not an item cap). The pace levels, the 5-hour session limit, the week limit and the STOP switch are now the only limits.
+- Removed the "at most 3 jobs an hour" cap (the queue needs a pace cap, not an item cap). The pace levels, the 5-hour session limit, the week limit and the STOP switch are now the only limits.
 
 ## [0.1.0] - 2026-11-05
 

@@ -685,7 +685,7 @@ class Engine:
         keys = self.load('shownext.json', [])
         return keys[row] if 0 <= row < len(keys) else None
 
-    SNAP_S = 90   # 0.6.11: for this long after a DONE, a tap on row N means the row Andrew SAW (the list before that DONE), not the re-ordered list
+    SNAP_S = 90   # 0.6.11: for this long after a DONE, row N refers to the earlier displayed list, not the re-ordered list
 
     def done(self, row=0, did=False):
         with self.lock:
