@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.7] - 2026-11-09
+
+### Added
+- Permanent PSN trophy history: every named trophy is also appended to `/data/trophy_history_<player>.jsonl` (id, game, tier, name, earned time), so it is kept after the 50-event feed limit and across restarts. No credential is written.
+
 ## [0.7.6] - 2026-11-09
 
 ### Added
