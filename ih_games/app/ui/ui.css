@@ -36,6 +36,7 @@
 .art-action:disabled{cursor:not-allowed}.art-action:disabled svg{opacity:.15}
 .game-main{display:flex;flex-direction:column;align-items:flex-start;min-width:0;padding:12px}
 .game-heading{display:grid;gap:8px;width:100%;padding-right:36px}
+.platform-pills{display:flex;flex-wrap:wrap;gap:5px}
 .game-heading h2{margin:0;font-size:clamp(18px,2vw,22px);line-height:1.15;letter-spacing:-.03em;overflow-wrap:anywhere}
 .platform-pill{justify-self:start;padding:4px 8px;border:1px solid var(--ih-line);border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-muted);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
 .game-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;width:100%;margin:10px 0 0}

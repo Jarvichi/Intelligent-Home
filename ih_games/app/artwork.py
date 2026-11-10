@@ -96,9 +96,17 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
     except Exception as e:
         raise ArtError('IH AI Layer could not search for cover art (%s).' % type(e).__name__)
     if not ai_result.get('ok'):
-        raise ArtError('IH AI Layer found no usable cover art results.')
+        answer = str(ai_result.get('answer') or '')
+        if 'No agent is available for capability' in answer:
+            raise ArtError('No artwork search provider is available in IH AI Layer. Enable a provider with game_art_search, such as SerpApi.')
+        if 'did not answer' in answer:
+            raise ArtError('The IH AI Layer artwork search provider did not answer. Check its status and daily quota.')
+        raise ArtError('IH AI Layer could not complete the artwork search. Check that an artwork provider is enabled and available.')
+    answer = ai_result.get('answer')
+    if isinstance(answer, str) and answer.startswith('[dry] shadow mode:'):
+        raise ArtError('IH AI Layer is in shadow mode, so it did not run the artwork search. Set shadow to false to enable searches.')
     try:
-        candidates = json.loads(ai_result.get('answer') or '[]')
+        candidates = json.loads(answer or '[]')
     except (TypeError, ValueError):
         candidates = []
     if not isinstance(candidates, list):

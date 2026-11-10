@@ -38,6 +38,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-11-10
+
+### Changed
+- Merge exact matching game titles from different platforms into one library card with a pill for each platform.
+- Keep platform filters useful for merged cards, and combine known playtime across platform entries.
+- Explain when game artwork search has no available provider or the AI Layer is still in shadow mode.
+
 ## [0.7.3] - 2026-11-04
 
 ### Added
