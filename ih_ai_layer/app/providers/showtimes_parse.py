@@ -51,7 +51,7 @@ def format_organic(rows):
     return '\n'.join('%d. %s - %s %s' % (i + 1, r['title'], r['snippet'], r['link']) for i, r in enumerate(rows)).replace('  ', ' ')
 
 
-def parse_images(data, limit=3):
+def parse_images(data, limit=10):
     """Extract a small set of image candidates and their source pages from SerpApi."""
     out = []
     if not isinstance(data, dict):
@@ -64,6 +64,6 @@ def parse_images(data, limit=3):
         if image and source:
             out.append({'title': str(r.get('title') or '')[:180], 'image_url': image[:1200],
                         'source_url': source[:1200], 'source': str(r.get('source') or '')[:100]})
-        if len(out) >= max(1, min(5, int(limit))):
+        if len(out) >= max(1, min(10, int(limit))):
             break
     return out
