@@ -7,9 +7,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod, artwork
+import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, trophies as trophies_mod, todos, tools as tools_mod, artwork
 from jobs import common
-from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
+from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
 VERSION = "0.9.3"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
@@ -27,6 +27,7 @@ START_DELAY_S = 60
 PROVIDERS = {
     "psn_trophies": psn_trophies,
     "psn_trophy_names": psn_trophy_names,
+    "psn_trophy_titles": psn_trophy_titles,
     "xbox_gamerscore": xbox_gamerscore,
     "destiny": destiny,
     "steam_presence": steam_presence,
@@ -175,6 +176,7 @@ class Module:
                     data = details(tc, pk)
                 else:
                     data = {"summary": tool.summary(tc, pk) if tool else "", "upcoming": tool.upcoming(tc, pk) if tool else []}
+                data = dict(data, trophies=trophies_mod.for_game(self.data, pk, entry["title"]))
                 return 200, {"ok": True, "game": entry["title"], "game_id": parts[1], "tool": tool.NAME if tool else None,
                              "ui_component": getattr(tool, "UI_COMPONENT", None) if tool else None, "details": data}
             if what == "art" and method == "POST":

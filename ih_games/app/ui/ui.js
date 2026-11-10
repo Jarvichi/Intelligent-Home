@@ -161,6 +161,38 @@
     });
     table.appendChild(body); wrap.appendChild(table); return wrap;
   }
+  const TROPHY_TIERS = ['platinum', 'gold', 'silver', 'bronze'];
+  function trophyBlock(t) {
+    const body = el('div', null, 'trophy-block');
+    if (t.progress !== null && t.progress !== undefined) {
+      const pct = Math.max(0, Math.min(100, Number(t.progress) || 0));
+      const bar = el('div', null, 'trophy-bar');
+      bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100');
+      bar.setAttribute('aria-valuenow', String(pct)); bar.setAttribute('aria-label', 'Trophy progress');
+      const fill = el('div', null, 'trophy-bar-fill'); fill.style.width = pct + '%'; bar.appendChild(fill);
+      body.append(el('p', pct + '% complete', 'trophy-percent'), bar);
+    }
+    if (t.earned) {
+      const tiers = el('ul', null, 'trophy-tiers');
+      TROPHY_TIERS.forEach(function (tier) {
+        const item = el('li', null, 'trophy-tier trophy-' + tier);
+        const of = t.defined && t.defined[tier] ? ' / ' + t.defined[tier] : '';
+        item.append(el('strong', String(t.earned[tier] || 0) + of), el('span', tier));
+        tiers.appendChild(item);
+      });
+      body.appendChild(tiers);
+    }
+    if (t.latest && t.latest.length) {
+      const list = el('ul', null, 'trophy-latest');
+      t.latest.forEach(function (x) {
+        const item = el('li'); item.append(el('span', x.tier || 'trophy', 'trophy-tier-tag trophy-' + (x.tier || 'bronze')), el('span', x.name, 'trophy-name'));
+        if (x.time) item.appendChild(el('small', fmtDate(x.time), 'ih-muted'));
+        list.appendChild(item);
+      });
+      body.append(el('h3', 'Latest trophies'), list);
+    }
+    return section('Trophies', body);
+  }
   function loadGameComponent(name) {
     if (!/^[a-z0-9_-]{1,64}$/.test(name || '')) return Promise.reject(new Error('Invalid game UI component.'));
     if (gameComponentCache.has(name)) return gameComponentCache.get(name);
@@ -194,7 +226,9 @@
             return fresh.details || {};
           };
         }
-        return component.render(data, helpers);
+        const node = component.render(data, helpers);
+        if (!data.trophies) return node;
+        const both = el('div', null, 'ih-detail-stack'); both.append(node, trophyBlock(data.trophies)); return both;
       } catch (error) {
         return el('p', error.message, 'notice notice-warning');
       }
@@ -210,6 +244,7 @@
       ], data.upcoming)));
       else wrap.appendChild(el('p', 'No upcoming events.', 'upcoming-empty'));
     }
+    if (data.trophies) wrap.appendChild(trophyBlock(data.trophies));
     if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
     return wrap;
   }

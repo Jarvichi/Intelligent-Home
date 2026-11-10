@@ -17,6 +17,10 @@ The response contains a property named `npsso`. Copy only its value into the add
 
 The provider checks PSN only after the existing trophy-count sensors report an increase while a game is currently playing. It looks up earned trophy names for that title and adds named events to the normal `ih_games` feed. If no NPSSO or Online ID is configured, it does nothing. API lookup failures are logged by error type and retried on a later run; the token is never included in logs.
 
+## Trophy library
+
+Add `psn_trophy_titles` to `providers_enabled` as well. Every 6 hours it makes one PSN call that lists the games with at least one earned trophy. Missing games are added to the library, and the Games page shows trophy counts in each game's details. Hidden games stay hidden.
+
 ## Privacy and limits
 
 The NPSSO value is read from the add-on options at runtime and is not written into provider state or logs. Trophy details depend on Sony's API and the privacy settings on the PSN account. This provider has not been validated against a live PSN account until you configure your own token.

@@ -131,3 +131,11 @@ th{position:sticky;top:0;background:var(--ih-surface-raised);color:var(--ih-mute
 .upload-actions button{min-height:44px;padding:8px 18px;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;cursor:pointer}
 .upload-actions .upload-primary{background:var(--ih-accent);color:var(--ih-accent-ink);border-color:transparent}
 .upload-actions button:disabled{opacity:.5;cursor:not-allowed}
+.trophy-block{display:grid;gap:var(--ih-space-3)}.trophy-block h3{margin:0;font-size:13px}.trophy-percent{margin:0;font-weight:650}
+.trophy-bar{height:10px;border-radius:999px;background:var(--ih-surface-raised);border:1px solid var(--ih-line);overflow:hidden}.trophy-bar-fill{height:100%;background:var(--ih-accent)}
+.trophy-tiers,.trophy-latest{display:flex;flex-wrap:wrap;gap:var(--ih-space-2);margin:0;padding:0;list-style:none}
+.trophy-tier{display:flex;flex-direction:column;min-width:76px;padding:var(--ih-space-2) var(--ih-space-3);border:1px solid var(--ih-line);border-left-width:4px;border-radius:var(--ih-radius-control)}.trophy-tier span{color:var(--ih-muted);font-size:11px;text-transform:capitalize}
+.trophy-platinum{border-color:#7a8fa8}.trophy-gold{border-color:#c79a1b}.trophy-silver{border-color:#9aa3a8}.trophy-bronze{border-color:#b0703a}
+.trophy-latest{flex-direction:column;gap:var(--ih-space-2)}.trophy-latest li{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ih-space-2)}.trophy-name{overflow-wrap:anywhere;font-weight:600}
+.trophy-tier-tag{padding:1px 8px;border:1px solid;border-radius:999px;font-size:11px;text-transform:capitalize}
+@media (max-width:520px){.trophy-tier{flex:1 1 40%}}

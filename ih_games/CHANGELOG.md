@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0] - 2026-11-10
+
+### Added
+- New provider `psn_trophy_titles` (add it to `providers_enabled`): one PSN call every 6 hours lists every game with at least one earned trophy.
+- Those games are added to the player's library (platform PSN) if no entry with the same title exists. Hidden games stay hidden, nothing is removed, and these bulk-added games do not create "research a tracker" to-dos.
+- Games page: a Trophies block in the game details (percent complete, tier counts, latest named trophies). The game summary text gets a trophy line.
+
 ## [0.9.9] - 2026-11-10
 
 ### Fixed

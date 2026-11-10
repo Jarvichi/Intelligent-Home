@@ -1,6 +1,7 @@
 """Played summary per game from the provider feeds (no new data source): events, last activity, achievements, sessions."""
 import json, os
 import library as L
+import trophies
 
 FEEDS = ("psn_trophies", "xbox_gamerscore", "steam_presence", "steam_achievements", "destiny")
 
@@ -20,7 +21,8 @@ def played(data_dir, player, entry):
             count += int(ev.get("count") or 0) if ev.get("kind") == "achievement" else 0
             last = max(last, ev.get("time") or "")
     return {"events": n, "kinds": kinds, "last_event": last or None, "last_seen": entry.get("last_seen"),
-            "playtime_min": entry.get("playtime_min"), "platform": entry.get("platform")}
+            "playtime_min": entry.get("playtime_min"), "platform": entry.get("platform"),
+            "trophies": trophies.for_game(data_dir, player, entry["title"])}
 
 
 def text(entry, p):
@@ -33,4 +35,7 @@ def text(entry, p):
         bits.append("no recent updates recorded")
     if p["last_seen"]:
         bits.append("last seen " + p["last_seen"][:10])
+    tline = trophies.line(p.get("trophies"))
+    if tline:
+        bits.append(tline)
     return ". ".join(bits) + "."
