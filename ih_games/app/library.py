@@ -3,9 +3,9 @@ Entry: id, title, platform, first_seen, last_seen, playtime_min (or None), sourc
 Generic code: player keys, display names and titles all come from options or the user."""
 import datetime, json, os, re, tempfile, threading
 
-PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "destiny": None}
+PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": None}
 DESTINY_PLATFORM = {1: "xbox", 2: "psn", 3: "steam", 5: "stadia"}
-FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "destiny": "bungie"}
+FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": "bungie"}
 _LOCK = threading.Lock()
 
 
@@ -170,6 +170,17 @@ class Library:
         cur = f.get("current") or {}
         upd = f.get("updated") or _iso(now)
         platform = PLATFORM_BY_FEED.get(src)
+        if src == "steam_library":
+            for ev in f.get("owned_games", []):
+                title = ev.get("game")
+                if not title:
+                    continue
+                try:
+                    playtime = max(0, int(ev.get("playtime_min") or 0))
+                except (TypeError, ValueError):
+                    playtime = 0
+                self._touch(d, pk, title, "steam", "steam", ev.get("time"), playtime)
+            return
         if src == "destiny":
             platform = None
             for p in self.players:

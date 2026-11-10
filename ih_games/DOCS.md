@@ -28,6 +28,8 @@ Follow [PSN_TROPHY_SETUP.md](PSN_TROPHY_SETUP.md) to configure the PSN Online ID
 
 Follow [STEAM_ACHIEVEMENT_SETUP.md](STEAM_ACHIEVEMENT_SETUP.md) to configure the Steam profile URL you supplied and the private Steam API key option. The provider reads the current game and App ID from Home Assistant's Steam Online integration. Steam's Web API returns earned achievements and the game's published schema; profile game details must be public for the lookup to work.
 
+The same configuration also syncs the account's owned games into the selected player's Games library, including playtime and last-played time where Steam provides them. It refreshes at most once per day.
+
 ## Options
 
 Set these in the add-on Configuration tab. Required = must be filled before it can work (the settings hub may fill it).
