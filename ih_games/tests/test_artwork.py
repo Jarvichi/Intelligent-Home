@@ -1,9 +1,17 @@
 """artwork.find_and_store: fake AI Layer and image host, no network."""
-import json, os, sys, tempfile, unittest, urllib.error
+import json, os, struct, sys, tempfile, unittest, urllib.error
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import artwork
 
 PNG = b'\x89PNG\r\n\x1a\n' + b'0' * 20
+
+
+def png(w, h):
+    return b'\x89PNG\r\n\x1a\n' + struct.pack('>I', 13) + b'IHDR' + struct.pack('>II', w, h) + b'\x08\x06\x00\x00\x00'
+
+
+def jpeg(w, h):
+    return b'\xff\xd8\xff\xe0\x00\x04ab\xff\xc0\x00\x0b\x08' + struct.pack('>HH', h, w) + b'\x01\x01\x11\x00'
 
 
 class R:
@@ -52,6 +60,43 @@ class T(unittest.TestCase):
             with self.assertRaises(artwork.ArtError) as cm:
                 self.run_it({'ok': False, 'answer': "The agents for 'game_art_search' did not answer (2 tried).", 'error': why})
             self.assertIn(text, str(cm.exception))
+
+    def test_store_uploaded(self):
+        d = tempfile.mkdtemp()
+        meta = artwork.store_uploaded(d, self.game, PNG)
+        self.assertEqual(meta['content_type'], 'image/png')
+        self.assertTrue(os.path.exists(os.path.join(d, 'artwork', 'g1.png')))
+        jpg = b'\xff\xd8\xff' + b'0' * 10
+        artwork.store_uploaded(d, self.game, jpg)      # replaces the png
+        self.assertFalse(os.path.exists(os.path.join(d, 'artwork', 'g1.png')))
+        self.assertTrue(os.path.exists(os.path.join(d, 'artwork', 'g1.jpg')))
+
+    def test_store_uploaded_rejects(self):
+        d = tempfile.mkdtemp()
+        for bad, text in ((b'', 'empty'), (b'GIF89a....', 'not a JPEG'), (b'\x89PNG\r\n\x1a\n' + b'0' * artwork.MAX_IMAGE_BYTES, 'larger')):
+            with self.assertRaises(artwork.ArtError) as cm:
+                artwork.store_uploaded(d, self.game, bad)
+            self.assertIn(text, str(cm.exception))
+
+    def test_image_size(self):
+        self.assertEqual(artwork.image_size(png(600, 900)), (600, 900))
+        self.assertEqual(artwork.image_size(jpeg(640, 480)), (640, 480))
+        self.assertIsNone(artwork.image_size(b'junk'))
+
+    def test_portrait_preferred_and_required(self):
+        def run(images, require):
+            def opener(req, timeout=None):
+                if req.full_url.endswith('/request'):
+                    rows = [{'image_url': 'https://img.example/%d.png' % i, 'source_url': 'https://store.steampowered.com/app/1/'} for i in range(len(images))]
+                    return R(json.dumps({'ok': True, 'answer': json.dumps(rows)}).encode())
+                return R(images[int(req.full_url.rsplit('/', 1)[1].split('.')[0])], 'image/png')
+            return artwork.find_and_store(self.opts, tempfile.mkdtemp(), self.game, opener=opener, require_portrait=require)
+        land, tall = png(1920, 1080), png(600, 900)
+        self.assertEqual(run([land, tall], False)['content_type'], 'image/png')      # picks the portrait one
+        with self.assertRaises(artwork.ArtError) as cm:
+            run([land, land], True)
+        self.assertIn('portrait', str(cm.exception))
+        self.assertTrue(run([land], False))      # landscape accepted when nothing is saved yet
 
 
 if __name__ == '__main__':
