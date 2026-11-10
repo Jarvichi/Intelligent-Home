@@ -25,6 +25,7 @@
   "providers_enabled": [
     "psn_trophies",
     "psn_trophy_names",
+    "psn_trophy_titles",
     "steam_achievements",
     "steam_library"
   ],

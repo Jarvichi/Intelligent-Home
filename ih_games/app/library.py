@@ -3,9 +3,12 @@ Entry: id, title, platform, first_seen, last_seen, playtime_min (or None), sourc
 Generic code: player keys, display names and titles all come from options or the user."""
 import datetime, json, os, re, tempfile, threading
 
-PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": None}
+PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": None, "psn_trophy_titles": "psn"}
 DESTINY_PLATFORM = {1: "xbox", 2: "psn", 3: "steam", 5: "stadia"}
-FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": "bungie"}
+FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": "bungie", "psn_trophy_titles": "psn_trophy_titles"}
+TITLES_FEED = "psn_trophy_titles"
+# Games added in bulk from the trophy list get no "research a tracker" to-do (145 at once would flood the list)
+NO_TODO_SOURCES = (TITLES_FEED,)
 _LOCK = threading.Lock()
 
 
@@ -170,6 +173,9 @@ class Library:
         cur = f.get("current") or {}
         upd = f.get("updated") or _iso(now)
         platform = PLATFORM_BY_FEED.get(src)
+        if src == TITLES_FEED:
+            self._from_trophy_titles(d, pk, f.get("titles", []), upd)
+            return
         if src == "steam_library":
             for ev in f.get("owned_games", []):
                 title = ev.get("game")
@@ -201,6 +207,16 @@ class Library:
         for g, t in titles.items():
             self._touch(d, pk, g, platform, FEED_SOURCE[src], t)
 
+    def _from_trophy_titles(self, d, pk, titles, upd):
+        """Add each earned-trophy game that is not in the library under ANY platform. Never touches existing entries."""
+        known = {norm(e["title"]) for e in d["entries"].get(pk, {}).values()}
+        for t in titles:
+            title = str(t.get("title") or "").strip()
+            if not title or norm(title) in known:
+                continue
+            self._touch(d, pk, title, "psn", TITLES_FEED, t.get("last_updated") or upd)
+            known.add(norm(title))
+
     # to-do rule (owner request, 31 Oct 2026)
     def games_without_todo(self):
         """Entries (any player) that have no tool and no to-do yet. One row per title with all its players."""
@@ -209,7 +225,7 @@ class Library:
         rows = {}
         for pk, ents in d["entries"].items():
             for e in ents.values():
-                if e.get("hidden") or e.get("tools") or e.get("todo"):
+                if e.get("hidden") or e.get("tools") or e.get("todo") or e.get("source") in NO_TODO_SOURCES:
                     continue
                 r = rows.setdefault(norm(e["title"]), {"title": e["title"], "id": e["id"], "players": [], "ids": {}})
                 r["players"].append(pk)
