@@ -92,4 +92,4 @@ its parity is verified. The UI remains read-only and administrator-only; no acce
 
 ### Codex to-do tools
 
-`POST /codex-todo-mcp` uses its own `codex_todo_token` and exposes four tools on one list, `todo.claude_to_do`, and nothing else: `todo_list`, `todo_add`, `todo_note` (appends a dated line to the description) and `todo_complete`. It uses this add-on's Home Assistant access (`homeassistant_api`), so Codex gets no Home Assistant credential. It cannot delete items, change other lists or call other services. Add it in the Codex add-on's `mcp_servers` with the URL `http://<host>:8820/codex-todo-mcp` and the token.
+`POST /codex-todo-mcp` uses its own `codex_todo_token` and exposes four tools on one list, `todo.claude_to_do`, and nothing else: `todo_list` (paged, searchable), `todo_get`, `todo_add`, `todo_note` (appends a dated line to the description) and `todo_complete`. It uses this add-on's Home Assistant access (`homeassistant_api`), so Codex gets no Home Assistant credential. It cannot delete items, change other lists or call other services. Add it in the Codex add-on's `mcp_servers` with the URL `http://<host>:8820/codex-todo-mcp` and the token.

@@ -10,7 +10,9 @@ ENTITY = "todo.claude_to_do"
 HA_API = "http://supervisor/core/api/"
 HA_TIMEOUT_S = 15
 MAX_TEXT_CHARS = 2000        # one summary, note or description
-MAX_LIST_ITEMS = 100         # items returned by todo_list
+DEFAULT_LIST_LIMIT = 50      # items per todo_list page
+MAX_LIST_LIMIT = 200
+DESC_PREVIEW_CHARS = 200     # todo_list shows this much of a description; todo_get shows all
 STATUS_OPEN, STATUS_DONE = "needs_action", "completed"
 NOTE_AUTHOR_DEFAULT = "codex"
 CODEX_TODO_INSTRUCTIONS = "Claude to-do list (todo.claude_to_do) only: list open items, add an item, add a note to an item, mark an item done."
@@ -22,8 +24,13 @@ def _tool(name, desc, props=None, required=None):
 
 UID = {"type": "string", "description": "item uid from todo_list"}
 TOOLS = [
-    _tool("todo_list", "List open items on the Claude to-do list (uid, summary, due, description).",
-          {"include_done": {"type": "boolean", "description": "also list completed items"}}),
+    _tool("todo_list", "List items on the Claude to-do list, nearest due date first. Returns total, offset and a page of items "
+          "(uid, summary, status, due, short description). Use offset to read the next page and search to filter by text.",
+          {"include_done": {"type": "boolean", "description": "also list completed items"},
+           "search": {"type": "string", "description": "only items whose summary or description contains this text"},
+           "limit": {"type": "integer", "description": "items per page, default %d, max %d" % (DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)},
+           "offset": {"type": "integer", "description": "items to skip, default 0"}}),
+    _tool("todo_get", "Read one item in full, including its whole description.", {"uid": UID}, ["uid"]),
     _tool("todo_add", "Add an item. Give a due date (YYYY-MM-DD) when there is one.",
           {"summary": {"type": "string"}, "description": {"type": "string"}, "due": {"type": "string"}}, ["summary"]),
     _tool("todo_note", "Add a dated note to an item (appended to its description; earlier text is kept).",
@@ -75,8 +82,21 @@ class CodexTodo:
 
     def t_todo_list(self, a):
         want = [STATUS_OPEN, STATUS_DONE] if a.get("include_done") is True else [STATUS_OPEN]
-        rows = [{k: it.get(k) for k in ("uid", "summary", "status", "due", "description")} for it in self._items(want)]
-        return json.dumps(rows[:MAX_LIST_ITEMS], indent=1)
+        q = str(a.get("search") or "").strip().lower()
+        items = [i for i in self._items(want) if not q or q in ((i.get("summary") or "") + " " + (i.get("description") or "")).lower()]
+        items.sort(key=lambda i: (i.get("due") is None, str(i.get("due") or "")))
+        limit = min(max(int(a.get("limit") or DEFAULT_LIST_LIMIT), 1), MAX_LIST_LIMIT)
+        offset = max(int(a.get("offset") or 0), 0)
+        rows = []
+        for it in items[offset:offset + limit]:
+            row = {k: it.get(k) for k in ("uid", "summary", "status", "due")}
+            d = it.get("description") or ""
+            row["description"] = d if len(d) <= DESC_PREVIEW_CHARS else d[:DESC_PREVIEW_CHARS] + "... (todo_get for the rest)"
+            rows.append(row)
+        return json.dumps({"total": len(items), "offset": offset, "items": rows}, indent=1)
+
+    def t_todo_get(self, a):
+        return json.dumps(self._find(a.get("uid")), indent=1)
 
     def t_todo_add(self, a):
         body = {"entity_id": ENTITY, "item": _text(a.get("summary"), "summary", True)}

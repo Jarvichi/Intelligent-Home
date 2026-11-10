@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.1] - 2026-11-10
+
+### Fixed
+- `todo_list` returned only the first 100 of the 231 open items, so newer items were invisible to Codex. It now returns `total`, `offset` and one page (default 50, max 200), sorted nearest due date first, with `limit`, `offset` and `search`. Long descriptions are cut to a preview.
+
+### Added
+- `todo_get` reads one item in full.
+
 ## [0.4.0] - 2026-11-10
 
 ### Added

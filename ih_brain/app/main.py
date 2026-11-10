@@ -7,7 +7,7 @@ from ihlib import trace
 import brainlib, mcp, extras, codex_todo
 import ui_server
 
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 MAX_BODY = 512 * 1024
 
 
