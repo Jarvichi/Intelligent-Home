@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1] - 2026-11-10
+
+### Changed
+- Artwork search sends only the game title and platform to IH AI Layer, which routes it to the best available helper.
+- Tries each returned image until one downloads.
+- Shows the real reason when a search fails (daily limit, no key, timeout).
+
 ## [0.7.9] - 2026-11-10
 
 ### Added

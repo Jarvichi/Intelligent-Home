@@ -86,8 +86,10 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
     token = str(opts.get('ai_layer_art_token') or '').strip()
     if not base or not token:
         raise ArtError('Configure the Games art connection in the add-on settings first.')
-    query = 'Find official retail box cover art for the video game %r on %s. Return official publisher or platform store image results only.' % (title, str(game.get('platform') or 'any platform'))
-    body = {'request_id': 'games-art-' + __import__('uuid').uuid4().hex[:20], 'capability': 'game_art_search', 'text': query}
+    platform = str(game.get('platform') or '').strip()
+    # Just the title and platform: the AI Layer routes this to whichever helper suits (search, store lookup...) and each builds its own query.
+    body = {'request_id': 'games-art-' + __import__('uuid').uuid4().hex[:20], 'capability': 'game_art_search', 'text': title,
+            'context': {'title': title, 'platform': platform}}
     req = urllib.request.Request(base + '/request', data=json.dumps(body).encode(), method='POST',
                                  headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json'})
     try:
@@ -97,10 +99,15 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
         raise ArtError('IH AI Layer could not search for cover art (%s).' % type(e).__name__)
     if not ai_result.get('ok'):
         answer = str(ai_result.get('answer') or '')
+        why = str(ai_result.get('error') or '')
         if 'No agent is available for capability' in answer:
-            raise ArtError('No artwork search provider is available in IH AI Layer. Enable a provider with game_art_search, such as SerpApi.')
-        if 'did not answer' in answer:
-            raise ArtError('The IH AI Layer artwork search provider did not answer. Check its status and daily quota.')
+            raise ArtError('No artwork search provider is available in IH AI Layer. Enable a provider with game_art_search, such as Serper, SerpApi or Steam Store.')
+        if why == 'cap':
+            raise ArtError('Every artwork search provider has used its daily limit. Try again tomorrow, or raise a provider limit in IH AI Layer.')
+        if why == 'not_configured':
+            raise ArtError('The artwork search provider in IH AI Layer has no key. Add one in its settings.')
+        if why == 'upstream_error' or 'did not answer' in answer:
+            raise ArtError('The artwork search providers in IH AI Layer did not answer (timeout or provider error). Try again shortly.')
         raise ArtError('IH AI Layer could not complete the artwork search. Check that an artwork provider is enabled and available.')
     answer = ai_result.get('answer')
     if isinstance(answer, str) and answer.startswith('[dry] shadow mode:'):
@@ -111,10 +118,20 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
         candidates = []
     if not isinstance(candidates, list):
         candidates = []
-    chosen = next((x for x in candidates if isinstance(x, dict) and _official_source(x.get('source_url')) and x.get('image_url')), None)
-    if not chosen:
+    usable = [x for x in candidates if isinstance(x, dict) and _official_source(x.get('source_url')) and x.get('image_url')]
+    if not usable:
         raise ArtError('No image from a recognized official publisher or store was found.')
-    data, content_type, suffix = _read_image(str(chosen['image_url']), opener=opener)
+    chosen = data = None
+    last_error = None
+    for cand in usable[:5]:      # first candidate that downloads as a real image
+        try:
+            data, content_type, suffix = _read_image(str(cand['image_url']), opener=opener)
+            chosen = cand
+            break
+        except ArtError as e:
+            last_error = e
+    if chosen is None:
+        raise last_error
     art_dir = os.path.join(data_dir, 'artwork')
     os.makedirs(art_dir, mode=0o700, exist_ok=True)
     filename = gid + suffix
