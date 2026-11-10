@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-11-10
+
+### Added
+- `POST /codex-todo-mcp` with its own `codex_todo_token`: tools `todo_list`, `todo_add`, `todo_note`, `todo_complete` for the Claude to-do list (`todo.claude_to_do`) only. Codex's bundled Home Assistant MCP cannot read to-do items, so Codex had no way to leave notes or close items.
+- The add-on now asks for Home Assistant API access (`homeassistant_api`), used only by these tools.
+
 ## [0.3.0] - 2026-11-05
 
 ### Changed

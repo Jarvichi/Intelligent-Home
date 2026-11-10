@@ -22,10 +22,10 @@ def _err(mid, code, message):
     return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": message}}
 
 
-def handle_rpc(brain, msg, version="0", tools=None, server_name="house-brain"):
+def handle_rpc(brain, msg, version="0", tools=None, server_name="house-brain", instructions=None):
     available_tools = TOOLS if tools is None else tools
     if isinstance(msg, list):
-        res = [r for r in (handle_rpc(brain, m, version, tools, server_name) for m in msg) if r is not None]
+        res = [r for r in (handle_rpc(brain, m, version, tools, server_name, instructions) for m in msg) if r is not None]
         return res or None
     if not isinstance(msg, dict):
         return _err(None, -32600, "invalid request")
@@ -35,7 +35,7 @@ def handle_rpc(brain, msg, version="0", tools=None, server_name="house-brain"):
     try:
         if method == "initialize":
             want = params.get("protocolVersion")
-            instructions = CODEX_INSTRUCTIONS if tools is not None else INSTRUCTIONS
+            instructions = instructions or (CODEX_INSTRUCTIONS if tools is not None else INSTRUCTIONS)
             return _ok(mid, {"protocolVersion": want if want in PROTOCOLS else PROTOCOLS[0],
                              "capabilities": {"tools": {"listChanged": False}},
                              "serverInfo": {"name": server_name, "version": version},

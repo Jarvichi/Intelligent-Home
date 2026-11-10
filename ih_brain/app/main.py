@@ -4,10 +4,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import brainlib, mcp, extras
+import brainlib, mcp, extras, codex_todo
 import ui_server
 
-VERSION = '0.2.10'
+VERSION = '0.4.0'
 MAX_BODY = 512 * 1024
 
 
@@ -27,7 +27,7 @@ def load_options(path):
     except Exception:
         o = {}
     return {'brain_dir': str(o.get('brain_dir') or '/share/brain'), 'api_token': str(o.get('api_token') or ''),
-            'codex_read_token': str(o.get('codex_read_token') or ''),
+            'codex_read_token': str(o.get('codex_read_token') or ''), 'codex_todo_token': str(o.get('codex_todo_token') or ''),
             'read_only': o.get('read_only', True) is not False, 'port': int(o.get('port') or 8820),
             'rate_per_min': int(o.get('rate_per_min') or 120),
             'apple_notes_dir': str(o.get('apple_notes_dir') or '/share/apple_notes_staging'),
@@ -50,6 +50,7 @@ class State:
         self.data_dir = data_dir
         self._hits, self._lock = [], threading.Lock()
         self.pocket = None
+        self.todo = codex_todo.CodexTodo()
         extras.set_names(opts.get('scrub_names', ''))
         for k, v in (('apple_notes_dir', '/share/apple_notes_staging'), ('apple_notes_live', False), ('pocket_live', False),
                      ('pocket_interval_min', 0), ('pocket_cloudflare_token', ''), ('pocket_key', ''), ('pocket_url', '')):
@@ -75,8 +76,8 @@ class State:
             return False
         return hmac.compare_digest(header[7:].strip().encode(), tok.encode())
 
-    def codex_authed(self, header):
-        tok = self.opts.get('codex_read_token') or ''
+    def codex_authed(self, header, key='codex_read_token'):
+        tok = self.opts.get(key) or ''
         if not tok or not header or not header.startswith('Bearer '):
             return False
         return hmac.compare_digest(header[7:].strip().encode(), tok.encode())
@@ -98,6 +99,7 @@ class State:
         return {'ok': True, 'version': VERSION, 'notes': len(notes), 'read_only': self.opts['read_only'],
                 'last_index': self.brain.last_index, 'token_set': bool(self.opts['api_token']),
                 'codex_read_token_set': bool(self.opts.get('codex_read_token')),
+                'codex_todo_token_set': bool(self.opts.get('codex_todo_token')),
                 'apple_notes_live': self.opts['apple_notes_live'], 'pocket_live': self.opts['pocket_live'],
                 'pocket_configured': self.pocket is not None, 'pocket_last': self.pocket.last if self.pocket else None}
 
@@ -132,9 +134,9 @@ def make_handler(st):
                 self._send(429, {'ok': False, 'why': 'rate limit'}); return False
             return True
 
-        def _codex_gate(self):
-            if not st.codex_authed(self.headers.get('Authorization')):
-                self._send(401, {'ok': False, 'why': 'read-only Brain credential required'}); return False
+        def _codex_gate(self, key='codex_read_token'):
+            if not st.codex_authed(self.headers.get('Authorization'), key):
+                self._send(401, {'ok': False, 'why': 'Codex credential required'}); return False
             if st.stopped():
                 self._send(503, {'ok': False, 'why': 'STOP file present'}); return False
             if not st.rate_ok():
@@ -149,15 +151,15 @@ def make_handler(st):
                 return
             if p == '/status':
                 return self._send(200, st.status())
-            if p in ('/mcp', '/codex-mcp'):
+            if p in ('/mcp', '/codex-mcp', '/codex-todo-mcp'):
                 self.send_response(405); self.send_header('Allow', 'POST'); self.send_header('Content-Length', '0'); self.end_headers(); return
             self._send(404, {'ok': False})
 
         def do_POST(self):
             p = self.path.split('?')[0].rstrip('/') or '/'
-            if p not in ('/mcp', '/codex-mcp', '/', '/apple-notes', '/pocket-sync'):
+            if p not in ('/mcp', '/codex-mcp', '/codex-todo-mcp', '/', '/apple-notes', '/pocket-sync'):
                 return self._send(404, {'ok': False})
-            if not (self._codex_gate() if p == '/codex-mcp' else self._gate()):
+            if not (self._codex_gate('codex_todo_token' if p == '/codex-todo-mcp' else 'codex_read_token') if p in ('/codex-mcp', '/codex-todo-mcp') else self._gate()):
                 return
             try:
                 n = int(self.headers.get('Content-Length') or 0)
@@ -181,7 +183,10 @@ def make_handler(st):
                 return self._send(400, {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'parse error'}})
             with st.tracer.span('mcp_rpc') as sp:
                 sp.set(in_bytes=len(raw))
-                if p == '/codex-mcp':
+                if p == '/codex-todo-mcp':
+                    resp = mcp.handle_rpc(st.todo, msg, VERSION, tools=codex_todo.TOOLS, server_name='ih-brain-codex-todo',
+                                          instructions=codex_todo.CODEX_TODO_INSTRUCTIONS)
+                elif p == '/codex-mcp':
                     class ShareableBrain:
                         def t_brain_search(self, args): return st.brain.t_codex_brain_search(args)
                         def t_brain_read(self, args): return st.brain.t_codex_brain_read(args)

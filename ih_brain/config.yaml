@@ -1,5 +1,5 @@
 name: "Intelligent Home - Brain"
-version: "0.3.0"
+version: "0.4.0"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves House Brain notes to Claude over MCP and provides an admin-only ingress UI to browse, search and read notes."
@@ -11,6 +11,7 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8820]/healthz  once boot is auto.
 boot: manual
 init: false
+homeassistant_api: true   # only used by the Codex to-do tools (todo.claude_to_do), see DOCS
 ingress: true
 ingress_port: 8821
 panel_title: "Brain"
@@ -26,6 +27,7 @@ options:
   brain_dir: "/share/brain"
   api_token: ""
   codex_read_token: ""
+  codex_todo_token: ""
   read_only: true
   port: 8820
   rate_per_min: 120
@@ -44,6 +46,7 @@ schema:
   brain_dir: str
   api_token: password
   codex_read_token: password
+  codex_todo_token: password
   read_only: bool
   port: int(1024,65535)
   rate_per_min: int(1,6000)
