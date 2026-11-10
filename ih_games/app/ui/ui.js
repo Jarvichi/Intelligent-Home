@@ -323,6 +323,8 @@
     }
     art.addEventListener('load', function () {
       art.hidden = false; fallback.hidden = true; cover.classList.add('has-art');
+      cover.classList.toggle('art-wide', art.naturalHeight > 0 && art.naturalWidth / art.naturalHeight > 0.8);
+      cover.style.setProperty('--art-url', 'url("' + art.currentSrc.replace(/"/g, '%22') + '")');
     });
     art.addEventListener('error', function () {
       art.hidden = true;

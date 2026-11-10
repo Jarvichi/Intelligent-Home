@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.5] - 2026-11-10
+
+### Fixed
+- Cover art now fills the full height of the card. Landscape art (such as Steam headers) is centred over a blurred copy of itself instead of leaving empty bands above and below.
+
 ## [0.9.4] - 2026-11-10
 
 ### Fixed
