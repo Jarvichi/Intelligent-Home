@@ -3,13 +3,16 @@ The search text is NOT scrubbed (it is a search query) and is never logged. Answ
 nothing. The daily cap is counted BEFORE the call. Errors and empty answers are never cached.
 Answer format: plain numbered text by default; with context {"format": "json"} a JSON list of {title, link, snippet, date} (used by the router's
 current_facts flow). At most 8 results."""
-import hashlib, json, urllib.request
+import json, urllib.request
 from .base import Provider, USER_AGENT
+from . import art
 
 SERPER_URL = 'https://google.serper.dev/search'
 SERPER_IMAGES_URL = 'https://google.serper.dev/images'
-ART_SUFFIX = ' official video game box art cover'
 MAX_RESULTS = 8
+MAX_QUERY_CHARS = 300
+SEARCH_TIMEOUT_S = 30      # upper limit for one Serper call
+REGION = 'gb'
 
 
 def parse_results(data, limit=MAX_RESULTS):
@@ -34,14 +37,8 @@ def parse_results(data, limit=MAX_RESULTS):
     return out
 
 
-def art_query(text, ctx):
-    t = str((ctx or {}).get('title') or text)[:160].strip()
-    p = str((ctx or {}).get('platform') or '').strip()[:20]
-    return (t + ' ' + p).strip() if (ctx or {}).get('title') else text[:220]
-
-
-def parse_images(data, limit=10):
-    """Serper /images response -> [{title, image_url, source_url, source}] (same shape as the SerpApi game_art_search answer)."""
+def parse_images(data, limit=art.MAX_CANDIDATES):
+    """Serper /images response -> [{title, image_url, source_url, source}] (same shape as the other art providers)."""
     out = []
     if not isinstance(data, dict):
         return out
@@ -49,9 +46,9 @@ def parse_images(data, limit=10):
         if not isinstance(r, dict):
             continue
         image, source = str(r.get('imageUrl') or ''), str(r.get('link') or '')
-        if image.startswith(('http://', 'https://')) and source.startswith(('http://', 'https://')):
-            out.append({'title': str(r.get('title') or '')[:180], 'image_url': image[:1200], 'source_url': source[:1200], 'source': str(r.get('source') or '')[:100]})
-        if len(out) >= max(1, min(10, int(limit))):
+        if image.startswith(art.URL_PREFIXES) and source.startswith(art.URL_PREFIXES):
+            out.append(art.make_row(r.get('title'), image, source, r.get('source')))
+        if len(out) >= max(1, min(art.MAX_CANDIDATES, int(limit))):
             break
     return out
 
@@ -61,7 +58,7 @@ def format_text(rows):
 
 
 class Serper(Provider):
-    NAME, LABEL, VERSION = 'serper', 'Serper', '0.2.0'
+    NAME, LABEL, VERSION = 'serper', 'Serper', '0.2.1'
     CAPABILITIES = ['web_search', 'game_art_search']
     HAS_MODELS = False
     KEY_OPTION = 'serper_key'
@@ -96,9 +93,9 @@ class Serper(Provider):
             return res(False, 'Serper provider is stopped (kill switch).', why='stopped')
         if not self.opts['key']:
             return res(False, 'Serper is not configured (no key for provider serper).', why='not_configured')
-        art = cap == 'game_art_search'
-        q = (art_query(text, ctx) + ART_SUFFIX) if art else text[:300]
-        ck = hashlib.sha256(('%s|%s|%s' % (cap, 'j' if as_json else 't', q.lower())).encode()).hexdigest()[:24]
+        art_cap = cap == 'game_art_search'
+        q = (art.art_query(text, ctx) + art.ART_SUFFIX) if art_cap else text[:MAX_QUERY_CHARS]
+        ck = art.cache_key('%s|%s' % (cap, 'j' if as_json else 't'), q, ctx)
         cache = self._read('cache.json')
         hit = cache.get(ck)
         if hit and self.clock() - hit['t'] <= self.opts['cache_hours'] * 3600:
@@ -113,15 +110,15 @@ class Serper(Provider):
                 return res(False, 'Paid calls are not allowed (spend_cap %d paid calls per day, 0 = free only).' % self.opts.get('spend_cap', 0), why='spend_cap', error='spend_cap')
             self._count()
         try:
-            data = self.search(q, timeout)
+            data = self.search(q, timeout, images=art_cap)
         except Exception as e:
             self.log('serper failed: %s' % type(e).__name__)      # type only
             return res(False, 'Serper did not answer.', why='upstream_error')
         self.live_calls += 1
-        if art:
-            rows = parse_images(data)
+        if art_cap:
+            rows = art.keep_accepted(parse_images(data), ctx)
             if not rows:
-                return res(True, '[]', cached=False)      # never cached
+                return res(False, 'Serper found no cover art from an accepted site.', why='empty')      # never cached; the router tries the next provider
             answer = json.dumps(rows, ensure_ascii=False, separators=(',', ':'))
             cache = {k: v for k, v in cache.items() if self.clock() - v['t'] <= self.opts['cache_hours'] * 3600}
             cache[ck] = {'t': self.clock(), 'answer': answer}
@@ -136,13 +133,13 @@ class Serper(Provider):
         self._write('cache.json', cache)
         return res(True, answer, cached=False)
 
-    def search(self, q, timeout=None):
+    def search(self, q, timeout=None, images=False):
         """The ONLY network call. Key goes into the X-API-KEY header here and nowhere else."""
-        body = json.dumps({'q': q, 'gl': 'gb', 'num': MAX_RESULTS}).encode()
-        url = SERPER_IMAGES_URL if q.endswith(ART_SUFFIX) else SERPER_URL
+        body = json.dumps({'q': q, 'gl': REGION, 'num': MAX_RESULTS}).encode()
+        url = SERPER_IMAGES_URL if images else SERPER_URL
         req = urllib.request.Request(url, data=body, method='POST',
                                      headers={'X-API-KEY': self.opts['key'], 'Content-Type': 'application/json', 'User-Agent': USER_AGENT})
-        with self.opener(req, timeout=min(30, timeout) if timeout else 30) as x:
+        with self.opener(req, timeout=min(SEARCH_TIMEOUT_S, timeout) if timeout else SEARCH_TIMEOUT_S) as x:
             return json.loads(x.read(2000000))
 
     def status(self):

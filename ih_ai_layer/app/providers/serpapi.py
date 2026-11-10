@@ -1,15 +1,18 @@
 """SerpApi (Google results) for 'showtimes' and 'web_search'. The key is only used to build the request URL and is never logged, returned or put in /status.
 Same as the old agent add-on: the search text is NOT scrubbed (it is a search query and the film or cinema name must stay readable); the request context is
 only used to read film and cinema. Answers are cached (setting cache_hours); a cached answer costs nothing. Daily cap is counted BEFORE the call."""
-import hashlib, json, urllib.parse, urllib.request
+import json, urllib.parse, urllib.request
 from .base import Provider
 from . import showtimes_parse as sp
+from . import art
 
 SERP_URL = 'https://serpapi.com/search.json'
+SEARCH_TIMEOUT_S = 30      # upper limit for one SerpApi call
+IMAGE_SEARCH = 'isch'      # Google image-search mode
 
 
 class SerpApi(Provider):
-    NAME, LABEL, VERSION = 'serpapi', 'SerpApi', '0.1.4'
+    NAME, LABEL, VERSION = 'serpapi', 'SerpApi', '0.1.5'
     CAPABILITIES = ['showtimes', 'web_search', 'game_art_search']
     HAS_MODELS = False
     KEY_OPTION = 'serpapi_key'
@@ -43,7 +46,7 @@ class SerpApi(Provider):
         if not self.opts['key']:
             return res(False, 'SerpApi is not configured (no key for provider serpapi).', why='not_configured')
         q = self.build_query(cap, text, ctx)
-        ck = hashlib.sha256(('%s|%s' % (cap, q.lower())).encode()).hexdigest()[:24]
+        ck = art.cache_key(cap, q, ctx)
         cache = self._read('cache.json')
         hit = cache.get(ck)
         if hit and self.clock() - hit['t'] <= self.opts['cache_hours'] * 3600:
@@ -64,6 +67,8 @@ class SerpApi(Provider):
             return res(False, 'SerpApi did not answer.', why='upstream_error')
         self.live_calls += 1
         answer = self.build_answer(cap, data, ctx)
+        if cap == 'game_art_search' and answer == '[]':
+            return res(False, 'SerpApi found no cover art from an accepted site.', why='empty')      # never cached; the router tries the next provider
         if not answer.startswith(('No showtimes found', 'No results found')):      # never cache an empty answer (a parser fix must not be hidden by it)
             cache = {k: v for k, v in cache.items() if self.clock() - v['t'] <= self.opts['cache_hours'] * 3600}
             cache[ck] = {'t': self.clock(), 'answer': answer}
@@ -77,8 +82,7 @@ class SerpApi(Provider):
             if cinema or film:
                 return ('%s showtimes %s' % (film, cinema)).strip()
         if cap == 'game_art_search':
-            t = str(ctx.get('title') or '').strip()[:160]
-            return ((t + ' ' + str(ctx.get('platform') or '').strip()[:20]).strip() if t else text[:220]) + ' official video game box art cover'
+            return art.art_query(text, ctx) + art.ART_SUFFIX
         return text[:300]
 
     def build_answer(self, cap, data, ctx):
@@ -86,17 +90,17 @@ class SerpApi(Provider):
             txt = sp.format_showtimes(sp.parse_showtimes(data, str(ctx.get('film') or '') or None))
             return txt or 'No showtimes found in the SerpApi response (the layout may differ from what the parser expects).'
         if cap == 'game_art_search':
-            rows = sp.parse_images(data, limit=10)
+            rows = art.keep_accepted(sp.parse_images(data), ctx)
             return json.dumps(rows, ensure_ascii=False, separators=(',', ':')) if rows else '[]'
         return sp.format_organic(sp.parse_organic(data)) or 'No results found.'
 
     def search(self, q, timeout=None):
         """The ONLY network call. Key goes into the URL here and nowhere else."""
         params = {'engine': 'google', 'q': q, 'gl': 'uk', 'hl': 'en', 'api_key': self.opts['key']}
-        if q.endswith('official video game box art cover'):
-            params['tbm'] = 'isch'
+        if q.endswith(art.ART_SUFFIX):
+            params['tbm'] = IMAGE_SEARCH
         url = SERP_URL + '?' + urllib.parse.urlencode(params)
-        with self.opener(urllib.request.Request(url), timeout=min(30, timeout) if timeout else 30) as x:
+        with self.opener(urllib.request.Request(url), timeout=min(SEARCH_TIMEOUT_S, timeout) if timeout else SEARCH_TIMEOUT_S) as x:
             return json.loads(x.read(2000000))
 
     def status(self):

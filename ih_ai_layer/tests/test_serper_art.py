@@ -39,6 +39,19 @@ class T(unittest.TestCase):
         self.assertEqual(seen, [SERPER_IMAGES_URL])
         self.assertEqual(json.loads(r['answer'])[0]['image_url'], 'https://store.example/c.jpg')
 
+    def test_not_accepted_site_fails_over(self):
+        def opener(req, timeout=None):
+            class R:
+                def __enter__(s): return s
+                def __exit__(s, *a): return False
+                def read(s, n=-1): return json.dumps(DATA).encode()
+            return R()
+        o = Serper.make_opts({'name': 'serper', 'enabled': True, 'key': 'k', 'settings': {'shadow': False}})
+        p = Serper(o, tempfile.mkdtemp(), opener=opener)
+        r = p.ask({'request_id': 'a', 'capability': 'game_art_search', 'text': 'X', 'context': {'title': 'X', 'domains': ['nowhere.example']}})
+        self.assertFalse(r['ok'])
+        self.assertEqual(r['why'], 'empty')
+
 
 if __name__ == '__main__':
     unittest.main()

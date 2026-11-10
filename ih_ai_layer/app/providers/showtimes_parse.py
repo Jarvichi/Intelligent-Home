@@ -2,6 +2,7 @@
 Layout CHECKED against one real response (27 Oct 2026, query "showtimes <cinema>", gl=uk): 'showtimes' is a list of days
 {day, movies: [{name, link, showing: [{time: [..], type}]}]}; the cinema is the one the query names (knowledge_graph title), not a field of each row.
 organic_results (title/snippet/link) are not yet checked against a real response. Every function tolerates missing fields and returns [] rather than raising."""
+from . import art
 
 
 def parse_showtimes(data, film=None):
@@ -51,8 +52,8 @@ def format_organic(rows):
     return '\n'.join('%d. %s - %s %s' % (i + 1, r['title'], r['snippet'], r['link']) for i, r in enumerate(rows)).replace('  ', ' ')
 
 
-def parse_images(data, limit=10):
-    """Extract a small set of image candidates and their source pages from SerpApi."""
+def parse_images(data, limit=art.MAX_CANDIDATES):
+    """Extract image candidates and their source pages from SerpApi."""
     out = []
     if not isinstance(data, dict):
         return out
@@ -62,8 +63,7 @@ def parse_images(data, limit=10):
         image = str(r.get('original') or r.get('thumbnail') or '')
         source = str(r.get('link') or '')
         if image and source:
-            out.append({'title': str(r.get('title') or '')[:180], 'image_url': image[:1200],
-                        'source_url': source[:1200], 'source': str(r.get('source') or '')[:100]})
-        if len(out) >= max(1, min(10, int(limit))):
+            out.append(art.make_row(r.get('title'), image, source, r.get('source')))
+        if len(out) >= max(1, min(art.MAX_CANDIDATES, int(limit))):
             break
     return out

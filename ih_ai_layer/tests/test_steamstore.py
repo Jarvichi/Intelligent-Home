@@ -2,7 +2,7 @@
 import json, os, sys, tempfile, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 from providers.steamstore import SteamStore, pick, build_rows
-from providers.serper import art_query
+from providers.art import art_query, clean_context, keep_accepted
 
 ITEMS = [{'id': 1091500, 'name': 'Cyberpunk 2077'}, {'id': 5, 'name': 'Cyberpunk 2077: Phantom Liberty'}, {'id': 'x', 'name': 'bad'}]
 
@@ -44,12 +44,29 @@ class T(unittest.TestCase):
 
     def test_no_match_and_other_cap(self):
         p = self.make({'items': []}, [])
-        self.assertEqual(p.ask({'request_id': 'a', 'capability': 'game_art_search', 'text': 'Nothing'})['answer'], '[]')
+        r = p.ask({'request_id': 'a', 'capability': 'game_art_search', 'text': 'Nothing'})
+        self.assertFalse(r['ok'])
+        self.assertEqual(r['why'], 'empty')
         self.assertFalse(p.ask({'request_id': 'b', 'capability': 'web_search', 'text': 'x'})['ok'])
 
     def test_art_query(self):
         self.assertEqual(art_query('long sentence', {'title': 'Doom', 'platform': 'xbox'}), 'Doom xbox')
         self.assertEqual(art_query('plain', {}), 'plain')
+
+    def test_clean_context(self):
+        c = clean_context({'title': ' Doom ', 'platform': 'pc', 'domains': ['Store.Example', 'bad domain!', 5], 'evil': 'x'})
+        self.assertEqual(c, {'title': 'Doom', 'platform': 'pc', 'domains': ['store.example']})
+        self.assertEqual(clean_context(None), {})
+
+    def test_keep_accepted(self):
+        rows = [{'source_url': 'https://www.store.example/a'}, {'source_url': 'https://other.example/a'}, {'source_url': 'http://store.example/a'}]
+        self.assertEqual(keep_accepted(rows, {'domains': ['store.example']}), rows[:1])
+        self.assertEqual(keep_accepted(rows, {}), rows)
+
+    def test_steam_filtered_out_when_not_accepted(self):
+        p = self.make({'items': ITEMS}, [])
+        o = {'request_id': 'a', 'capability': 'game_art_search', 'text': 'Cyberpunk 2077', 'context': {'title': 'Cyberpunk 2077', 'domains': ['store.playstation.com']}}
+        self.assertEqual(p.ask(o)['why'], 'empty')
 
 
 if __name__ == '__main__':
