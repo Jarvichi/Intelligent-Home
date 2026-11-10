@@ -25,7 +25,8 @@
   "providers_enabled": [
     "psn_trophies",
     "psn_trophy_names",
-    "steam_achievements"
+    "steam_achievements",
+    "steam_library"
   ],
   "quiet_start": "22:00",
   "quiet_end": "08:00",

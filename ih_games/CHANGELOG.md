@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.9] - 2026-11-10
+
+### Added
+- Import owned Steam games into each player's library, including Steam playtime and last-played data where available. Sync runs at most once per day.
+- Uses the existing private Steam API key and profile URL/SteamID64 options; no separate Steam-library setup or credential is needed.
+
 ## [0.7.8] - 2026-11-09
 
 ### Added

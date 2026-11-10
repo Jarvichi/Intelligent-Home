@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.7.8"
+version: "0.7.9"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -39,6 +39,7 @@ options:
     - "psn_trophies"
     - "psn_trophy_names"
     - "steam_achievements"
+    - "steam_library"
   quiet_start: "22:00"
   quiet_end: "08:00"
   timezone: "Europe/London"

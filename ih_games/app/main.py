@@ -9,9 +9,9 @@ sys.path.insert(0, HERE)
 from ihlib import trace
 import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, todos, tools as tools_mod, artwork
 from jobs import common
-from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence, steam_achievements
+from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
-VERSION = "0.7.8"
+VERSION = "0.7.9"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -30,6 +30,7 @@ PROVIDERS = {
     "destiny": destiny,
     "steam_presence": steam_presence,
     "steam_achievements": steam_achievements,
+    "steam_library": steam_library,
 }
 
 def load_options(path=None):
@@ -40,7 +41,7 @@ def load_options(path=None):
     return {
         "mode": "live" if str(o.get("mode") or "dry").strip() == "live" else "dry",
         "players": o.get("players", []),
-        "providers_enabled": o.get("providers_enabled", ["psn_trophies"]),
+        "providers_enabled": o.get("providers_enabled", ["psn_trophies", "steam_achievements", "steam_library"]),
         "quiet_start": str(o.get("quiet_start") or "22:00").strip(),
         "quiet_end": str(o.get("quiet_end") or "08:00").strip(),
         "timezone": str(o.get("timezone") or "Europe/London").strip(),
