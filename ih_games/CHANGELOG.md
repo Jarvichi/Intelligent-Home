@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.4] - 2026-11-10
+
+### Fixed
+- Removed the gap between the cover art and the divider line when a game card is expanded.
+
 ## [0.9.3] - 2026-11-10
 
 ### Changed
