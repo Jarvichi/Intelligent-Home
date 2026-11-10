@@ -44,6 +44,7 @@ def _trophy_user(client, online_id):
 def _recent_trophies(npsso, online_id, game):
     """Return recent earned trophy records matching the current game title."""
     from psnawp_api import PSNAWP
+    from psnawp_api.models.trophies.trophy_constants import PlatformType
 
     client = PSNAWP(npsso_cookie=npsso)
     user = _trophy_user(client, online_id)
@@ -61,9 +62,9 @@ def _recent_trophies(npsso, online_id, game):
         if not comm_id:
             continue
         platforms = _value(title, "title_platform", ()) or ()
-        platform = next(iter(platforms), "PS4")
-        if hasattr(platform, "value"):
-            platform = platform.value
+        # psnawp needs the PlatformType enum, not its text: with "PS5" as a string it asked the PS4 service
+        # and PSN answered "not found" for every PS5 game (found by a live test, 10 Nov 2026).
+        platform = next(iter(platforms), PlatformType.PS4)
         groups = user.trophy_groups_summary(comm_id, platform)
         group_ids = [str(_value(g, "trophy_group_id", "default")) for g in groups]
         if not group_ids:
