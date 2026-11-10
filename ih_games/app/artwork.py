@@ -2,6 +2,12 @@
 import datetime, ipaddress, json, os, re, socket, tempfile, threading, urllib.error, urllib.parse, urllib.request
 
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
+IMAGE_TIMEOUT_S = 20            # download of one cover image
+LAYER_TIMEOUT_S = 35            # one AI Layer art search (it may try more than one helper)
+MAX_LAYER_REPLY_BYTES = 128 * 1024
+MAX_CANDIDATES_TRIED = 5        # returned images tried before giving up
+REQUEST_ID_CHARS = 20
+MAX_SOURCE_TITLE_CHARS = 180
 _LOCK = threading.Lock()
 OFFICIAL_SOURCES = (
     'store.steampowered.com', 'store.playstation.com', 'playstation.com', 'xbox.com', 'microsoft.com',
@@ -54,7 +60,7 @@ def _read_image(url, opener=None):
         raise ArtError('The image host is not a public HTTPS address.')
     req = urllib.request.Request(url, headers={'User-Agent': 'IntelligentHomeGames/0.6', 'Accept': 'image/avif,image/webp,image/png,image/jpeg'})
     try:
-        with _opener(opener)(req, timeout=20) as response:
+        with _opener(opener)(req, timeout=IMAGE_TIMEOUT_S) as response:
             final_url = response.geturl() if hasattr(response, 'geturl') else url
             if not _public_https(final_url):
                 raise ArtError('The image redirect target was refused.')
@@ -88,13 +94,13 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
         raise ArtError('Configure the Games art connection in the add-on settings first.')
     platform = str(game.get('platform') or '').strip()
     # Just the title and platform: the AI Layer routes this to whichever helper suits (search, store lookup...) and each builds its own query.
-    body = {'request_id': 'games-art-' + __import__('uuid').uuid4().hex[:20], 'capability': 'game_art_search', 'text': title,
-            'context': {'title': title, 'platform': platform}}
+    body = {'request_id': 'games-art-' + __import__('uuid').uuid4().hex[:REQUEST_ID_CHARS], 'capability': 'game_art_search', 'text': title,
+            'context': {'title': title, 'platform': platform, 'domains': list(OFFICIAL_SOURCES)}}      # helpers keep only results from these sites
     req = urllib.request.Request(base + '/request', data=json.dumps(body).encode(), method='POST',
                                  headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json'})
     try:
-        with _opener(opener)(req, timeout=35) as response:
-            ai_result = json.loads(response.read(128 * 1024))
+        with _opener(opener)(req, timeout=LAYER_TIMEOUT_S) as response:
+            ai_result = json.loads(response.read(MAX_LAYER_REPLY_BYTES))
     except Exception as e:
         raise ArtError('IH AI Layer could not search for cover art (%s).' % type(e).__name__)
     if not ai_result.get('ok'):
@@ -123,7 +129,7 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
         raise ArtError('No image from a recognized official publisher or store was found.')
     chosen = data = None
     last_error = None
-    for cand in usable[:5]:      # first candidate that downloads as a real image
+    for cand in usable[:MAX_CANDIDATES_TRIED]:      # first candidate that downloads as a real image
         try:
             data, content_type, suffix = _read_image(str(cand['image_url']), opener=opener)
             chosen = cand
@@ -139,7 +145,7 @@ def find_and_store(opts, data_dir, game, opener=None, now=None):
     meta_path = os.path.join(art_dir, gid + '.json')
     fetched = (now or datetime.datetime.now(datetime.timezone.utc)).isoformat(timespec='seconds')
     metadata = {'game_id': gid, 'title': title, 'file': filename, 'content_type': content_type,
-                'source_url': str(chosen['source_url']), 'source_title': str(chosen.get('title') or '')[:180], 'fetched_at': fetched}
+                'source_url': str(chosen['source_url']), 'source_title': str(chosen.get('title') or '')[:MAX_SOURCE_TITLE_CHARS], 'fetched_at': fetched}
     with _LOCK:
         for old in ('.jpg', '.png', '.webp'):
             stale = os.path.join(art_dir, gid + old)
