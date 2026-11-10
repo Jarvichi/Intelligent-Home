@@ -55,7 +55,7 @@
   function filteredGames(games, preferences) {
     const query = preferences.query.trim().toLocaleLowerCase();
     const result = games.filter(game => String(game.title || '').toLocaleLowerCase().includes(query) &&
-      (!preferences.platform || (game.platform || 'Other') === preferences.platform));
+      (!preferences.platform || (game.platforms || [game.platform || 'Other']).includes(preferences.platform)));
     const titleOrder = (a, b) => String(a.title).localeCompare(String(b.title));
     const played = value => { const date = Date.parse(value); return Number.isFinite(date) ? date : -Infinity; };
     const playtime = value => value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value);
@@ -66,6 +66,36 @@
       return av === bv ? titleOrder(a, b) : av > bv ? -1 : 1;
     });
     return result;
+  }
+  function mergePlatformGames(games) {
+    const groups = new Map();
+    games.forEach(function (game) {
+      const title = String(game.title || '').trim();
+      const key = title.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() || title.toLocaleLowerCase();
+      if (!title) return;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(game);
+    });
+    return [...groups.values()].map(function (members) {
+      const ordered = members.slice().sort(function (a, b) {
+        const aTime = Date.parse(a.last_seen || ''); const bTime = Date.parse(b.last_seen || '');
+        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return bTime - aTime;
+        return String(b.last_seen || '').localeCompare(String(a.last_seen || ''));
+      });
+      const platforms = [...new Set(members.map(game => game.platform || 'Other'))].sort((a, b) => a.localeCompare(b));
+      const playtime = members.map(game => Number(game.playtime_min)).filter(value => Number.isFinite(value) && value >= 0);
+      return Object.assign({}, ordered[0], {
+        platforms: platforms,
+        platformEntries: members,
+        tools: [...new Set(members.flatMap(game => Array.isArray(game.tools) ? game.tools : []))],
+        last_seen: ordered.map(game => game.last_seen).filter(Boolean).sort().pop() || null,
+        playtime_min: playtime.length ? playtime.reduce((sum, value) => sum + value, 0) : null
+      });
+    });
+  }
+  function platformLabel(value) {
+    const labels = { psn: 'PSN', steam: 'Steam', xbox: 'Xbox', pc: 'PC', switch: 'Switch' };
+    return labels[String(value || '').toLowerCase()] || String(value || 'Other');
   }
   function researchItem(item) {
     const text = String(item.what || '').replace(/^Games:\s*/i, '').trim();
@@ -211,7 +241,9 @@
 
     const main = el('div', null, 'game-main');
     const top = el('div', null, 'game-heading');
-    top.append(el('span', game.platform || 'GAME', 'platform-pill'), el('h2', game.title));
+    const platforms = el('div', null, 'platform-pills');
+    (game.platforms || [game.platform || 'GAME']).forEach(value => platforms.appendChild(el('span', platformLabel(value), 'platform-pill')));
+    top.append(platforms, el('h2', game.title));
     main.appendChild(top);
     const facts = el('dl', null, 'game-facts');
     facts.append(row('Last seen', fmtDate(game.last_seen, true)), row('Play time', fmtPlaytime(game.playtime_min)));
@@ -300,7 +332,7 @@
       const data = await request('api/library?player=' + encodeURIComponent(key));
       const wrap = el('div', null, 'library-grid ih-card-grid');
       if (requestId !== viewRequest) return;
-      const games = data.games || [];
+      const games = mergePlatformGames(data.games || []);
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
       const playtimeKnown = games.filter(g => g.playtime_min != null).length;
       const stats = el('div', null, 'library-stats');
@@ -314,7 +346,7 @@
       const search = el('input'); search.type = 'search'; search.value = preferences.query;
       search.placeholder = 'Game title'; searchLabel.appendChild(search);
       const platformLabel = el('label', 'Platform'); const platform = el('select');
-      const platforms = [...new Set(games.map(game => game.platform || 'Other'))].sort();
+      const platforms = [...new Set(games.flatMap(game => game.platforms || [game.platform || 'Other']))].sort();
       [['', 'All platforms'], ...platforms.map(value => [value, value])].forEach(([value, label]) => {
         const option = el('option', label); option.value = value; platform.appendChild(option);
       });

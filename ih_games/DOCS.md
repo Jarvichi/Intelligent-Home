@@ -71,6 +71,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 - **Still dry after going live.** A file `/data/STOP` or `/data/STOP_LIVE` is a kill switch that forces dry mode. Delete it to re-enable.
 - **Silent on the bus.** Check the `mqtt_*` options and that `signing_key` matches this module's entry in the orchestrator's `module_keys` (or let the settings hub fill it).
 - **No game messages.** Check `providers_enabled`, that each player has the matching sensor prefix, and that it is not within `quiet_start` to `quiet_end`.
+- **Cover art search says no provider is available.** In IH AI Layer, enable and configure a provider that supports `game_art_search` (the built-in SerpApi provider does), and set `shadow` to `false`. Configure the scoped `games_art_token` in IH AI Layer and the matching `ai_layer_art_token` in IH Games. The Games UI reports when the layer has no eligible provider or is still in shadow mode.
 
 ## Privacy
 
