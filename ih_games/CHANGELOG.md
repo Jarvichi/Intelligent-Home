@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.1] - 2026-11-10
+
+### Fixed
+- Upload dialog: pressing Upload re-ran the Yes step, which emptied the file picker, so nothing was uploaded.
+
 ## [0.9.0] - 2026-11-10
 
 ### Added
