@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.8] - 2026-11-09
+
+### Added
+- Optional Steam achievement-name provider using the official Steam Web API, with a private API-key option and per-player SteamID64.
+- Quietly baselines existing unlocks, caches game schemas, and records future named unlocks in the normal Games feed and permanent history.
+- Setup instructions in STEAM_ACHIEVEMENT_SETUP.md.
+
 ## [0.7.7] - 2026-11-09
 
 ### Added
