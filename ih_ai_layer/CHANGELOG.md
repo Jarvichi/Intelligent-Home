@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.18] - 2026-11-10
+
+### Added
+- New keyless `steamstore` provider for `game_art_search`: official Steam portrait/header art for titles on Steam.
+- `serpapi` and `serper` build the art query from request context `title` and `platform` when given.
+
 ## [0.4.17] - 2026-11-10
 
 ### Added
