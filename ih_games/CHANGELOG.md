@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.7] - 2026-11-10
+
+### Fixed
+- PSN trophy names: read trophies through the account the NPSSO token belongs to when it matches `psn_online_id`, instead of a public Online ID lookup that returned "not found" for the owner.
+
 ## [0.9.6] - 2026-11-10
 
 ### Fixed
