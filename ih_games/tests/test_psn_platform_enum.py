@@ -22,7 +22,7 @@ class FakeUser:
 
     def trophy_groups_summary(self, comm_id, platform):
         SEEN["groups"] = platform
-        return [Obj(trophy_group_id="default")]
+        return Obj(trophy_groups=[Obj(trophy_group_id="default")])   # like psnawp: an object, not a list
 
     def trophies(self, comm_id, platform, include_progress=True, trophy_group_id="default", limit=None):
         SEEN["trophies"] = platform

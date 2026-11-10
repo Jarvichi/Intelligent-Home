@@ -66,6 +66,8 @@ def _recent_trophies(npsso, online_id, game):
         # and PSN answered "not found" for every PS5 game (found by a live test, 10 Nov 2026).
         platform = next(iter(platforms), PlatformType.PS4)
         groups = user.trophy_groups_summary(comm_id, platform)
+        # psnawp returns a TrophyGroupsSummary object (the groups are in .trophy_groups), not a list
+        groups = _value(groups, "trophy_groups", groups)
         group_ids = [str(_value(g, "trophy_group_id", "default")) for g in groups]
         if not group_ids:
             group_ids = ["default"]
