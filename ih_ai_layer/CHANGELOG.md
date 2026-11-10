@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.21] - 2026-11-10
+
+### Changed
+- `game_art_search` answers list portrait images first (closest to box-art shape), then landscape, then images of unknown size. Rows carry `width` and `height` when the search engine reports them.
+
 ## [0.4.20] - 2026-11-10
 
 ### Changed

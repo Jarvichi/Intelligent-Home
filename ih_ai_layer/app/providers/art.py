@@ -13,6 +13,8 @@ MAX_DOMAIN_CHARS = 80
 MAX_ROW_TITLE_CHARS = 180
 MAX_URL_CHARS = 1200
 MAX_SOURCE_NAME_CHARS = 100
+IDEAL_ASPECT = 0.72          # width / height of the cover shape we prefer (portrait box art is about 0.7)
+UNKNOWN_RANK = 2             # sort rank of a result whose size is not known (after portrait=0 and landscape=1)
 KEY_HASH_CHARS = 24          # length of the cache key
 DOMAIN_RE = re.compile(r'[a-z0-9][a-z0-9.-]*')
 URL_PREFIXES = ('http://', 'https://')
@@ -40,9 +42,31 @@ def clean_context(raw):
     return out
 
 
-def make_row(title, image_url, source_url, source=''):
-    return {'title': str(title or '')[:MAX_ROW_TITLE_CHARS], 'image_url': str(image_url)[:MAX_URL_CHARS],
+def _dim(value):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def make_row(title, image_url, source_url, source='', width=None, height=None):
+    row = {'title': str(title or '')[:MAX_ROW_TITLE_CHARS], 'image_url': str(image_url)[:MAX_URL_CHARS],
             'source_url': str(source_url)[:MAX_URL_CHARS], 'source': str(source or '')[:MAX_SOURCE_NAME_CHARS]}
+    w, h = _dim(width), _dim(height)
+    if w and h:
+        row['width'], row['height'] = w, h
+    return row
+
+
+def prefer_portrait(rows):
+    """Stable sort: portrait images first (closest to IDEAL_ASPECT first), then landscape, then images of unknown size."""
+    def rank(r):
+        w, h = r.get('width'), r.get('height')
+        if not (w and h):
+            return (UNKNOWN_RANK, 0)
+        return (0, abs(w / h - IDEAL_ASPECT)) if h > w else (1, 0)
+    return sorted(rows, key=rank)
 
 
 def keep_accepted(rows, ctx):

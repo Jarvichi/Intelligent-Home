@@ -5,7 +5,7 @@ import urllib.request
 from providers.serper import Serper, parse_images, SERPER_IMAGES_URL, SERPER_URL
 
 DATA = {'images': [
-    {'title': 'Cover', 'imageUrl': 'https://store.example/c.jpg', 'link': 'https://store.example/game', 'source': 'Store'},
+    {'title': 'Cover', 'imageUrl': 'https://store.example/c.jpg', 'link': 'https://store.example/game', 'source': 'Store', 'imageWidth': 600, 'imageHeight': 900},
     {'title': 'bad', 'imageUrl': 'javascript:x', 'link': 'https://x.example'},
     'junk']}
 
@@ -13,7 +13,7 @@ DATA = {'images': [
 class T(unittest.TestCase):
     def test_parse_images(self):
         rows = parse_images(DATA)
-        self.assertEqual(rows, [{'title': 'Cover', 'image_url': 'https://store.example/c.jpg', 'source_url': 'https://store.example/game', 'source': 'Store'}])
+        self.assertEqual(rows, [{'title': 'Cover', 'image_url': 'https://store.example/c.jpg', 'source_url': 'https://store.example/game', 'source': 'Store', 'width': 600, 'height': 900}])
         self.assertEqual(parse_images(None), [])
         self.assertEqual(parse_images({}), [])
 

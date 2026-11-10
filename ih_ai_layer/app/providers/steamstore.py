@@ -10,7 +10,7 @@ SEARCH_URL = 'https://store.steampowered.com/api/storesearch/'
 ART_URL = 'https://cdn.cloudflare.steamstatic.com/steam/apps/%d/%s'
 STORE_URL = 'https://store.steampowered.com/app/%d/'
 MIN_MATCH = 0.82           # name similarity (0..1) needed to accept a Steam search hit
-ART_FILES = ('library_600x900.jpg', 'header.jpg')      # portrait cover first, then the wide header
+ART_FILES = (('library_600x900.jpg', 600, 900), ('header.jpg', 460, 215))      # (file, width, height): portrait cover first, then the wide header
 SEARCH_TIMEOUT_S = 15      # upper limit for one Steam search
 MAX_TITLE_CHARS = art.MAX_TITLE_CHARS
 MAX_RESPONSE_BYTES = 1000000
@@ -45,7 +45,7 @@ def build_rows(title, items):
         return []
     appid, name = m
     src = STORE_URL % appid
-    return [art.make_row(name, ART_URL % (appid, f), src, 'Steam') for f in ART_FILES]
+    return [art.make_row(name, ART_URL % (appid, f), src, 'Steam', w, h) for f, w, h in ART_FILES]
 
 
 class SteamStore(Provider):

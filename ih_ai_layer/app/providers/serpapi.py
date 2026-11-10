@@ -90,7 +90,7 @@ class SerpApi(Provider):
             txt = sp.format_showtimes(sp.parse_showtimes(data, str(ctx.get('film') or '') or None))
             return txt or 'No showtimes found in the SerpApi response (the layout may differ from what the parser expects).'
         if cap == 'game_art_search':
-            rows = art.keep_accepted(sp.parse_images(data), ctx)
+            rows = art.prefer_portrait(art.keep_accepted(sp.parse_images(data), ctx))
             return json.dumps(rows, ensure_ascii=False, separators=(',', ':')) if rows else '[]'
         return sp.format_organic(sp.parse_organic(data)) or 'No results found.'
 

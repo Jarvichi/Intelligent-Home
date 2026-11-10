@@ -63,7 +63,7 @@ def parse_images(data, limit=art.MAX_CANDIDATES):
         image = str(r.get('original') or r.get('thumbnail') or '')
         source = str(r.get('link') or '')
         if image and source:
-            out.append(art.make_row(r.get('title'), image, source, r.get('source')))
+            out.append(art.make_row(r.get('title'), image, source, r.get('source'), r.get('original_width'), r.get('original_height')))
         if len(out) >= max(1, min(art.MAX_CANDIDATES, int(limit))):
             break
     return out
