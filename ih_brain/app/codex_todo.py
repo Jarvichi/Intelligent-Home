@@ -1,5 +1,5 @@
 """Codex to-do tools for ih_brain: list, add, note, complete on ONE Home Assistant to-do list (todo.claude_to_do), nothing else.
-Why: Codex's bundled Home Assistant MCP cannot read to-do items (Andrew, 10 Nov 2026). These tools run through this add-on's own
+Why: Codex's bundled Home Assistant MCP cannot read to-do items (owner request, 10 Nov 2026). These tools run through this add-on's own
 Home Assistant access and are served on /codex-todo-mcp behind a separate token (codex_todo_token)."""
 import datetime
 import json
