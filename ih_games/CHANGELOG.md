@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2] - 2026-11-10
+
+### Changed
+- Artwork search tells IH AI Layer which sites it accepts art from, so helpers return only usable results and the layer falls back to the next helper when one has none (needs IH AI Layer 0.4.20).
+- Art limits and timeouts are named constants.
+
 ## [0.8.1] - 2026-11-10
 
 ### Changed

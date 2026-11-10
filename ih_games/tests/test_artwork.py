@@ -41,7 +41,9 @@ class T(unittest.TestCase):
         sent = []
         art = self.run_it({'ok': True, 'answer': json.dumps(rows)}, sent)
         self.assertEqual(sent[0]['text'], 'Doom')
-        self.assertEqual(sent[0]['context'], {'title': 'Doom', 'platform': 'xbox'})
+        self.assertEqual(sent[0]['context']['title'], 'Doom')
+        self.assertEqual(sent[0]['context']['platform'], 'xbox')
+        self.assertIn('store.steampowered.com', sent[0]['context']['domains'])
         self.assertTrue(art)
 
     def test_reasons(self):
