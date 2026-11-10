@@ -79,6 +79,12 @@ class T(unittest.TestCase):
         rows = build_rows('Cyberpunk 2077', ITEMS)
         self.assertEqual((rows[0]['width'], rows[0]['height']), (600, 900))
 
+    def test_portrait_only(self):
+        rows = [make_row('l', 'https://i/1', 'https://s/1', width=1920, height=1080), make_row('t', 'https://i/2', 'https://s/2', width=600, height=900), make_row('u', 'https://i/3', 'https://s/3')]
+        self.assertEqual([r['title'] for r in keep_accepted(rows, {'portrait_only': True})], ['t'])
+        self.assertTrue(clean_context({'portrait_only': True})['portrait_only'])
+        self.assertNotIn('portrait_only', clean_context({'portrait_only': 'yes'}))
+
 
 if __name__ == '__main__':
     unittest.main()

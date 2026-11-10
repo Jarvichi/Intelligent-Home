@@ -29,6 +29,10 @@ class ArtError(Exception):
     pass
 
 
+class LayerDown(ArtError):
+    """The AI Layer could not be reached: asking again would fail the same way."""
+
+
 def _public_https(url):
     try:
         u = urllib.parse.urlsplit(str(url))
@@ -128,6 +132,19 @@ def _is_portrait(size):
 
 
 def find_and_store(opts, data_dir, game, opener=None, now=None, require_portrait=False):
+    """Ask the AI Layer for portrait art only first, so a provider that has a portrait cover gets its turn; if that finds nothing and the
+    caller is not insisting on portrait, ask again for any shape."""
+    try:
+        return _find_and_store(opts, data_dir, game, opener, now, require_portrait, portrait_only=True)
+    except LayerDown:
+        raise
+    except ArtError:
+        if require_portrait:
+            raise
+    return _find_and_store(opts, data_dir, game, opener, now, False, portrait_only=False)
+
+
+def _find_and_store(opts, data_dir, game, opener, now, require_portrait, portrait_only):
     """Search through a capability-limited AI Layer token, verify the source, and atomically persist one image.
     Portrait images are preferred; with require_portrait (a refresh of existing art) a portrait image is mandatory."""
     gid = str(game.get('id') or '')
@@ -141,14 +158,14 @@ def find_and_store(opts, data_dir, game, opener=None, now=None, require_portrait
     platform = str(game.get('platform') or '').strip()
     # Just the title and platform: the AI Layer routes this to whichever helper suits (search, store lookup...) and each builds its own query.
     body = {'request_id': 'games-art-' + __import__('uuid').uuid4().hex[:REQUEST_ID_CHARS], 'capability': 'game_art_search', 'text': title,
-            'context': {'title': title, 'platform': platform, 'domains': list(OFFICIAL_SOURCES)}}      # helpers keep only results from these sites
+            'context': {'title': title, 'platform': platform, 'domains': list(OFFICIAL_SOURCES), 'portrait_only': portrait_only}}      # helpers keep only results from these sites
     req = urllib.request.Request(base + '/request', data=json.dumps(body).encode(), method='POST',
                                  headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json'})
     try:
         with _opener(opener)(req, timeout=LAYER_TIMEOUT_S) as response:
             ai_result = json.loads(response.read(MAX_LAYER_REPLY_BYTES))
     except Exception as e:
-        raise ArtError('IH AI Layer could not search for cover art (%s).' % type(e).__name__)
+        raise LayerDown('IH AI Layer could not search for cover art (%s).' % type(e).__name__)
     if not ai_result.get('ok'):
         answer = str(ai_result.get('answer') or '')
         why = str(ai_result.get('error') or '')

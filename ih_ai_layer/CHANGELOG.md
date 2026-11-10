@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.1] - 2026-11-10
+
+### Added
+- `game_art_search` context `portrait_only`: providers keep only portrait images (size known and taller than wide) and fail with `empty` otherwise, so the router can fall back to a provider that has portrait art.
+
 ## [0.5.0] - 2026-11-10
 
 ### Added

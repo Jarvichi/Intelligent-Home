@@ -34,6 +34,8 @@ def clean_context(raw):
     for key, limit in (('title', MAX_TITLE_CHARS), ('platform', MAX_PLATFORM_CHARS)):
         if isinstance(raw.get(key), str) and raw[key].strip():
             out[key] = raw[key].strip()[:limit]
+    if raw.get('portrait_only') is True:
+        out['portrait_only'] = True
     doms = raw.get('domains')
     if isinstance(doms, list):
         keep = [d.strip().lower() for d in doms[:MAX_DOMAINS] if isinstance(d, str) and len(d.strip()) <= MAX_DOMAIN_CHARS and DOMAIN_RE.fullmatch(d.strip().lower())]
@@ -70,7 +72,9 @@ def prefer_portrait(rows):
 
 
 def keep_accepted(rows, ctx):
-    """Rows whose source page is on an accepted domain (https). No domains in the context = no filtering."""
+    """Rows whose source page is on an accepted domain (https); with context portrait_only, only portrait images. No domains = no site filtering."""
+    if (ctx or {}).get('portrait_only'):
+        rows = [r for r in rows if r.get('height', 0) > r.get('width', 0)]      # unknown sizes are not portrait
     doms = (ctx or {}).get('domains')
     if not doms:
         return rows
@@ -87,5 +91,5 @@ def keep_accepted(rows, ctx):
 
 
 def cache_key(cap, query, ctx=None):
-    parts = [cap, query.lower(), ','.join((ctx or {}).get('domains') or [])]
+    parts = [cap, query.lower(), ','.join((ctx or {}).get('domains') or []), 'p' if (ctx or {}).get('portrait_only') else '']
     return hashlib.sha256('|'.join(parts).encode()).hexdigest()[:KEY_HASH_CHARS]
