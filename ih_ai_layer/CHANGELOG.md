@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.19] - 2026-11-10
+
+### Changed
+- Art searches (serper, serpapi) return up to 10 image candidates instead of 3, so the caller can pick one from an official store.
+
 ## [0.4.18] - 2026-11-10
 
 ### Added

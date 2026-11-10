@@ -40,7 +40,7 @@ def art_query(text, ctx):
     return (t + ' ' + p).strip() if (ctx or {}).get('title') else text[:220]
 
 
-def parse_images(data, limit=3):
+def parse_images(data, limit=10):
     """Serper /images response -> [{title, image_url, source_url, source}] (same shape as the SerpApi game_art_search answer)."""
     out = []
     if not isinstance(data, dict):
@@ -51,7 +51,7 @@ def parse_images(data, limit=3):
         image, source = str(r.get('imageUrl') or ''), str(r.get('link') or '')
         if image.startswith(('http://', 'https://')) and source.startswith(('http://', 'https://')):
             out.append({'title': str(r.get('title') or '')[:180], 'image_url': image[:1200], 'source_url': source[:1200], 'source': str(r.get('source') or '')[:100]})
-        if len(out) >= max(1, min(5, int(limit))):
+        if len(out) >= max(1, min(10, int(limit))):
             break
     return out
 
