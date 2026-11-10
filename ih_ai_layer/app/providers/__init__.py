@@ -10,12 +10,13 @@ from .pollinations import Pollinations
 from .serpapi import SerpApi
 from .serper import Serper
 from .steamstore import SteamStore
+from .igdb import Igdb
 from .grok import Grok
 from .claude import Claude
 from .publicapis import PublicApis
 from .mcp import Mcp
 
-REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, SteamStore, Grok, Claude, PublicApis, Mcp)}
+REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, SteamStore, Igdb, Grok, Claude, PublicApis, Mcp)}
 KEY_OPTIONS = {c.NAME: c.KEY_OPTION for c in REGISTRY.values()}      # provider -> flat option name that can hold its key (the settings hub fills these)
 
 
