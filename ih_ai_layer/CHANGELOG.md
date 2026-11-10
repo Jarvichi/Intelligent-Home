@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-11-10
+
+### Added
+- New `igdb` provider for `game_art_search`: portrait covers from IGDB (Twitch developer app: client id in settings, secret in `igdb_key`). The app token is cached. Needs credentials, so it does nothing until they are set.
+
 ## [0.4.21] - 2026-11-10
 
 ### Changed

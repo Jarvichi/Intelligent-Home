@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer"
-version: "0.4.21"
+version: "0.5.0"
 slug: ih_ai_layer
 image: "ghcr.io/jarvichi/{arch}-ih_ai_layer"
 description: "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. SHADOW mode by default: nothing is called. No Home Assistant access. Maps no folders."
@@ -39,6 +39,7 @@ options:
   pollinations_key: ""
   serpapi_key: ""
   serper_key: ""
+  igdb_key: ""
   xai_key: ""
   anthropic_key: ""
 schema:
@@ -51,7 +52,7 @@ schema:
   max_tries: int(1,5)
   log_payloads: bool?
   providers:
-    - name: list(gemini|groq|openrouter|mistral|openai|pollinations|serpapi|serper|steamstore|grok|claude|publicapis|mcp)
+    - name: list(gemini|groq|openrouter|mistral|openai|pollinations|serpapi|serper|steamstore|igdb|grok|claude|publicapis|mcp)
       enabled: bool
       key: password?
       model: str?
@@ -64,5 +65,6 @@ schema:
   pollinations_key: password?
   serpapi_key: password?
   serper_key: password?
+  igdb_key: password?
   xai_key: password?
   anthropic_key: password?

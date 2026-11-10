@@ -39,6 +39,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `openai_key` | No | OpenAI API key. The settings hub can fill it. |
 | `pollinations_key` | No | Pollinations key (optional: the service works without one). |
 | `serpapi_key` | No | SerpApi key. The settings hub can fill it. |
+| `igdb_key` | No | Twitch client secret for the `igdb` provider (its client id goes in that provider's `settings` as `client_id`). |
 | `serper_key` | No | Serper.dev key (used by the `serper` provider and the search-first flow). The settings hub can fill it. |
 | `xai_key` | No | xAI (Grok) API key. The settings hub can fill it. |
 | `anthropic_key` | No | Anthropic (Claude) API key. The settings hub can fill it. |
@@ -103,6 +104,7 @@ Ten providers run inside this add-on (Phase 4). Each does what the old agent add
 | `pollinations` | general_qa, summarize | openai | `pollinations_key` (optional) | free by default; prompts are PUBLIC |
 | `serpapi` | showtimes, web_search | none | `serpapi_key` | paid unless `free_tier` |
 | `serper` | web_search, game_art_search | none | `serper_key` | free (2,500 credits); daily cap 60 |
+| `igdb` | game_art_search | none | `igdb_key` (Twitch client secret) + setting `client_id` | free (Twitch developer app); daily cap 500; portrait covers incl. console games |
 | `steamstore` | game_art_search | none | none (no key) | free; daily cap 200; official Steam art for titles on Steam |
 | `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
 | `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
