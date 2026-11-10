@@ -102,7 +102,7 @@ Ten providers run inside this add-on (Phase 4). Each does what the old agent add
 | `openai` | general_qa, summarize | gpt-6-luna | `openai_key` | paid unless `free_tier` |
 | `pollinations` | general_qa, summarize | openai | `pollinations_key` (optional) | free by default; prompts are PUBLIC |
 | `serpapi` | showtimes, web_search | none | `serpapi_key` | paid unless `free_tier` |
-| `serper` | web_search | none | `serper_key` | free (2,500 credits); daily cap 60 |
+| `serper` | web_search, game_art_search | none | `serper_key` | free (2,500 credits); daily cap 60 |
 | `grok` | general_qa, summarize | grok-4 | `xai_key` | paid unless `free_tier` |
 | `claude` | general_qa, summarize | claude-haiku-5-5 | `anthropic_key` | paid unless `free_tier` |
 | `publicapis` | api_search, api_info, api_quickstart, api_compare, api_offerings | none | none needed | free |

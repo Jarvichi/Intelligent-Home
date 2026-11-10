@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.17] - 2026-11-10
+
+### Added
+- `serper` provider (0.2.0) now answers `game_art_search` through Serper's image search, so Games artwork searches still work when SerpApi's small daily cap is used up.
+
 ## [0.4.16] - 2026-11-09
 
 ### Fixed
