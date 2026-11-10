@@ -34,6 +34,12 @@ def parse_results(data, limit=MAX_RESULTS):
     return out
 
 
+def art_query(text, ctx):
+    t = str((ctx or {}).get('title') or text)[:160].strip()
+    p = str((ctx or {}).get('platform') or '').strip()[:20]
+    return (t + ' ' + p).strip() if (ctx or {}).get('title') else text[:220]
+
+
 def parse_images(data, limit=3):
     """Serper /images response -> [{title, image_url, source_url, source}] (same shape as the SerpApi game_art_search answer)."""
     out = []
@@ -91,7 +97,7 @@ class Serper(Provider):
         if not self.opts['key']:
             return res(False, 'Serper is not configured (no key for provider serper).', why='not_configured')
         art = cap == 'game_art_search'
-        q = (text[:220] + ART_SUFFIX) if art else text[:300]
+        q = (art_query(text, ctx) + ART_SUFFIX) if art else text[:300]
         ck = hashlib.sha256(('%s|%s|%s' % (cap, 'j' if as_json else 't', q.lower())).encode()).hexdigest()[:24]
         cache = self._read('cache.json')
         hit = cache.get(ck)
