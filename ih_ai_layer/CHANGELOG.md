@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.20] - 2026-11-10
+
+### Changed
+- `game_art_search`: the caller can pass `domains` (sites it accepts art from). SerpApi, Serper and Steam Store keep only results from those sites and fail with `empty` when none are left, so the router falls back to the next provider instead of returning unusable images.
+- The Games-only token passes `title`, `platform` and `domains` (sanitised) and nothing else.
+- Art limits are named constants in `providers/art.py` (no bare numbers); the cache key includes the accepted domains.
+
 ## [0.4.19] - 2026-11-10
 
 ### Changed

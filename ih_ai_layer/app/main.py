@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ailayer
+from providers import art
 
 PORT = 8801
 MAX_BODY = 16384
@@ -69,11 +70,7 @@ def make_handler(layer):
                 if obj.get('capability') != 'game_art_search' or obj.get('model'):
                     self._send(403, {'ok': False, 'error': 'forbidden'}); return
                 obj['caller'] = 'ih_games'
-                c0 = obj.get('context') if isinstance(obj.get('context'), dict) else {}
-                obj['context'] = {'caller': 'ih_games'}
-                for k, n in (('title', 120), ('platform', 20)):      # only these two plain strings may pass through
-                    if isinstance(c0.get(k), str) and c0[k].strip():
-                        obj['context'][k] = c0[k].strip()[:n]
+                obj['context'] = dict(art.clean_context(obj.get('context')), caller='ih_games')      # only plain title/platform/domains pass through
             code, r = layer.request(obj) if p == '/request' else layer.feedback(obj)
             self._send(code, r)
 
