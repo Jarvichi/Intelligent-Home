@@ -11,7 +11,7 @@ import schedule_client, orchestrator, sensors as sensors_mod, library as library
 from jobs import common
 from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")

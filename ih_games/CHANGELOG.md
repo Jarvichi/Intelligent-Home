@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.2] - 2026-11-10
+
+### Changed
+- Cover art linked to igdb.com (the IGDB game database, via IH AI Layer) is accepted as a source.
+
 ## [0.9.1] - 2026-11-10
 
 ### Fixed
