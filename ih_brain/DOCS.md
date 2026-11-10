@@ -24,6 +24,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 |---|---|---|
 | `brain_dir` | No | Folder with the notes. Default `/share/brain`. |
 | `api_token` | Yes | Bearer token callers must send. Empty = everything refused. |
+| `codex_todo_token` | No | Separate bearer token for `/codex-todo-mcp` (Claude to-do tools for Codex). Empty = that endpoint refuses all requests. |
 | `codex_read_token` | No | Separate bearer token for the narrow Codex endpoint. Empty = that endpoint refuses all requests. |
 | `read_only` | No | true (default): write tools refuse. false: writes allowed. |
 | `port` | No | Port to listen on. Default 8820 (change the mapped port too). |
@@ -88,3 +89,7 @@ Raw HTML stays text and image references stay labelled references: the reader ma
 external image or embed requests. Attachment previews, extended Markdown constructs and ambiguous
 aliases are not a replacement for the existing Wiki attachment workflow. Keep that workflow until
 its parity is verified. The UI remains read-only and administrator-only; no access options change.
+
+### Codex to-do tools
+
+`POST /codex-todo-mcp` uses its own `codex_todo_token` and exposes four tools on one list, `todo.claude_to_do`, and nothing else: `todo_list`, `todo_add`, `todo_note` (appends a dated line to the description) and `todo_complete`. It uses this add-on's Home Assistant access (`homeassistant_api`), so Codex gets no Home Assistant credential. It cannot delete items, change other lists or call other services. Add it in the Codex add-on's `mcp_servers` with the URL `http://<host>:8820/codex-todo-mcp` and the token.
