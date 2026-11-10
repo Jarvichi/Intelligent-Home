@@ -234,9 +234,10 @@
       dialog.append(title, why, ask, body, message, actions);
       let saved = false;
       no.addEventListener('click', function () { dialog.close(); });
-      yes.addEventListener('click', function () {
+      let input = null;      // the file picker; null until Yes is pressed
+      function showPicker() {
         const label = el('label', 'Choose an image (JPEG, PNG or WebP, up to ' + (MAX_UPLOAD_BYTES / BYTES_PER_MB) + ' MB)');
-        const input = document.createElement('input');
+        input = document.createElement('input');
         input.type = 'file'; input.accept = UPLOAD_TYPES.join(','); input.id = 'upload-file'; label.htmlFor = input.id;
         body.replaceChildren(label, input);
         ask.hidden = true; no.textContent = 'Cancel'; yes.textContent = 'Upload'; yes.disabled = true;
@@ -247,19 +248,21 @@
           if (file && file.size > MAX_UPLOAD_BYTES) { message.textContent = 'That image is larger than ' + (MAX_UPLOAD_BYTES / BYTES_PER_MB) + ' MB.'; yes.disabled = true; return; }
           yes.disabled = !file;
         });
-        yes.onclick = async function () {
-          const file = input.files && input.files[0];
-          if (!file) return;
-          yes.disabled = true; no.disabled = true; message.textContent = 'Uploading…';
-          try {
-            const r = await fetch(root + 'api/games/' + encodeURIComponent(game.id) + '/art-upload?player=' + encodeURIComponent(player), { method: 'POST', cache: 'no-store', headers: { 'Content-Type': file.type }, body: file });
-            let data = {};
-            try { data = await r.json(); } catch (_) { /* handled below */ }
-            if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The image could not be saved.');
-            saved = true; dialog.close();
-          } catch (e) { message.textContent = e.message; yes.disabled = false; no.disabled = false; }
-        };
-      });
+      }
+      async function upload() {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        yes.disabled = true; no.disabled = true; message.textContent = 'Uploading…';
+        try {
+          const r = await fetch(root + 'api/games/' + encodeURIComponent(game.id) + '/art-upload?player=' + encodeURIComponent(player), { method: 'POST', cache: 'no-store', headers: { 'Content-Type': file.type }, body: file });
+          let data = {};
+          try { data = await r.json(); } catch (_) { /* handled below */ }
+          if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The image could not be saved.');
+          saved = true; dialog.close();
+        } catch (e) { message.textContent = e.message; yes.disabled = false; no.disabled = false; }
+      }
+      // One handler for the one button: first press opens the picker, later presses upload (a second handler would re-run the first step).
+      yes.addEventListener('click', function () { if (input) upload(); else showPicker(); });
       dialog.addEventListener('close', function () { dialog.remove(); resolve(saved); });
       document.body.appendChild(dialog);
       dialog.showModal();
