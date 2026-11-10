@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.3] - 2026-11-10
+
+### Changed
+- Artwork search asks the AI Layer for portrait images only first (so IGDB and other portrait sources get a turn), then asks again for any shape if nothing was found. Needs IH AI Layer 0.5.1 for the portrait filter; older layers ignore it.
+
 ## [0.9.2] - 2026-11-10
 
 ### Changed

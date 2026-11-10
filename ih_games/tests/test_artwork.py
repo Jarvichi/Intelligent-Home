@@ -98,6 +98,36 @@ class T(unittest.TestCase):
         self.assertIn('portrait', str(cm.exception))
         self.assertTrue(run([land], False))      # landscape accepted when nothing is saved yet
 
+    def test_portrait_stage_then_any_shape(self):
+        sent = []
+        row = {'image_url': 'https://img.example/0.png', 'source_url': 'https://store.steampowered.com/app/1/'}
+
+        def opener(req, timeout=None):
+            if req.full_url.endswith('/request'):
+                body = json.loads(req.data)
+                sent.append(body['context']['portrait_only'])
+                if body['context']['portrait_only']:
+                    return R(json.dumps({'ok': False, 'answer': 'did not answer', 'error': 'empty'}).encode())
+                return R(json.dumps({'ok': True, 'answer': json.dumps([row])}).encode())
+            return R(png(1920, 1080), 'image/png')
+        art = artwork.find_and_store(self.opts, tempfile.mkdtemp(), self.game, opener=opener)
+        self.assertTrue(art)
+        self.assertEqual(sent, [True, False])
+        sent.clear()
+        with self.assertRaises(artwork.ArtError):
+            artwork.find_and_store(self.opts, tempfile.mkdtemp(), self.game, opener=opener, require_portrait=True)
+        self.assertEqual(sent, [True])      # a refresh never relaxes the portrait rule
+
+    def test_layer_down_is_not_retried(self):
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(1)
+            raise urllib.error.URLError('down')
+        with self.assertRaises(artwork.LayerDown):
+            artwork.find_and_store(self.opts, tempfile.mkdtemp(), self.game, opener=opener)
+        self.assertEqual(len(calls), 1)
+
 
 if __name__ == '__main__':
     unittest.main()
