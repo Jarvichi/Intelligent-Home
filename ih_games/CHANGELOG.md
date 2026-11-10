@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.8] - 2026-11-10
+
+### Fixed
+- PSN trophy names: pass the platform to psnawp as its `PlatformType` value instead of text. With text, PS5 games were looked up on the PS4 service and PSN answered "not found". Confirmed against a live account.
+
 ## [0.9.7] - 2026-11-10
 
 ### Fixed
