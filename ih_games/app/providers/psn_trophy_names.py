@@ -30,12 +30,23 @@ def _value(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def _trophy_user(client, online_id):
+    """The object to read trophies from. Prefer the account the NPSSO token belongs to: reading your own
+    trophies through a public Online ID lookup returned PSNAWPNotFound on the live house (10 Nov 2026)."""
+    me = client.me()
+    try:
+        own = str(me.online_id).casefold() == str(online_id).casefold()
+    except Exception:
+        own = False
+    return me if own else client.user(online_id=online_id)
+
+
 def _recent_trophies(npsso, online_id, game):
     """Return recent earned trophy records matching the current game title."""
     from psnawp_api import PSNAWP
 
     client = PSNAWP(npsso_cookie=npsso)
-    user = client.user(online_id=online_id)
+    user = _trophy_user(client, online_id)
     titles = list(user.trophy_titles(limit=500))
     target = str(game or "").casefold().strip()
     matches = [t for t in titles if str(_value(t, "title_name", "")).casefold().strip() == target]
