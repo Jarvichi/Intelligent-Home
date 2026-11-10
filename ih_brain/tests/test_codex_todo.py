@@ -29,8 +29,24 @@ class T(unittest.TestCase):
         self.t = codex_todo.CodexTodo(self.ha, today=lambda: __import__("datetime").date(2026, 11, 10))
 
     def test_list_open_only(self):
-        rows = json.loads(self.t.t_todo_list({}))
-        self.assertEqual([r["uid"] for r in rows], ["u1"])
+        out = json.loads(self.t.t_todo_list({}))
+        self.assertEqual([r["uid"] for r in out["items"]], ["u1"])
+        self.assertEqual(out["total"], 1)
+
+    def test_paging_search_and_order(self):
+        many = [{"uid": "n%d" % i, "summary": "item %d" % i, "status": "needs_action", "due": "2026-12-%02d" % (28 - i % 28),
+                 "description": "x" * 500} for i in range(120)]
+        ITEMS.extend(many)
+        try:
+            out = json.loads(self.t.t_todo_list({"limit": 10, "offset": 5}))
+            self.assertEqual((out["total"], out["offset"], len(out["items"])), (121, 5, 10))
+            dues = [i["due"] for i in json.loads(self.t.t_todo_list({"limit": 200}))["items"] if i["due"]]
+            self.assertEqual(dues, sorted(dues))
+            self.assertLess(len(out["items"][0]["description"]), 300)
+            self.assertEqual(json.loads(self.t.t_todo_list({"search": "item 77"}))["total"], 1)
+            self.assertEqual(len(json.loads(self.t.t_todo_get({"uid": "n3"}))["description"]), 500)
+        finally:
+            del ITEMS[2:]
 
     def test_every_call_uses_the_one_list(self):
         self.t.t_todo_add({"summary": "x", "due": "2026-11-20"})
@@ -59,7 +75,7 @@ class T(unittest.TestCase):
 
     def test_rpc_lists_only_todo_tools(self):
         r = mcp.handle_rpc(self.t, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, tools=codex_todo.TOOLS)
-        self.assertEqual({t["name"] for t in r["result"]["tools"]}, {"todo_list", "todo_add", "todo_note", "todo_complete"})
+        self.assertEqual({t["name"] for t in r["result"]["tools"]}, {"todo_list", "todo_get", "todo_add", "todo_note", "todo_complete"})
         r = mcp.handle_rpc(self.t, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "brain_write", "arguments": {}}},
                            tools=codex_todo.TOOLS)
         self.assertIn("error", r)
