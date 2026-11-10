@@ -47,7 +47,7 @@ def parse_images(data, limit=art.MAX_CANDIDATES):
             continue
         image, source = str(r.get('imageUrl') or ''), str(r.get('link') or '')
         if image.startswith(art.URL_PREFIXES) and source.startswith(art.URL_PREFIXES):
-            out.append(art.make_row(r.get('title'), image, source, r.get('source')))
+            out.append(art.make_row(r.get('title'), image, source, r.get('source'), r.get('imageWidth'), r.get('imageHeight')))
         if len(out) >= max(1, min(art.MAX_CANDIDATES, int(limit))):
             break
     return out
@@ -116,7 +116,7 @@ class Serper(Provider):
             return res(False, 'Serper did not answer.', why='upstream_error')
         self.live_calls += 1
         if art_cap:
-            rows = art.keep_accepted(parse_images(data), ctx)
+            rows = art.prefer_portrait(art.keep_accepted(parse_images(data), ctx))
             if not rows:
                 return res(False, 'Serper found no cover art from an accepted site.', why='empty')      # never cached; the router tries the next provider
             answer = json.dumps(rows, ensure_ascii=False, separators=(',', ':'))

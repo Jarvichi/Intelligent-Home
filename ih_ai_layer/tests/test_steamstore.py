@@ -2,7 +2,7 @@
 import json, os, sys, tempfile, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 from providers.steamstore import SteamStore, pick, build_rows
-from providers.art import art_query, clean_context, keep_accepted
+from providers.art import art_query, clean_context, keep_accepted, prefer_portrait, make_row
 
 ITEMS = [{'id': 1091500, 'name': 'Cyberpunk 2077'}, {'id': 5, 'name': 'Cyberpunk 2077: Phantom Liberty'}, {'id': 'x', 'name': 'bad'}]
 
@@ -67,6 +67,17 @@ class T(unittest.TestCase):
         p = self.make({'items': ITEMS}, [])
         o = {'request_id': 'a', 'capability': 'game_art_search', 'text': 'Cyberpunk 2077', 'context': {'title': 'Cyberpunk 2077', 'domains': ['store.playstation.com']}}
         self.assertEqual(p.ask(o)['why'], 'empty')
+
+    def test_prefer_portrait(self):
+        land = make_row('l', 'https://i/1', 'https://s/1', width=1920, height=1080)
+        tall = make_row('t', 'https://i/2', 'https://s/2', width=600, height=900)
+        near = make_row('n', 'https://i/3', 'https://s/3', width=720, height=1000)
+        unk = make_row('u', 'https://i/4', 'https://s/4')
+        self.assertEqual([r['title'] for r in prefer_portrait([unk, land, tall, near])], ['n', 't', 'l', 'u'])
+
+    def test_steam_rows_have_sizes(self):
+        rows = build_rows('Cyberpunk 2077', ITEMS)
+        self.assertEqual((rows[0]['width'], rows[0]['height']), (600, 900))
 
 
 if __name__ == '__main__':
