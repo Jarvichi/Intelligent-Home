@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """ih_games: game activity facts feeds and orchestrator add-on."""
-import hmac, json, os, sys, threading, time, traceback, logging, collections, urllib.request
+import hmac, json, os, sys, threading, time, traceback, logging, collections, urllib.request, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -121,7 +121,7 @@ class Module:
 
     def api(self, method, path, query, body):
         """The library API. Returns (code, object). Bearer admin_token is checked by the caller."""
-        lib, parts = self.library, [x for x in path.strip("/").split("/") if x]
+        lib, parts = self.library, [urllib.parse.unquote(x) for x in path.strip("/").split("/") if x]
         who = lambda: lib.resolve_player((body or {}).get("player") or query.get("player"))
         if parts == ["library"] and method == "GET":
             pk = who()
