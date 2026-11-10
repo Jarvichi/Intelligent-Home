@@ -18,7 +18,7 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 4. Start the add-on and read the log. It starts in dry-run mode, so it changes nothing yet.
 5. When the log looks right, set `mode` to `live`.
 6. Open the add-on's **Open Web UI** page for the single Games dashboard. It includes each player's library, complete game details, and the Games research queue. The old `/house-games/<player>` tabs now open the matching player view in this add-on. The UI uses the existing `admin_token` on the server; it is not sent to the browser.
-7. To add cover art, use **Find official box art** on a game's card. This asks the IH AI Layer's scoped image-search capability, then keeps the image under this add-on's `/data/artwork` store and serves it locally. Search uses the configured AI Layer provider quota. Only results linked to recognized official store or publisher pages are accepted.
+7. To add cover art, use **Find official box art** on a game's card. This asks the IH AI Layer's scoped image-search capability, then keeps the image under this add-on's `/data/artwork` store and serves it locally. Search uses the configured AI Layer provider quota. Only results linked to recognized official store or publisher pages are accepted. If the search finds nothing, a dialog offers to upload your own image instead (JPEG, PNG or WebP, up to 6 MB). Refresh on an existing cover looks for a portrait image and offers the upload if there is none.
 
 ### PlayStation trophy names
 

@@ -213,6 +213,59 @@
     if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
     return wrap;
   }
+
+  const BYTES_PER_MB = 1024 * 1024;
+  const MAX_UPLOAD_BYTES = 6 * BYTES_PER_MB;          // same limit as the add-on enforces
+  const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  /* Modal shown when a cover-art search finds nothing: offers to upload an image instead. Resolves true when an image was saved. */
+  function askForUpload(game, player, reason, hasArt) {
+    return new Promise(function (resolve) {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'upload-dialog'; dialog.setAttribute('aria-labelledby', 'upload-title');
+      const title = el('h2', hasArt ? 'No portrait cover art found' : 'No cover art found', 'upload-title'); title.id = 'upload-title';
+      const why = el('p', reason, 'ih-muted');
+      const ask = el('p', 'Upload your own artwork for ' + game.title + '?');
+      const body = el('div', null, 'upload-body');
+      const actions = el('div', null, 'upload-actions');
+      const no = el('button', 'No', 'ih-button'); no.type = 'button';
+      const yes = el('button', 'Yes', 'ih-button upload-primary'); yes.type = 'button';
+      actions.append(no, yes);
+      const message = el('p', null, 'ih-muted upload-message'); message.setAttribute('role', 'status');
+      dialog.append(title, why, ask, body, message, actions);
+      let saved = false;
+      no.addEventListener('click', function () { dialog.close(); });
+      yes.addEventListener('click', function () {
+        const label = el('label', 'Choose an image (JPEG, PNG or WebP, up to ' + (MAX_UPLOAD_BYTES / BYTES_PER_MB) + ' MB)');
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = UPLOAD_TYPES.join(','); input.id = 'upload-file'; label.htmlFor = input.id;
+        body.replaceChildren(label, input);
+        ask.hidden = true; no.textContent = 'Cancel'; yes.textContent = 'Upload'; yes.disabled = true;
+        input.addEventListener('change', function () {
+          const file = input.files && input.files[0];
+          message.textContent = '';
+          if (file && !UPLOAD_TYPES.includes(file.type)) { message.textContent = 'That file is not a JPEG, PNG or WebP image.'; yes.disabled = true; return; }
+          if (file && file.size > MAX_UPLOAD_BYTES) { message.textContent = 'That image is larger than ' + (MAX_UPLOAD_BYTES / BYTES_PER_MB) + ' MB.'; yes.disabled = true; return; }
+          yes.disabled = !file;
+        });
+        yes.onclick = async function () {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          yes.disabled = true; no.disabled = true; message.textContent = 'Uploading…';
+          try {
+            const r = await fetch(root + 'api/games/' + encodeURIComponent(game.id) + '/art-upload?player=' + encodeURIComponent(player), { method: 'POST', cache: 'no-store', headers: { 'Content-Type': file.type }, body: file });
+            let data = {};
+            try { data = await r.json(); } catch (_) { /* handled below */ }
+            if (!r.ok || data.ok === false) throw new Error(data.error || data.why || 'The image could not be saved.');
+            saved = true; dialog.close();
+          } catch (e) { message.textContent = e.message; yes.disabled = false; no.disabled = false; }
+        };
+      });
+      dialog.addEventListener('close', function () { dialog.remove(); resolve(saved); });
+      document.body.appendChild(dialog);
+      dialog.showModal();
+      yes.focus();
+    });
+  }
   function gameCard(game, player) {
     const card = el('ih-card', null, 'game-card');
     const expansionKey = JSON.stringify([player, game.id]);
@@ -280,10 +333,16 @@
     artButton.addEventListener('click', async function () {
       artButton.disabled = true; artButton.setAttribute('aria-busy', 'true'); showArtStatus('Searching for cover art…');
       try {
-        await request('api/games/' + encodeURIComponent(game.id) + '/art?player=' + encodeURIComponent(player), 'POST');
+        await request('api/games/' + encodeURIComponent(game.id) + '/art?player=' + encodeURIComponent(player) + (art.hidden ? '' : '&refresh=1'), 'POST');
         useArtwork();
         if (artStatus) { artStatus.remove(); artStatus = null; }
-      } catch (e) { setArtAction(art.hidden ? 'search' : 'refresh'); showArtStatus(e.message, 'notice notice-error art-status'); }
+      } catch (e) {
+        setArtAction(art.hidden ? 'search' : 'refresh'); showArtStatus(e.message, 'notice notice-error art-status');
+        if (await askForUpload(game, player, e.message, !art.hidden)) {
+          useArtwork();
+          if (artStatus) { artStatus.remove(); artStatus = null; }
+        }
+      }
       artButton.disabled = !artSearchAvailable; artButton.removeAttribute('aria-busy');
     });
     const toggle = el('button', null, 'details-toggle ih-disclosure');

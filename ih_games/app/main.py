@@ -11,7 +11,7 @@ import schedule_client, orchestrator, sensors as sensors_mod, library as library
 from jobs import common
 from providers import psn_trophies, psn_trophy_names, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
-VERSION = "0.8.2"
+VERSION = "0.9.0"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -20,6 +20,7 @@ OPTIONS = os.environ.get("IHG_OPTIONS", "/data/options.json")
 DATA = os.environ.get("IHG_DATA", "/data")
 PORT = int(os.environ.get("IHG_PORT", "8794"))
 PUSH_EVERY = 30
+UPLOAD_ROUTE = "art-upload"       # POST /games/<id>/art-upload with the raw image as the body
 WINDOWS = {"providers": 60, "orchestrate": 120}   # = manifest window_s
 START_DELAY_S = 60
 
@@ -178,10 +179,16 @@ class Module:
                              "ui_component": getattr(tool, "UI_COMPONENT", None) if tool else None, "details": data}
             if what == "art" and method == "POST":
                 try:
-                    art = artwork.find_and_store(self.opts, self.data, entry, opener=self._opener)
+                    art = artwork.find_and_store(self.opts, self.data, entry, opener=self._opener, require_portrait=query.get("refresh") == "1")
                     return 200, {"ok": True, "artwork": art}
                 except artwork.ArtError as ex:
                     return 404, {"ok": False, "why": str(ex)}
+            if what == UPLOAD_ROUTE and method == "POST":
+                try:
+                    art = artwork.store_uploaded(self.data, entry, (body or {}).get("raw") or b"")
+                    return 200, {"ok": True, "artwork": art}
+                except artwork.ArtError as ex:
+                    return 400, {"ok": False, "why": str(ex)}
             if what == "upcoming" and method == "GET":
                 return 200, {"ok": True, "game": entry["title"], "upcoming": tool.upcoming(tc, pk) if tool else []}
             if what == "cmd" and method == "POST":
@@ -450,7 +457,12 @@ def make_handler(mod):
             if not mod.api_authorised(self.headers.get("Authorization")):
                 return 401, b'{"ok": false, "why": "bearer admin_token required"}'
             body = {}
-            if method == "POST":
+            if method == "POST" and u.path.rstrip("/").endswith("/" + UPLOAD_ROUTE):
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > artwork.MAX_IMAGE_BYTES:
+                    return 413, b'{"ok": false, "why": "image too large"}'
+                body = {"raw": self.rfile.read(n)}
+            elif method == "POST":
                 try:
                     n = min(int(self.headers.get("Content-Length") or 0), 65536)
                     body = json.loads(self.rfile.read(n) or b"{}")

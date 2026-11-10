@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0] - 2026-11-10
+
+### Added
+- When a cover-art search finds nothing, a dialog offers to upload your own artwork. Choose Yes, pick a JPEG, PNG or WebP image (up to 6 MB) and it is saved as that game's cover. The file type is checked from the image itself, not its name.
+- Pressing Refresh on a cover that already exists now searches again and requires a portrait image (the shape is read from the image itself). If none is found, the same dialog offers an upload.
+- A first search still prefers portrait but accepts a landscape image if that is all there is.
+
 ## [0.8.2] - 2026-11-10
 
 ### Changed

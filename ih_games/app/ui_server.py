@@ -4,6 +4,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
 OPTIONS=Path(os.environ.get('IHG_OPTIONS','/data/options.json'))
+BYTES_PER_MB=1024*1024
+MAX_UPLOAD_BYTES=6*BYTES_PER_MB   # same limit as stored art
+UPLOAD_TIMEOUT_S=45
 API_PORT=int(os.environ.get('IHG_PORT','8794'))
 DATA=Path(os.environ.get('IHG_DATA','/data'))
 SUPERVISOR_TOKEN=os.environ.get('SUPERVISOR_TOKEN','').strip()
@@ -74,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
   path=self.path.split('?',1)[0]
-  if not re.fullmatch(r'/api/games/[A-Za-z0-9_-]{1,120}/(?:art|cmd)',path):
+  if not re.fullmatch(r'/api/games/[A-Za-z0-9_-]{1,120}/(?:art|cmd|art-upload)',path):
    return self.send_error(404)
   return self.game_api(path,'POST')
  def game_api(self,path,method='GET'):
@@ -115,6 +118,7 @@ class Handler(BaseHTTPRequestHandler):
   if not token:
    return self.reply(503,json.dumps({'ok':False,'error':'The Games API is not configured.'}).encode(),'application/json; charset=utf-8')
   art_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art',path)
+  upload_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art-upload',path)
   cmd_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/cmd',path)
   if cmd_request and method=='POST':
    try:
@@ -127,8 +131,17 @@ class Handler(BaseHTTPRequestHandler):
     return self.reply(400,json.dumps({'ok':False,'error':'That change was not understood.'}).encode(),'application/json; charset=utf-8')
    upstream='/games/'+cmd_request.group(1)+'/cmd'
    request_body=json.dumps({'player':player,'cmd':cmd,'args':args}).encode()
+  elif upload_request and method=='POST':
+   try:
+    length=int(self.headers.get('Content-Length') or 0)
+   except ValueError:
+    length=0
+   if not 0<length<=MAX_UPLOAD_BYTES:
+    return self.reply(413,json.dumps({'ok':False,'error':'Choose an image smaller than %d MB.'%(MAX_UPLOAD_BYTES//BYTES_PER_MB)}).encode(),'application/json; charset=utf-8')
+   upstream='/games/'+upload_request.group(1)+'/art-upload?'+urllib.parse.urlencode({'player':player})
+   request_body=self.rfile.read(length)
   elif art_request and method=='POST':
-   upstream='/games/'+art_request.group(1)+'/art?'+urllib.parse.urlencode({'player':player})
+   upstream='/games/'+art_request.group(1)+'/art?'+urllib.parse.urlencode({'player':player,'refresh':'1' if (query.get('refresh') or [''])[0]=='1' else '0'})
    request_body=b'{}'
   elif path=='/api/library' and method=='GET':
    upstream='/library?'+urllib.parse.urlencode({'player':player})
@@ -141,13 +154,13 @@ class Handler(BaseHTTPRequestHandler):
    request_body=None
   else:
    return self.send_error(404)
-  req=urllib.request.Request('http://127.0.0.1:%d%s'%(API_PORT,upstream),data=request_body,method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/json'})
+  req=urllib.request.Request('http://127.0.0.1:%d%s'%(API_PORT,upstream),data=request_body,method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/octet-stream' if upload_request else 'application/json'})
   try:
-   with urllib.request.urlopen(req,timeout=45 if method=='POST' else 8) as response:
+   with urllib.request.urlopen(req,timeout=UPLOAD_TIMEOUT_S if method=='POST' else 8) as response:
     data=response.read(2*1024*1024+1)
     if len(data)>2*1024*1024:
      return self.reply(502,json.dumps({'ok':False,'error':'Game details are too large to display safely.'}).encode(),'application/json; charset=utf-8')
-    if art_request and method=='POST':
+    if (art_request or upload_request) and method=='POST':
      result=json.loads(data)
      if not isinstance(result,dict): return self.reply(502,b'{"ok":false,"error":"Invalid art response."}','application/json; charset=utf-8')
      if result.get('ok') is False: return self.reply(response.status,data,'application/json; charset=utf-8')

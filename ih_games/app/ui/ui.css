@@ -119,3 +119,13 @@ th{position:sticky;top:0;background:var(--ih-surface-raised);color:var(--ih-mute
 @media(max-width:520px){.arc-row{grid-template-columns:auto minmax(0,1fr)}.arc-row>.arc-stepper,.arc-row>.arc-have{grid-column:2}}
 .arc-done{display:grid;gap:8px;margin-top:12px}.arc-done .ih-button{justify-self:start}
 .refreshed-at{position:absolute;top:4px;right:52px;display:flex;align-items:center;min-height:44px;color:var(--ih-muted);font-size:10px;font-weight:600}.refreshed-at:empty{display:none}
+
+.upload-dialog{width:min(92vw,440px);padding:20px;border:1px solid var(--ih-line);border-radius:16px;background:var(--ih-surface);color:var(--ih-text);box-shadow:var(--ih-shadow)}
+.upload-dialog::backdrop{background:rgb(0 0 0 / 55%)}
+.upload-dialog h2{margin:0 0 8px;font-size:20px}
+.upload-body{margin:12px 0}.upload-body label{display:block;margin-bottom:6px;color:var(--ih-muted);font-size:13px}
+.upload-body input[type=file]{width:100%;min-height:44px}
+.upload-message{min-height:1.4em;font-size:13px}.upload-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.upload-actions button{min-height:44px;padding:8px 18px;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;cursor:pointer}
+.upload-actions .upload-primary{background:var(--ih-accent);color:var(--ih-accent-ink);border-color:transparent}
+.upload-actions button:disabled{opacity:.5;cursor:not-allowed}
