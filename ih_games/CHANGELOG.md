@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.6] - 2026-11-10
+
+### Fixed
+- The library API now decodes percent-encoded game names in the URL path, so a title with spaces (for example "Cyberpunk 2077") is found instead of returning "game not in library".
+
 ## [0.9.5] - 2026-11-10
 
 ### Fixed
