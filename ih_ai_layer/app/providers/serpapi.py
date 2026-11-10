@@ -77,7 +77,8 @@ class SerpApi(Provider):
             if cinema or film:
                 return ('%s showtimes %s' % (film, cinema)).strip()
         if cap == 'game_art_search':
-            return (text[:220] + ' official video game box art cover').strip()
+            t = str(ctx.get('title') or '').strip()[:160]
+            return ((t + ' ' + str(ctx.get('platform') or '').strip()[:20]).strip() if t else text[:220]) + ' official video game box art cover'
         return text[:300]
 
     def build_answer(self, cap, data, ctx):
