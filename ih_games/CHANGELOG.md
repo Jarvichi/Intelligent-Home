@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.9] - 2026-11-10
+
+### Fixed
+- PSN trophy names: read the trophy groups from the `TrophyGroupsSummary` object psnawp returns. It was treated as a list and failed with a TypeError. Checked against a live account.
+
 ## [0.9.8] - 2026-11-10
 
 ### Fixed
