@@ -56,6 +56,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_thread_and_delivery_receipt(self):
         self.bridge.accept(self.event())
+        self.assertTrue(self.bridge.deliver_one(lambda *args, **kwargs: "ack-receipt"))
         self.assertTrue(self.bridge.run_one(Runner()))
         sent = []
         def sender(*args, **kwargs):
@@ -64,7 +65,7 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(self.bridge.deliver_one(sender))
         self.assertFalse(self.bridge.deliver_one(sender))
         self.assertEqual(len(sent), 1)
-        self.assertEqual(self.bridge.status()["delivery"], {"sent": 1})
+        self.assertEqual(self.bridge.status()["delivery"], {"sent": 2})
 
     def test_ambiguous_delivery_is_never_replayed(self):
         self.bridge.accept(self.event())
@@ -85,15 +86,43 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(self.bridge.status()["delivery"], {"dry": 1})
         self.assertFalse(self.bridge.deliver_one(lambda *args, **kwargs: "unexpected-replay"))
 
-    def test_interrupted_turn_blocks_followers(self):
+    def test_interrupted_turn_is_abandoned_and_notices_owner(self):
         self.bridge.accept(self.event())
+        self.assertTrue(self.bridge.deliver_one(lambda *args, **kwargs: "ack-one"))
         with self.bridge.db:
             self.bridge.db.execute("UPDATE jobs SET state='running'")
         self.bridge.close()
         self.bridge = Bridge(self.path, channels=["codex"], users=["owner"])
+        self.assertEqual(self.bridge.status()["jobs"], {"abandoned": 1})
         self.bridge.accept(self.event("2"))
-        self.assertFalse(self.bridge.run_one(Runner()))
-        self.assertEqual(self.bridge.status()["jobs"], {"needs_review": 1, "queued": 1})
+        sent=[]
+        self.assertTrue(self.bridge.deliver_one(lambda ch,text,**kw: sent.append(text) or "notice"))
+        self.assertEqual(sent, ["Restart cut off your last Codex job; send it again if needed."])
+        self.assertTrue(self.bridge.deliver_one(lambda *args, **kwargs: "ack-two"))
+        self.assertTrue(self.bridge.run_one(Runner()))
+        self.assertEqual(self.bridge.status()["jobs"], {"abandoned": 1, "answered": 1})
+
+    def test_existing_needs_review_is_cleared_on_startup(self):
+        self.bridge.accept(self.event())
+        with self.bridge.db:
+            self.bridge.db.execute("UPDATE jobs SET state='needs_review',reason='old uncertainty'")
+        self.bridge.close()
+        self.bridge = Bridge(self.path, channels=["codex"], users=["owner"])
+        row=self.bridge.db.execute("SELECT state,reason,text FROM jobs").fetchone()
+        self.assertEqual(row, ("abandoned","restart cut off model turn",""))
+        notice=self.bridge.db.execute("SELECT part,text,state FROM outbox WHERE part=-3").fetchone()
+        self.assertEqual(notice, (-3,"Restart cut off your last Codex job; send it again if needed.","pending"))
+
+    def test_uncertain_delivery_is_abandoned_and_notice_uses_same_dedupe_key(self):
+        self.bridge.accept(self.event())
+        with self.bridge.db:
+            self.bridge.db.execute("UPDATE outbox SET state='needs_review' WHERE part=-2")
+        self.bridge.close()
+        self.bridge = Bridge(self.path, channels=["codex"], users=["owner"])
+        rows=self.bridge.db.execute("SELECT part,state,text FROM outbox ORDER BY part").fetchall()
+        self.assertEqual(rows, [
+            (-3,"pending","Restart cut off your last Codex job; send it again if needed."),
+            (-2,"abandoned","")])
 
     def test_process_lock_prevents_concurrent_recovery(self):
         code = "from bridge import Bridge; Bridge(__import__('sys').argv[1])"
@@ -113,7 +142,9 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(self.bridge.accept(self.event("overflow")))
         self.assertTrue(self.bridge.accept(self.event("recover", text="/new")))
         self.assertEqual(self.bridge.status()["jobs"], {"queued": 9, "rejected": 1})
-        self.assertEqual(self.bridge.status()["delivery"], {"pending": 1})
+        # Eight accepted prompts each have a visible queued acknowledgement;
+        # the overflow gets the queue-full reply instead.
+        self.assertEqual(self.bridge.status()["delivery"], {"pending": 9})
 
 
 class CommandTests(unittest.TestCase):

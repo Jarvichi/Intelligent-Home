@@ -44,11 +44,30 @@ class Bridge:
                 self.db.execute("DELETE FROM outbox WHERE state IN ('sent','abandoned') AND EXISTS (SELECT 1 FROM jobs j WHERE j.channel=outbox.channel AND j.message=outbox.message AND j.created<?)",(cutoff,))
                 self.db.execute("DELETE FROM jobs WHERE created<? AND state IN ('answered','rejected','abandoned')",(cutoff,))
                 self.db.execute("DELETE FROM claude_handoffs WHERE created<?",(cutoff,))
-            # Process crashes cannot establish whether tools or Discord sends ran.
+            # A restart cuts off an in-flight model turn. Never leave that
+            # uncertainty blocking later messages: abandon it and queue one
+            # durable, deduplicated notice on the interrupted Discord message.
+            # The negative part sorts before the normal receipt (-2) and reply
+            # parts, so the notice cannot be blocked behind the cut-off work.
+            interrupted=self.db.execute("""SELECT DISTINCT j.channel,j.message,j.author
+              FROM jobs j LEFT JOIN outbox o ON o.channel=j.channel AND o.message=j.message
+             WHERE j.state IN ('running','needs_review') OR o.state IN ('sending','needs_review')
+             ORDER BY j.rowid""").fetchall()
             with self.db:
-                self.db.execute("UPDATE jobs SET state='needs_review',reason='interrupted model turn' WHERE state='running'")
-                self.db.execute("DELETE FROM job_images WHERE EXISTS (SELECT 1 FROM jobs j WHERE j.channel=job_images.channel AND j.message=job_images.message AND j.state='needs_review')")
-                self.db.execute("UPDATE outbox SET state='needs_review' WHERE state='sending'")
+                self.db.execute("UPDATE jobs SET state='abandoned',text='',reason='restart cut off model turn' WHERE state IN ('running','needs_review')")
+                self.db.execute("""DELETE FROM job_images WHERE EXISTS
+                  (SELECT 1 FROM jobs j WHERE j.channel=job_images.channel AND j.message=job_images.message
+                   AND j.state='abandoned' AND j.reason='restart cut off model turn')""")
+                self.db.execute("""UPDATE outbox SET state='abandoned',text='' WHERE state IN ('sending','needs_review')
+                  OR EXISTS (SELECT 1 FROM jobs j WHERE j.channel=outbox.channel AND j.message=outbox.message
+                    AND j.state='abandoned' AND j.reason='restart cut off model turn')""")
+                latest={}
+                for channel,message,author in interrupted:
+                    if channel in self.channels and author in self.users:
+                        latest[channel]=(message,author)
+                for channel,(message,_) in latest.items():
+                    self.db.execute("INSERT OR REPLACE INTO outbox VALUES(?,?,?,?,?,?)",
+                      (channel,message,-3,'Restart cut off your last Codex job; send it again if needed.','pending',None))
                 self.db.execute("UPDATE action_plans SET state='uncertain' WHERE state='executing'")
                 self.db.execute("UPDATE claude_handoffs SET state='needs_review' WHERE state='sending'")
         except BaseException:
