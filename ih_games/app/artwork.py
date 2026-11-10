@@ -21,7 +21,7 @@ OFFICIAL_SOURCES = (
     'rockstargames.com', 'cdprojektred.com', 'embark-studios.com', 'arcraiders.com', 'bandainamcoent.com',
     'capcom.com', 'sega.com', 'atlus.com', 'thqnordic.com', '2k.com', 'take2games.com', 'gearboxsoftware.com',
     'bethesda.net', 'bethesda.com', 'blizzard.com', 'riotgames.com', 'larian.com', 'teamcherry.com',
-    'devolverdigital.com', 'focus-entmt.com', 'deep-silver.com', '505games.com', 'konami.com', 'square-enix-games.com',
+    'igdb.com', 'devolverdigital.com', 'focus-entmt.com', 'deep-silver.com', '505games.com', 'konami.com', 'square-enix-games.com',
 )
 
 
