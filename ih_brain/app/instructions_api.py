@@ -23,7 +23,7 @@ MODES = (MODE_OFF, MODE_VIEW, MODE_EDIT)
 # Paths are inside the add-on container: /homeassistant is the Home Assistant config folder and is
 # only present when the add-on is given the `homeassistant_config` folder mapping.
 FILES = {
-    "house": {"label": "House instructions (CLAUDE.md)", "path": "/homeassistant/CLAUDE.md", "locked": False},
+    "house": {"label": "House instructions (CLAUDE.md)", "path": "/homeassistant/CLAUDE.md", "locked": False},  # privacy-scan: ignore LOCAL_TERM
     "claude_user": {"label": "Claude Code personal instructions (CLAUDE.user.md)",
                     "path": "/homeassistant/.claudecode/CLAUDE.user.md", "locked": False},
     "claude_addon": {"label": "Claude Code add-on instructions (managed by the add-on, view only)",

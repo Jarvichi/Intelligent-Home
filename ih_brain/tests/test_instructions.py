@@ -266,7 +266,7 @@ class AccessTests(Base):
 
     def test_fixed_table_lists_exactly_the_documented_files(self):
         self.assertEqual({k: (v['path'], v['locked']) for k, v in api.FILES.items()},
-                         {'house': ('/homeassistant/CLAUDE.md', False), 'claude_user': ('/homeassistant/.claudecode/CLAUDE.user.md', False),
+                         {'house': ('/homeassistant/CLAUDE.md', False), 'claude_user': ('/homeassistant/.claudecode/CLAUDE.user.md', False),  # privacy-scan: ignore LOCAL_TERM
                           'claude_addon': ('/homeassistant/.claudecode/CLAUDE.md', True)})
         self.assertEqual(api.DEFAULT_FILES, ('house',))
         self.assertEqual(api.InstructionsEditor().mode, 'off')

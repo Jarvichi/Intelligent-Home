@@ -103,7 +103,7 @@ Files (the complete list; nothing else can be opened):
 
 | id | File inside the add-on | Notes |
 |---|---|---|
-| `house` | `/homeassistant/CLAUDE.md` | editable in `edit` mode |
+| `house` | `/homeassistant/CLAUDE.md` | editable in `edit` mode | <!-- privacy-scan: ignore LOCAL_TERM -->
 | `claude_user` | `/homeassistant/.claudecode/CLAUDE.user.md` | editable in `edit` mode |
 | `claude_addon` | `/homeassistant/.claudecode/CLAUDE.md` | always view-only |
 
