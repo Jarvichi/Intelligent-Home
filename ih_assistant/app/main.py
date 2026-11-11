@@ -21,7 +21,7 @@ import reminders as remmod
 import gateway as gatewaymod
 import random
 
-VERSION = '0.15.0'
+VERSION = '0.15.1'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')

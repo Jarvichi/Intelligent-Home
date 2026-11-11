@@ -2,7 +2,7 @@
 
 Standard library only (Python 3.12 or newer). Each add-on carries its own copy in `app/ihlib/`. Never edit a copy: edit the master, then copy it into the add-ons (`sync_ihlib.sh`), with a version bump and a CHANGELOG entry for every add-on that receives it.
 
-**State on this branch:** this folder holds only the new module `db.py`. It is not copied into any add-on yet and no add-on uses it. The other modules (`ha`, `discord`, `state`, `log`, `http`, `series`, `trace`) are still only in the add-on copies.
+**State:** the master holds all modules (`ha`, `discord`, `state`, `log`, `http`, `series`, `trace`, `db`). `db` is copied into the add-ons but no add-on uses it yet.
 
 ## db.py: one SQLite file per add-on
 

@@ -8,7 +8,7 @@ import brainlib, mcp, extras, codex_todo
 import ui_server
 import instructions_api
 
-VERSION = '0.5.1'
+VERSION = '0.5.2'
 MAX_BODY = 512 * 1024
 
 

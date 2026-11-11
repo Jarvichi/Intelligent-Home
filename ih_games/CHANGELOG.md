@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.13.2] - 2026-11-11
+
+### Changed
+- ihlib: add db.py (shared SQLite helper, not used yet).
+
 ## [0.13.1] - 2026-11-11
 
 ### Fixed
