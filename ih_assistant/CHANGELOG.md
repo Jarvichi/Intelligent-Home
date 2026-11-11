@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.17.0] - 2026-11-11
+
+### Added
+- A persona can write its own out-of-usage notice variants into its own data store: `POST /persona/<key>/usage_texts` with `{texts, notime}` (up to 10 each, 1 to 500 characters, only the `{time}` placeholder; a bad entry rejects the call with a reason; empty lists clear the store) and `GET /persona/<key>/usage_texts` (effective lists and their source: `store`, `options` or `builtin`). Up to 20 accepted writes a day per persona (429 after that). Order at send time: store lists > options lists > single text options > built-in wording. Texts are never logged.
+
 ## [0.16.1] - 2026-11-11
 
 ### Added
