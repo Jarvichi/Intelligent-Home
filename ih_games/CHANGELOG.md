@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.2] - 2026-11-11
+
+### Changed
+- Games without a tool no longer get one to-do each. One standing to-do, "Games: check for new games" (due in 7 days), lists them; new games are added to its description, and a new item is created only when none is open.
+
 ## [0.10.1] - 2026-11-11
 
 ### Changed
