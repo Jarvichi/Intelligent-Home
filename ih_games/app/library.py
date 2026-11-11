@@ -9,6 +9,9 @@ FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence
 TITLES_FEED = "psn_trophy_titles"
 # Games added in bulk from the trophy list get no "research a tracker" to-do (145 at once would flood the list)
 NO_TODO_SOURCES = (TITLES_FEED,)
+PLAYTIME_FILE = "psn_playtime_%s.json"   # written by providers/psn_sessions.py
+PLAYTIME_SRC_TRACKED = "tracked"         # play time summed from play sessions, counted from `playtime_since`
+PSN_PLATFORM = "psn"
 _LOCK = threading.Lock()
 
 
@@ -119,6 +122,8 @@ class Library:
                 existing["source"] = source
         if playtime is not None:
             existing["playtime_min"] = int(playtime)
+            existing.pop("playtime_src", None)      # a platform-reported play time replaces a tracked one
+            existing.pop("playtime_since", None)
         existing["tools"] = self._tools_for(existing)
         return existing
 
@@ -174,7 +179,29 @@ class Library:
                         if fn == f"{src}_{pk}.json":
                             self._from_feed(d, pk, src, os.path.join(fdir, fn), now)
             self._clean_existing(d)
+            for p in self.players:
+                self._psn_playtime(d, p["key"])
             _atomic(self.path, d)
+
+    def _psn_playtime(self, d, pk):
+        """Copy play time tracked from PSN play sessions into playtime_min. A play time reported by a platform is kept."""
+        try:
+            with open(os.path.join(self.dir, PLAYTIME_FILE % pk)) as fh:
+                pt = json.load(fh)
+            games = {norm(clean_title(g)): t for g, t in pt.get("games", {}).items()}
+        except (OSError, ValueError, AttributeError):
+            return
+        for e in d["entries"].get(pk, {}).values():
+            t = games.get(norm(e["title"]))
+            if not isinstance(t, dict) or e.get("platform") not in (PSN_PLATFORM, None):
+                continue
+            if e.get("playtime_min") is None or e.get("playtime_src") == PLAYTIME_SRC_TRACKED:
+                try:
+                    e["playtime_min"] = max(0, int(t.get("minutes") or 0))
+                except (TypeError, ValueError):
+                    continue
+                e["playtime_src"] = PLAYTIME_SRC_TRACKED
+                e["playtime_since"] = pt.get("tracked_since")
 
     def _clean_existing(self, d):
         """One-off tidy: rename entries whose title has trophy-list wording (id kept). Skipped when a same-platform entry already has the clean title."""

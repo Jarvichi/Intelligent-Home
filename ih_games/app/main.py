@@ -7,11 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, trophies as trophies_mod, todos, tools as tools_mod, artwork
+import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, trophies as trophies_mod, card_stat, todos, tools as tools_mod, artwork
 from jobs import common
-from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
+from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, psn_sessions, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
-VERSION = "0.9.3"
+VERSION = "0.11.0"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -23,11 +23,14 @@ PUSH_EVERY = 30
 UPLOAD_ROUTE = "art-upload"       # POST /games/<id>/art-upload with the raw image as the body
 WINDOWS = {"providers": 60, "orchestrate": 120}   # = manifest window_s
 START_DELAY_S = 60
+# PSN play-time tracking rides along with these providers: it needs no option of its own
+SESSION_TRACKING_WITH = ("psn_trophies",)
 
 PROVIDERS = {
     "psn_trophies": psn_trophies,
     "psn_trophy_names": psn_trophy_names,
     "psn_trophy_titles": psn_trophy_titles,
+    "psn_sessions": psn_sessions,
     "xbox_gamerscore": xbox_gamerscore,
     "destiny": destiny,
     "steam_presence": steam_presence,
@@ -107,6 +110,21 @@ class Module:
                 return t
         return None
 
+    def providers_to_run(self):
+        """The enabled providers, plus the PSN session tracker when a provider it rides along with is enabled."""
+        enabled = list(self.opts.get("providers_enabled", []))
+        if psn_sessions.NAME not in enabled and any(p in enabled for p in SESSION_TRACKING_WITH):
+            enabled.append(psn_sessions.NAME)
+        return enabled
+
+    def trophy_fetcher(self, pk):
+        """fetch(title) for trophies.tier_list, or None when the player has no PSN token + Online ID."""
+        token = str(self.opts.get("psn_npsso") or "").strip()
+        online_id = next((str(p.get("psn_online_id") or "").strip() for p in self.opts.get("players", []) if p.get("key") == pk), "")
+        if not token or not online_id:
+            return None
+        return lambda title: psn_trophy_names.title_trophies(token, online_id, title)
+
     def api_authorised(self, header):
         t = self.opts.get("admin_token", "")
         return bool(t) and hmac.compare_digest(str(header or ""), "Bearer " + t)
@@ -129,7 +147,8 @@ class Module:
             if not pk:
                 return 400, {"ok": False, "why": "unknown player"}
             lib.refresh()
-            return 200, {"ok": True, "player": pk, "games": lib.list(pk, query.get("hidden") == "1")}
+            games = card_stat.annotate(lib.list(pk, query.get("hidden") == "1"), self.data, pk, self.tool_for, self.tool_ctx())
+            return 200, {"ok": True, "player": pk, "games": games}
         if parts == ["library", "new-games-without-todo"] and method == "GET":
             lib.refresh()
             return 200, {"ok": True, "games": lib.games_without_todo()}
@@ -179,6 +198,11 @@ class Module:
                 data = dict(data, trophies=trophies_mod.for_game(self.data, pk, entry["title"]))
                 return 200, {"ok": True, "game": entry["title"], "game_id": parts[1], "tool": tool.NAME if tool else None,
                              "ui_component": getattr(tool, "UI_COMPONENT", None) if tool else None, "details": data}
+            if what == "trophies" and method == "GET":
+                listing = trophies_mod.tier_list(self.data, pk, entry["title"], fetch=self.trophy_fetcher(pk))
+                if listing["missing"] == trophies_mod.MISSING_LOOKUP_FAILED:
+                    self.log("trophy list: PSN lookup failed for " + pk)
+                return 200, dict(listing, ok=True, game=entry["title"], game_id=parts[1])
             if what == "art" and method == "POST":
                 try:
                     art = artwork.find_and_store(self.opts, self.data, entry, opener=self._opener, require_portrait=query.get("refresh") == "1")
@@ -240,7 +264,7 @@ class Module:
             ok, ewhy = False, "-"
             try:
                 if name == "providers":
-                    for p_name in self.opts.get("providers_enabled", []):
+                    for p_name in self.providers_to_run():
                         if p_name in PROVIDERS:
                             for player in self.opts.get("players", []):
                                 PROVIDERS[p_name].run(ctx, player)

@@ -44,14 +44,7 @@
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString(undefined, dateOnly ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
-  function fmtPlaytime(value) {
-    if (value == null || !Number.isFinite(Number(value)) || Number(value) < 0) return 'Unavailable';
-    const minutes = Math.floor(Number(value));
-    const hours = Math.floor(minutes / 60);
-    const remainder = minutes % 60;
-    if (!hours) return minutes.toLocaleString() + ' min';
-    return hours.toLocaleString() + (hours === 1 ? ' hour' : ' hours') + (remainder ? ' ' + remainder + ' min' : '');
-  }
+  const cardStatHelpers = window.IHGamesCardStat;
   function filteredGames(games, preferences) {
     const query = preferences.query.trim().toLocaleLowerCase();
     const result = games.filter(game => String(game.title || '').toLocaleLowerCase().includes(query) &&
@@ -162,7 +155,35 @@
     table.appendChild(body); wrap.appendChild(table); return wrap;
   }
   const TROPHY_TIERS = ['platinum', 'gold', 'silver', 'bronze'];
-  function trophyBlock(t) {
+  /* The list behind one tier tile. listing = the /trophies answer. */
+  function trophyTierPanel(listing, tier) {
+    const view = cardStatHelpers.tierView(listing, tier);
+    const panel = el('div', null, 'trophy-tier-panel');
+    const heading = el('h3', view.title + ' · ' + view.summary);
+    panel.appendChild(heading);
+    if (listing.note) panel.appendChild(el('p', listing.note, 'notice notice-warning trophy-list-note'));
+    if (!view.rows.length) {
+      panel.appendChild(el('p', view.complete ? 'This game has no ' + tier + ' trophies.' : 'No ' + tier + ' trophy names are recorded for this game yet.', 'ih-muted'));
+      return panel;
+    }
+    const list = el('ul', null, 'trophy-list');
+    view.rows.forEach(function (x) {
+      const item = el('li', null, x.earned ? 'trophy-row trophy-row-earned' : 'trophy-row trophy-row-unearned');
+      const text = el('div', null, 'trophy-row-text');
+      text.appendChild(el('span', x.name || 'Unnamed trophy', 'trophy-name'));
+      if (x.detail) text.appendChild(el('small', x.detail, 'ih-muted'));
+      const state = el('div', null, 'trophy-row-state');
+      state.appendChild(el('span', x.earned ? 'Earned' : 'Not earned', 'trophy-state'));
+      if (x.earned && x.earned_at) state.appendChild(el('small', fmtDate(x.earned_at, true), 'ih-muted'));
+      item.append(text, state);
+      list.appendChild(item);
+    });
+    panel.appendChild(list);
+    if (listing.fetched) panel.appendChild(el('p', 'Trophy list from PSN, read ' + fmtDate(listing.fetched), 'ih-freshness'));
+    return panel;
+  }
+  /* t = details.trophies. source = {player, gameId}: with it, each tier tile is a button that opens that tier's list. */
+  function trophyBlock(t, source) {
     const body = el('div', null, 'trophy-block');
     if (t.progress !== null && t.progress !== undefined) {
       const pct = Math.max(0, Math.min(100, Number(t.progress) || 0));
@@ -173,14 +194,54 @@
       body.append(el('p', pct + '% complete', 'trophy-percent'), bar);
     }
     if (t.earned) {
+      const canList = !!(source && source.player && source.gameId);
       const tiers = el('ul', null, 'trophy-tiers');
+      const panelHost = el('div', null, 'trophy-tier-host'); panelHost.hidden = true;
+      panelHost.id = 'trophy-list-' + encodeURIComponent(canList ? source.player + '-' + source.gameId : 'none');
+      panelHost.setAttribute('aria-live', 'polite');
+      const buttons = [];
+      let openTier = '';
+      let listing = null;      // one request per card; every tier is in the answer
+      function loadListing() {
+        if (!listing) {
+          listing = request('api/games/' + encodeURIComponent(source.gameId) + '/trophies?player=' + encodeURIComponent(source.player));
+          listing.catch(function () { listing = null; });
+        }
+        return listing;
+      }
+      async function showTier(tier) {
+        const closing = openTier === tier;
+        openTier = closing ? '' : tier;
+        buttons.forEach(function (b) { b.setAttribute('aria-expanded', String(b.dataset.tier === openTier)); });
+        panelHost.hidden = closing;
+        if (closing) { panelHost.replaceChildren(); return; }
+        panelHost.replaceChildren(el('p', 'Loading ' + tier + ' trophies…', 'ih-muted'));
+        panelHost.setAttribute('aria-busy', 'true');
+        try {
+          const data = await loadListing();
+          if (openTier === tier) panelHost.replaceChildren(trophyTierPanel(data, tier));
+        } catch (error) {
+          if (openTier === tier) panelHost.replaceChildren(el('p', error.message, 'notice notice-error'));
+        } finally { panelHost.setAttribute('aria-busy', 'false'); }
+      }
       TROPHY_TIERS.forEach(function (tier) {
-        const item = el('li', null, 'trophy-tier trophy-' + tier);
         const of = t.defined && t.defined[tier] ? ' / ' + t.defined[tier] : '';
-        item.append(el('strong', String(t.earned[tier] || 0) + of), el('span', tier));
-        tiers.appendChild(item);
+        const count = el('strong', String(t.earned[tier] || 0) + of);
+        const label = el('span', tier);
+        if (!canList) {
+          const item = el('li', null, 'trophy-tier trophy-' + tier); item.append(count, label); tiers.appendChild(item); return;
+        }
+        const slot = el('li', null, 'trophy-tier-slot');
+        const button = el('button', null, 'trophy-tier trophy-tier-button trophy-' + tier);
+        button.type = 'button'; button.dataset.tier = tier;
+        button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', panelHost.id);
+        button.setAttribute('aria-label', 'Show ' + tier + ' trophies: ' + count.textContent + (of ? '' : ' earned'));
+        button.append(count, label);
+        button.addEventListener('click', function () { showTier(tier); });
+        buttons.push(button); slot.appendChild(button); tiers.appendChild(slot);
       });
       body.appendChild(tiers);
+      if (canList) body.append(el('p', 'Tap a tile to list its trophies.', 'ih-metadata'), panelHost);
     }
     if (t.latest && t.latest.length) {
       const list = el('ul', null, 'trophy-latest');
@@ -211,6 +272,7 @@
   }
   async function detailsContent(payload, ctx) {
     const data = payload.details || {};
+    const trophySource = { player: ctx && ctx.player, gameId: payload.game_id || payload.game };
     if (payload.ui_component) {
       try {
         const component = await loadGameComponent(payload.ui_component);
@@ -228,7 +290,7 @@
         }
         const node = component.render(data, helpers);
         if (!data.trophies) return node;
-        const both = el('div', null, 'ih-detail-stack'); both.append(node, trophyBlock(data.trophies)); return both;
+        const both = el('div', null, 'ih-detail-stack'); both.append(node, trophyBlock(data.trophies, trophySource)); return both;
       } catch (error) {
         return el('p', error.message, 'notice notice-warning');
       }
@@ -244,7 +306,7 @@
       ], data.upcoming)));
       else wrap.appendChild(el('p', 'No upcoming events.', 'upcoming-empty'));
     }
-    if (data.trophies) wrap.appendChild(trophyBlock(data.trophies));
+    if (data.trophies) wrap.appendChild(trophyBlock(data.trophies, trophySource));
     if (!wrap.childElementCount) wrap.appendChild(el('p', 'No game-specific details are available for this game yet.', 'ih-muted'));
     return wrap;
   }
@@ -337,7 +399,10 @@
     top.append(platforms, el('h2', game.title));
     main.appendChild(top);
     const facts = el('dl', null, 'game-facts');
-    facts.append(row('Last seen', fmtDate(game.last_seen, true)), row('Play time', fmtPlaytime(game.playtime_min)));
+    facts.append(row('Last played', fmtDate(game.last_seen, true)));
+    /* One stat box: progress, else play time above zero, else no box (never a misleading "0 min"). */
+    const stat = cardStatHelpers.cardStat(game, function (value) { return fmtDate(value, true); });
+    if (stat) facts.append(row(stat.label, stat.value));
     main.appendChild(facts);
     let artStatus = null;
     function showArtStatus(message, className) {
@@ -433,7 +498,7 @@
       if (requestId !== viewRequest) return;
       const games = mergePlatformGames(data.games || []);
       const tracked = games.filter(g => Array.isArray(g.tools) && g.tools.length).length;
-      const playtimeKnown = games.filter(g => g.playtime_min != null).length;
+      const playtimeKnown = games.filter(g => Number(g.playtime_min) > 0).length;
       const stats = el('div', null, 'library-stats');
       [[games.length, games.length === 1 ? 'game' : 'games'], [tracked, 'tracked'], [playtimeKnown, 'with playtime']].forEach(function (item) {
         const box = el('ih-metric', null, 'library-stat'); box.append(el('strong', item[0]), el('span', item[1])); stats.appendChild(box);

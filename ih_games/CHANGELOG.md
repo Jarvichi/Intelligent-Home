@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0] - 2026-11-11
+
+### Changed
+- Game card: "Last seen" is now "Last played".
+- Game card: the "Play time" box is replaced by one stat box. It shows, in this order: quest progress ("done / total") when the game's tool reports it; else trophies ("<earned> out of <total> 🏆"); else a play time above zero; else no box. A "0 min" play time is never shown. Play time tracked from sessions is labelled "Play time since <date>".
+- The library count "with playtime" counts only games with a play time above zero.
+- Startup log and `/status` report the real add-on version (the constant was left at 0.9.3).
+
+### Added
+- Trophy tiles (Platinum, Gold, Silver, Bronze) are buttons: tap one to list that tier's trophies with "Earned" (and the date) or "Not earned". New endpoint `GET /games/<id>/trophies?player=<key>` reads the full list from PSN with the existing token and Online ID, and saves it in `/data/trophy_lists/` (reused for 15 minutes; the last saved list is shown, marked as such, when a lookup fails). Without PSN lookups the list holds only the earned trophies whose names were recorded locally, and says that it is incomplete and why.
+- PSN play time from play sessions (`psn_sessions`): runs with `psn_trophies`, reads the now-playing sensor, sums session start to end, and writes `/data/psn_playtime_<player>.json`. A platform-reported play time is never overwritten. `app/tools/psn_backfill.py` is a one-off, read-only backfill from the recorder database.
+- Game tools can offer `progress(tc, player) -> {"done", "total"[, "label"]}` to fill the stat box. No bundled tool reports quest progress yet.
+- `GET /library` adds `card_stat` to each game.
+
 ## [0.10.4] - 2026-11-11
 
 ### Fixed
