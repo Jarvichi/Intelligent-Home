@@ -266,8 +266,7 @@ class AccessTests(Base):
 
     def test_fixed_table_lists_exactly_the_documented_files(self):
         self.assertEqual({k: (v['path'], v['locked']) for k, v in api.FILES.items()},
-                         {'house': ('/homeassistant/CLAUDE.md', False), 'claude_user': ('/homeassistant/.claudecode/CLAUDE.user.md', False),  # privacy-scan: ignore LOCAL_TERM
-                          'claude_addon': ('/homeassistant/.claudecode/CLAUDE.md', True)})
+                         {'house': ('/share/agents/agents.md', False)})
         self.assertEqual(api.DEFAULT_FILES, ('house',))
         self.assertEqual(api.InstructionsEditor().mode, 'off')
 
@@ -349,7 +348,7 @@ class OptionTests(unittest.TestCase):
             self.assertEqual((o['instructions_mode'], o['instructions_files'], o['instructions_user_ids']), ('off', ['house'], []))
             f.write_text(json.dumps({'instructions_mode': 'edit', 'instructions_files': ['house', 'claude_user', '/etc/passwd'], 'instructions_user_ids': [USER, ' ']}))
             o = main.load_options(str(f))
-            self.assertEqual((o['instructions_mode'], o['instructions_files'], o['instructions_user_ids']), ('edit', ['house', 'claude_user'], [USER]))
+            self.assertEqual((o['instructions_mode'], o['instructions_files'], o['instructions_user_ids']), ('edit', ['house'], [USER]))
             f.write_text(json.dumps({'instructions_mode': 'write'})); self.assertEqual(main.load_options(str(f))['instructions_mode'], 'off')
 
 

@@ -20,14 +20,9 @@ MODE_OFF, MODE_VIEW, MODE_EDIT = "off", "view", "edit"
 MODES = (MODE_OFF, MODE_VIEW, MODE_EDIT)
 
 # The complete list of files this feature can ever touch. `locked` files are view-only in every mode.
-# Paths are inside the add-on container: /homeassistant is the Home Assistant config folder and is
-# only present when the add-on is given the `homeassistant_config` folder mapping.
+# The path is inside the add-on container: /share is the shared folder (mapped share:rw). No config-folder mapping is used.
 FILES = {
-    "house": {"label": "House instructions (CLAUDE.md)", "path": "/homeassistant/CLAUDE.md", "locked": False},  # privacy-scan: ignore LOCAL_TERM
-    "claude_user": {"label": "Claude Code personal instructions (CLAUDE.user.md)",
-                    "path": "/homeassistant/.claudecode/CLAUDE.user.md", "locked": False},
-    "claude_addon": {"label": "Claude Code add-on instructions (managed by the add-on, view only)",
-                     "path": "/homeassistant/.claudecode/CLAUDE.md", "locked": True},
+    "house": {"label": "Agent instructions (agents.md)", "path": "/share/agents/agents.md", "locked": False},
 }
 DEFAULT_FILES = ("house",)
 

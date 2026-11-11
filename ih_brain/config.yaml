@@ -17,11 +17,9 @@ ingress_port: 8821
 panel_title: "Brain"
 panel_icon: mdi:brain
 panel_admin: true
-# The instructions editor (instructions_mode, off by default) needs the whole Home Assistant config folder: an add-on
-# cannot be given one file. The owner approved this on 11 Nov 2026 (see DOCS). The code only opens the fixed files listed there.
+# The instructions editor (instructions_mode, off by default) reads and writes only /share/agents/agents.md, inside the share folder.
 map:
   - share:rw
-  - homeassistant_config:rw
 ports:
   8820/tcp: 8820
 ports_description:

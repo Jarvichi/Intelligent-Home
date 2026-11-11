@@ -41,7 +41,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `ingest_url` | No | Orchestrator trace address (default `http://172.30.32.1:8790`). |
 | `ingest_token` | No | Orchestrator trace token; filled by the Orchestrator when empty. Empty = tracing off. Metadata only. |
 | `instructions_mode` | No | Instructions page: `off` (default), `view` (read-only) or `edit`. See "Instructions editor". |
-| `instructions_files` | No | Which files from the fixed list the page shows: `house`, `claude_user`, `claude_addon`. Default `house`. |
+| `instructions_files` | No | Which files from the fixed list the page shows: `house` (the only entry). Default `house`. |
 | `instructions_user_ids` | No | Home Assistant user ids allowed to open the page. Empty = any administrator who can open the Web UI. |
 
 ## Troubleshooting
@@ -97,18 +97,16 @@ its parity is verified. The UI remains read-only and administrator-only; no acce
 
 A page to read and edit the assistant's standing-instructions file from the Web UI. It is off until you turn it on.
 
-**Warning: the page needs a wider folder mapping.** The files live in the Home Assistant config folder. An add-on cannot be given one file, only the whole folder. This add-on now maps it (`homeassistant_config:rw` in `config.yaml`, approved by the owner on 11 Nov 2026). The page stays OFF until `instructions_mode` is set. After that the add-on can read and write the whole config folder, though this code only ever opens the files in the list below. With `instructions_mode: view` the mapping can be `homeassistant_config:ro`.
+**Share folder only.** The file lives in the shared folder, which this add-on already maps (`share:rw`). The page does not use the Home Assistant config folder mapping, so the add-on cannot see the config folder or its secrets. The page stays OFF until `instructions_mode` is set.
 
 Files (the complete list; nothing else can be opened):
 
 | id | File inside the add-on | Notes |
 |---|---|---|
-| `house` | `/homeassistant/CLAUDE.md` | editable in `edit` mode | <!-- privacy-scan: ignore LOCAL_TERM -->
-| `claude_user` | `/homeassistant/.claudecode/CLAUDE.user.md` | editable in `edit` mode |
-| `claude_addon` | `/homeassistant/.claudecode/CLAUDE.md` | always view-only |
+| `house` | `/share/agents/agents.md` | editable in `edit` mode |
 
 Turn it on:
-1. Add the folder mapping (above). Restart the add-on.
+1. Create the file `/share/agents/agents.md` (the folder must be a real folder, not a link).
 2. Set `instructions_mode` to `view` or `edit`. Optional: put your Home Assistant user id in `instructions_user_ids`.
 3. Open the Web UI. Select **Instructions editor**.
 
