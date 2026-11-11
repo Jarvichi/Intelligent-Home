@@ -21,7 +21,7 @@ import reminders as remmod
 import gateway as gatewaymod
 import random
 
-VERSION = '0.15.1'
+VERSION = '0.16.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -72,11 +72,17 @@ HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}(\.\.\d{4}-\d{2}-\d{2})?$')
-USAGE_SENSORS = {'session': 'sensor.claude_usage_session_usage', 'week': 'sensor.claude_usage_week_usage',
-                 'session_reset': 'sensor.claude_usage_session_reset_time', 'week_reset': 'sensor.claude_usage_weekly_reset_time'}   # defaults; options usage_sensor_* override
+USAGE_SENSORS = {'session': 'sensor.claude_usage_andrew_pro_session_usage', 'week': 'sensor.claude_usage_andrew_pro_week_usage',
+                 'session_reset': 'sensor.claude_usage_andrew_pro_session_reset_time', 'week_reset': 'sensor.claude_usage_andrew_pro_weekly_reset_time',
+                 'extra_enabled': 'sensor.claude_usage_andrew_pro_extra_usage_enabled', 'extra_pct': 'sensor.claude_usage_andrew_pro_extra_usage'}   # defaults; options usage_sensor_* override
 USAGE_OUT_AT = 99.0       # percent: out of usage when the session or the week sensor is at or over this
+USAGE_EXTRA_OUT_AT = 98.0  # percent of the extra-usage limit: at or over this the extra credits are used up too
+USAGE_WAIT_S = 60         # a message must stay unanswered this long before the automatic reply
 USAGE_MIN_GAP_S = 600     # one automatic reply per persona per 10 minutes
+USAGE_PENDING_MAX_S = 3600  # an unanswered message older than this is forgotten (no late notice)
 USAGE_FAR_H = 12          # reset further away than this shows a day name
+USAGE_ANSWER_KINDS = ('reply', 'ask', 'checkin', 'usage_reply')   # anything the persona sent counts as an answer
+USAGE_TEXT_DEFAULT = 'I cannot read your message right now: I am out of Claude usage until {t}. Your message is saved here. I answer when it resets.'
 USAGE_TEXT_MAX = 400
 CHECKIN_TEXT_MAX = 600
 
@@ -143,10 +149,10 @@ def load_options(path):
             'checkins': sorted({c for c in (p.get('checkins') or []) if isinstance(c, str) and HHMM.match(c)}),
             'can_tell': [k for k in (p.get('can_tell') or []) if valid_key(k) and k != p['key']],
             'live': p.get('live') is True})
-    for uk, ak in (('usage_sensor_session', 'session'), ('usage_sensor_week', 'week'), ('usage_sensor_session_reset', 'session_reset'), ('usage_sensor_week_reset', 'week_reset')):
+    for uk, ak in (('usage_sensor_session', 'session'), ('usage_sensor_week', 'week'), ('usage_sensor_session_reset', 'session_reset'), ('usage_sensor_week_reset', 'week_reset'), ('usage_sensor_extra_enabled', 'extra_enabled'), ('usage_sensor_extra', 'extra_pct')):
         if isinstance(o.get(uk), str) and ENTITY_RE.match(o[uk].strip()):
             USAGE_SENSORS[ak] = o[uk].strip()
-    return {'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
+    return {'usage_autoreply': o.get('usage_autoreply') is not False, 'mode': mode, 'facts_url': str(o.get('facts_url') or '').strip().rstrip('/'), 'facts_key': str(o.get('facts_key') or '').strip(),
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
             'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
@@ -453,9 +459,9 @@ class Assistant:
         if added:
             self.typing_now(key, newest)
             try:
-                self.usage_autoreply(key, added)
+                self.usage_note_message(key, newest)
             except Exception as e:
-                self.log('persona %s: usage auto-reply error %s' % (key, type(e).__name__))
+                self.log('persona %s: usage note error %s' % (key, type(e).__name__))
         return added
 
     def typing_now(self, key, msg_id):
@@ -543,7 +549,7 @@ class Assistant:
 
     # ---- usage auto-reply (rows 11 and 21) ----
     def usage_out(self):
-        """(is_out, reset datetime or None). Bad or missing sensors (or no HA) = not out."""
+        """(is_out, reset datetime or None). Bad or missing sensors (or no HA) = not out. Extra credits left = not out."""
         if self.ha is None:
             return False, None
         num = lambda e: self._num_state(e)
@@ -553,6 +559,13 @@ class Assistant:
             return False, None
         so, wo = sv is not None and sv >= USAGE_OUT_AT, wv is not None and wv >= USAGE_OUT_AT
         if not (so or wo):
+            return False, None
+        try:
+            if str((self.ha.state(USAGE_SENSORS['extra_enabled']) or {}).get('state')).strip().lower() == 'true':
+                ev = num(USAGE_SENSORS['extra_pct'])
+                if ev is not None and ev < USAGE_EXTRA_OUT_AT:
+                    return False, None
+        except Exception:
             return False, None
         times = []
         for flag, ent in ((so, USAGE_SENSORS['session_reset']), (wo, USAGE_SENSORS['week_reset'])):
@@ -573,31 +586,54 @@ class Assistant:
 
     def usage_reply_text(self, key, reset):
         c = self.cfg[key]
-        if not c['usage_text']:
-            return ''
+        text = c.get('usage_text') or USAGE_TEXT_DEFAULT
         if reset is None:
-            return c['usage_text_notime'] or c['usage_text'].replace(' until {t}', '').replace('{t}', 'it resets')
+            return c.get('usage_text_notime') or text.replace(' until {t}', ' until it resets').replace('{t}', 'it resets')
         loc = reset.astimezone(self.tz) if self.tz else reset
         far = (reset.timestamp() - self.clock()) > USAGE_FAR_H * 3600
-        return c['usage_text'].replace('{t}', loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M'))
+        return text.replace('{t}', loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M'))
 
-    def usage_autoreply(self, key, n_new):
-        """The person wrote n_new messages and Claude usage is out: ONE fallback reply per USAGE_MIN_GAP_S. -> True if sent (or dry-logged)."""
-        c, st = self.cfg[key], self.stores[key]
-        if n_new <= 0 or not c['usage_text'] or os.path.exists(os.path.join(os.environ.get('IHP_DATA', '/data'), 'STOP_AUTOREPLY')):
+    def usage_note_message(self, key, msg_id):
+        """A new message from the person: remember the OLDEST still-unanswered one (time only, never text)."""
+        if not self.opts.get('usage_autoreply', True):
+            return
+        now = self.clock()
+        def add(s):
+            if not s.get('usage_pending'):
+                s['usage_pending'] = {'msg_id': str(msg_id), 'ts': now}
+        self.stores[key].update_state(add)
+
+    def tick_usage(self, key):
+        """Pending unanswered message older than USAGE_WAIT_S and usage is out: ONE automatic reply (at most one per
+        USAGE_MIN_GAP_S per persona). -> True if sent (or dry-logged)."""
+        st = self.stores[key]
+        pend = st.state().get('usage_pending')
+        if not pend:
+            return False
+        clear = lambda: st.update_state(lambda s: s.pop('usage_pending', None))
+        if not self.opts.get('usage_autoreply', True):
+            clear(); return False
+        now = self.clock()
+        ts = float(pend.get('ts') or 0)
+        if now - ts > USAGE_PENDING_MAX_S:
+            clear(); return False
+        ans = st.last_outbox_ts(USAGE_ANSWER_KINDS)
+        if ans is not None and ans >= int(ts):
+            clear(); return False   # answered in the meantime
+        if now - ts < USAGE_WAIT_S:
+            return False
+        if os.path.exists(os.path.join(os.environ.get('IHP_DATA', '/data'), 'STOP_AUTOREPLY')):
             return False
         out, reset = self.usage_out()
         if not out:
-            return False
-        if self.clock() - float(st.state().get('usage_reply_ts') or 0) < USAGE_MIN_GAP_S:
-            return False
+            return False   # kept: usage may turn out to be out a little later (sensor lag), until USAGE_PENDING_MAX_S
+        if now - float(st.state().get('usage_reply_ts') or 0) < USAGE_MIN_GAP_S:
+            clear(); return False
         text = self.usage_reply_text(key, reset)
-        if not text:
-            return False
         if not self.is_live(key) or key not in self.discord:
             st.log_outbox({'kind': 'usage_reply', 'chars': len(text), 'mode': 'dry'})
             self.log('persona %s: [DRY] would send usage auto-reply (%d chars)' % (key, len(text)))
-            return True   # dry never touches the gap clock, like the host script
+            clear(); return True   # dry never touches the gap clock
         try:
             ok = self.discord[key].send(self._channel(key), text, None)
         except DiscordError as e:
@@ -606,7 +642,9 @@ class Assistant:
             self.watch_sent(key)
         st.log_outbox({'kind': 'usage_reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
         if ok:
-            st.update_state(lambda s: s.__setitem__('usage_reply_ts', self.clock()))
+            def done(s):
+                s['usage_reply_ts'] = now; s.pop('usage_pending', None)
+            st.update_state(done)
             self.log('persona %s: usage auto-reply sent' % key)
         return bool(ok)
 
@@ -969,6 +1007,10 @@ class Assistant:
                 fn(key)
             except DiscordError as e:
                 self.log('persona %s: %s failed (%s)' % (key, fn.__name__, e))
+        try:
+            self.tick_usage(key)
+        except Exception as e:
+            self.log('persona %s: usage auto-reply error %s' % (key, type(e).__name__))
         try:
             self.tick_dates(key)
         except Exception as e:
