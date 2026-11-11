@@ -64,6 +64,15 @@
       "checkin_send": false,
       "usage_text": "Sorry, I cannot answer right now: out of usage until {t}. I have not lost your message.",
       "usage_text_notime": "Sorry, I cannot answer right now: out of usage until it resets. I have not lost your message.",
+      "usage_texts": [
+        "Back at {time}, saved your message",
+        "Out of usage for now, back at {time}",
+        "Saved your message, will answer later"
+      ],
+      "usage_texts_notime": [
+        "Back after the reset, saved your message",
+        "Saved your message, will answer after the reset"
+      ],
       "emoji_level": 2,
       "gif_level": 2,
       "checkin_level": 5,
