@@ -12,7 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Access: Home Assistant ingress only, the signed-in user id must be present, and `instructions_user_ids` can limit it to named users.
 
 ### Needs the owner
-- The page cannot read any file until the owner adds the folder mapping `homeassistant_config:rw` to this add-on (see DOCS). It is NOT added by this version.
+- The add-on now maps the Home Assistant config folder (`homeassistant_config:rw`), approved by the owner on 11 Nov 2026, because the page cannot read any file without it (see DOCS). The editor itself stays OFF until `instructions_mode` is set.
 
 ## [0.4.1] - 2026-11-10
 

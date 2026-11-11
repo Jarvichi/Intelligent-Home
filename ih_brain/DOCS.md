@@ -97,7 +97,7 @@ its parity is verified. The UI remains read-only and administrator-only; no acce
 
 A page to read and edit the assistant's standing-instructions file from the Web UI. It is off until you turn it on.
 
-**Warning: the page needs a wider folder mapping.** The files live in the Home Assistant config folder. An add-on cannot be given one file, only the whole folder. To use the page the owner must add `homeassistant_config:rw` under `map:` in `config.yaml` (it is deliberately not there by default) and rebuild/reinstall. After that the add-on can read and write the whole config folder, though this code only ever opens the files in the list below. With `instructions_mode: view` the mapping can be `homeassistant_config:ro`.
+**Warning: the page needs a wider folder mapping.** The files live in the Home Assistant config folder. An add-on cannot be given one file, only the whole folder. This add-on now maps it (`homeassistant_config:rw` in `config.yaml`, approved by the owner on 11 Nov 2026). The page stays OFF until `instructions_mode` is set. After that the add-on can read and write the whole config folder, though this code only ever opens the files in the list below. With `instructions_mode: view` the mapping can be `homeassistant_config:ro`.
 
 Files (the complete list; nothing else can be opened):
 
