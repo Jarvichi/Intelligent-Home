@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1] - 2026-11-11
+
+### Fixed
+- Named PSN trophies were de-duplicated by the bare trophy id. Trophy ids repeat in every game (0, 1, 2...), so a trophy in one game could be dropped after the same id was recorded in another game. The state file, the history file and the feed events now use the game's PSN communication id together with the trophy id.
+
+### Changed
+- Migration: old bare ids in `state_psn_trophy_names_<player>.json` move to `legacy_ids`, and old lines in `trophy_history_<player>.jsonl` stay in the file. Old entries cannot be matched to a game, so they are kept but not used for de-duplication. Trophies earned before the last check are still not announced again.
+
 ## [0.13.0] - 2026-11-11
 
 ### Added

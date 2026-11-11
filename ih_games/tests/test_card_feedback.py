@@ -371,7 +371,7 @@ class TitleTrophiesTest(unittest.TestCase):
 
     def test_recent_trophies_still_returns_earned_named_only(self):
         self.assertEqual(N._recent_trophies("example-token", "ExamplePlayer", GAME),
-                         [{"name": "First Steps", "tier": "bronze", "earned_at": "2026-11-02T10:00:00", "id": "0"}])
+                         [{"name": "First Steps", "tier": "bronze", "earned_at": "2026-11-02T10:00:00", "id": "0", "np_id": "NPWR0"}])
 
     def test_unknown_title_gives_no_rows(self):
         self.assertEqual(N.title_trophies("example-token", "ExamplePlayer", "zzz"), [])

@@ -14,6 +14,9 @@ TITLES_LOOKUP_MAX = 500    # trophy titles read when looking for one game
 TITLE_MATCHES_MAX = 3      # a game can have several trophy lists (regions, platforms)
 TROPHY_GROUPS_MAX = 10     # base game plus add-on trophy groups read per list
 DEFAULT_GROUP = "default"
+KEY_SEPARATOR = ":"        # earned key = "<np communication id>:<trophy id>"; trophy ids repeat across games
+EARNED_KEYS_MAX = 2000     # newest earned keys kept in the state file
+LEGACY_IDS_MAX = 2000      # old bare trophy ids kept (not used for dedup) after the 0.13.1 migration
 
 
 def _atomic_write(path, data):
@@ -26,6 +29,39 @@ def _atomic_write(path, data):
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
+
+
+def trophy_key(np_id, trophy_id):
+    """Unique key for one trophy: the same trophy id (0..N) exists in every game."""
+    return f"{np_id or ''}{KEY_SEPARATOR}{trophy_id}"
+
+
+def _split_keys(values):
+    """Split stored earned ids into (keyed, legacy). Entries without the separator are old bare ids."""
+    keyed, legacy = [], []
+    for v in values or []:
+        (keyed if KEY_SEPARATOR in str(v) else legacy).append(str(v))
+    return keyed, legacy
+
+
+def _read_history_keys(path):
+    """Keys already in the history file. Old lines (no np_id) cannot be attributed to a game: they are
+    left in the file and ignored here, so a bare id never hides a trophy of another game."""
+    keys = set()
+    try:
+        with open(path) as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if row.get("np_id"):
+                    keys.add(trophy_key(row["np_id"], row.get("id")))
+    except OSError:
+        pass
+    return keys
 
 
 def _value(obj, name, default=None):
@@ -91,7 +127,7 @@ def title_trophies(npsso, online_id, game):
                     if tier not in TIERS:
                         continue
                     earned_at = _value(trophy, "earned_date_time")
-                    records.append({"id": str(_value(trophy, "trophy_id", "")), "group": group_id,
+                    records.append({"id": str(_value(trophy, "trophy_id", "")), "np_id": str(comm_id), "group": group_id,
                                     "name": str(_value(trophy, "trophy_name", "") or "").strip(),
                                     "detail": str(_value(trophy, "trophy_detail", "") or "").strip(),
                                     "tier": tier, "earned": bool(_value(trophy, "earned", False)),
@@ -104,7 +140,8 @@ def title_trophies(npsso, online_id, game):
 
 def _recent_trophies(npsso, online_id, game):
     """Return recent earned trophy records matching the current game title."""
-    return [{"name": r["name"], "tier": r["tier"], "earned_at": r["earned_at"], "id": r["id"]}
+    return [{"name": r["name"], "tier": r["tier"], "earned_at": r["earned_at"], "id": r["id"],
+             "np_id": r.get("np_id", "")}
             for r in title_trophies(npsso, online_id, game) if r["earned"] and r["name"] and r["earned_at"]]
 
 
@@ -150,7 +187,9 @@ def run(ctx, player):
         ctx.log(f"psn_trophy_names: lookup failed for {pkey} ({type(exc).__name__})")
         return
 
-    known = set(state.get("earned_ids", []))
+    known_list, legacy_old = _split_keys(state.get("earned_ids", []))
+    legacy_ids = (legacy_old + [i for i in state.get("legacy_ids", []) if i not in legacy_old])[-LEGACY_IDS_MAX:]
+    known = set(known_list)
     checked_at = state.get("checked_at")
     try:
         checked_dt = datetime.datetime.fromisoformat(checked_at) if checked_at else None
@@ -166,7 +205,7 @@ def run(ctx, player):
             is_new = boundary is not None and earned_dt > boundary
         except (TypeError, ValueError):
             is_new = False
-        if is_new and record["id"] not in known:
+        if is_new and trophy_key(record["np_id"], record["id"]) not in known:
             fresh.append(record)
     try:
         feed = json.load(open(feed_path)) if os.path.exists(feed_path) else {"events": []}
@@ -175,24 +214,25 @@ def run(ctx, player):
     events = list(feed.get("events", []))
     history_path = os.path.join(ctx.data_dir, f"trophy_history_{pkey}.jsonl")
     try:
-        seen_ids = {json.loads(l).get("id") for l in open(history_path) if l.strip()} if os.path.exists(history_path) else set()
-    except (OSError, ValueError):
+        seen_ids = _read_history_keys(history_path)
+    except OSError:
         seen_ids = set()
     for trophy in fresh:
-        if trophy["id"] not in seen_ids:
+        if trophy_key(trophy["np_id"], trophy["id"]) not in seen_ids:
             try:
                 os.makedirs(os.path.dirname(history_path), exist_ok=True)
                 with open(history_path, "a") as hist:
-                    hist.write(json.dumps({"time": now, "id": trophy["id"], "game": game, "tier": trophy["tier"],
+                    hist.write(json.dumps({"time": now, "id": trophy["id"], "np_id": trophy["np_id"], "game": game, "tier": trophy["tier"],
                                            "name": trophy["name"], "earned_at": trophy.get("earned_at")}) + "\n")
             except OSError:
                 pass
         events.append({"time": now, "kind": "trophy_named", "tier": trophy["tier"], "count": 1,
-                       "game": game, "achievement": trophy["name"], "big": trophy["tier"] == "platinum",
+                       "game": game, "np_id": trophy["np_id"], "trophy_id": trophy["id"], "achievement": trophy["name"], "big": trophy["tier"] == "platinum",
                        "text": f"Earned {trophy['tier']} trophy: {trophy['name']} in {game}"})
     feed.update({"source": NAME, "player": pkey, "updated": now, "current": {"game": game}, "events": events[-50:]})
     _atomic_write(feed_path, feed)
     state.update({"counts": {t: int(current.get(t, 0) or 0) for t in TIERS},
-                  "earned_ids": list((known | {x["id"] for x in newly_earned}) )[-2000:],
+                  "earned_ids": (known_list + sorted(k for k in ({trophy_key(x["np_id"], x["id"]) for x in newly_earned} - known)))[-EARNED_KEYS_MAX:],
+                  "legacy_ids": legacy_ids,
                   "checked_at": now, "updated": now})
     _atomic_write(state_path, state)
