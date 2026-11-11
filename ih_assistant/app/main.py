@@ -1,7 +1,7 @@
 """Intelligent Home - Assistant - Personas (ih_assistant): transport, schedule and profile for several personas (stdlib only).
 The reply text is written elsewhere (the host); this add-on moves messages in and out, queues check-in events and keeps one
 SEPARATE datastore per persona. Dry-run by default."""
-import base64, binascii, datetime, hmac, json, logging, os, re, secrets, sys, threading, time, uuid
+import base64, binascii, datetime, hmac, json, logging, os, re, secrets, signal, sys, threading, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.error, urllib.parse, urllib.request
 from urllib.parse import urlparse, parse_qs
@@ -18,9 +18,10 @@ import levels
 import caldav as caldavmod
 import dates as datesmod
 import reminders as remmod
+import gateway as gatewaymod
 import random
 
-VERSION = '0.14.0'
+VERSION = '0.15.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -55,6 +56,8 @@ GIF_STOP = {'the', 'and', 'for', 'with', 'you', 'that', 'this', 'gif', 'your'}
 GIF_WORDS_MAX = 60
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
 POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
+POLL_FALLBACK_S = 60   # 0.15.0: Discord is asked this often while the push connection (gateway) is ready; a push asks at once
+WAKE_BURST_S = 10      # 0.15.0: after a push, ask every POLL_S for this long (covers a second message and a late REST answer)
 TYPING_MAX_S = 300
 ASK_KEEP_S = 86400
 ASK_MAX = 10
@@ -147,6 +150,7 @@ def load_options(path):
             'api_token': str(o.get('api_token') or ''), 'timezone': str(o.get('timezone') or 'UTC'),
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
             'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
+            'discord_push': o.get('discord_push') is not False,
             'personas': personas}, problems
 
 
@@ -180,6 +184,63 @@ class Assistant:
             self.stores[k].ensure_reply_progress()
             if p['bot_token'] and p['user_id']:
                 self.discord[k] = Discord(p['bot_token'], opener, sleep)
+        self.init_push()
+
+    # ---- push from the Discord Gateway (0.15.0) ----
+    def init_push(self):
+        self.gateways, self.wake_events = {}, {k: threading.Event() for k in self.cfg}
+        self.poll_at, self.burst_until, self.react_now = {}, {}, set()
+
+    def start_gateways(self, connect=None):
+        """One Gateway listener per persona bot (reading is not gated by dry-run, exactly like polling). Off with discord_push: false."""
+        if not self.opts.get('discord_push', True):
+            self.log('gateway: off (discord_push is false); polling every %d s' % POLL_S)
+            return 0
+        for k in self.discord:
+            c = self.cfg[k]
+            kw = {'connect': connect} if connect else {}
+            self.gateways[k] = gatewaymod.GatewayClient(k, c['bot_token'], c['user_id'], lambda kind, k=k: self.push_wake(k, kind), self.log, **kw)
+            self.gateways[k].start()
+        return len(self.gateways)
+
+    def stop_gateways(self):
+        for g in self.gateways.values():
+            g.stop()
+        for g in self.gateways.values():
+            g.join()
+
+    def push_ok(self, key):
+        g = getattr(self, 'gateways', {}).get(key)
+        return bool(g and g.healthy())
+
+    def push_wake(self, key, kind):
+        """Called from the gateway thread: memory flags only (no store, no Discord call), then wake the persona's worker."""
+        self.burst_until[key] = self.clock() + WAKE_BURST_S
+        if kind == gatewaymod.WAKE_REACTION:
+            self.react_now.add(key)
+        self.wake_events[key].set()
+
+    def poll_due(self, key):
+        """Ask Discord for new messages now? Always while the push connection is not ready (so a dead socket loses nothing);
+        with push ready: right after a push, and every POLL_FALLBACK_S as a safety net."""
+        now = self.clock()
+        if not self.push_ok(key) or now < self.burst_until.get(key, 0):
+            return True
+        return now - self.poll_at.get(key, 0) >= POLL_FALLBACK_S
+
+    def react_every(self, key):
+        """Seconds between reaction checks: at once after a reaction push, slow while push is ready, else as before."""
+        if key in getattr(self, 'react_now', ()):
+            self.react_now.discard(key)
+            return 0
+        return POLL_FALLBACK_S if self.push_ok(key) else REACT_EVERY_S
+
+    def wait_tick(self, key, timeout=POLL_S):
+        """The worker's pause between ticks: ends early when a push arrives."""
+        ev = self.wake_events[key]
+        woken = ev.wait(timeout)
+        ev.clear()
+        return woken
 
     # ---- helpers ----
     def now(self):
@@ -898,7 +959,9 @@ class Assistant:
     def tick(self, key):
         n = f = 0
         try:
-            n = self.tick_poll(key)
+            if self.poll_due(key):
+                self.poll_at[key] = self.clock()
+                n = self.tick_poll(key)
         except DiscordError as e:
             self.log('persona %s: poll failed (%s)' % (key, e))
         for fn in (self.tick_reactions, self.tick_typing):
@@ -1447,7 +1510,7 @@ class Assistant:
         s0 = st.state()
         asks = [a for a in s0.get('asks', []) if now - a['ts'] < ASK_KEEP_S]
         asks += [a for a in s0.get('watch', []) if now - a['ts'] < WATCH_KEEP_S and a['msg_id'] not in {x['msg_id'] for x in asks}]
-        if not asks or now - s0.get('react_at', 0) < REACT_EVERY_S:
+        if not asks or now - s0.get('react_at', 0) < self.react_every(key):
             return 0
         st.update_state(lambda s: s.__setitem__('react_at', now))
         ch = self._channel(key)
@@ -1657,7 +1720,7 @@ class Assistant:
             s = self.stores[k]
             out[k] = {'live': self.is_live(k), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
-                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels'])}
+                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
 
 
@@ -1776,7 +1839,7 @@ def worker(app, key):
             app.tick(key)
         except Exception as e:
             app.log('persona %s: tick error %s' % (key, type(e).__name__))
-        time.sleep(POLL_S)
+        app.wait_tick(key)
 
 
 def main():
@@ -1799,7 +1862,14 @@ def main():
         'set' if opts['api_token'] else 'NOT set (all requests refused)'))
     for k in app.cfg:
         threading.Thread(target=worker, args=(app, k), daemon=True).start()
-    ThreadingHTTPServer(('0.0.0.0', int(os.environ.get('IHP_PORT', '8830'))), make_handler(app)).serve_forever()
+    app.start_gateways()
+    def on_term(signum, frame):
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, on_term)   # Supervisor stop: leave serve_forever so the gateways close cleanly
+    try:
+        ThreadingHTTPServer(('0.0.0.0', int(os.environ.get('IHP_PORT', '8830'))), make_handler(app)).serve_forever()
+    finally:
+        app.stop_gateways()
 
 
 if __name__ == '__main__':

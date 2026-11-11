@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.15.0] - 2026-11-11
+
+### Added
+- Push from Discord. Each persona bot now keeps one Discord Gateway connection (websocket, Python standard library only, no new package) and the add-on reads a new private message or reaction the moment Discord announces it, instead of asking Discord every 3 seconds. The Gateway is only a wake-up signal: messages are still fetched by the same REST code, and the Gateway code never keeps or logs message text, user ids or the token. Intents: `DIRECT_MESSAGES` and `DIRECT_MESSAGE_REACTIONS` (neither is privileged).
+- Heartbeat with dead-connection detection, resume after a drop, reconnect with backoff (1 s doubling to 5 minutes, with jitter), clean close on add-on stop.
+- New option `discord_push` (default `true`). Set it to `false` to go back to polling only.
+- `/status` shows `push` per persona: `ready`, `connecting`, `failed` or `off`.
+
+### Changed
+- Polling stays as the safety net. While a persona's push connection is `ready`, Discord is asked for messages every 60 seconds and for reactions every 60 seconds (was 3 s and 20 s). In every other state the old 3 s / 20 s polling runs unchanged, so a dead socket never loses a message.
+- Side effect: a persona bot now shows as online in Discord while its connection is up.
+
 ## [0.14.0] - 2026-11-11
 
 ### Added
