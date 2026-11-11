@@ -14,7 +14,12 @@ class Handler(BaseHTTPRequestHandler):
     req=urllib.request.Request('http://127.0.0.1:%d%s'%(INFO['health_port'],INFO['health_path']),headers={'Accept':'text/plain'})
     with urllib.request.urlopen(req,timeout=2) as response: healthy=200<=response.status<400; detail='Health endpoint responded'
    except Exception as e: detail=type(e).__name__
-   body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
+   db=None
+   try:
+    with urllib.request.urlopen('http://127.0.0.1:%d/status'%INFO['health_port'],timeout=2) as response: db=json.loads(response.read(200000)).get('db')
+   except Exception: db=None
+   if db and db.get('degraded'): detail='DATABASE DEGRADED: '+str(db.get('error'))[:200]
+   body=json.dumps({'healthy':healthy,'detail':detail,'db':db,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   if path=='/api/today':
    try:
     import today
