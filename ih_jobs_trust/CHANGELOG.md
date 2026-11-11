@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-12
+
+### Changed
+- Storage moved from JSON files to the add-on's own SQLite database `/data/ih.db` (pilot of the database storage plan, shared `ihlib/db.py`). `trust_state.json` is now a key-value row and each `trust_runs/<month>.json` is a row of the table `trust_runs` (schema version 1).
+- Old JSON files are copied into the database and checked (row counts compared) before they are moved to `/data/trash`, which is emptied after 30 days. A file that fails the check stays where it is and is reported in status.
+- A nightly snapshot (from 04:00 local time) goes to `/data/backup` (newest 3 kept), followed by a restore check logged with counts only.
+- `/status` has a new `db` block (schema version, row counts, last snapshot, last restore check, trash size, import errors) and `db_degraded`. The ingress status page also shows `db` in `/api/status`.
+
+### Safety
+- If the database is damaged, newer than this add-on, or cannot be opened, the job keeps running in degraded mode on plain files in `/data/degraded/` and status says so loudly. The database is never recreated by itself. See DOCS.md to restore.
+
 ## [0.1.13] - 2026-11-11
 
 ### Changed

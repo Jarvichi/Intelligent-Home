@@ -3,7 +3,7 @@ import io, json, os, sys, tempfile, unittest, urllib.error
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
-import trustjob, today
+import trustjob, today, trustdb
 
 SECRET = 'sk-SECRET-TOKEN-123'
 
@@ -38,6 +38,16 @@ class Ctx:
         if isinstance(out, Exception):
             raise out
         return Resp(json.dumps(out).encode())
+
+
+def tearDownModule():
+    for d in list(trustdb._stores):
+        trustdb.forget(d)
+
+
+def row(c, month='2026-11'):
+    """The stored result of a month, read back from the add-on database."""
+    return trustdb.get(c.data_dir).get_run(month)
 
 
 def http(code):
@@ -134,7 +144,7 @@ class Run(unittest.TestCase):
         for p in ('openai/gpt-oss-120b', 'gemini-3.5-flash', 'mistral-medium-latest'):
             self.assertEqual(sum(1 for b in reqs if b['model'] == p), 8)
         self.assertFalse(any(b['model'] == 'gpt-x' for b in reqs))
-        d = json.load(open(os.path.join(c.data_dir, 'trust_runs', '2026-11.json')))
+        d = row(c)
         self.assertEqual(d['format'], 2)
         self.assertEqual(sorted(d['results']), ['ih_ai_layer_gemini', 'ih_ai_layer_groq', 'ih_ai_layer_mistral'])
         self.assertEqual(set(d['results']['ih_ai_layer_groq']), set('abcdefgh'))
@@ -142,7 +152,7 @@ class Run(unittest.TestCase):
 
     def test_misroute_not_scored(self):
         c = Ctx(layer(answer_agent=lambda o: 'groq' if o == 'gemini' else o)); run(c)
-        d = json.load(open(os.path.join(c.data_dir, 'trust_runs', '2026-11.json')))
+        d = row(c)
         g = d['results']['ih_ai_layer_gemini']
         self.assertTrue(all(r.get('misrouted') and r['score'] is None and not r['ok'] for r in g.values()))
         self.assertEqual(d['summary']['agents']['ih_ai_layer_gemini']['test'], None)
@@ -151,15 +161,15 @@ class Run(unittest.TestCase):
     def test_repeated_429_stops_with_partial(self):
         c = Ctx(layer(fail=lambda b: http(429) if b['model'] == 'mistral-medium-latest' else None))
         self.assertFalse(run(c))
-        d = json.load(open(os.path.join(c.data_dir, 'trust_runs', '2026-11.json')))
+        d = row(c)
         self.assertTrue(d['summary']['stopped_early'])
         self.assertEqual(len(d['results']['ih_ai_layer_gemini']), 8)
         self.assertEqual(len(d['results']['ih_ai_layer_mistral']), 3)
-        self.assertFalse(os.path.exists(os.path.join(c.data_dir, 'trust_state.json')))
+        self.assertEqual(trustdb.get(c.data_dir).state(), {})
 
     def test_404_skips_that_ai(self):
         c = Ctx(layer(fail=lambda b: http(404) if b['model'] == 'gemini-3.5-flash' else None)); self.assertTrue(run(c))
-        d = json.load(open(os.path.join(c.data_dir, 'trust_runs', '2026-11.json')))
+        d = row(c)
         self.assertEqual(d['summary']['skipped'], ['gemini'])
         self.assertEqual(len(d['results']['ih_ai_layer_gemini']), 1)
 
@@ -177,7 +187,7 @@ class Run(unittest.TestCase):
 
     def test_keep_answers_off_by_default(self):
         c = Ctx(layer()); run(c)
-        self.assertNotIn('answer', open(os.path.join(c.data_dir, 'trust_runs', '2026-11.json')).read().replace('answered', ''))
+        self.assertNotIn('answer', json.dumps(row(c)).replace('answered', ''))
 
     def test_no_eligible_ai(self):
         c = Ctx(lambda u, b: {'providers': []}); self.assertFalse(run(c))

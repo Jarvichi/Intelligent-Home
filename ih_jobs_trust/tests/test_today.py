@@ -4,7 +4,7 @@ import json, os, sys, tempfile, unittest
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
-import today
+import today, trustdb
 
 SECRET = 'sk-SECRET-TOKEN-123'
 NOW = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)

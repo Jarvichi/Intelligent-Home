@@ -1,7 +1,7 @@
 """Job trust: monthly test of the outside AIs, through the Intelligent Home AI layer over HTTP (no provider code or keys here).
 Runs on day 1 of the month (local time) at or after run_hour, once per month. Sends 8 fixed, NON-PRIVATE test questions to the layer
 (POST <ai_layer_url>/request, bearer ai_layer_token, capability general_qa) to EACH eligible chat AI in turn, one AI at a time, scores the answers,
-stores scores in <data>/trust_runs/<YYYY-MM>.json
+stores scores in the add-on database (table trust_runs, one row per month; see trustdb.py)
 and, in live mode only, adds a review to-do (HA REST todo.add_item). Dry mode runs and records but adds no to-do.
 Question and answer text are NEVER logged: only counts, lengths, agent names and scores. Answers are stored only if keep_answers is on.
 Which AIs: read at run time from the layer's /status (providers with general_qa, not shadow, not killed, configured). Each is forced by its MODEL name
@@ -9,6 +9,7 @@ Which AIs: read at run time from the layer's /status (providers with general_qa,
 otherwise the question is marked misrouted and not scored. Option `providers` (comma list) overrides; option `exclude` (default openai) drops names.
 Stored shape (format 2): results[agent][question]; old files had results[question] (one agent each) and are still read."""
 import json, os, re, time, urllib.error, urllib.request
+import trustdb
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -294,24 +295,10 @@ def add_todo(ctx, month, summary):
     per = ', '.join('%s %s' % (_base(a).capitalize(), x['test']) for a, x in sorted(ag.items(), key=lambda kv: -(kv[1].get('test') or 0)) if x.get('test') is not None)
     inv = [_base(a).capitalize() for a, x in sorted(ag.items()) if x.get('invented')]
     ctx.ha('services/todo/add_item', {'entity_id': entity, 'item': 'Review AI trust test %s' % month, 'due_date': '%s-01' % month,
-           'description': 'Automatic scores out of 100: %s (%d answers scored%s). Details: add-on Intelligent Home - Jobs - AI Trust Test, /status and trust_runs in its data. '
+           'description': 'Automatic scores out of 100: %s (%d answers scored%s). Details: add-on Intelligent Home - Jobs - AI Trust Test, /status and its database (trust_runs). '
                           'Check the honesty questions (d, f) by hand.' % (per or 'none', summary['scored'], '; made something up: ' + ', '.join(inv) if inv else '')})
 
 # ---------------- state ----------------
-def _load(path, default):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return default
-
-def _save(path, obj):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + '.tmp'
-    with open(tmp, 'w') as f:
-        json.dump(obj, f, indent=1)
-    os.replace(tmp, path)
-
 def run(ctx, now=None, sleep=time.sleep):
     log = ctx.log
     now = local_now(ctx, now)
@@ -321,11 +308,13 @@ def run(ctx, now=None, sleep=time.sleep):
     if not due(now, hour):
         return True
     month = now.strftime('%Y-%m')
-    sp = os.path.join(ctx.data_dir, 'trust_state.json')
-    st = _load(sp, {})
+    store = trustdb.get(ctx.data_dir)
+    if store.degraded:
+        log('trust: DATABASE DEGRADED (%s). Running on plain files; see status.' % store.degraded)
+    st = store.state()
     if st.get('month') == month and st.get('done'):
         if not ctx.dry and not st.get('todo_added') and st.get('summary'):
-            add_todo(ctx, month, st['summary']); st['todo_added'] = True; _save(sp, st)
+            add_todo(ctx, month, st['summary']); st['todo_added'] = True; store.save_state(st)
             log('trust: to-do added for %s (from earlier dry run)' % month)
         return True
     pause = _int(ctx.opts.get('pause_s'), 4, 0, 60)
@@ -374,7 +363,7 @@ def run(ctx, now=None, sleep=time.sleep):
         summ['skipped'] = skipped
     answered = sum(1 for qs in results.values() for r in qs.values() if r['ok'])
     total = sum(len(qs) for qs in results.values())
-    _save(os.path.join(ctx.data_dir, 'trust_runs', month + '.json'), {'month': month, 'format': 2, 'dry': ctx.dry, 'finished': now.isoformat(),
+    store.save_run(month, {'month': month, 'format': 2, 'dry': ctx.dry, 'finished': now.isoformat(),
           'agents_seen': sorted(a for a, qs in results.items() if any(r['ok'] for r in qs.values())), 'results': results, 'summary': summ})
     log('trust: %d/%d answered, best score %s, scored %d, unscored %d, %d AIs' % (answered, total, summ['test'], summ['scored'], summ['unscored'], len(results)))
     if answered == 0 or stop:
@@ -385,5 +374,5 @@ def run(ctx, now=None, sleep=time.sleep):
     else:
         add_todo(ctx, month, summ); st['todo_added'] = True
         log('trust: to-do added for %s' % month)
-    _save(sp, st)
+    store.save_state(st)
     return True

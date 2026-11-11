@@ -1,4 +1,4 @@
-"""Builds the read-only 'Today' card for the ingress status page from this add-on's own monthly results (<data>/trust_runs/<YYYY-MM>.json).
+"""Builds the read-only 'Today' card for the ingress status page from this add-on's own monthly results (database table trust_runs, or the old <data>/trust_runs files).
 
 Only fixed fields are copied out (agent label from a fixed list, weighted scores, counts, dates): question text, answers and notes are never read out.
 """
@@ -6,6 +6,7 @@ import glob, json, os, time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import trustdb
 import trustjob
 
 TITLE = 'Last test'
@@ -47,13 +48,8 @@ def _read(path):
 
 
 def latest(data_dir):
-    """Newest monthly result dict, or None."""
-    files = sorted(glob.glob(os.path.join(data_dir, 'trust_runs', '[0-9][0-9][0-9][0-9]-[0-9][0-9].json')))
-    for p in reversed(files):
-        d = _read(p)
-        if isinstance(d, dict) and isinstance(d.get('results'), dict):
-            return d
-    return None
+    """Newest monthly result dict, or None (database first, plain files as a fallback)."""
+    return trustdb.read_latest(data_dir)
 
 
 def next_first(after):
