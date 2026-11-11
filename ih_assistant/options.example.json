@@ -11,6 +11,7 @@
   "caldav_user": "",
   "caldav_password": "",
   "gif_gap_minutes": 10,
+  "discord_push": true,
   "personas": [
     {
       "key": "persona_a",

@@ -111,6 +111,18 @@ Calendars, the meal sensor and the presence entity are read from Home Assistant 
 
 **Not ported from the host script:** the game follow-up question after a gaming session. The Games add-on sends `game_session` events to the persona instead.
 
+### Push from Discord (0.15.0)
+Each persona bot keeps one connection to the Discord Gateway (a websocket; code in `app/gateway.py`, standard library only). When the person writes or reacts in the private chat, Discord announces it on that connection and the add-on fetches the message at once with the normal REST call. The Gateway is used as a wake-up signal only: message text is read in one place (the polling code) and is never logged.
+
+- **Option** `discord_push` (default `true`). `false` = no Gateway connection, polling every 3 s as before 0.15.0.
+- **Fallback.** Polling never stops. Push `ready`: messages and reactions are checked every 60 s as a safety net, and at once on a push (then every 3 s for 10 s). Any other state (`connecting`, `failed`, `off`): every 3 s (reactions every 20 s), exactly as before.
+- **States** in `GET /status` (`push` per persona): `ready` (identified or resumed), `connecting` (first connect, or waiting to reconnect), `failed` (Discord refused the token or the intents; polling only until the add-on restarts), `off`.
+- **Connection care.** Heartbeat at the interval Discord gives; a heartbeat that is not acknowledged before the next one closes the connection and resumes. After a drop the session is resumed (missed events are replayed by Discord); if Discord says the session is invalid a new one is started. Reconnect waits 1 s, doubling to 5 minutes, with random jitter.
+- **Intents:** `DIRECT_MESSAGES` + `DIRECT_MESSAGE_REACTIONS`. Nothing needs switching on in the Discord developer portal.
+- **Dry-run:** the connection is read-only, so it runs in dry-run too (as polling does).
+- **Log lines** (no content, ids or token): `gateway ready`, `gateway closed (code N)`, `gateway reconnect in N s`, `gateway connect failed (ErrorType)`.
+- The bot shows as online in Discord while connected.
+
 ### Dry-run
 A persona sends only when `mode` is `live` **and** its own `live` is true. Reading is not gated: in dry-run the add-on still polls the person's private messages (read-only) into the inbox. Posting, reactions and typing are logged only. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.
 # Request traces (0.9.0)

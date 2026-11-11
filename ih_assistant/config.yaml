@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.14.0"
+version: "0.15.0"
 slug: ih_assistant
 image: "ghcr.io/jarvichi/{arch}-ih_assistant"
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
@@ -34,6 +34,7 @@ options:
   caldav_user: ""
   caldav_password: ""
   gif_gap_minutes: 10
+  discord_push: true
   personas: []
 schema:
   mode: list(dry|live)
@@ -48,6 +49,7 @@ schema:
   caldav_user: str?
   caldav_password: password?
   gif_gap_minutes: int(0,1440)?
+  discord_push: bool?
   usage_sensor_session: str?
   usage_sensor_week: str?
   usage_sensor_session_reset: str?
