@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0] - 2026-11-11
+
+### Added
+- Cyberpunk 2077 quest tracker: prerequisites and choice branches. The default list now shows only the quests that are available now. A quest with a prerequisite stays out of that list until the prerequisite is ticked. Two more lists: "Locked" (each quest names the quest it needs) and "Missed this run" (quests that can no longer be done in this playthrough, each with the quest and the choice that ruled it out). Use "Missed this run" to plan a later playthrough.
+- Quest data fields in `app/tools/cyberpunk_quests.json`: `requires` (all of these), `requires_any` (one of these), `excludes` (quests ruled out when this quest is done), `choice` and `note` (text from the wiki), and `requires_unknown`. Of the 281 quests, 219 have a prerequisite from the wiki, 21 are first jobs with no prerequisite, and 41 are marked `requires_unknown` because the wiki gives no usable prerequisite. A quest marked `requires_unknown` is always shown as available.
+- A missed quest also rules out the quests that need it (for example, the lifepath-only jobs of the two lifepaths not chosen, and the Phantom Liberty jobs behind the path not taken).
+- An available quest that would rule out other quests says so before it is ticked. The message after a tick names the quests that are now missed; the message after an untick names the quests that are possible again.
+- Chat commands `missed` and `available [group]`. `status` and the sensor attributes also give the available, locked and missed counts.
+
+### Changed
+- The progress line shows "done / total" and the missed count. The total stays 281.
+- The tool's `details()` rows carry `state` (`done`, `available`, `locked`, `missed`), `reason`, `hint` and `blocks`.
+
 ## [0.12.0] - 2026-11-11
 
 ### Added

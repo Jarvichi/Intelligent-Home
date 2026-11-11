@@ -101,7 +101,15 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 A tool in `app/tools/` may define `progress(tc, player)` returning `{"done": int, "total": int, "label": "Quests"}`. The game card then shows "done / total" in its stat box.
 
 ### Cyberpunk 2077 quest tracker
-PlayStation gives no quest data, so quests are ticked by hand. Open Cyberpunk 2077 on the Games page: each group (Base game, Phantom Liberty, Patch quests) lists its open quests with a tick box, and "Done quests" lists the ticked ones (untick to undo). Nothing is ticked at the start. The card's stat box shows ticked quests out of all quests. Commands for the assistant: `done <quest name or id>`, `undone <quest name or id>`, `status`, `left [base|phantom_liberty|patch]`. Ticks are kept per player in `/data/cyberpunk/state_<player>.json`.
+PlayStation gives no quest data, so quests are ticked by hand. Open Cyberpunk 2077 on the Games page: each group (Base game, Phantom Liberty, Patch quests) lists its quests with a tick box, and "Done quests" lists the ticked ones (untick to undo). Nothing is ticked at the start. The card's stat box shows ticked quests out of all quests. Commands for the assistant: `done <quest name or id>`, `undone <quest name or id>`, `status`, `left [base|phantom_liberty|patch]`, `available [base|phantom_liberty|patch]`, `missed`. Ticks are kept per player in `/data/cyberpunk/state_<player>.json`.
+
+Three buttons choose which quests are listed:
+
+- **Available** (shown first): quests that can be done now. A quest with a prerequisite appears here when the prerequisite is ticked.
+- **Locked**: quests that need an earlier quest. Each one says "Needs: ..." (all of them) or "Needs one of: ...".
+- **Missed this run**: quests that can no longer be done in this playthrough. Each one names the ticked quest that ruled it out, and the choice. Untick that quest to bring them back.
+
+A quest can be ticked from any of the three lists. The progress line shows "done / total" and the number missed; the total stays 281.
 
 The quest list is `app/tools/cyberpunk_quests.json`: 281 quests, fetched on 2026-11-11.
 
@@ -114,8 +122,32 @@ The quest list is `app/tools/cyberpunk_quests.json`: 281 quests, fetched on 2026
 - Source of names, ids and groups: the Cyberpunk Wiki on Fandom (list pages "Cyberpunk 2077 Main Jobs", "Side Jobs", "Minor Jobs", the category "Cyberpunk 2077 Gigs", and the pages "Update 2.5" and "Patch 1.6"). The ids are the wiki's BaseID column. "Side jobs" here holds the wiki's Side Jobs and Minor Jobs.
 - Second source: the Fextralife Cyberpunk 2077 wiki. Its gig list has the same 72 base-game gigs and the same 9 Phantom Liberty gigs by name. Its main-job and side-job pages are shorter than the Fandom lists: they name 40 of the 42 base main jobs (one more, "Tapeworm", is on its side-job page), 12 of the 22 Phantom Liberty main jobs, 70 of the 112 base side jobs and 10 of the 20 Phantom Liberty side jobs. The other names rest on the Fandom wiki alone (its list tables and its categories agree with each other).
 - Patch quests: "Over the Edge" (Patch 1.6, the Edgerunners Update) and the three quests of Update 2.5 (the Edgerunners 2 Update): "Clampdown", "Welcome to Paradise" and "You Tell Me". The publisher's Update 2.5 news post confirms the first two by name and the third as an unnamed extension of "Fool on the Hill"; the name "You Tell Me" is from the Fandom wiki only. The three gigs that Patch 1.6 added are listed with the base-game gigs.
-- Not every quest can be done in one playthrough: the three lifepath openings exclude each other, and so do the endings and some Phantom Liberty paths. A total of 281 ticked is therefore not reachable in one save.
+- Not every quest can be done in one playthrough: the three lifepath openings exclude each other, and so do some Phantom Liberty paths. A total of 281 ticked is therefore not reachable in one save.
 - Not in the list: NCPD scanner hustles, cyberpsycho sightings as separate entries (the job "Psycho Killer" covers them), and five apartment quests ("Welcome Home" x4, "Houses In Motion: Makeovers") that the Fandom category has but its list pages do not.
+
+#### Prerequisites and choices (added in 0.13.0)
+Each quest in `cyberpunk_quests.json` can have these fields: `requires` (quest ids that must all be done), `requires_any` (at least one must be done), `excludes` (quest ids that can no longer be done once this quest is done), `choice` (the choice that decides it), `note` (another start condition from the wiki), and `requires_unknown: true`.
+
+Source: the Cyberpunk Wiki on Fandom, read on 2026-11-11 through its public MediaWiki API. Used: the infobox fields `previous_quest`, `next_quest`, `quest_giver` and `tier` of each quest page, the walkthrough text of the page, the page "Cyberpunk 2077 Gigs", and the tier lists on the fixer reward pages. No second wiki was used for prerequisites; the cross-check is between pages of the same wiki.
+
+| Result | Quests |
+|---|---|
+| Prerequisite taken from the wiki | 219 |
+| First job, no prerequisite (3 lifepath openings, 18 tier 1 gigs) | 21 |
+| Not confirmed: `requires_unknown`, always shown as available | 41 |
+
+Of the 219, 162 are confirmed by a second place in the wiki (the earlier quest's page names the quest as next, or the page text or a tier list says the same). The other 57 rest on the quest's own infobox alone.
+
+Rules used to read the wiki:
+- A quest is never hidden on a guess. An empty infobox field, or wiki pages that disagree, gives `requires_unknown`. The 41 are: 18 of Regina Jones's gigs above tier 1 (her reward page has no tier list to confirm the tiers), and 23 side jobs with an empty field (most start at a place on the map, by a purchase, or by Street Cred).
+- Gigs: the wiki gives each gig a fixer and a tier, and says a fixer gives the next set after the current tier is completed. A gig above tier 1 therefore requires every gig of the tier below it from the same fixer. This is used only where the fixer's reward page lists the same tiers (Wakako Okada, Dakota Smith, Sebastian Ibarra, Muamar Reyes, Dino Dinovic). A fixer's reward job requires all gigs of that fixer. The Dogtown gigs and Rogue's follow-up gigs use their own infobox.
+- Where the infobox lists several quests and the page text names fewer, the shorter list is used ("Both Sides, Now", "Moving Heat", "This Corrosion", "KOLD MIRAGE", "Killing In The Name", "Holdin' On").
+- Tracker jobs end after their parts, so the parts take the tracker's prerequisite and not the tracker itself: the fights of "Beat on the Brat", the three qualifying races of "The Beast In Me" (the wiki lists them as a chain; they are shown together). "A Cool Metal Fire" starts during "Chippin' In" and takes its prerequisite. "Tapeworm" is available after any one of its four main jobs.
+- `excludes` is set for three choices only: the lifepath (each opening excludes the other two), the Firestarter choice ("The Killing Moon" or "Black Steel In The Hour of Chaos") and the end of "The Killing Moon" ("Through Pain to Heaven" or "Unfinished Sympathy"). A missed quest also rules out the quests that need it: the three lifepath-only side jobs (one per lifepath, for example "War Pigs") and, when both ways in are missed, "Who Wants to Live Forever".
+- The endings do not exclude each other: after an ending the game returns to the point before "Nocturne Op55N1", so every ending path can be played on one save. Their `choice` text says what each one depends on.
+- Many jobs depend on a choice inside an earlier quest (for example "Pyramid Song", "Dirty Second Hands", "Paid in Full"). The tracker cannot know that choice, so these jobs stay available and show the wiki's condition as a hint. 38 quests carry a `choice` text and 18 a `note`.
+
+The tests check that every id in these fields exists, that no quest needs itself through a chain (no cycles), that exclusions are mutual, and the three counts above.
 
 ### How to add a Provider in 5 steps
 1. Create `app/providers/<name>.py`.
