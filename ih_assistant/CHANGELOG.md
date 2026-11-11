@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.14.0] - 2026-11-11
+
+### Added
+- Reminders. A persona can save a reminder for a local date and time (optionally repeating daily, weekly, monthly or yearly) and the add-on queues a `reminder_due` event (source `reminders`) when it is due. New endpoints `POST /persona/<key>/remind`, `GET /persona/<key>/reminders`, `POST /persona/<key>/remind/cancel`. At most 50 pending per persona. A reminder up to 24 hours overdue (for example after a restart) fires once, flagged `late`; older ones are dropped. Reminder text is never logged.
+
 ## [0.13.2] - 2026-11-08
 
 ### Fixed

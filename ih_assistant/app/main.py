@@ -17,9 +17,10 @@ import planner
 import levels
 import caldav as caldavmod
 import dates as datesmod
+import reminders as remmod
 import random
 
-VERSION = '0.9.3'
+VERSION = '0.14.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -279,6 +280,85 @@ class Assistant:
         st.append_event({'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]})
         self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
         return True
+
+    # ---- reminders (0.14.0) ----
+    def remind_add(self, key, body):
+        """Save a reminder: {when: 'YYYY-MM-DD HH:MM' local, text, repeat?}. It is handed to the persona as a reminder_due event when due."""
+        if key not in self.stores:
+            return 404, {'ok': False, 'why': 'unknown persona'}
+        when, text, rep = remmod.parse_local(body.get('when')), body.get('text'), body.get('repeat') or 'none'
+        if when is None:
+            return 400, {'ok': False, 'why': 'when: YYYY-MM-DD HH:MM (local time)'}
+        if not isinstance(text, str) or not text.strip() or len(text) > remmod.MAX_TEXT:
+            return 400, {'ok': False, 'why': 'text: 1..%d characters' % remmod.MAX_TEXT}
+        if rep not in remmod.REPEATS:
+            return 400, {'ok': False, 'why': 'repeat: ' + ', '.join(remmod.REPEATS)}
+        now = self.now().replace(tzinfo=None)
+        if (when - now).total_seconds() < remmod.MIN_LEAD_S:
+            return 400, {'ok': False, 'why': 'that time has passed (or is under %d seconds away)' % remmod.MIN_LEAD_S}
+        item = {'id': uuid.uuid4().hex[:8], 'due': when.strftime(remmod.ISO_FMT), 'text': text.strip(), 'repeat': rep,
+                'anchor': when.day, 'created': now.strftime(remmod.ISO_FMT), 'status': 'pending'}
+        def put(s):
+            items = s.get('reminders', [])
+            if sum(1 for i in items if i.get('status') == 'pending') >= remmod.MAX_PENDING:
+                return False
+            items.append(item)
+            s['reminders'] = items
+            return True
+        if not self.stores[key].update_state(put):
+            return 429, {'ok': False, 'why': 'at most %d pending reminders' % remmod.MAX_PENDING}
+        self.log('persona %s: reminder %s saved (%s, %d chars)' % (key, item['id'], rep, len(item['text'])))
+        return 200, {'ok': True, 'id': item['id'], 'due': item['due']}
+
+    def remind_list(self, key):
+        items = [i for i in self.stores[key].state().get('reminders', []) if i.get('status') == 'pending']
+        return 200, {'ok': True, 'reminders': sorted(items, key=lambda i: i['due'])}
+
+    def remind_cancel(self, key, body):
+        rid = body.get('id')
+        if not isinstance(rid, str) or not rid:
+            return 400, {'ok': False, 'why': 'id required'}
+        def drop(s):
+            before = s.get('reminders', [])
+            s['reminders'] = [i for i in before if i.get('id') != rid]
+            return len(before) - len(s['reminders'])
+        if not self.stores[key].update_state(drop):
+            return 404, {'ok': False, 'why': 'no such reminder'}
+        self.log('persona %s: reminder %s cancelled' % (key, rid))
+        return 200, {'ok': True}
+
+    def tick_reminders(self, key):
+        """Hand the persona a reminder_due event (source 'reminders') for each reminder whose time has come. State is updated
+        BEFORE the hand-over so a reminder never fires twice. Overdue up to a day: fires once, flagged late; older: dropped.
+        Not counted against EVENT_PER_DAY. -> number of events queued."""
+        st, now = self.stores[key], self.now().replace(tzinfo=None)
+        clock = float(self.clock())
+        out, dropped = [], []
+        def mark(s):
+            items = remmod.prune(s.get('reminders', []), clock)
+            for it in remmod.due_items(items, now):
+                late = remmod.overdue_s(it, now)
+                if late > remmod.LATE_MAX_S:
+                    dropped.append(it['id'])
+                else:
+                    out.append({'type': 'reminder_due', 'source': 'reminders', 'suggested_text': remmod.suggested(it), 'facts': dict(
+                        {'kind': 'reminder', 'id': it['id'], 'due': it['due'], 'repeat': it['repeat'], 'set_on': it['created'][:10]},
+                        **({'late': True} if late > remmod.LATE_FLAG_S else {}))})
+                    it['fired_at'] = clock
+                if it['repeat'] == 'none' or not remmod.advance_past(it, now):
+                    it['status'] = 'done'
+                    it.setdefault('fired_at', clock)
+            s['reminders'] = items
+        if not st.state().get('reminders'):
+            return 0
+        st.update_state(mark)
+        for rid in dropped:
+            self.log('persona %s: reminder %s too late, dropped' % (key, rid))
+        for ev in out:
+            self.maybe_intro(key)
+            st.append_event(ev)
+            self.log('persona %s: reminder %s queued' % (key, ev['facts']['id']))
+        return len(out)
 
     # ---- scheduled work ----
     def tick_poll(self, key):
@@ -830,6 +910,10 @@ class Assistant:
             self.tick_dates(key)
         except Exception as e:
             self.log('persona %s: dates failed (%s)' % (key, type(e).__name__))
+        try:
+            self.tick_reminders(key)
+        except Exception as e:
+            self.log('persona %s: reminders failed (%s)' % (key, type(e).__name__))
         try:
             f = len(self.tick_checkins(key))
         except StoreError as e:
@@ -1607,6 +1691,8 @@ def make_handler(app):
                 return self._send(200, {'ok': True, 'events': app.stores[key].read_inbox(after, limit)})
             if method == 'GET' and act == 'plan' and len(parts) == 3:
                 return self._send(200, app.plan_view(key))
+            if method == 'GET' and act == 'reminders' and len(parts) == 3:
+                return self._send(*app.remind_list(key))
             if method == 'GET' and act == 'attachment' and len(parts) == 5:
                 code, body, ct = app.attachment(key, parts[3], parts[4])
                 if code != 200:
@@ -1655,6 +1741,10 @@ def make_handler(app):
                 return self._send(*app.identity(key, body))
             if act == 'event' and len(parts) == 3:
                 return self._send(*app.event(key, body))
+            if act == 'remind' and len(parts) == 3:
+                return self._send(*app.remind_add(key, body))
+            if act == 'remind' and len(parts) == 4 and parts[3] == 'cancel':
+                return self._send(*app.remind_cancel(key, body))
             if act == 'agree' and len(parts) == 3:
                 return self._send(*app.agree(key, body))
             if act == 'agree' and len(parts) == 4 and parts[3] == 'remove':
