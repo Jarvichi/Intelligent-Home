@@ -22,7 +22,7 @@ CALLS = []
 
 
 class FakeMe:
-    online_id = "Jarvichi"
+    online_id = "ExamplePlayer"
 
     def trophy_titles(self, limit=None):
         CALLS.append(limit)
@@ -55,7 +55,7 @@ class Ctx:
         self.logs.append(m)
 
 
-PLAYER = {"key": "player_a", "psn_online_id": "Jarvichi"}
+PLAYER = {"key": "player_a", "psn_online_id": "ExamplePlayer"}
 
 
 class Base(unittest.TestCase):

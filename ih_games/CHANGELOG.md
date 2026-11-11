@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.1] - 2026-11-11
+
+### Changed
+- Tests only: replaced real-looking names in the PSN test fixtures with neutral placeholders. No behaviour change.
+
 ## [0.10.0] - 2026-11-10
 
 ### Added

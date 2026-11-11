@@ -34,7 +34,7 @@ class FakeClient:
         pass
 
     def me(self):
-        return Obj(online_id="Jarvichi", trophy_titles=FakeUser().trophy_titles, trophy_groups_summary=FakeUser().trophy_groups_summary, trophies=FakeUser().trophies)
+        return Obj(online_id="ExamplePlayer", trophy_titles=FakeUser().trophy_titles, trophy_groups_summary=FakeUser().trophy_groups_summary, trophies=FakeUser().trophies)
 
 
 def install_fake():
@@ -50,7 +50,7 @@ class PlatformEnumTest(unittest.TestCase):
         install_fake()
         try:
             from providers import psn_trophy_names as p
-            out = p._recent_trophies("tok", "Jarvichi", "Cyberpunk 2077")
+            out = p._recent_trophies("tok", "ExamplePlayer", "Cyberpunk 2077")
         finally:
             for k in [k for k in sys.modules if k.startswith("psnawp_api")]:
                 del sys.modules[k]

@@ -3,16 +3,16 @@ import os, sys, tempfile, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import main
 
-PLAYERS = [{"key": "andrew", "display_name": "Andrew"}]
+PLAYERS = [{"key": "player_a", "display_name": "Player A"}]
 
 
 class PathDecodeTest(unittest.TestCase):
     def setUp(self):
         self.mod = main.Module({"players": PLAYERS}, data=tempfile.mkdtemp())
-        self.mod.library.add("andrew", "Cyberpunk 2077", "psn", None)
+        self.mod.library.add("player_a", "Cyberpunk 2077", "psn", None)
 
     def summary(self, ref):
-        return self.mod.api("GET", "/games/%s/summary" % ref, {"player": "andrew"}, {})
+        return self.mod.api("GET", "/games/%s/summary" % ref, {"player": "player_a"}, {})
 
     def test_encoded_title_with_spaces_is_found(self):
         code, obj = self.summary("Cyberpunk%202077")

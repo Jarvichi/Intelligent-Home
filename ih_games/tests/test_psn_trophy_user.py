@@ -5,7 +5,7 @@ from providers import psn_trophy_names as p
 
 
 class Me:
-    online_id = "Jarvichi"
+    online_id = "ExamplePlayer"
 
 
 class Client:
@@ -23,7 +23,7 @@ class Client:
 class TrophyUserTest(unittest.TestCase):
     def test_own_account_used_without_lookup(self):
         c = Client()
-        self.assertIsInstance(p._trophy_user(c, "jarvichi"), Me)   # case-insensitive
+        self.assertIsInstance(p._trophy_user(c, "exampleplayer"), Me)   # case-insensitive
         self.assertEqual(c.looked_up, [])
 
     def test_other_id_still_looked_up(self):
@@ -40,7 +40,7 @@ class TrophyUserTest(unittest.TestCase):
                         raise RuntimeError("x")
                 return M()
         c = Bad()
-        self.assertEqual(p._trophy_user(c, "Jarvichi"), "other-user")
+        self.assertEqual(p._trophy_user(c, "ExamplePlayer"), "other-user")
 
 
 if __name__ == "__main__":

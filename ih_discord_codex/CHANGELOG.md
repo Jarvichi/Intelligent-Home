@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.37] - 2026-11-10
+
+### Fixed
+- On startup, abandon a model turn or reply left uncertain by a restart, clear its retained prompt/image data, and queue one durable notice asking the owner to resend it. Later queued messages are no longer blocked until `/new` is sent.
+
 ## [0.1.36] - 2026-11-05
 
 ### Changed
