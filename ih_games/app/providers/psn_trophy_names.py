@@ -10,6 +10,10 @@ import tempfile
 
 NAME = "psn_trophy_names"
 TIERS = {"bronze", "silver", "gold", "platinum"}
+TITLES_LOOKUP_MAX = 500    # trophy titles read when looking for one game
+TITLE_MATCHES_MAX = 3      # a game can have several trophy lists (regions, platforms)
+TROPHY_GROUPS_MAX = 10     # base game plus add-on trophy groups read per list
+DEFAULT_GROUP = "default"
 
 
 def _atomic_write(path, data):
@@ -30,6 +34,13 @@ def _value(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def _iso_time(value):
+    """ISO 8601 text (with the 'T' separator every browser parses), or None."""
+    if not value:
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value).replace(" ", "T", 1)
+
+
 def _trophy_user(client, online_id):
     """The object to read trophies from. Prefer the account the NPSSO token belongs to: reading your own
     trophies through a public Online ID lookup returned PSNAWPNotFound on the live house (10 Nov 2026)."""
@@ -41,14 +52,15 @@ def _trophy_user(client, online_id):
     return me if own else client.user(online_id=online_id)
 
 
-def _recent_trophies(npsso, online_id, game):
-    """Return recent earned trophy records matching the current game title."""
+def title_trophies(npsso, online_id, game):
+    """Every trophy PSN defines for the game title, earned or not, as plain dicts:
+    {id, group, name, detail, tier, earned, earned_at, hidden}."""
     from psnawp_api import PSNAWP
     from psnawp_api.models.trophies.trophy_constants import PlatformType
 
     client = PSNAWP(npsso_cookie=npsso)
     user = _trophy_user(client, online_id)
-    titles = list(user.trophy_titles(limit=500))
+    titles = list(user.trophy_titles(limit=TITLES_LOOKUP_MAX))
     target = str(game or "").casefold().strip()
     matches = [t for t in titles if str(_value(t, "title_name", "")).casefold().strip() == target]
     if not matches and target:
@@ -57,7 +69,7 @@ def _recent_trophies(npsso, online_id, game):
         return []
 
     records = []
-    for title in matches[:3]:
+    for title in matches[:TITLE_MATCHES_MAX]:
         comm_id = _value(title, "np_communication_id")
         if not comm_id:
             continue
@@ -68,23 +80,32 @@ def _recent_trophies(npsso, online_id, game):
         groups = user.trophy_groups_summary(comm_id, platform)
         # psnawp returns a TrophyGroupsSummary object (the groups are in .trophy_groups), not a list
         groups = _value(groups, "trophy_groups", groups)
-        group_ids = [str(_value(g, "trophy_group_id", "default")) for g in groups]
+        group_ids = [str(_value(g, "trophy_group_id", DEFAULT_GROUP)) for g in groups]
         if not group_ids:
-            group_ids = ["default"]
-        for group_id in group_ids[:10]:
+            group_ids = [DEFAULT_GROUP]
+        for group_id in group_ids[:TROPHY_GROUPS_MAX]:
             try:
                 trophies = user.trophies(comm_id, platform, include_progress=True, trophy_group_id=group_id, limit=None)
                 for trophy in trophies:
-                    earned_at = _value(trophy, "earned_date_time")
-                    name = str(_value(trophy, "trophy_name", "") or "").strip()
-                    if not _value(trophy, "earned", False) or not name or not earned_at:
-                        continue
                     tier = str(_value(trophy, "trophy_type", "")).lower().rsplit(".", 1)[-1]
-                    if tier in TIERS:
-                        records.append({"name": name, "tier": tier, "earned_at": str(earned_at), "id": str(_value(trophy, "trophy_id", ""))})
+                    if tier not in TIERS:
+                        continue
+                    earned_at = _value(trophy, "earned_date_time")
+                    records.append({"id": str(_value(trophy, "trophy_id", "")), "group": group_id,
+                                    "name": str(_value(trophy, "trophy_name", "") or "").strip(),
+                                    "detail": str(_value(trophy, "trophy_detail", "") or "").strip(),
+                                    "tier": tier, "earned": bool(_value(trophy, "earned", False)),
+                                    "earned_at": _iso_time(earned_at),
+                                    "hidden": bool(_value(trophy, "trophy_hidden", False))})
             except Exception:
                 continue
     return records
+
+
+def _recent_trophies(npsso, online_id, game):
+    """Return recent earned trophy records matching the current game title."""
+    return [{"name": r["name"], "tier": r["tier"], "earned_at": r["earned_at"], "id": r["id"]}
+            for r in title_trophies(npsso, online_id, game) if r["earned"] and r["name"] and r["earned_at"]]
 
 
 def run(ctx, player):

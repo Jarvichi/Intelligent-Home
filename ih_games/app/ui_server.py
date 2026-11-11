@@ -7,10 +7,12 @@ OPTIONS=Path(os.environ.get('IHG_OPTIONS','/data/options.json'))
 BYTES_PER_MB=1024*1024
 MAX_UPLOAD_BYTES=6*BYTES_PER_MB   # same limit as stored art
 UPLOAD_TIMEOUT_S=45
+READ_TIMEOUT_S=8
+TROPHY_LIST_TIMEOUT_S=30   # the full trophy list can need several PSN calls
 API_PORT=int(os.environ.get('IHG_PORT','8794'))
 DATA=Path(os.environ.get('IHG_DATA','/data'))
 SUPERVISOR_TOKEN=os.environ.get('SUPERVISOR_TOKEN','').strip()
-ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
+ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css','/card-stat.js':'card-stat.js'}
 
 def _artwork_record(gid):
  if not re.fullmatch(r'[A-Za-z0-9_-]{1,120}',gid): return None
@@ -120,6 +122,7 @@ class Handler(BaseHTTPRequestHandler):
   art_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art',path)
   upload_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/art-upload',path)
   cmd_request=re.fullmatch(r'/api/games/([A-Za-z0-9_-]{1,120})/cmd',path)
+  trophy_request=False
   if cmd_request and method=='POST':
    try:
     length=int(self.headers.get('Content-Length') or 0)
@@ -147,16 +150,17 @@ class Handler(BaseHTTPRequestHandler):
    upstream='/library?'+urllib.parse.urlencode({'player':player})
    request_body=None
   elif method=='GET':
-   match=re.fullmatch(r'/api/games/([A-Za-z0-9_-]+)/details',path)
+   match=re.fullmatch(r'/api/games/([A-Za-z0-9_-]+)/(details|trophies)',path)
    if not match:
     return self.send_error(404)
-   upstream='/games/'+match.group(1)+'/details?'+urllib.parse.urlencode({'player':player})
+   trophy_request=match.group(2)=='trophies'
+   upstream='/games/'+match.group(1)+'/'+match.group(2)+'?'+urllib.parse.urlencode({'player':player})
    request_body=None
   else:
    return self.send_error(404)
   req=urllib.request.Request('http://127.0.0.1:%d%s'%(API_PORT,upstream),data=request_body,method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/json','Content-Type':'application/octet-stream' if upload_request else 'application/json'})
   try:
-   with urllib.request.urlopen(req,timeout=UPLOAD_TIMEOUT_S if method=='POST' else 8) as response:
+   with urllib.request.urlopen(req,timeout=UPLOAD_TIMEOUT_S if method=='POST' else TROPHY_LIST_TIMEOUT_S if trophy_request else READ_TIMEOUT_S) as response:
     data=response.read(2*1024*1024+1)
     if len(data)>2*1024*1024:
      return self.reply(502,json.dumps({'ok':False,'error':'Game details are too large to display safely.'}).encode(),'application/json; charset=utf-8')

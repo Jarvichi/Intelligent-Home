@@ -24,6 +24,16 @@ Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) in
 
 Follow [PSN_TROPHY_SETUP.md](PSN_TROPHY_SETUP.md) to configure the PSN Online ID and NPSSO password option. Never send the token in chat or put it in source control. Live API lookups require your own token.
 
+The same token and Online ID let the Games page list every trophy of a game: open a game card and tap a trophy tile (Platinum, Gold, Silver or Bronze) to see that tier's trophies marked "Earned" or "Not earned". The list is read from PSN when you tap, kept in `/data/trophy_lists/` and reused for 15 minutes. Without the token, or when PSN cannot be reached and no list was saved before, the page shows only the earned trophies whose names this add-on recorded, and says that the list is incomplete.
+
+### PlayStation play time
+
+PSN reports no play time for most games. When `psn_trophies` is enabled, the add-on also reads `sensor.<trophy_prefix>_now_playing` on every provider run and sums the play sessions it sees (a session ends after 10 minutes without a title; sessions under 5 minutes are dropped). Totals are kept in `/data/psn_playtime_<player>.json` and count only from the day tracking began; the card says "Play time since <date>". To fill in earlier sessions from the Home Assistant recorder, run `app/tools/psn_backfill.py` once (read-only unless `--write` is given).
+
+### The stat box on a game card
+
+Next to "Last played" a card shows one box: quest progress when the game's tool reports it, else trophies earned out of the total, else a play time above zero. With none of these the box is hidden.
+
 ### Steam achievement names
 
 Follow [STEAM_ACHIEVEMENT_SETUP.md](STEAM_ACHIEVEMENT_SETUP.md) to configure the Steam profile URL you supplied and the private Steam API key option. The provider reads the current game and App ID from Home Assistant's Steam Online integration. Steam's Web API returns earned achievements and the game's published schema; profile game details must be public for the lookup to work.
@@ -81,6 +91,14 @@ Game data is read from Home Assistant sensors. If the Destiny provider is on, pu
 
 ### Going Live
 Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs actions without emitting external events). Creating `/data/STOP_LIVE` acts as an instant kill-switch forcing dry mode.
+
+### Library API (bearer `admin_token`)
+- `GET /library?player=<key>`: the player's games. Each game has `card_stat`: `{"kind": "quests", "done", "total", "label"}`, `{"kind": "trophies", "earned", "total"}`, `{"kind": "playtime", "minutes", "tracked", "since"}` or `null`.
+- `GET /games/<id>/details?player=<key>`: tool details plus `trophies` (totals and latest named trophies).
+- `GET /games/<id>/trophies?player=<key>`: every trophy of the game: `trophies` = `[{id, group, name, detail, tier, earned, earned_at, hidden}]` (earned first), `complete` (false = only locally recorded earned names), `source` (`psn` or `history`), `fetched`, `stale`, `missing` (`not_configured`, `lookup_failed`, `not_found` or null) and `note` (text shown to the user). The Web UI proxies it as `api/games/<id>/trophies`.
+
+### Game tool progress
+A tool in `app/tools/` may define `progress(tc, player)` returning `{"done": int, "total": int, "label": "Quests"}`. The game card then shows "done / total" in its stat box.
 
 ### How to add a Provider in 5 steps
 1. Create `app/providers/<name>.py`.
