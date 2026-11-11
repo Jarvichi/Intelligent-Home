@@ -1,6 +1,6 @@
 {
  "name": "ih_jobs_backup",
- "version": "0.1.13",
+ "version": "0.2.0",
  "kind": "addon",
  "description": "Child of Intelligent Home - Jobs: backup storage sensors. Dry-run by default.",
  "owner": "local add-on ih_jobs_backup",
@@ -20,7 +20,7 @@
  "declares_secrets": [
   "register_key"
  ],
- "restore": "Stop the add-on. Uninstall to remove.",
+ "restore": "Stop the add-on. To restore its database copy the newest file in /data/backup to /data/ih.db (see DOCS.md). Uninstall to remove.",
  "requires": [
   "ih_jobs"
  ]

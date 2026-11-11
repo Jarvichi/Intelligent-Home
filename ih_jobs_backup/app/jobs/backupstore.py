@@ -5,6 +5,8 @@ Backup sizes: websocket backup/info (per agent). Drive totals: the two HA Google
 a /backup folder. If none works the sensor still publishes with the backups size only (disk_known=false); the job does not fail. Units: GiB (1024^3, same as HA's own sensors), shown as 'GB'."""
 import asyncio, datetime, json, os, shutil
 
+SAMPLE_UNKNOWN = None   # sample value when a figure is not available
+
 G = 1024 ** 3
 LOCAL_AGENT = 'hassio.local'
 DRIVE_PREFIX = 'google_drive.'
@@ -72,6 +74,15 @@ def publish(ctx, name, label, icon, total, backups, count, used=None):
     return '%s: used %.1f of %.1f GB (%.1f%%), backups %.1f (%d), other %.1f, free %.1f' % (label, used, total, attrs['used_pct'], backups, count, other, attrs['free_gb'])
 
 
+def record_sample(ctx, sample):
+    """Keep one history row in the add-on database. NEVER lets a database problem touch the run (backupdb.record never raises)."""
+    try:
+        import backupdb
+        backupdb.record(ctx.data_dir, sample, mode='dry' if ctx.dry else 'live', log=ctx.log)
+    except Exception:
+        pass
+
+
 def run(ctx, info=None, disk_fn=None):
     """One run. Returns True; raises on failure (the scheduler then retries)."""
     bl = (info or backup_info)(ctx)['backups']
@@ -82,16 +93,22 @@ def run(ctx, info=None, disk_fn=None):
         for a, v in b['agents'].items():
             if a.startswith(DRIVE_PREFIX):
                 drv += v.get('size', 0) / G; drn += 1
+    sample = dict(local_backups_gb=round(loc, 3), local_count=nloc, local_used_gb=SAMPLE_UNKNOWN, disk_known=False,
+                  drive_backups_gb=SAMPLE_UNKNOWN, drive_count=SAMPLE_UNKNOWN, drive_used_gb=SAMPLE_UNKNOWN)
     try:
         total, used, src = (disk_fn or disk)(ctx)
         ctx.log('backupstore: disk figure from ' + src)
         ctx.log(publish(ctx, 'backup_storage_local', 'Local disk', 'mdi:harddisk', total, loc, nloc, used))
+        sample.update(local_used_gb=round(used, 3), disk_known=True)
     except RuntimeError:
         ctx.log('backupstore: no disk figure (set disk_total_entity and disk_used_entity to fix); publishing backups size only')
         ctx.log(publish_backups_only(ctx, 'backup_storage_local', 'Local disk', 'mdi:harddisk', loc, nloc))
     du, dt = (str(ctx.opts.get(k) or '').strip() for k in ('drive_used_entity', 'drive_total_entity'))
     if du and dt:
-        ctx.log(publish(ctx, 'backup_storage_drive', 'Google Drive', 'mdi:google-drive', gib(ctx, dt), drv, drn, gib(ctx, du)))
+        dused = gib(ctx, du)
+        ctx.log(publish(ctx, 'backup_storage_drive', 'Google Drive', 'mdi:google-drive', gib(ctx, dt), drv, drn, dused))
+        sample.update(drive_used_gb=round(dused, 3), drive_backups_gb=round(drv, 3), drive_count=drn)
     else:
         ctx.log('backupstore: no drive_used_entity / drive_total_entity option: drive sensor not published')
+    record_sample(ctx, sample)
     return True
