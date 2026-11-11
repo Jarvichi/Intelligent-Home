@@ -6,8 +6,9 @@ sys.path.insert(0, HERE)
 from ihlib import trace
 import brainlib, mcp, extras, codex_todo
 import ui_server
+import instructions_api
 
-VERSION = '0.4.1'
+VERSION = '0.5.0'
 MAX_BODY = 512 * 1024
 
 
@@ -23,7 +24,8 @@ def parse_origins(v):
 
 def load_options(path):
     try:
-        o = json.load(open(path))
+        with open(path) as f:
+            o = json.load(f)
     except Exception:
         o = {}
     return {'brain_dir': str(o.get('brain_dir') or '/share/brain'), 'api_token': str(o.get('api_token') or ''),
@@ -39,6 +41,9 @@ def load_options(path):
             'pocket_url': str(o.get('pocket_url') or ''),
             'scrub_names': str(o.get('scrub_names') or ''),
             'cors_origins': parse_origins(o.get('cors_origins')),
+            'instructions_mode': instructions_api.clean_mode(o.get('instructions_mode')),
+            'instructions_files': instructions_api.clean_files(o.get('instructions_files')),
+            'instructions_user_ids': instructions_api.clean_user_ids(o.get('instructions_user_ids')),
             'ingest_url': str(o.get('ingest_url') or '').strip(), 'ingest_token': str(o.get('ingest_token') or '').strip()}
 
 
@@ -212,7 +217,10 @@ def main():
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     opts = load_options(os.environ.get('IHA_OPTIONS', '/data/options.json'))
     st = State(opts, os.environ.get('IHA_DATA', '/data'), lg.info)
-    ui_server.serve(st.brain)
+    editor = instructions_api.InstructionsEditor(opts['instructions_mode'], opts['instructions_files'], opts['instructions_user_ids'],
+                                                 os.path.join(st.data_dir, 'instructions'))
+    ui_server.serve(st.brain, editor)
+    lg.info('instructions editor: %s (%d file(s) listed)', editor.mode, len(editor.table) if editor.mode != 'off' else 0)
     lg.info('ih_brain %s starting: %d notes in %s; %s; token %s', VERSION, len(st.brain._notes()), opts['brain_dir'],
             'READ-ONLY' if opts['read_only'] else 'writes allowed', 'set' if opts['api_token'] else 'NOT set (all requests refused)')
     if st.pocket and opts['pocket_interval_min']:

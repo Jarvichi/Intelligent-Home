@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-11-11
+
+### Added
+- Instructions page (`Open Web UI`, then **Instructions editor**): view and, when allowed, edit the assistant's standing-instructions file. Off by default (`instructions_mode: off`); `view` is read-only; `edit` allows saving.
+- Only files from a fixed list in the code can be opened (`instructions_files` picks from it; default the house `CLAUDE.md` only). A request names a file by a short id, never by a path. Symlinks are refused.
+- Every save first writes a private timestamped backup, refuses when the file changed since it was opened, and needs a preview of exactly that text first. The newest 50 backups per file are kept. A save log keeps time and sizes only.
+- Access: Home Assistant ingress only, the signed-in user id must be present, and `instructions_user_ids` can limit it to named users.
+
+### Needs the owner
+- The page cannot read any file until the owner adds the folder mapping `homeassistant_config:rw` to this add-on (see DOCS). It is NOT added by this version.
+
 ## [0.4.1] - 2026-11-10
 
 ### Fixed
