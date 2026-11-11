@@ -121,6 +121,7 @@ th{position:sticky;top:0;background:var(--ih-surface-raised);color:var(--ih-mute
 @media(max-width:520px){.arc-row{grid-template-columns:auto minmax(0,1fr)}.arc-row>.arc-stepper,.arc-row>.arc-have{grid-column:2}}
 .cyberpunk-filter{width:100%;min-height:44px;margin-top:8px;padding:6px 12px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit;font-size:16px}
 .arc-row[hidden]{display:none}
+.cyberpunk-views{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.cyberpunk-views .ih-button[aria-pressed=true]{border-color:var(--ih-link);color:var(--ih-link);background:var(--ih-surface)}
 .arc-done{display:grid;gap:8px;margin-top:12px}.arc-done .ih-button{justify-self:start}
 .refreshed-at{position:absolute;top:4px;right:52px;display:flex;align-items:center;min-height:44px;color:var(--ih-muted);font-size:10px;font-weight:600}.refreshed-at:empty{display:none}
 
