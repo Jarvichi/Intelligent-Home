@@ -18,7 +18,7 @@ def _feed(data_dir, name, player):
 def for_game(data_dir, player, title):
     """{progress, earned, defined, platform, latest:[{name,tier,time}]} or None when the game has no trophy data."""
     n = L.norm(title)
-    found = next((t for t in _feed(data_dir, TITLES_FEED, player).get("titles", []) if L.norm(t.get("title")) == n), None)
+    found = next((t for t in _feed(data_dir, TITLES_FEED, player).get("titles", []) if L.norm(L.clean_title(t.get("title"))) == n), None)
     named = [e for e in _feed(data_dir, NAMES_FEED, player).get("events", [])
              if e.get("kind") == "trophy_named" and L.norm(e.get("game")) == n and e.get("achievement")]
     if not found and not named:

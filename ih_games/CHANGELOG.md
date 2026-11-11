@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.3] - 2026-11-11
+
+### Changed
+- Game titles lose the trophy-list wording PSN adds ("X Trophies", "X Trophy Set", "X Veteran's Awards"). New games are cleaned as they arrive; existing entries are renamed once on the next refresh (ids kept; skipped when a same-platform game already has the clean title). Trophy totals still match.
+
 ## [0.10.2] - 2026-11-11
 
 ### Changed

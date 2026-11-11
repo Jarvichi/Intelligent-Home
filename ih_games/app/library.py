@@ -20,6 +20,16 @@ def norm(s):
     return re.sub(r"[^a-z0-9]+", " ", str(s or "").lower()).strip()
 
 
+_JUNK_SUFFIX = re.compile(r"\s+(?:(?:base\s+)?trophy\s+set|trophies|(?:veteran'?s\s+)?awards)\s*$", re.I)
+
+
+def clean_title(t):
+    """Drop the trophy-list wording PSN adds to some titles ('X Trophies', 'X Trophy Set', 'X Veteran's Awards'). Keeps the title when nothing else is left."""
+    t = str(t or "").strip()
+    c = _JUNK_SUFFIX.sub("", t).strip()
+    return c if c else t
+
+
 def make_id(title, platform=None):
     return slug(title) + ("-" + slug(platform) if platform else "")
 
@@ -85,6 +95,7 @@ class Library:
 
     # writing
     def _touch(self, d, player, title, platform, source, seen, playtime=None, manual=False):
+        title = clean_title(title)
         ents = d["entries"].setdefault(player, {})
         # one entry per title when a platform is unknown
         existing = None
@@ -162,7 +173,19 @@ class Library:
                     for src, label in FEED_SOURCE.items():
                         if fn == f"{src}_{pk}.json":
                             self._from_feed(d, pk, src, os.path.join(fdir, fn), now)
+            self._clean_existing(d)
             _atomic(self.path, d)
+
+    def _clean_existing(self, d):
+        """One-off tidy: rename entries whose title has trophy-list wording (id kept). Skipped when a same-platform entry already has the clean title."""
+        for ents in d["entries"].values():
+            for e in ents.values():
+                c = clean_title(e["title"])
+                if c == e["title"]:
+                    continue
+                if any(o is not e and norm(o["title"]) == norm(c) and o.get("platform") == e.get("platform") for o in ents.values()):
+                    continue
+                e["title"] = c
 
     def _from_feed(self, d, pk, src, path, now):
         try:
@@ -211,7 +234,7 @@ class Library:
         """Add each earned-trophy game that is not in the library under ANY platform. Never touches existing entries."""
         known = {norm(e["title"]) for e in d["entries"].get(pk, {}).values()}
         for t in titles:
-            title = str(t.get("title") or "").strip()
+            title = clean_title(t.get("title"))
             if not title or norm(title) in known:
                 continue
             self._touch(d, pk, title, "psn", TITLES_FEED, t.get("last_updated") or upd)
