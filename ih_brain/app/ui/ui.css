@@ -19,6 +19,9 @@
 .search input::-webkit-search-cancel-button { display:none; }
 .search .x { min-width:44px; min-height:44px; border:0; background:none; color:var(--ih-muted); font-size:22px; cursor:pointer; }
 .btn { min-height:44px; border:1px solid var(--ih-line); background:var(--ih-surface-raised); color:var(--ih-text); border-radius:var(--ih-radius-control); padding:0 14px; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.instr-link { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:8px 0; }
+a.btn { text-decoration:none; }
+a.btn:focus-visible { outline:2px solid var(--ih-accent); outline-offset:2px; }
 .btn.primary { background:var(--ih-accent); color:var(--ih-accent-ink); border-color:transparent; font-weight:700; }
 .workspace { display:grid; grid-template-columns:minmax(300px,.9fr) minmax(0,1.6fr); gap:16px; align-items:start; }
 .note-list, .reader { min-width:0; }
