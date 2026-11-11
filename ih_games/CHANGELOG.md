@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.4] - 2026-11-11
+
+### Fixed
+- 0.10.3 added the cleaned title as a new game before renaming the old one, leaving duplicates. The feed now compares cleaned titles, and a leftover duplicate made by the trophy-title feed is removed when the clean-titled game already exists.
+
 ## [0.10.3] - 2026-11-11
 
 ### Changed

@@ -178,14 +178,19 @@ class Library:
 
     def _clean_existing(self, d):
         """One-off tidy: rename entries whose title has trophy-list wording (id kept). Skipped when a same-platform entry already has the clean title."""
+        drop = []
         for ents in d["entries"].values():
-            for e in ents.values():
+            for e in list(ents.values()):
                 c = clean_title(e["title"])
                 if c == e["title"]:
                     continue
                 if any(o is not e and norm(o["title"]) == norm(c) and o.get("platform") == e.get("platform") for o in ents.values()):
+                    if e.get("source") == TITLES_FEED and not e.get("tools") and not e.get("manual"):
+                        drop.append((ents, e["id"]))   # a feed-made duplicate of an entry that already has the clean title
                     continue
                 e["title"] = c
+        for ents, gid in drop:
+            ents.pop(gid, None)
 
     def _from_feed(self, d, pk, src, path, now):
         try:
@@ -232,7 +237,7 @@ class Library:
 
     def _from_trophy_titles(self, d, pk, titles, upd):
         """Add each earned-trophy game that is not in the library under ANY platform. Never touches existing entries."""
-        known = {norm(e["title"]) for e in d["entries"].get(pk, {}).values()}
+        known = {norm(clean_title(e["title"])) for e in d["entries"].get(pk, {}).values()}
         for t in titles:
             title = clean_title(t.get("title"))
             if not title or norm(title) in known:

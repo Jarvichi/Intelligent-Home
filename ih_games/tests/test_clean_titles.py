@@ -24,7 +24,11 @@ class CleanTitles(unittest.TestCase):
         lib._clean_existing(data)
         ents = data["entries"]["p1"]
         self.assertEqual(ents[a["id"]]["title"], "Foo")
-        self.assertEqual(ents["bar-trophies-steam"]["title"], "Bar Trophies")  # collision: left alone
+        self.assertEqual(ents["bar-trophies-steam"]["title"], "Bar Trophies")  # collision, not a feed duplicate: left alone
+        c["source"] = L.TITLES_FEED
+        lib._clean_existing(data)
+        self.assertNotIn("bar-trophies-steam", data["entries"]["p1"])  # feed-made duplicate dropped
+        self.assertIn("bar-steam", data["entries"]["p1"])
 
 
 if __name__ == "__main__":
