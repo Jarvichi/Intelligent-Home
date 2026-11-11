@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 - Usage auto-reply reworked: a message of the person that is still unanswered after 60 seconds (nothing sent by the persona since) while Claude usage is out gets ONE automatic reply through the persona's own bot, at most one per 10 minutes per persona. Works for every persona. Default wording is built in ("I cannot read your message right now: I am out of Claude usage until HH:MM. Your message is saved here. I answer when it resets."; London time, `Day HH:MM` when more than 12 hours away, "until it resets" when the reset time is unknown); `usage_text` / `usage_text_notime` still override it. Extra usage credits left (extra usage enabled and below 98 percent of the limit) count as NOT out. Dry-run only logs.
-- New option `usage_autoreply` (default true) and sensor options `usage_sensor_extra_enabled`, `usage_sensor_extra`. Default sensor names are now `sensor.claude_usage_andrew_pro_*`.
+- New option `usage_autoreply` (default true) and sensor options `usage_sensor_extra_enabled`, `usage_sensor_extra`. Default sensor names are now `sensor.claude_usage_andrew_pro_*`. <!-- privacy-scan: ignore LOCAL_TERM -->
 
 ## [0.15.1] - 2026-11-11
 

@@ -72,9 +72,9 @@ HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}(\.\.\d{4}-\d{2}-\d{2})?$')
-USAGE_SENSORS = {'session': 'sensor.claude_usage_andrew_pro_session_usage', 'week': 'sensor.claude_usage_andrew_pro_week_usage',
-                 'session_reset': 'sensor.claude_usage_andrew_pro_session_reset_time', 'week_reset': 'sensor.claude_usage_andrew_pro_weekly_reset_time',
-                 'extra_enabled': 'sensor.claude_usage_andrew_pro_extra_usage_enabled', 'extra_pct': 'sensor.claude_usage_andrew_pro_extra_usage'}   # defaults; options usage_sensor_* override
+USAGE_SENSORS = {'session': 'sensor.claude_usage_andrew_pro_session_usage', 'week': 'sensor.claude_usage_andrew_pro_week_usage',  # privacy-scan: ignore LOCAL_TERM
+                 'session_reset': 'sensor.claude_usage_andrew_pro_session_reset_time', 'week_reset': 'sensor.claude_usage_andrew_pro_weekly_reset_time',  # privacy-scan: ignore LOCAL_TERM
+                 'extra_enabled': 'sensor.claude_usage_andrew_pro_extra_usage_enabled', 'extra_pct': 'sensor.claude_usage_andrew_pro_extra_usage'}   # defaults; options usage_sensor_* override  # privacy-scan: ignore LOCAL_TERM
 USAGE_OUT_AT = 99.0       # percent: out of usage when the session or the week sensor is at or over this
 USAGE_EXTRA_OUT_AT = 98.0  # percent of the extra-usage limit: at or over this the extra credits are used up too
 USAGE_WAIT_S = 60         # a message must stay unanswered this long before the automatic reply

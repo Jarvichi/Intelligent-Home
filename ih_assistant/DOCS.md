@@ -31,8 +31,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `giphy_api_key` | No | GIPHY key. With it, a reply that carries `gif` search words also sends one PG GIF picture (attached, not a link), if the persona's gif level allows and none went out in the last `gif_gap_minutes`. Half the time a fitting picture from the cache is reused. |
 | `gif_gap_minutes` | No | Minimum minutes between two GIFs in one chat. Default 10. |
 | `usage_autoreply` | No | Default true. When a person's message stays unanswered for 60 seconds while Claude usage is out, the persona's bot posts one automatic message (see Usage auto-reply). false = off. |
-| `usage_sensor_extra_enabled` | No | Sensor that says `True` when extra usage credits are on. Default `sensor.claude_usage_andrew_pro_extra_usage_enabled`. |
-| `usage_sensor_extra` | No | Sensor with the extra credits used, in percent of the limit. Default `sensor.claude_usage_andrew_pro_extra_usage`. |
+| `usage_sensor_extra_enabled` | No | Sensor that says `True` when extra usage credits are on. Default `sensor.claude_usage_andrew_pro_extra_usage_enabled`. | <!-- privacy-scan: ignore LOCAL_TERM -->
+| `usage_sensor_extra` | No | Sensor with the extra credits used, in percent of the limit. Default `sensor.claude_usage_andrew_pro_extra_usage`. | <!-- privacy-scan: ignore LOCAL_TERM -->
 | `usage_sensor_session` | No | Setting `usage_sensor_session`. |
 | `usage_sensor_week` | No | Setting `usage_sensor_week`. |
 | `usage_sensor_session_reset` | No | Setting `usage_sensor_session_reset`. |
@@ -41,9 +41,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 
 ## Usage auto-reply
 
-For every persona. A message from the person that is still unanswered after 60 seconds (the persona has sent nothing since) while Claude usage is out gets one automatic message through the persona's own bot: "I cannot read your message right now: I am out of Claude usage until HH:MM. Your message is saved here. I answer when it resets." The time is London time, `Day HH:MM` when more than 12 hours away, "until it resets" when unknown. At most one such message per persona per 10 minutes. Out = session or week sensor at 99 percent or more (default sensors `sensor.claude_usage_andrew_pro_*`, changeable with the `usage_sensor_*` options), unless extra usage is enabled and below 98 percent of its limit; unavailable or unknown sensors count as not out. The reset time is the session one, the week one when only the week is out, the later one when both are. Dry-run only logs. The message stays in the inbox and is answered after the reset. Messages older than 1 hour unanswered get no late notice. Kill switch: file `STOP_AUTOREPLY` in `/data`.
+For every persona. A message from the person that is still unanswered after 60 seconds (the persona has sent nothing since) while Claude usage is out gets one automatic message through the persona's own bot: "I cannot read your message right now: I am out of Claude usage until HH:MM. Your message is saved here. I answer when it resets." The time is London time, `Day HH:MM` when more than 12 hours away, "until it resets" when unknown. At most one such message per persona per 10 minutes. Out = session or week sensor at 99 percent or more (default sensors `sensor.claude_usage_andrew_pro_*`, changeable with the `usage_sensor_*` options), unless extra usage is enabled and below 98 percent of its limit; unavailable or unknown sensors count as not out. The reset time is the session one, the week one when only the week is out, the later one when both are. Dry-run only logs. The message stays in the inbox and is answered after the reset. Messages older than 1 hour unanswered get no late notice. Kill switch: file `STOP_AUTOREPLY` in `/data`. <!-- privacy-scan: ignore LOCAL_TERM -->
 
-The old House Bot feature (`claude_scripts/house_bot/commands_service/features/usage_autoreply.py`) also answers in Andrew's Clara DM. To avoid two replies, create `claude_scripts/house_bot/commands_service/STOP_AUTOREPLY` once this add-on version is live and checked.
+The old House Bot feature (`claude_scripts/house_bot/commands_service/features/usage_autoreply.py`) also answers in Andrew's Clara DM. To avoid two replies, create `claude_scripts/house_bot/commands_service/STOP_AUTOREPLY` once this add-on version is live and checked. <!-- privacy-scan: ignore LOCAL_TERM -->
 
 ## Troubleshooting
 
