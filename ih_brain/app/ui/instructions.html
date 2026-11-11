@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101511">
+  <title>Instructions · Intelligent Home</title>
+  <link rel="stylesheet" href="./ih-ui.css">
+  <link rel="stylesheet" href="./ui.css">
+  <link rel="stylesheet" href="./instructions.css">
+  <script defer src="./ih-ui.js"></script>
+  <script defer src="./instructions.js"></script>
+</head>
+<body>
+  <ih-nav data-title="Instructions"></ih-nav>
+  <ih-app>
+    <header class="page-head">
+      <h1>Instructions</h1>
+      <span class="pill" id="mode" role="status"><i class="dot"></i><span id="mode-text">Loading…</span></span>
+    </header>
+    <p class="lede">The standing instructions the assistant reads at the start of every session. <a href="./">Back to the Brain</a></p>
+    <noscript><ih-error>This page needs JavaScript. Nothing is changed by opening it.</ih-error></noscript>
+    <div class="filters" id="file-row" hidden><label for="file">File</label><select id="file"></select></div>
+    <p class="meta" id="file-path"></p>
+    <div id="notice" role="status" aria-live="polite" class="notice" hidden></div>
+    <section class="reader editor">
+      <label class="sr" for="text">Instruction text</label>
+      <textarea id="text" spellcheck="false" autocomplete="off" autocapitalize="off" readonly></textarea>
+      <p class="meta" id="size"></p>
+      <div class="actions">
+        <button type="button" class="btn" id="reload">Reload from disk</button>
+        <button type="button" class="btn" id="preview" hidden>Preview changes</button>
+        <button type="button" class="btn primary" id="save" hidden disabled>Save</button>
+      </div>
+      <div id="diff-box" hidden>
+        <h2>Changes to be saved</h2>
+        <p class="meta" id="diff-summary"></p>
+        <pre id="diff" class="diff" tabindex="0" aria-label="Changes to be saved"></pre>
+      </div>
+    </section>
+    <section class="reader side">
+      <h2>Backups</h2>
+      <p class="meta">Every save first keeps the previous text. "Load" puts a backup into the editor; nothing is saved until you preview and save.</p>
+      <div id="backups" class="list"><ih-empty>No backups yet.</ih-empty></div>
+      <h2>Save log</h2>
+      <p class="meta">Time and size only. The log never holds the text.</p>
+      <div id="audit" class="list"><ih-empty>No saves yet.</ih-empty></div>
+    </section>
+    <footer>Private house instructions stay on this Home Assistant instance.</footer>
+  </ih-app>
+</body>
+</html>

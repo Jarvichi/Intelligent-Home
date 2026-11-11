@@ -26,3 +26,7 @@ retry and cancelled responses. Screenshots go to `/tmp/ih-reader-previews` unles
 
 This is a dependency-free readable subset, not a full CommonMark implementation. Unsupported content
 remains accessible through the exact source view. Attachment preview parity stays a separate task.
+
+`test_instructions.py` covers the instructions editor with temporary synthetic files: backup before save,
+stale and concurrent saves, symlink and path refusals, the fixed file list, user and same-origin checks,
+preview-before-save, the modes, and the routes through the ingress web server.

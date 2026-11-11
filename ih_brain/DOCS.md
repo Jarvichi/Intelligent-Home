@@ -40,6 +40,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `cors_origins` | No | Setting `cors_origins`. |
 | `ingest_url` | No | Orchestrator trace address (default `http://172.30.32.1:8790`). |
 | `ingest_token` | No | Orchestrator trace token; filled by the Orchestrator when empty. Empty = tracing off. Metadata only. |
+| `instructions_mode` | No | Instructions page: `off` (default), `view` (read-only) or `edit`. See "Instructions editor". |
+| `instructions_files` | No | Which files from the fixed list the page shows: `house` (the only entry). Default `house`. |
+| `instructions_user_ids` | No | Home Assistant user ids allowed to open the page. Empty = any administrator who can open the Web UI. |
 
 ## Troubleshooting
 
@@ -55,7 +58,7 @@ Nothing leaves your network. The notes are read from the shared folder and sent 
 ### Endpoints
 | Path | Returns |
 |---|---|
-| Home Assistant **Open Web UI** | Admin-only, read-only browse/search/recent/connection views. Requests are served through ingress only (gateway peer `172.30.32.2`). |
+| Home Assistant **Open Web UI** | Admin-only, read-only browse/search/recent/connection views. Requests are served through ingress only (gateway peer `172.30.32.2`). The optional instructions editor is the only part that can write (see "Instructions editor"). |
 | `GET /healthz` | `ok` (no token) |
 | `GET /status` | version, note count, `read_only`, last index time, whether a token is set (no note content, never the token) |
 | `POST /mcp` | MCP JSON-RPC 2.0 (`initialize`, `ping`, `tools/list`, `tools/call`); also accepted on `POST /`. Send `Authorization: Bearer <api_token>`. Notifications get HTTP 202. |
@@ -89,6 +92,34 @@ Raw HTML stays text and image references stay labelled references: the reader ma
 external image or embed requests. Attachment previews, extended Markdown constructs and ambiguous
 aliases are not a replacement for the existing Wiki attachment workflow. Keep that workflow until
 its parity is verified. The UI remains read-only and administrator-only; no access options change.
+
+### Instructions editor
+
+A page to read and edit the assistant's standing-instructions file from the Web UI. It is off until you turn it on.
+
+**Share folder only.** The file lives in the shared folder, which this add-on already maps (`share:rw`). The page does not use the Home Assistant config folder mapping, so the add-on cannot see the config folder or its secrets. The page stays OFF until `instructions_mode` is set.
+
+Files (the complete list; nothing else can be opened):
+
+| id | File inside the add-on | Notes |
+|---|---|---|
+| `house` | `/share/agents/agents.md` | editable in `edit` mode |
+
+Turn it on:
+1. Create the file `/share/agents/agents.md` (the folder must be a real folder, not a link).
+2. Set `instructions_mode` to `view` or `edit`. Optional: put your Home Assistant user id in `instructions_user_ids`.
+3. Open the Web UI. Select **Instructions editor**.
+
+To edit: change the text. Select **Preview changes**. Read the changes. Select **Save**.
+
+Safety rules:
+- **Who can open it.** Requests are served only through Home Assistant ingress (gateway peer `172.30.32.2`), the panel is administrator-only, and each request must carry the signed-in user's id (`X-Remote-User-Id`, added by the Supervisor). The add-on cannot see the administrator flag itself; `instructions_user_ids` narrows access to named users. There is no token and no route on the MCP port (8820).
+- **Saving.** A save needs JSON, the page's own header and a same-origin browser request, so another web site cannot trigger it. A save is refused unless the same text was previewed first (HTTP 428), when the file changed since you opened it (409, your edits stay on the page), when the text is empty, has NUL characters, is not UTF-8 or is over 128 KiB (400).
+- **Backups.** Before the file is replaced, the previous text is written to `/data/instructions/backups/` (private to the add-on, mode 0600). If the backup cannot be written, nothing is saved. The newest 50 per file are kept. **Load** on the page puts a backup into the editor; it is saved only after preview and save.
+- **Save log.** `/data/instructions/audit.jsonl` holds time, file id, sizes and the backup name. It never holds text. Newest 500 entries.
+- **Replacing the file.** The new text is written to a temporary file beside the original and renamed over it, keeping the file mode and owner. Symlinked files and folders are refused.
+
+Limits: another program that writes the file at the same instant as a save can still lose its change (the check and the rename are two steps). Line endings are saved as the browser sends them (`\n`).
 
 ### Codex to-do tools
 

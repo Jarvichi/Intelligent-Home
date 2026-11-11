@@ -16,5 +16,8 @@
   "scrub_names": "",
   "cors_origins": "",
   "ingest_url": "http://172.30.32.1:8790",
-  "ingest_token": ""
+  "ingest_token": "",
+  "instructions_mode": "off",
+  "instructions_files": ["house"],
+  "instructions_user_ids": []
 }

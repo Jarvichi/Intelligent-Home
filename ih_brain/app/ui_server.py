@@ -1,4 +1,4 @@
-"""Read-only, Supervisor-ingress-only web UI for the House Brain."""
+"""Supervisor-ingress-only web UI for the House Brain: read-only note reader, plus the optional instructions editor."""
 import json
 import mimetypes
 import os
@@ -10,10 +10,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import instructions_api
+
 GATEWAY_PEER = "172.30.32.2"
 PORT = 8821
 UI_DIR = Path(__file__).resolve().parent / "ui"
 MAX_QUERY = 300
+INSTRUCTIONS_API = "/api/instructions/"
+INSTRUCTIONS_ASSETS = ("/instructions.css", "/instructions.js")
 
 
 ORPHAN_RULE = ("A note is an orphan when no other note links to it. Links are matched exactly as the map matches them: "
@@ -105,7 +109,7 @@ def _graph_summary(brain):
     return json.loads(brain.t_brain_graph({}))
 
 
-def make_handler(brain):
+def make_handler(brain, editor=None):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body, content_type="application/json; charset=utf-8"):
             data = body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode()
@@ -136,6 +140,12 @@ def make_handler(brain):
                 return self._file("index.html")
             if path in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/ui.css", "/ui.js", "/markdown.js", "/logic.js", "/ui.json", "/force-graph.min.js"):
                 return self._file("vendor/force-graph-1.43.5.min.js" if path == "/force-graph.min.js" else path[1:])
+            if path == "/instructions":
+                return self._file("instructions.html")
+            if path in INSTRUCTIONS_ASSETS:
+                return self._file(path[1:])
+            if path.startswith(INSTRUCTIONS_API):
+                return self._instructions("GET", path, {k: v[0] for k, v in query.items()})
             if not path.startswith("/api/"):
                 return self._send(404, {"error": "Not found"})
             try:
@@ -205,6 +215,28 @@ def make_handler(brain):
             except Exception:
                 return self._send(503, {"error": "Brain data is temporarily unavailable"})
 
+        def do_POST(self):
+            if self._blocked():
+                return
+            path = urlsplit(self.path).path.rstrip("/")
+            if not path.startswith(INSTRUCTIONS_API):
+                return self._send(404, {"error": "Not found"})
+            if editor is None:
+                return self._send(404, {"error": "The instructions editor is switched off"})
+            try:
+                length = int(self.headers.get("Content-Length") or "")
+            except ValueError:
+                return self._send(411, {"error": "Content-Length required"})
+            if length < 0 or length > instructions_api.MAX_REQUEST_BYTES:
+                return self._send(413, {"error": "Request too large"})
+            return self._instructions("POST", path, {}, self.rfile.read(length))
+
+        def _instructions(self, method, path, query, body=None):
+            if editor is None:
+                return self._send(404, {"error": "The instructions editor is switched off"})
+            code, data = editor.handle(method, path[len(INSTRUCTIONS_API):], self.headers, query, body)
+            return self._send(code, data)
+
         def _file(self, name):
             file = (UI_DIR / name).resolve()
             if UI_DIR not in file.parents or not file.is_file():
@@ -216,7 +248,7 @@ def make_handler(brain):
     return Handler
 
 
-def serve(brain):
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain))
+def serve(brain, editor=None):
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor))
     threading.Thread(target=server.serve_forever, name="ih-brain-ui", daemon=True).start()
     return server

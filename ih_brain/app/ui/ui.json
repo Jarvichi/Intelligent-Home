@@ -7,5 +7,5 @@
     "Recent notes grouped by day",
     "Full-screen connection map with a floating back bar, view tabs and controls, plus a most-connected list"
   ],
-  "access": "Home Assistant authenticated ingress only; read-only browser interface"
+  "access": "Home Assistant authenticated ingress only; read-only browser interface, except the optional instructions editor (off by default)"
 }

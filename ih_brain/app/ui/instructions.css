@@ -1,0 +1,21 @@
+/* Instructions editor. Colours and spacing come from the shared tokens in ih-ui.css only. */
+.editor, .side { margin:0 0 var(--ih-space-4); min-height:0; }
+.editor textarea { display:block; width:100%; min-height:60vh; padding:var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); background:var(--ih-bg); color:var(--ih-text); font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; resize:vertical; tab-size:2; }
+.editor textarea[readonly] { color:var(--ih-muted); }
+.actions { display:flex; flex-wrap:wrap; gap:var(--ih-space-2); margin:var(--ih-space-3) 0; }
+.actions .btn[disabled] { opacity:.5; cursor:not-allowed; }
+.actions .btn[hidden] { display:none; }
+.notice { margin:0 0 var(--ih-space-3); padding:var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); background:var(--ih-surface); font-weight:600; }
+.notice[hidden] { display:none; }
+.notice[data-tone="ok"] { color:var(--ih-ok); }
+.notice[data-tone="warn"] { color:var(--ih-warn); }
+.notice[data-tone="bad"] { color:var(--ih-danger); }
+.diff { max-height:60vh; overflow:auto; margin:0; padding:var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); background:var(--ih-bg); font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
+.diff .add { display:block; color:var(--ih-ok); }
+.diff .del { display:block; color:var(--ih-danger); }
+.diff .hunk { display:block; color:var(--ih-muted); font-weight:700; }
+.diff .ctx { display:block; }
+.side h2, .editor h2 { margin:var(--ih-space-4) 0 var(--ih-space-2); font-size:18px; }
+.side h2:first-child { margin-top:0; }
+.row { display:flex; align-items:center; justify-content:space-between; gap:var(--ih-space-2); padding:var(--ih-space-2) var(--ih-space-3); border:1px solid var(--ih-line); border-radius:var(--ih-radius-control); background:var(--ih-bg); font-size:14px; }
+.row span { min-width:0; overflow-wrap:anywhere; }
