@@ -8,7 +8,7 @@ to the shared library page.
    `window.IHGameComponents.<slug> = { render(details, helpers) { ... } }`.
 3. Return details from the module's existing `details(tc, player)` function.
 
-Current game components: `destiny` and `arc_raiders`.
+Current game components: `destiny`, `arc_raiders` and `cyberpunk`.
 
 The library API includes `ui_component` in the details response. The shared
 shell loads that component only when the player opens the game's details. A
