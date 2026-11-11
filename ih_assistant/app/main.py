@@ -21,7 +21,7 @@ import reminders as remmod
 import gateway as gatewaymod
 import random
 
-VERSION = '0.16.1'
+VERSION = '0.17.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -86,6 +86,8 @@ USAGE_TEXT_DEFAULT = 'I cannot read your message right now: I am out of Claude u
 USAGE_TEXT_MAX = 400
 USAGE_VARIANTS_MAX = 10      # 0.16.1: at most this many own-voice variants per list
 USAGE_VARIANT_MAX_CHARS = 500
+USAGE_OWN_KEY = 'usage_own'   # 0.17.0: persona state key holding the lists the persona wrote itself
+USAGE_OWN_WRITES_PER_DAY = 20   # 0.17.0: accepted writes per persona per day
 USAGE_TIME_FIELD = 'time'   # the only placeholder a variant may use
 USAGE_PLACEHOLDER_RE = re.compile(r'\{([^{}]*)\}')
 CHECKIN_TEXT_MAX = 600
@@ -613,18 +615,83 @@ class Assistant:
         self.stores[key].update_state(lambda s: s.__setitem__(skey, i))
         return out
 
+    def _usage_own(self, key):
+        """0.17.0: the lists the persona wrote itself -> (texts, notime), both plain lists of str."""
+        own = self.stores[key].state().get(USAGE_OWN_KEY)
+        own = own if isinstance(own, dict) else {}
+        pick = lambda v: [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
+        return pick(own.get('texts')), pick(own.get('notime'))
+
+    @staticmethod
+    def _usage_list_check(name, v):
+        """-> (list, None) or (None, reason). Strict version of the options parser: a bad entry rejects the whole list."""
+        if v is None:
+            return [], None
+        if not isinstance(v, list):
+            return None, '%s: a list of texts' % name
+        if len(v) > USAGE_VARIANTS_MAX:
+            return None, '%s: at most %d texts' % (name, USAGE_VARIANTS_MAX)
+        out = []
+        for i, x in enumerate(v):
+            if not isinstance(x, str) or not 0 < len(x.strip()) <= USAGE_VARIANT_MAX_CHARS:
+                return None, '%s #%d: text of 1..%d characters' % (name, i + 1, USAGE_VARIANT_MAX_CHARS)
+            if any(f != USAGE_TIME_FIELD for f in USAGE_PLACEHOLDER_RE.findall(x)) or '{' in x.replace('{%s}' % USAGE_TIME_FIELD, '') or '}' in x.replace('{%s}' % USAGE_TIME_FIELD, ''):
+                return None, '%s #%d: only {%s} is allowed as a placeholder, no other braces' % (name, i + 1, USAGE_TIME_FIELD)
+            out.append(x.strip())
+        return out, None
+
+    def usage_texts_view(self, key):
+        if key not in self.stores:
+            return 404, {'ok': False, 'why': 'unknown persona'}
+        c, (st_t, st_n) = self.cfg[key], self._usage_own(key)
+        op_t, op_n = c.get('usage_texts') or [], c.get('usage_texts_notime') or []
+        src = lambda own, opt, single: 'store' if own else ('options' if opt or single else 'builtin')
+        s_t, s_n = src(st_t, op_t, c.get('usage_text')), src(st_n, op_n, c.get('usage_text_notime'))
+        overall = 'store' if 'store' in (s_t, s_n) else ('options' if 'options' in (s_t, s_n) else 'builtin')
+        return 200, {'ok': True, 'texts': st_t or op_t, 'notime': st_n or op_n, 'source': overall, 'source_texts': s_t, 'source_notime': s_n}
+
+    def usage_texts_set(self, key, body):
+        """0.17.0: the persona writes its own notice variants {texts, notime}. Replaces the stored lists; empty lists clear them."""
+        if key not in self.stores:
+            return 404, {'ok': False, 'why': 'unknown persona'}
+        texts, why = self._usage_list_check('texts', body.get('texts'))
+        if why:
+            return 400, {'ok': False, 'why': why}
+        notime, why = self._usage_list_check('notime', body.get('notime'))
+        if why:
+            return 400, {'ok': False, 'why': why}
+        day = self._day()
+        def put(s):
+            w = s.get('usage_own_writes')
+            if not isinstance(w, dict) or w.get('day') != day:
+                w = {'day': day, 'n': 0}
+            if int(w.get('n') or 0) >= USAGE_OWN_WRITES_PER_DAY:
+                return False
+            w['n'] = int(w.get('n') or 0) + 1
+            s['usage_own_writes'] = w
+            if texts or notime:
+                s[USAGE_OWN_KEY] = {'texts': texts, 'notime': notime}
+            else:
+                s.pop(USAGE_OWN_KEY, None)
+            return True
+        if not self.stores[key].update_state(put):
+            return 429, {'ok': False, 'why': 'limit of %d writes a day' % USAGE_OWN_WRITES_PER_DAY}
+        self.log('persona %s: own usage texts saved (%d, %d)' % (key, len(texts), len(notime)))
+        return self.usage_texts_view(key)
+
     def usage_reply_text(self, key, reset):
         c = self.cfg[key]
+        own_t, own_n = self._usage_own(key)
         text = c.get('usage_text') or USAGE_TEXT_DEFAULT
         if reset is None:
-            got = self._usage_variant(key, c.get('usage_texts_notime'), 'notime', 'it resets')
+            got = self._usage_variant(key, own_n or c.get('usage_texts_notime'), 'notime', 'it resets')
             if got is not None:
                 return got
             return c.get('usage_text_notime') or text.replace(' until {t}', ' until it resets').replace('{t}', 'it resets')
         loc = reset.astimezone(self.tz) if self.tz else reset
         far = (reset.timestamp() - self.clock()) > USAGE_FAR_H * 3600
         tt = loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M')
-        got = self._usage_variant(key, c.get('usage_texts'), 'time', tt)
+        got = self._usage_variant(key, own_t or c.get('usage_texts'), 'time', tt)
         if got is not None:
             return got
         return text.replace('{t}', tt)
@@ -1850,6 +1917,8 @@ def make_handler(app):
                 return self._send(200, app.behaviour(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
+            if method == 'GET' and act == 'usage_texts' and len(parts) == 3:
+                return self._send(*app.usage_texts_view(key))
             if method != 'POST':
                 return self._send(404, {'ok': False})
             try:
@@ -1874,6 +1943,8 @@ def make_handler(app):
                 return self._send(*app.calendar_edit(key, body))
             if act == 'calendar' and len(parts) == 4 and parts[3] == 'delete':
                 return self._send(*app.calendar_delete(key, body))
+            if act == 'usage_texts' and len(parts) == 3:
+                return self._send(*app.usage_texts_set(key, body))
             if act == 'typing' and len(parts) == 3:
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:
