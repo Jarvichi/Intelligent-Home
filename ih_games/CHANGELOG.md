@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0] - 2026-11-11
+
+### Added
+- Cyberpunk 2077 quest tracker (`app/tools/cyberpunk.py`, UI component `cyberpunk`). The console gives no quest data, so it is a manual tick list: open the game on the Games page, tick a quest when it is done, untick it under "Done quests" to undo. Nothing is ticked at the start. Three groups: Base game (226 quests), Phantom Liberty (51) and Patch quests (4), 281 in total, with a name filter.
+- The quest list is the static file `app/tools/cyberpunk_quests.json` (id, name, group, type main/side/gig), built on 2026-11-11 from public wiki pages. Sources, the fetch date and what the second source did not confirm are in the file and in DOCS.md.
+- The tool reports `progress()`, so the Cyberpunk 2077 card shows "ticked / total" quests in its stat box.
+- Chat commands `done <quest>`, `undone <quest>`, `status` and `left [group]`. Ticks are kept per player in `/data/cyberpunk/state_<player>.json`.
+
 ## [0.11.0] - 2026-11-11
 
 ### Changed

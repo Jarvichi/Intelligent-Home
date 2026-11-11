@@ -100,6 +100,23 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 ### Game tool progress
 A tool in `app/tools/` may define `progress(tc, player)` returning `{"done": int, "total": int, "label": "Quests"}`. The game card then shows "done / total" in its stat box.
 
+### Cyberpunk 2077 quest tracker
+PlayStation gives no quest data, so quests are ticked by hand. Open Cyberpunk 2077 on the Games page: each group (Base game, Phantom Liberty, Patch quests) lists its open quests with a tick box, and "Done quests" lists the ticked ones (untick to undo). Nothing is ticked at the start. The card's stat box shows ticked quests out of all quests. Commands for the assistant: `done <quest name or id>`, `undone <quest name or id>`, `status`, `left [base|phantom_liberty|patch]`. Ticks are kept per player in `/data/cyberpunk/state_<player>.json`.
+
+The quest list is `app/tools/cyberpunk_quests.json`: 281 quests, fetched on 2026-11-11.
+
+| Group | Main jobs | Side jobs | Gigs | Total |
+|---|---|---|---|---|
+| Base game | 42 | 112 | 72 | 226 |
+| Phantom Liberty | 22 | 20 | 9 | 51 |
+| Patch quests | 0 | 4 | 0 | 4 |
+
+- Source of names, ids and groups: the Cyberpunk Wiki on Fandom (list pages "Cyberpunk 2077 Main Jobs", "Side Jobs", "Minor Jobs", the category "Cyberpunk 2077 Gigs", and the pages "Update 2.5" and "Patch 1.6"). The ids are the wiki's BaseID column. "Side jobs" here holds the wiki's Side Jobs and Minor Jobs.
+- Second source: the Fextralife Cyberpunk 2077 wiki. Its gig list has the same 72 base-game gigs and the same 9 Phantom Liberty gigs by name. Its main-job and side-job pages are shorter than the Fandom lists: they name 40 of the 42 base main jobs (one more, "Tapeworm", is on its side-job page), 12 of the 22 Phantom Liberty main jobs, 70 of the 112 base side jobs and 10 of the 20 Phantom Liberty side jobs. The other names rest on the Fandom wiki alone (its list tables and its categories agree with each other).
+- Patch quests: "Over the Edge" (Patch 1.6, the Edgerunners Update) and the three quests of Update 2.5 (the Edgerunners 2 Update): "Clampdown", "Welcome to Paradise" and "You Tell Me". The publisher's Update 2.5 news post confirms the first two by name and the third as an unnamed extension of "Fool on the Hill"; the name "You Tell Me" is from the Fandom wiki only. The three gigs that Patch 1.6 added are listed with the base-game gigs.
+- Not every quest can be done in one playthrough: the three lifepath openings exclude each other, and so do the endings and some Phantom Liberty paths. A total of 281 ticked is therefore not reachable in one save.
+- Not in the list: NCPD scanner hustles, cyberpsycho sightings as separate entries (the job "Psycho Killer" covers them), and five apartment quests ("Welcome Home" x4, "Houses In Motion: Makeovers") that the Fandom category has but its list pages do not.
+
 ### How to add a Provider in 5 steps
 1. Create `app/providers/<name>.py`.
 2. Define `NAME = "<name>"` at module level.
