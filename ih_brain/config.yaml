@@ -68,6 +68,6 @@ schema:
   ingest_token: password?
   instructions_mode: list(off|view|edit)?
   instructions_files:
-    - "match(^(house|claude_user|claude_addon)$)?"
+    - "match(^house$)?"
   instructions_user_ids:
     - "match(^[0-9a-f]{32}$)?"
