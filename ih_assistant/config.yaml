@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.16.0"
+version: "0.16.1"
 slug: ih_assistant
 image: "ghcr.io/jarvichi/{arch}-ih_assistant"
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
@@ -106,6 +106,10 @@ schema:
       checkin_send: bool?
       usage_text: str?
       usage_text_notime: str?
+      usage_texts:
+        - str(1,500)?
+      usage_texts_notime:
+        - str(1,500)?
       emoji_level: int(0,10)?
       gif_level: int(0,10)?
       checkin_level: int(0,10)?

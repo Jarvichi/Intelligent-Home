@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.16.1] - 2026-11-11
+
+### Added
+- Usage auto-reply: per-persona options `usage_texts` and `usage_texts_notime` (lists of up to 10 variants, 1 to 500 characters each). One variant is chosen at random per notice, never the same one twice in a row. `{time}` is replaced by the reset time; variants with an unknown placeholder are skipped. Order: `usage_texts` > `usage_text` > built-in wording (and the same for the no-time case).
+
 ## [0.16.0] - 2026-11-11
 
 ### Changed

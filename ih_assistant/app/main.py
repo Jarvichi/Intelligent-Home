@@ -21,7 +21,7 @@ import reminders as remmod
 import gateway as gatewaymod
 import random
 
-VERSION = '0.16.0'
+VERSION = '0.16.1'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -67,7 +67,7 @@ REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'dates': [], 'dates_leads': '7,3', 'dates_at': '18:00', 'dates_latest': '21:30', 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
                  'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
-                 'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': ''}
+                 'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': '', 'usage_texts': [], 'usage_texts_notime': []}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
@@ -84,6 +84,10 @@ USAGE_FAR_H = 12          # reset further away than this shows a day name
 USAGE_ANSWER_KINDS = ('reply', 'ask', 'checkin', 'usage_reply')   # anything the persona sent counts as an answer
 USAGE_TEXT_DEFAULT = 'I cannot read your message right now: I am out of Claude usage until {t}. Your message is saved here. I answer when it resets.'
 USAGE_TEXT_MAX = 400
+USAGE_VARIANTS_MAX = 10      # 0.16.1: at most this many own-voice variants per list
+USAGE_VARIANT_MAX_CHARS = 500
+USAGE_TIME_FIELD = 'time'   # the only placeholder a variant may use
+USAGE_PLACEHOLDER_RE = re.compile(r'\{([^{}]*)\}')
 CHECKIN_TEXT_MAX = 600
 
 
@@ -131,11 +135,13 @@ def load_options(path):
                 if (d == '*' or d in DAYS) and tx.strip() and len(tx) <= CHECKIN_TEXT_MAX:
                     texts.append('%s|%s' % (d, tx.strip()))
         utext = lambda v: v.strip() if isinstance(v, str) and 0 < len(v.strip()) <= USAGE_TEXT_MAX else ''
+        utexts = lambda v: [x.strip() for x in v if isinstance(x, str) and 0 < len(x.strip()) <= USAGE_VARIANT_MAX_CHARS][:USAGE_VARIANTS_MAX] if isinstance(v, list) else []
         personas.append({
             'sender_label': p.get('sender_label') if isinstance(p.get('sender_label'), str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]{0,47}', p['sender_label']) else 'unknown',
             'checkin_days': days(p.get('checkin_days')), 'closed_dates': [d.strip() for d in (p.get('closed_dates') or []) if isinstance(d, str) and DATE_RE.match(d.strip())] if isinstance(p.get('closed_dates'), list) else [],
             'checkin_texts': texts, 'checkin_send': p.get('checkin_send') is True,
             'usage_text': utext(p.get('usage_text')), 'usage_text_notime': utext(p.get('usage_text_notime')),
+            'usage_texts': utexts(p.get('usage_texts')), 'usage_texts_notime': utexts(p.get('usage_texts_notime')),
             'checkin_plan': p.get('checkin_plan') is True, 'checkins_per_day': planner.perday_option(p.get('checkins_per_day')),
             'busy_windows': wins(p.get('busy_windows')), 'free_windows': wins(p.get('free_windows')),
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
@@ -584,14 +590,44 @@ class Assistant:
         except (TypeError, ValueError):
             return None
 
+    def _usage_variant(self, key, variants, slot, time_text):
+        """0.16.1: pick one usable variant at random, never the same one twice in a row (last index kept in persona
+        state under slot). A variant with an unknown placeholder or stray braces is skipped. -> text or None."""
+        ok = []
+        for i, v in enumerate(variants or []):
+            if not isinstance(v, str) or not v.strip():
+                continue
+            if any(f != USAGE_TIME_FIELD for f in USAGE_PLACEHOLDER_RE.findall(v)):
+                continue
+            out = v.replace('{%s}' % USAGE_TIME_FIELD, time_text)
+            if '{' in out or '}' in out:
+                continue
+            ok.append((i, out))
+        if not ok:
+            return None
+        skey = 'usage_last_' + slot
+        last = self.stores[key].state().get(skey)
+        pool = [x for x in ok if x[0] != last] or ok
+        rng = getattr(self, 'rng', None) or random
+        i, out = pool[rng.randrange(len(pool))]
+        self.stores[key].update_state(lambda s: s.__setitem__(skey, i))
+        return out
+
     def usage_reply_text(self, key, reset):
         c = self.cfg[key]
         text = c.get('usage_text') or USAGE_TEXT_DEFAULT
         if reset is None:
+            got = self._usage_variant(key, c.get('usage_texts_notime'), 'notime', 'it resets')
+            if got is not None:
+                return got
             return c.get('usage_text_notime') or text.replace(' until {t}', ' until it resets').replace('{t}', 'it resets')
         loc = reset.astimezone(self.tz) if self.tz else reset
         far = (reset.timestamp() - self.clock()) > USAGE_FAR_H * 3600
-        return text.replace('{t}', loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M'))
+        tt = loc.strftime('%a %H:%M') if far else loc.strftime('%H:%M')
+        got = self._usage_variant(key, c.get('usage_texts'), 'time', tt)
+        if got is not None:
+            return got
+        return text.replace('{t}', tt)
 
     def usage_note_message(self, key, msg_id):
         """A new message from the person: remember the OLDEST still-unanswered one (time only, never text)."""

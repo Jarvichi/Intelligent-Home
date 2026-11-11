@@ -143,5 +143,3 @@ class UsageTests(unittest.TestCase):
         self.assertFalse(a.tick_usage('aa')); self.assertEqual(a.discord['aa'].sent, [])
 
 
-if __name__ == '__main__':
-    unittest.main()
