@@ -1,5 +1,5 @@
 name: "Intelligent Home - Brain"
-version: "0.5.0"
+version: "0.5.1"
 slug: ih_brain
 image: "ghcr.io/jarvichi/{arch}-ih_brain"
 description: "Serves House Brain notes to Claude over MCP and provides an admin-only ingress UI to browse, search and read notes. Optional admin-only instructions editor (off by default)."
