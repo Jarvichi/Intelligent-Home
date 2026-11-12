@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.10] - 2026-11-12
+
+### Added
+- `channels_list` now accepts a comma, semicolon or newline separated list of channel names (a leading `#` is dropped, case is ignored, duplicates are removed). It merges with the existing `channel_keys` option, which still works unchanged. Names must equal transport channel keys: raw Discord ids are not resolved (the add-on holds no Discord token).
+- Unit tests for the channel list parsing.
+
 ## [0.2.9] - 2026-11-08
 
 ### Fixed

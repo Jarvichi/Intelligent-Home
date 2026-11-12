@@ -60,6 +60,24 @@ def _int(v, default, lo, hi):
         return default
 
 
+def parse_channel_list(raw):
+    """channels_list -> channel keys. Accepts a comma / semicolon / newline separated string or a list. Each item is trimmed, a leading
+    '#' is dropped, it is lower-cased, checked as a channel key and de-duplicated. The transport routes by key, so a name only works
+    when it equals a key (raw Discord ids are not resolved here: the add-on holds no Discord token)."""
+    if isinstance(raw, str):
+        parts = re.split(r'[,;\n]', raw)
+    elif isinstance(raw, list):
+        parts = [x for x in raw if isinstance(x, str)]
+    else:
+        parts = []
+    out = []
+    for k in parts:
+        k = _text(k).lstrip('#').strip().lower()
+        if k and len(k) <= 64 and bus_client.KEY_RE.match(k) and k not in out:
+            out.append(k)
+    return out[:MAX_LIST_ITEMS]
+
+
 def load_options(path=None):
     try:
         with open(path or OPTIONS) as fh:
@@ -74,12 +92,7 @@ def load_options(path=None):
         k = _text(k) if isinstance(k, str) else ''
         if bus_client.KEY_RE.match(k) and k not in keys:
             keys.append(k)
-    raw = o.get('channels_list')
-    listed = []
-    for k in (raw.split(',') if isinstance(raw, str) else []):   # keys only (the transport routes by key, not raw Discord ids)
-        k = _text(k).lower()
-        if k and len(k) <= 64 and bus_client.KEY_RE.match(k) and k not in listed:
-            listed.append(k)
+    listed = parse_channel_list(o.get('channels_list'))
     for k in listed[:MAX_LIST_ITEMS]:
         if k not in keys:
             keys.append(k)
