@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.19.0] - 2026-11-12
+
+### Added
+- Shared option `presence_entities`: a list of `name=entity` texts (for example `person_a=switch.person_a_home`), up to 8 people, names lower case letters/digits/underscore. Every persona reads it (read only), so every persona can see who is home. The old per-persona `presence_entity` still works and is the default for the persona's own person; the new per-persona option `presence_person` names that person (when empty, the name whose entity equals `presence_entity` is used).
+- Events (messages, check-ins, reminders, dates, pushed events) now carry `home_now`: the names of the people at home right now, comma separated, or `nobody` (names only; nothing is added when no switch can be read). Inside `facts` where the event has facts, else on the event itself.
+- Arrival reminders can wait for ANY person: `POST /persona/<key>/remind` accepts `person` with `trigger: "arrive_home"` (a name in `presence_entities`; default the persona's own person; 400 with the known names otherwise). It fires on that person's off -> on change, with `facts.person`; the text says "for when <name> gets home" when it is not the persona's own person. `GET /persona/<key>/reminders` shows `person` on arrival reminders. Every person's state is remembered separately (`presence_seen_by`), the 0.18.0 memory carries over.
+
 ## [0.18.0] - 2026-11-12
 
 ### Added

@@ -37,6 +37,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `usage_sensor_week` | No | Setting `usage_sensor_week`. |
 | `usage_sensor_session_reset` | No | Setting `usage_sensor_session_reset`. |
 | `usage_sensor_week_reset` | No | Setting `usage_sensor_week_reset`. |
+| `presence_entities` | No | List of `name=entity` texts: each person's home/away switch (read only), shared by every persona. See "Who is home". Default: empty. |
 | `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, and the optional planner settings... |
 
 ## Usage auto-reply
@@ -85,10 +86,13 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
 | `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |
 | `POST /persona/<key>/remind` | `{when, text, repeat?}` saves a reminder (`when`: local `YYYY-MM-DD HH:MM`, at least 60 s ahead; `text` up to 500 characters; `repeat`: `none` (default), `daily`, `weekly`, `monthly`, `yearly`; month ends are clamped). Returns `{ok, id}`. 400 bad or past time, 404 unknown persona, 429 more than 50 pending. When due, a `reminder_due` event (source `reminders`) is queued with `suggested_text`; up to 24 h late it fires once with `facts.late`, older is dropped |
-| `POST /persona/<key>/remind` (arrival, 0.18.0) | `{trigger: "arrive_home", text, expires_h?}` instead of `when`: fires once when the persona's `presence_entity` goes off -> on (arrival at home), as the same `reminder_due` event with `facts.trigger`. Expires after 24 h by default (`expires_h` more than 0 and up to 168). 400 if `presence_entity` is not set or `repeat` is not `none`. The first state seen after a start is only remembered, so an arrival is never guessed |
+| `POST /persona/<key>/remind` (arrival, 0.18.0; `person` 0.19.0) | `{trigger: "arrive_home", person?, text, expires_h?}` instead of `when`: fires once when that person's presence switch goes off -> on (arrival at home); `person` is a name from `presence_entities`, default the persona's own person, as the same `reminder_due` event with `facts.trigger`. Expires after 24 h by default (`expires_h` more than 0 and up to 168). 400 if no presence switch is known for the person (or `person` is not a known name) or `repeat` is not `none`. The first state seen after a start is only remembered, so an arrival is never guessed |
 | `GET /persona/<key>/reminders` | the pending reminders (`id`, `due`, `text`, `repeat`; arrival reminders have `trigger`, `expires_at` and `due` null) |
 | `POST /persona/<key>/remind/cancel` | `{id}` removes a reminder (404 if not found) |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
+
+### Who is home (0.19.0)
+Shared option `presence_entities` (list of `name=entity`, for example `person_a=switch.person_a_home`; up to 8) names each person's home/away switch. Every persona reads it, read only (the add-on never writes to these switches). The per-persona `presence_entity` still works as before and is the default for the persona's own person; `presence_person` names that person (default: the name in `presence_entities` whose entity equals `presence_entity`). Events carry `home_now` (names at home, comma separated, or `nobody`; names only). Arrival reminders can name any person (`person`), see the endpoints table.
 
 ### Outcome progress
 

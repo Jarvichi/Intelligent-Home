@@ -70,10 +70,12 @@ def due_items(items, now):
     return sorted(out, key=lambda i: i['due'])
 
 
-def arrival_items(items, clock_now):
-    """0.18.0: pending, unexpired items that wait for the person to arrive home (expires_at = epoch seconds), oldest first."""
+def arrival_items(items, clock_now, person=None, own=None):
+    """0.18.0: pending, unexpired items that wait for a person to arrive home (expires_at = epoch seconds), oldest first.
+    0.19.0: with `person`, only items for that person (an item without a person is for `own`, the persona's own person)."""
     out = [i for i in items if i.get('status') == 'pending' and i.get('trigger') == 'arrive_home'
-           and float(i.get('expires_at') or 0) > clock_now]
+           and float(i.get('expires_at') or 0) > clock_now
+           and (person is None or (i.get('person') or own) == person)]
     return sorted(out, key=lambda i: i['created'])
 
 
@@ -100,6 +102,8 @@ def prune(items, clock_now):
 
 def suggested(item):
     if item.get('trigger') == 'arrive_home':
+        if item.get('person'):   # 0.19.0: someone else's arrival
+            return ('⏰ Reminder you set (for when %s gets home): %s' % (item['person'], item['text']))[:SUGGESTED_MAX]
         return ('⏰ Reminder you set (for when you get home): %s' % item['text'])[:SUGGESTED_MAX]
     due = parse_local(item['due'])
     return ('⏰ Reminder you set (%s): %s' % (due.strftime('%a %d %b %H:%M'), item['text']))[:SUGGESTED_MAX]
