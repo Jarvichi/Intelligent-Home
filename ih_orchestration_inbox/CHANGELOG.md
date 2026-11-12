@@ -3,6 +3,21 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- Events: `POST /events` (token) stores an event from a local service (for example a hand-over, a reaction or a direct message) in the same queue as the Discord messages. Fields: `kind`, `source`, optional `ref` and `text`. The same `kind` and `ref` twice is stored once.
+- `GET /digest?consumer=<name>`: the number of new records per kind for a consumer, without any message text.
+- Long poll: `wait=<seconds>` (up to 25) on `GET /queue` and `GET /digest` holds the request open until a record arrives. A small doorbell process can then tell a reader at once, with one notice for many records, and nothing has to poll or be re-armed.
+- `kind=<kind>` filter on `GET /queue`. Discord messages have the kind `message`.
+- `/status` counts `events` and `event_duplicates`.
+
+### Why
+- The reader used to be woken by several background watchers, one per source, that had to be started again after every restart. A missed start meant missed messages, and each wake-up cost a full read of the reader's context. One durable queue plus one notice fixes both.
+
+### Unchanged
+- No new options. Without `api_token` the API still refuses everything. Event text is never written to the log or to `/status`.
+
 ## [0.1.11] - 2026-11-11
 
 ### Changed

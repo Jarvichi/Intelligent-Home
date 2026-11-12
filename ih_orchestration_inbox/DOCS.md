@@ -75,4 +75,11 @@ The message text is never written to the add-on log or to `/status`. Only allowe
 
 - `GET /queue?since=<seq>&channel=<key>&consumer=<name>&limit=<n>&all=1`: records with `seq` greater than `since`. Without `since` the consumer's cursor is used (default consumer `default`).
 - `POST /ack` with `{"seq": N, "consumer": "name"}`: moves that consumer's cursor to N (never backwards, never past the newest). Each consumer has its own cursor.
+- `POST /events` with `{"kind": "handoff", "source": "my_service", "ref": "unique-id", "text": "..."}`: stores one event from a local service in the same queue. `kind` is lower case letters, digits and `_` (not `message`); `source` and `ref` are letters, digits and `_ . : -`; `text` is cut at 2000 characters. The same `kind` and `ref` twice is stored once (answer `"stored": false`). Events are never reacted to and never posted anywhere.
+- `GET /digest?consumer=<name>&wait=<seconds>`: `{"new": 3, "kinds": {"handoff": 2, "reaction": 1}, ...}` for that consumer's cursor. It holds no message text, so it is safe to show.
+- `wait=<seconds>` (up to 25) on `/queue` and `/digest`: the request stays open until a record arrives or the time is over (long poll). `kind=<kind>` on `/queue` filters by kind; Discord messages have the kind `message`.
 - `GET /status` and `GET /healthz`: no token, no secrets, no message text.
+
+### One notice instead of many watchers
+
+A reader that cannot hold a connection open (for example an interactive AI session) needs something to tell it that records are waiting. Run one small process next to the reader: it calls `/digest?wait=25` in a loop, and when `new` is above zero it gives the reader ONE short notice built from the digest (counts only, no text). The reader then calls `/queue`, handles the records and calls `/ack`. Records wait in the queue while the reader is restarting, so nothing is lost and nothing has to be re-armed.

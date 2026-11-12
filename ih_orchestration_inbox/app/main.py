@@ -7,6 +7,11 @@ Read API on its own port for Claude and workers (bearer `api_token`; empty token
   GET  /queue?since=<seq>&channel=<key>[&consumer=<name>][&limit=N][&all=1]   records with seq > since (since omitted = the consumer's cursor)
   POST /ack {"seq": N, "consumer": "name"}                                     move that consumer's cursor (never backwards)
   GET  /status, GET /healthz                                                   no secrets, no token needed
+Since 0.2.0 the same queue also takes EVENTS from local services (a hand-over, a reaction, a direct message), so one reader gets everything in one place:
+  POST /events {"kind": "handoff", "source": "name", "ref": "unique id", "text": "..."}   store one event (same ref twice = stored once)
+  GET  /digest?consumer=<name>[&wait=<seconds>]                                 how many new records per kind, WITHOUT any text
+  GET  /queue ... [&kind=<kind>][&wait=<seconds>]                               `wait` holds the request open until a record arrives (long poll)
+`wait` lets a small doorbell process learn about new records at once, without polling and without waking anything in between.
 Only messages from users on the transport's allow-list are returned (and reacted to) unless all=1; every message is stored with its `allowed` flag.
 SHADOW (option, default true): the queue IS written, but reactions are sent with dry=true and logged '[DRY] would react'. /data/STOP_LIVE does the same at once.
 Message text is stored in the queue (up to 2000 chars) and is never written to the log or /status.
@@ -20,7 +25,7 @@ sys.path.insert(0, HERE)
 from ihlib import trace
 import bus_client
 
-VERSION = '0.1.6'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHI_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHI_PORT', '8800'))
@@ -36,6 +41,17 @@ MAX_LIMIT = 200
 RETENTION_EVERY_S = 3600
 SEEN_MAX = 1000
 CONSUMER_RE = re.compile(r'^[A-Za-z0-9_.-]{1,40}$')
+KIND_MESSAGE = 'message'                           # a record without `kind` is a Discord message from the bus
+KIND_RE = re.compile(r'^[a-z][a-z0-9_]{0,23}$')
+SOURCE_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,40}$')
+REF_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,80}$')
+EVENT_BODY_MAX = 8192                              # bytes read from one POST /events
+MAX_WAIT_S = 25                                    # longest long poll; below the usual 30 s client and proxy timeouts
+EVENT_ID_PREFIX = 'ev:'                            # keeps event refs apart from Discord message ids in the duplicate check
+
+
+def kind_of(rec):
+    return rec.get('kind') or KIND_MESSAGE
 
 
 def _text(v):
@@ -90,6 +106,7 @@ class Queue:
         self.cursor_path = os.path.join(data, 'cursors.json')
         self.retention_s, self.clock, self.segment_max = retention_days * 86400, clock, segment_max
         self.lock = threading.RLock()
+        self.arrived = threading.Condition(self.lock)   # told on every add: long polls wait on it
         self.seq = 0
         self.cursors = {}
         self.seen = collections.OrderedDict()   # msg ids already stored (survives restart: rebuilt from the newest records)
@@ -146,9 +163,15 @@ class Queue:
                 self.seen[mid] = True
                 while len(self.seen) > SEEN_MAX:
                     self.seen.popitem(last=False)
+            self.arrived.notify_all()
             return rec
 
-    def read(self, since=0, channel=None, limit=100, allowed_only=True):
+    def wait_beyond(self, seq, timeout):
+        """Block until a record newer than `seq` is stored, or `timeout` seconds pass. -> True when one arrived."""
+        with self.arrived:
+            return self.arrived.wait_for(lambda: self.seq > seq, timeout)
+
+    def read(self, since=0, channel=None, limit=100, allowed_only=True, kind=None):
         now = self.clock()
         out = []
         with self.lock:
@@ -160,6 +183,8 @@ class Queue:
                     if r['seq'] <= since or now - (r.get('received') or 0) > self.retention_s:
                         continue
                     if channel and r.get('channel_key') != channel:
+                        continue
+                    if kind and kind_of(r) != kind:
                         continue
                     if allowed_only and not r.get('allowed'):
                         continue
@@ -209,6 +234,7 @@ class Module:
         self.lock = threading.RLock()
         self.error, self.client, self.bus, self.bus_reason = None, None, bus, ''
         self.in_count = self.queued = self.dup = self.skipped = self.reacts = self.react_failed = 0
+        self.events = self.event_dup = 0
         self.last_in = None
         self.last_retention = 0.0
         self.queue = Queue(self.data, opts['retention_days'], clock)
@@ -286,6 +312,37 @@ class Module:
             if res is None or not res.get('ok'):
                 self.react_failed += 1
 
+    def add_event(self, kind, source, ref='', text=''):
+        """One event from a local service (already validated by the API). Stored like a message; no reaction, nothing posted.
+        -> the stored record, or None when an event with this kind and ref is already in the queue."""
+        with self.lock:
+            now = int(self.clock())
+            rec = {'kind': kind, 'source': source, 'ref': ref, 'msg_id': EVENT_ID_PREFIX + kind + ':' + ref if ref else '', 'channel_key': '',
+                   'author_id': '', 'allowed': True, 'ts': now, 'received': now, 'text': str(text or '')[:MAX_TEXT]}
+            try:
+                stored = self.queue.add(rec)
+            except OSError:
+                self.error = 'queue write failed'
+                self.lg.info('queue write failed')
+                raise
+            if stored is None:
+                self.event_dup += 1
+                return None
+            self.error = None
+            self.events += 1
+            self.lg.info('queued seq %d, event %s from %s', stored['seq'], kind, source)   # no text
+            return stored
+
+    def digest(self, consumer):
+        """What is new for this consumer, per kind, WITHOUT any text (safe to show or to type into a terminal)."""
+        with self.lock:
+            cursor = self.queue.cursors.get(consumer, 0)
+            recs = self.queue.read(cursor, None, MAX_LIMIT)
+            kinds = {}
+            for r in recs:
+                kinds[kind_of(r)] = kinds.get(kind_of(r), 0) + 1
+            return {'consumer': consumer, 'cursor': cursor, 'new': len(recs), 'kinds': kinds, 'newest_seq': self.queue.seq}
+
     # ---- jobs ----
     def tick(self):
         """About every 5 s: hourly retention."""
@@ -309,7 +366,7 @@ class Module:
                 'bus': {'connected': bool(self.bus and getattr(self.bus, 'connected', False)), 'active': bool(self.client and self.client.active),
                         'reason': self.bus_reason, 'last_heartbeat_s': None if hb is None else int(now - hb)},
                 'counts': {'in': self.in_count, 'queued': self.queued, 'duplicates': self.dup, 'skipped': self.skipped, 'reactions': self.reacts,
-                           'reactions_failed': self.react_failed, 'rejected': sum((self.client.rejected if self.client else {}).values())},
+                           'reactions_failed': self.react_failed, 'events': self.events, 'event_duplicates': self.event_dup, 'rejected': sum((self.client.rejected if self.client else {}).values())},
                 'queue': self.queue.stats(),
                 'last_in_s': None if self.last_in is None else int(now - self.last_in),
                 'would_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
@@ -358,7 +415,7 @@ def make_handler(mod):
                 return self._send(200 if mod.healthy() else 503, b'ok' if mod.healthy() else b'not ok', 'text/plain')
             if p == '/status':
                 return self._send(200, mod.status())
-            if p == '/queue':
+            if p in ('/queue', '/digest'):
                 if not authed(self):
                     return self._send(401, {'error': 'unauthorized'})
                 q = parse_qs(u.query)
@@ -369,20 +426,57 @@ def make_handler(mod):
                 try:
                     since = int(one('since')) if one('since') != '' else mod.queue.cursors.get(consumer, 0)
                     limit = max(1, min(MAX_LIMIT, int(one('limit') or 100)))
+                    wait = max(0.0, min(MAX_WAIT_S, float(one('wait') or 0)))
                 except ValueError:
                     return self._send(400, {'error': 'bad number'})
-                ch = one('channel')
+                ch, kind = one('channel'), one('kind')
                 if ch and not bus_client.KEY_RE.match(ch):
                     return self._send(400, {'error': 'bad channel'})
-                recs = mod.queue.read(since, ch or None, limit, allowed_only=one('all') != '1')
-                return self._send(200, {'since': since, 'consumer': consumer, 'messages': recs, 'newest_seq': mod.queue.seq})
+                if kind and not KIND_RE.match(kind):
+                    return self._send(400, {'error': 'bad kind'})
+                if p == '/digest':
+                    answer = lambda: mod.digest(consumer)
+                    empty = lambda a: not a['new']
+                else:
+                    answer = lambda: {'since': since, 'consumer': consumer, 'newest_seq': mod.queue.seq,
+                                      'messages': mod.queue.read(since, ch or None, limit, allowed_only=one('all') != '1', kind=kind or None)}
+                    empty = lambda a: not a['messages']
+                mark = mod.queue.seq   # taken BEFORE the read: a record stored in between ends the wait at once
+                a = answer()
+                if wait and empty(a) and mod.queue.wait_beyond(mark, wait):
+                    a = answer()
+                return self._send(200, a)
             self.send_error(404)
 
+        def _event(self):
+            try:
+                n = int(self.headers.get('Content-Length') or 0)
+                if n > EVENT_BODY_MAX:
+                    return self._send(413, {'error': 'too large'})
+                d = json.loads(self.rfile.read(n) or b'{}')
+                kind, source, ref, text = d['kind'], d['source'], d.get('ref') or '', d.get('text') or ''
+            except (ValueError, KeyError, TypeError):
+                return self._send(400, {'error': 'need {"kind": "...", "source": "..."}'})
+            if not (isinstance(kind, str) and KIND_RE.match(kind)) or kind == KIND_MESSAGE:
+                return self._send(400, {'error': 'bad kind'})
+            if not (isinstance(source, str) and SOURCE_RE.match(source)):
+                return self._send(400, {'error': 'bad source'})
+            if not isinstance(ref, str) or (ref and not REF_RE.match(ref)) or not isinstance(text, str):
+                return self._send(400, {'error': 'bad ref or text'})
+            try:
+                rec = mod.add_event(kind, source, ref, text)
+            except OSError:
+                return self._send(500, {'error': 'queue write failed'})
+            return self._send(200, {'stored': rec is not None, 'seq': rec['seq'] if rec else None})
+
         def do_POST(self):
-            if urlparse(self.path).path != '/ack':
+            p = urlparse(self.path).path
+            if p not in ('/ack', '/events'):
                 return self.send_error(404)
             if not authed(self):
                 return self._send(401, {'error': 'unauthorized'})
+            if p == '/events':
+                return self._event()
             try:
                 n = int(self.headers.get('Content-Length') or 0)
                 d = json.loads(self.rfile.read(min(n, 4096)) or b'{}')
