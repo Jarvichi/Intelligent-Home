@@ -85,7 +85,8 @@ A new persona has an empty profile (no name, no tone). Before its first outgoing
 | `POST /persona/<key>/agree` | `{date, time}` (`date`: `today`, `tomorrow` or `YYYY-MM-DD`; `time`: `HH:MM`) saves a time agreed with the person; it joins that day's plan first. 409 if `checkin_plan` is off |
 | `POST /persona/<key>/agree/remove` | `{date, time}` removes an agreed time |
 | `POST /persona/<key>/remind` | `{when, text, repeat?}` saves a reminder (`when`: local `YYYY-MM-DD HH:MM`, at least 60 s ahead; `text` up to 500 characters; `repeat`: `none` (default), `daily`, `weekly`, `monthly`, `yearly`; month ends are clamped). Returns `{ok, id}`. 400 bad or past time, 404 unknown persona, 429 more than 50 pending. When due, a `reminder_due` event (source `reminders`) is queued with `suggested_text`; up to 24 h late it fires once with `facts.late`, older is dropped |
-| `GET /persona/<key>/reminders` | the pending reminders (`id`, `due`, `text`, `repeat`) |
+| `POST /persona/<key>/remind` (arrival, 0.18.0) | `{trigger: "arrive_home", text, expires_h?}` instead of `when`: fires once when the persona's `presence_entity` goes off -> on (arrival at home), as the same `reminder_due` event with `facts.trigger`. Expires after 24 h by default (`expires_h` more than 0 and up to 168). 400 if `presence_entity` is not set or `repeat` is not `none`. The first state seen after a start is only remembered, so an arrival is never guessed |
+| `GET /persona/<key>/reminders` | the pending reminders (`id`, `due`, `text`, `repeat`; arrival reminders have `trigger`, `expires_at` and `due` null) |
 | `POST /persona/<key>/remind/cancel` | `{id}` removes a reminder (404 if not found) |
 | `POST /persona/<from>/tell/<to>` | `{text, kind?}` leaves one `from_persona` event in the other persona's inbox |
 

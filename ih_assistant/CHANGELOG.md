@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.18.0] - 2026-11-12
+
+### Added
+- Arrival-triggered reminders ("remind me when I get home"). `POST /persona/<key>/remind` accepts `{trigger: "arrive_home", text, expires_h?}` instead of `when`. It fires once when the persona's `presence_entity` (a home/away switch such as the person's `*_home` switch; read only) changes from off to on, as the same `reminder_due` event (source `reminders`, `facts.trigger`) as timed reminders, then the reminder is done. It expires after 24 hours by default (`expires_h` up to 168), so a stale one never fires days later. Needs `presence_entity` set (400 otherwise); `repeat` must be `none`. `GET /persona/<key>/reminders` shows `trigger` and `expires_at` (`due` is null).
+
 ## [0.17.0] - 2026-11-11
 
 ### Added

@@ -12,6 +12,11 @@ DONE_KEEP_S = 7 * 86400    # finished reminders are kept this long, then pruned
 WHEN_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$')
 ISO_FMT = '%Y-%m-%dT%H:%M'
 SUGGESTED_MAX = 900
+TRIGGERS = ('arrive_home',)              # 0.18.0: reminders that fire on an event instead of a time
+ARRIVE_EXPIRY_S = 24 * 3600              # default: an arrival reminder expires after 24 h (no stale fire days later)
+MAX_ARRIVE_EXPIRY_H = 168                # longest expiry a caller may ask for (hours)
+PRESENCE_ON = ('on', 'home')             # presence states that mean "at home"
+PRESENCE_OFF = ('off', 'not_home', 'away')   # presence states that mean "away"
 
 
 def parse_local(text):
@@ -61,8 +66,25 @@ def advance_past(item, now):
 
 def due_items(items, now):
     """Pending items whose time has come, oldest first."""
-    out = [i for i in items if i.get('status') == 'pending' and parse_local(i['due']) and parse_local(i['due']) <= now]
+    out = [i for i in items if i.get('status') == 'pending' and not i.get('trigger') and parse_local(i.get('due')) and parse_local(i['due']) <= now]
     return sorted(out, key=lambda i: i['due'])
+
+
+def arrival_items(items, clock_now):
+    """0.18.0: pending, unexpired items that wait for the person to arrive home (expires_at = epoch seconds), oldest first."""
+    out = [i for i in items if i.get('status') == 'pending' and i.get('trigger') == 'arrive_home'
+           and float(i.get('expires_at') or 0) > clock_now]
+    return sorted(out, key=lambda i: i['created'])
+
+
+def presence_transition(prev, state):
+    """-> (new remembered state or None, arrived). Only 'on'/'off' style states count; unknown/unavailable keep the old memory.
+    arrived is True only for a known away -> home change."""
+    st = str(state or '').strip().lower()
+    cur = 'on' if st in PRESENCE_ON else 'off' if st in PRESENCE_OFF else None
+    if cur is None:
+        return prev, False
+    return cur, (prev == 'off' and cur == 'on')
 
 
 def overdue_s(item, now):
@@ -71,9 +93,13 @@ def overdue_s(item, now):
 
 def prune(items, clock_now):
     """Drop done items older than DONE_KEEP_S (clock_now = epoch seconds)."""
-    return [i for i in items if not (i.get('status') == 'done' and clock_now - float(i.get('fired_at') or 0) > DONE_KEEP_S)]
+    keep = [i for i in items if not (i.get('status') == 'done' and clock_now - float(i.get('fired_at') or 0) > DONE_KEEP_S)]
+    # 0.18.0: an arrival reminder that expired before the person arrived is dropped
+    return [i for i in keep if not (i.get('trigger') and i.get('status') == 'pending' and float(i.get('expires_at') or 0) <= clock_now)]
 
 
 def suggested(item):
+    if item.get('trigger') == 'arrive_home':
+        return ('⏰ Reminder you set (for when you get home): %s' % item['text'])[:SUGGESTED_MAX]
     due = parse_local(item['due'])
     return ('⏰ Reminder you set (%s): %s' % (due.strftime('%a %d %b %H:%M'), item['text']))[:SUGGESTED_MAX]

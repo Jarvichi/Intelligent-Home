@@ -362,8 +362,11 @@ class Assistant:
         if key not in self.stores:
             return 404, {'ok': False, 'why': 'unknown persona'}
         when, text, rep = remmod.parse_local(body.get('when')), body.get('text'), body.get('repeat') or 'none'
+        trig = body.get('trigger')
+        if trig:   # 0.18.0: arrival-triggered reminder, no time needed
+            return self._remind_add_trigger(key, trig, text, rep, body.get('expires_h'))
         if when is None:
-            return 400, {'ok': False, 'why': 'when: YYYY-MM-DD HH:MM (local time)'}
+            return 400, {'ok': False, 'why': 'when: YYYY-MM-DD HH:MM (local time), or trigger: ' + ', '.join(remmod.TRIGGERS)}
         if not isinstance(text, str) or not text.strip() or len(text) > remmod.MAX_TEXT:
             return 400, {'ok': False, 'why': 'text: 1..%d characters' % remmod.MAX_TEXT}
         if rep not in remmod.REPEATS:
@@ -385,9 +388,40 @@ class Assistant:
         self.log('persona %s: reminder %s saved (%s, %d chars)' % (key, item['id'], rep, len(item['text'])))
         return 200, {'ok': True, 'id': item['id'], 'due': item['due']}
 
+    def _remind_add_trigger(self, key, trig, text, rep, expires_h):
+        """0.18.0: save a reminder that fires when the person's presence switch goes off -> on (option presence_entity)."""
+        if trig not in remmod.TRIGGERS:
+            return 400, {'ok': False, 'why': 'trigger: ' + ', '.join(remmod.TRIGGERS)}
+        if not isinstance(text, str) or not text.strip() or len(text) > remmod.MAX_TEXT:
+            return 400, {'ok': False, 'why': 'text: 1..%d characters' % remmod.MAX_TEXT}
+        if rep != 'none':
+            return 400, {'ok': False, 'why': 'a triggered reminder fires once (repeat none)'}
+        if not self.cfg[key].get('presence_entity') or self.ha is None:
+            return 400, {'ok': False, 'why': 'this persona has no presence_entity set, so arrivals cannot be seen'}
+        if expires_h is None:
+            exp_s = remmod.ARRIVE_EXPIRY_S
+        elif isinstance(expires_h, (int, float)) and not isinstance(expires_h, bool) and 0 < expires_h <= remmod.MAX_ARRIVE_EXPIRY_H:
+            exp_s = float(expires_h) * 3600
+        else:
+            return 400, {'ok': False, 'why': 'expires_h: more than 0 and at most %d' % remmod.MAX_ARRIVE_EXPIRY_H}
+        clock, now = float(self.clock()), self.now().replace(tzinfo=None)
+        item = {'id': uuid.uuid4().hex[:8], 'due': None, 'trigger': trig, 'text': text.strip(), 'repeat': 'none',
+                'expires_at': clock + exp_s, 'created': now.strftime(remmod.ISO_FMT), 'status': 'pending'}
+        def put(s):
+            items = s.get('reminders', [])
+            if sum(1 for i in items if i.get('status') == 'pending') >= remmod.MAX_PENDING:
+                return False
+            items.append(item)
+            s['reminders'] = items
+            return True
+        if not self.stores[key].update_state(put):
+            return 429, {'ok': False, 'why': 'at most %d pending reminders' % remmod.MAX_PENDING}
+        self.log('persona %s: arrival reminder %s saved (%d chars)' % (key, item['id'], len(item['text'])))
+        return 200, {'ok': True, 'id': item['id'], 'trigger': trig, 'expires_at': item['expires_at']}
+
     def remind_list(self, key):
         items = [i for i in self.stores[key].state().get('reminders', []) if i.get('status') == 'pending']
-        return 200, {'ok': True, 'reminders': sorted(items, key=lambda i: i['due'])}
+        return 200, {'ok': True, 'reminders': sorted(items, key=lambda i: (i.get('due') or i['created']))}
 
     def remind_cancel(self, key, body):
         rid = body.get('id')
@@ -433,6 +467,33 @@ class Assistant:
             self.maybe_intro(key)
             st.append_event(ev)
             self.log('persona %s: reminder %s queued' % (key, ev['facts']['id']))
+        return len(out)
+
+    def tick_arrivals(self, key):
+        """0.18.0: on a known away -> home change of the persona's presence_entity, hand the persona a reminder_due event
+        (source 'reminders') for each pending arrival reminder, once. State is updated BEFORE the hand-over. -> events queued."""
+        c, st = self.cfg[key], self.stores[key]
+        if not c.get('presence_entity') or self.ha is None:
+            return 0
+        raw = self.ha.state(c['presence_entity'])   # state string (a dict with 'state' is tolerated)
+        raw = raw.get('state') if isinstance(raw, dict) else raw
+        clock = float(self.clock())
+        out = []
+        def mark(s):
+            new, arrived = remmod.presence_transition(s.get('presence_seen'), raw)
+            s['presence_seen'] = new
+            if arrived:
+                for it in remmod.arrival_items(s.get('reminders', []), clock):
+                    out.append({'type': 'reminder_due', 'source': 'reminders', 'suggested_text': remmod.suggested(it), 'facts': {
+                        'kind': 'reminder', 'id': it['id'], 'trigger': it['trigger'], 'repeat': 'none', 'set_on': it['created'][:10]}})
+                    it['status'] = 'done'
+                    it['fired_at'] = clock
+            return True
+        st.update_state(mark)
+        for ev in out:
+            self.maybe_intro(key)
+            st.append_event(ev)
+            self.log('persona %s: arrival reminder %s queued' % (key, ev['facts']['id']))
         return len(out)
 
     # ---- scheduled work ----
@@ -1122,6 +1183,10 @@ class Assistant:
             self.tick_reminders(key)
         except Exception as e:
             self.log('persona %s: reminders failed (%s)' % (key, type(e).__name__))
+        try:
+            self.tick_arrivals(key)
+        except Exception as e:
+            self.log('persona %s: arrivals failed (%s)' % (key, type(e).__name__))
         try:
             f = len(self.tick_checkins(key))
         except StoreError as e:
