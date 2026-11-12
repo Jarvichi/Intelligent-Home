@@ -47,7 +47,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `aisle_order` | No | Departments (`name`, `words` separated by `\ |
 | `facts_url` | No | Setting `facts_url`. |
 | `facts_key` | No | Setting `facts_key`. |
-| `fresh_aisles` | No | Setting `fresh_aisles`. |
+| `fresh_aisles` | No | Aisles whose lines get a use-by hint: the date of the first planned meal (fact `cooking/fresh_dates`), else `use within N days` from the item library (fact `items/fresh_days`, a map of item name to shelf days). No fact = no hint. |
+| `merge_duplicates` | No | `true` = the shop checklist shows ONE line for list items with the same name (`Name x3` + `Name x3 (note)` -> `Name x6 (note)`). The Home Assistant list is not changed; a tick on the line ticks every item behind it. Items with a weight or unit, and a mix of counted and uncounted items, are not merged. Default `false`. |
 
 ## Troubleshooting
 

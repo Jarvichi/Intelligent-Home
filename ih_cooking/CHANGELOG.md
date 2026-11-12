@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-11-12
+
+### Added
+- Staples can be read and edited over the bearer API: `GET /staples` and `POST /staples/rename` (`{old, new, group?}`). An edit keeps a backup of the old file in `/data/staples_backups/` and carries the meal-items ledger entry to the new text.
+
 ## [0.6.13] - 2026-11-11
 
 ### Changed

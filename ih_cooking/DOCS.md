@@ -75,6 +75,8 @@ Calendars, the oven, the speaker and the cooking sensor are your own Home Assist
 | `PUT /recipes/<slug>` | validated edit of an existing recipe; the old file is kept in `/data/recipe_backups/` |
 | `POST /recipes` | new recipe from `{name, steps:[{before,text,short}], prep, shopping, equipment}` |
 | `GET /plan`, `PUT /plan` | meal plan `{mon..sun}`; PUT writes `/data/mealplan.json` |
+| `GET /staples` | the staple groups `{groups: {id: {name, items}}}` |
+| `POST /staples/rename` | `{old, new, group?}` changes the text of one staple line (in every group that has it, or only in `group`); the old file is kept in `/data/staples_backups/` (newest 20). 422 with `errors` when nothing matches or the text is not valid |
 | `POST /shop` | `{recipes:[slugs], groups:[...]}` -> merged shopping list, updates the meal-items ledger |
 | `GET /clashes?days=7&today=YYYY-MM-DD` | who is away for each planned meal (see below) |
 | `POST /cook` | `{recipe, eat:"HH:MM"}` starts (replaces) a cook; `POST /cook/stop`; `GET /cook` status |

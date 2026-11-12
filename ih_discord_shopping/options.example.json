@@ -24,5 +24,6 @@
   "aisle_order": ["Fruit", "Tins"],
   "facts_url": "",
   "facts_key": "",
+  "merge_duplicates": false,
   "fresh_aisles": ["Meat & fish", "Fruit & veg", "Dairy & chilled", "Bakery"]
 }
