@@ -13,6 +13,10 @@
   "gif_gap_minutes": 10,
   "discord_push": true,
   "usage_autoreply": true,
+  "presence_entities": [
+    "person_a=switch.person_a_home",
+    "person_b=switch.person_b_home"
+  ],
   "personas": [
     {
       "key": "persona_a",
@@ -48,6 +52,7 @@
       "meal_plan_entity": "",
       "meal_fact": "",
       "presence_entity": "",
+      "presence_person": "",
       "quiet_if_messaged_h": 2,
       "live": false,
       "checkin_days": [

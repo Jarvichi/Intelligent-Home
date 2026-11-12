@@ -55,6 +55,9 @@ GIF_REUSE_CHANCE = 0.5
 GIF_STOP = {'the', 'and', 'for', 'with', 'you', 'that', 'this', 'gif', 'your'}
 GIF_WORDS_MAX = 60
 ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
+PERSON_RE = re.compile(r'^[a-z][a-z0-9_]{0,23}$')   # 0.19.0: a person's short name in presence_entities
+PRESENCE_PEOPLE_MAX = 8                              # 0.19.0: most people in presence_entities
+HOME_NOBODY = 'nobody'                               # 0.19.0: home_now text when everyone known is away
 POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
 POLL_FALLBACK_S = 60   # 0.15.0: Discord is asked this often while the push connection (gateway) is ready; a push asks at once
 WAKE_BURST_S = 10      # 0.15.0: after a push, ask every POLL_S for this long (covers a second message and a late REST answer)
@@ -66,7 +69,7 @@ WATCH_MAX = 8
 REACT_EVERY_S = 20
 ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
 PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'dates': [], 'dates_leads': '7,3', 'dates_at': '18:00', 'dates_latest': '21:30', 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
-                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'quiet_if_messaged_h': 2.0,
+                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'presence_person': '', 'quiet_if_messaged_h': 2.0,
                  'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': '', 'usage_texts': [], 'usage_texts_notime': []}
 HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 MARK_RE = re.compile(r'^\d{1,25}$')
@@ -99,6 +102,24 @@ def hhmm(v, default):
 
 def to_min(s):
     return int(s[:2]) * 60 + int(s[3:])
+
+
+def parse_presence_entities(v):
+    """0.19.0: option presence_entities -> {name: entity}. Accepts a list of 'name=entity' texts or an object {name: entity}.
+    Bad names/entities are skipped; at most PRESENCE_PEOPLE_MAX people."""
+    pairs = []
+    if isinstance(v, dict):
+        pairs = list(v.items())
+    elif isinstance(v, list):
+        for x in v:
+            if isinstance(x, str) and '=' in x:
+                pairs.append(tuple(t.strip() for t in x.split('=', 1)))
+    out = {}
+    for n, e in pairs:
+        n = n.strip().lower() if isinstance(n, str) else ''
+        if PERSON_RE.match(n) and isinstance(e, str) and ENTITY_RE.match(e.strip()) and len(out) < PRESENCE_PEOPLE_MAX:
+            out[n] = e.strip()
+    return out
 
 
 def load_options(path):
@@ -149,6 +170,7 @@ def load_options(path):
             'wake_start': hhmm(p.get('wake_start'), '09:00'), 'wake_end': hhmm(p.get('wake_end'), '21:30'),
             'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'dates': [str(x)[:120] for x in (p.get('dates') or []) if isinstance(x, str)][:300] if isinstance(p.get('dates'), list) else [], 'dates_leads': str(p.get('dates_leads') or '7,3')[:20], 'dates_at': hhmm(p.get('dates_at'), '18:00'), 'dates_latest': hhmm(p.get('dates_latest'), '21:30'), 'location_entities': ents(p.get('location_entities')), 'calendar_write': ents(p.get('calendar_write')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
+            'presence_person': p.get('presence_person').strip().lower() if isinstance(p.get('presence_person'), str) and PERSON_RE.match(p['presence_person'].strip().lower()) else '',
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
@@ -165,6 +187,7 @@ def load_options(path):
             'trace_url': str(o.get('trace_url') or o.get('facts_url') or 'http://172.30.32.1:8790').strip().rstrip('/'),
             'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
             'discord_push': o.get('discord_push') is not False,
+            'presence_entities': parse_presence_entities(o.get('presence_entities')),
             'personas': personas}, problems
 
 
@@ -352,9 +375,58 @@ class Assistant:
         if not r:
             return False
         self.maybe_intro(key)
-        st.append_event({'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]})
+        st.append_event(self._stamp_home(key, {'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]}))
         self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
         return True
+
+    # ---- who is home (0.19.0) ----
+    def _people(self, key):
+        """-> ({name: presence entity}, own name or None). Shared option presence_entities plus this persona's own
+        presence_entity (the old per-persona option stays the default for its own person)."""
+        m = dict((getattr(self, 'opts', None) or {}).get('presence_entities') or {})
+        c = self.cfg.get(key) or {}
+        pe, own = c.get('presence_entity') or '', c.get('presence_person') or None
+        if own is None and pe:
+            own = next((n for n, e in m.items() if e == pe), None) or 'self'
+        if own and own not in m and pe:
+            m[own] = pe
+        return m, (own if own in m else None)
+
+    def _own_entity(self, key):
+        m, own = self._people(key)
+        return m.get(own, '') if own else ''
+
+    def _read_present(self, ent):
+        """-> 'on' / 'off' / None (unknown or unreadable). Read only."""
+        try:
+            raw = self.ha.state(ent)
+        except Exception:
+            return None
+        raw = raw.get('state') if isinstance(raw, dict) else raw
+        st = str(raw or '').strip().lower()
+        return 'on' if st in remmod.PRESENCE_ON else 'off' if st in remmod.PRESENCE_OFF else None
+
+    def home_now(self, key):
+        """Names (no addresses) of the people known to be home now, comma separated; HOME_NOBODY if all known are away;
+        None when nothing can be read. Read only."""
+        m, _ = self._people(key)
+        if not m or getattr(self, 'ha', None) is None:
+            return None
+        seen = {n: self._read_present(e) for n, e in sorted(m.items())}
+        if all(v is None for v in seen.values()):
+            return None
+        home = [n for n, v in seen.items() if v == 'on']
+        return ', '.join(home) if home else HOME_NOBODY
+
+    def _stamp_home(self, key, ev):
+        """Add home_now to an event's facts (or, for an event without facts, to the event). Never fails the event."""
+        try:
+            h = self.home_now(key)
+        except Exception:
+            h = None
+        if h is not None:
+            (ev['facts'] if isinstance(ev.get('facts'), dict) else ev)['home_now'] = h
+        return ev
 
     # ---- reminders (0.14.0) ----
     def remind_add(self, key, body):
@@ -364,7 +436,7 @@ class Assistant:
         when, text, rep = remmod.parse_local(body.get('when')), body.get('text'), body.get('repeat') or 'none'
         trig = body.get('trigger')
         if trig:   # 0.18.0: arrival-triggered reminder, no time needed
-            return self._remind_add_trigger(key, trig, text, rep, body.get('expires_h'))
+            return self._remind_add_trigger(key, trig, text, rep, body.get('expires_h'), body.get('person'))
         if when is None:
             return 400, {'ok': False, 'why': 'when: YYYY-MM-DD HH:MM (local time), or trigger: ' + ', '.join(remmod.TRIGGERS)}
         if not isinstance(text, str) or not text.strip() or len(text) > remmod.MAX_TEXT:
@@ -388,16 +460,24 @@ class Assistant:
         self.log('persona %s: reminder %s saved (%s, %d chars)' % (key, item['id'], rep, len(item['text'])))
         return 200, {'ok': True, 'id': item['id'], 'due': item['due']}
 
-    def _remind_add_trigger(self, key, trig, text, rep, expires_h):
-        """0.18.0: save a reminder that fires when the person's presence switch goes off -> on (option presence_entity)."""
+    def _remind_add_trigger(self, key, trig, text, rep, expires_h, person=None):
+        """0.18.0: save a reminder that fires when a person's presence switch goes off -> on. 0.19.0: `person` names whose arrival
+        (a name in presence_entities); default is the persona's own person."""
         if trig not in remmod.TRIGGERS:
             return 400, {'ok': False, 'why': 'trigger: ' + ', '.join(remmod.TRIGGERS)}
         if not isinstance(text, str) or not text.strip() or len(text) > remmod.MAX_TEXT:
             return 400, {'ok': False, 'why': 'text: 1..%d characters' % remmod.MAX_TEXT}
         if rep != 'none':
             return 400, {'ok': False, 'why': 'a triggered reminder fires once (repeat none)'}
-        if not self.cfg[key].get('presence_entity') or self.ha is None:
-            return 400, {'ok': False, 'why': 'this persona has no presence_entity set, so arrivals cannot be seen'}
+        people, own = self._people(key)
+        if person is None or person == '':
+            who = own
+        elif isinstance(person, str) and person.strip().lower() in people:
+            who = person.strip().lower()
+        else:
+            return 400, {'ok': False, 'why': 'person: one of ' + (', '.join(sorted(people)) or '(none set)')}
+        if not who or self.ha is None:
+            return 400, {'ok': False, 'why': 'no presence switch for this person (set presence_entities or presence_entity), so arrivals cannot be seen'}
         if expires_h is None:
             exp_s = remmod.ARRIVE_EXPIRY_S
         elif isinstance(expires_h, (int, float)) and not isinstance(expires_h, bool) and 0 < expires_h <= remmod.MAX_ARRIVE_EXPIRY_H:
@@ -407,6 +487,8 @@ class Assistant:
         clock, now = float(self.clock()), self.now().replace(tzinfo=None)
         item = {'id': uuid.uuid4().hex[:8], 'due': None, 'trigger': trig, 'text': text.strip(), 'repeat': 'none',
                 'expires_at': clock + exp_s, 'created': now.strftime(remmod.ISO_FMT), 'status': 'pending'}
+        if who != own:
+            item['person'] = who   # no field = the persona's own person (0.18.0 reminders keep working)
         def put(s):
             items = s.get('reminders', [])
             if sum(1 for i in items if i.get('status') == 'pending') >= remmod.MAX_PENDING:
@@ -417,11 +499,13 @@ class Assistant:
         if not self.stores[key].update_state(put):
             return 429, {'ok': False, 'why': 'at most %d pending reminders' % remmod.MAX_PENDING}
         self.log('persona %s: arrival reminder %s saved (%d chars)' % (key, item['id'], len(item['text'])))
-        return 200, {'ok': True, 'id': item['id'], 'trigger': trig, 'expires_at': item['expires_at']}
+        return 200, {'ok': True, 'id': item['id'], 'trigger': trig, 'person': who, 'expires_at': item['expires_at']}
 
     def remind_list(self, key):
         items = [i for i in self.stores[key].state().get('reminders', []) if i.get('status') == 'pending']
-        return 200, {'ok': True, 'reminders': sorted(items, key=lambda i: (i.get('due') or i['created']))}
+        _, own = self._people(key)
+        out = [dict(i, person=i.get('person') or own) if i.get('trigger') else i for i in items]
+        return 200, {'ok': True, 'reminders': sorted(out, key=lambda i: (i.get('due') or i['created']))}
 
     def remind_cancel(self, key, body):
         rid = body.get('id')
@@ -465,34 +549,42 @@ class Assistant:
             self.log('persona %s: reminder %s too late, dropped' % (key, rid))
         for ev in out:
             self.maybe_intro(key)
-            st.append_event(ev)
+            st.append_event(self._stamp_home(key, ev))
             self.log('persona %s: reminder %s queued' % (key, ev['facts']['id']))
         return len(out)
 
     def tick_arrivals(self, key):
-        """0.18.0: on a known away -> home change of the persona's presence_entity, hand the persona a reminder_due event
-        (source 'reminders') for each pending arrival reminder, once. State is updated BEFORE the hand-over. -> events queued."""
-        c, st = self.cfg[key], self.stores[key]
-        if not c.get('presence_entity') or self.ha is None:
+        """0.18.0: on a known away -> home change of a person's presence switch, hand the persona a reminder_due event
+        (source 'reminders') for each pending arrival reminder of THAT person, once. 0.19.0: every person in presence_entities is
+        watched (the persona's own person is the default for reminders without a person). State is updated BEFORE the hand-over.
+        -> events queued."""
+        st = self.stores[key]
+        people, own = self._people(key)
+        if not people or self.ha is None:
             return 0
-        raw = self.ha.state(c['presence_entity'])   # state string (a dict with 'state' is tolerated)
-        raw = raw.get('state') if isinstance(raw, dict) else raw
+        reads = {n: self._read_present(e) for n, e in people.items()}
         clock = float(self.clock())
         out = []
         def mark(s):
-            new, arrived = remmod.presence_transition(s.get('presence_seen'), raw)
-            s['presence_seen'] = new
-            if arrived:
-                for it in remmod.arrival_items(s.get('reminders', []), clock):
-                    out.append({'type': 'reminder_due', 'source': 'reminders', 'suggested_text': remmod.suggested(it), 'facts': {
-                        'kind': 'reminder', 'id': it['id'], 'trigger': it['trigger'], 'repeat': 'none', 'set_on': it['created'][:10]}})
-                    it['status'] = 'done'
-                    it['fired_at'] = clock
+            seen = dict(s.get('presence_seen_by') or {})
+            if own and own not in seen and s.get('presence_seen') in ('on', 'off'):
+                seen[own] = s['presence_seen']   # 0.18.0 memory carries over to the own person
+            for name, now_state in reads.items():
+                new, arrived = remmod.presence_transition(seen.get(name), now_state)
+                if new is not None:
+                    seen[name] = new
+                if arrived:
+                    for it in remmod.arrival_items(s.get('reminders', []), clock, name, own):
+                        facts = {'kind': 'reminder', 'id': it['id'], 'trigger': it['trigger'], 'person': name, 'repeat': 'none', 'set_on': it['created'][:10]}
+                        out.append({'type': 'reminder_due', 'source': 'reminders', 'suggested_text': remmod.suggested(it), 'facts': facts})
+                        it['status'] = 'done'
+                        it['fired_at'] = clock
+            s['presence_seen_by'] = seen
             return True
         st.update_state(mark)
         for ev in out:
             self.maybe_intro(key)
-            st.append_event(ev)
+            st.append_event(self._stamp_home(key, ev))
             self.log('persona %s: arrival reminder %s queued' % (key, ev['facts']['id']))
         return len(out)
 
@@ -522,7 +614,7 @@ class Assistant:
                              'files': [{'n': i, 'name': safe_name(a.get('filename')), 'size': int(a.get('size') or 0), 'type': str(a.get('content_type') or '')}
                                        for i, a in enumerate((m.get('attachments') or [])[:ATTACH_MAX_N])]}
             self.trace_message(key, ev)
-            st.append_event(ev)
+            st.append_event(self._stamp_home(key, ev))
             added += 1
         st.update_state(lambda s: s.__setitem__('last_seen', newest))
         if added:
@@ -614,7 +706,7 @@ class Assistant:
                         self.watch_sent(key)
                     st.log_outbox({'kind': 'checkin', 'chars': len(text), 'mode': 'live', 'ok': ok})
                     ev['sent'] = bool(ok)
-        st.append_event(ev)
+        st.append_event(self._stamp_home(key, ev))
 
     # ---- usage auto-reply (rows 11 and 21) ----
     def usage_out(self):
@@ -1039,9 +1131,10 @@ class Assistant:
         gap = c['min_gap_h'] * 60 * levels.checkin_gap_factor(c['levels']['checkin_level'])
         if any(abs(nm - to_min(t)) < gap for t in self._fired_times(key)):
             return 'too soon after the last check-in'
-        if c['presence_entity'] and self.ha is not None:
+        own_ent = self._own_entity(key)
+        if own_ent and self.ha is not None:
             try:
-                if self.ha.state(c['presence_entity']) in ('not_home', 'off', 'away'):
+                if self.ha.state(own_ent) in ('not_home', 'off', 'away'):
                     return 'not home'
             except Exception as e:
                 self.log('persona %s: presence unreadable (%s)' % (key, type(e).__name__))
@@ -1557,7 +1650,7 @@ class Assistant:
     def _loc_signals(self, key, home_ll):
         """Signals for ONE person, best first: GPS (person / device_tracker with a position) before plain home/away switches."""
         c, out = self.cfg[key], []
-        ents = list(c.get('location_entities') or []) + ([c['presence_entity']] if c.get('presence_entity') else [])
+        ents = list(c.get('location_entities') or []) + ([self._own_entity(key)] if self._own_entity(key) else [])
         for ent in dict.fromkeys(ents):
             try:
                 s = self.ha.get('states/' + ent) or {}
@@ -1821,7 +1914,7 @@ class Assistant:
             return True
         if not self.stores[key].update_state(take):
             return 429, {'ok': False, 'why': 'limit of %d a day for this source' % EVENT_PER_DAY}
-        stored = self.stores[key].append_event({'type': typ, 'source': src, 'facts': facts, 'suggested_text': sug})
+        stored = self.stores[key].append_event(self._stamp_home(key, {'type': typ, 'source': src, 'facts': dict(facts), 'suggested_text': sug}))
         self.log('persona %s: event %s from %s, %d facts, %d chars' % (key, typ, src[:EVENT_SOURCE_LEN], len(facts), len(sug or '')))
         return 200, {'ok': True, 'id': stored['id']}
 

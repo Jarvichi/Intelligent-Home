@@ -241,5 +241,102 @@ class Arrival(unittest.TestCase):
         self.assertEqual(len(a.remind_list('aa')[1]['reminders']), 1)
 
 
+class People(unittest.TestCase):
+    """0.19.0: shared presence_entities, home_now, arrival reminders for any person."""
+    make, local, events = Api.make, Api.local, Api.events
+    A, B = 'switch.a_home', 'switch.b_home'
+
+    def setup_people(self):
+        a = self.make()
+        a.ha = FakeHa()
+        a.opts = {'presence_entities': {'ann': self.A, 'bob': self.B}}
+        a.cfg = {'aa': {'presence_entity': self.A}, 'bb': {'presence_entity': ''}}
+        a.ha.s.update({self.A: 'on', self.B: 'on'})
+        return a
+
+    def test_parse_option(self):
+        import main
+        self.assertEqual(main.parse_presence_entities(['Ann=switch.a_home', 'bad', 'x y=switch.z', 'bob = switch.b_home', 'c=nope']),
+                         {'ann': 'switch.a_home', 'bob': 'switch.b_home'})
+        self.assertEqual(main.parse_presence_entities({'ann': 'switch.a_home', 'B!': 'switch.q'}), {'ann': 'switch.a_home'})
+        self.assertEqual(main.parse_presence_entities(None), {})
+        self.assertEqual(len(main.parse_presence_entities(['p%d=switch.s%d' % (i, i) for i in range(20)])), main.PRESENCE_PEOPLE_MAX)
+
+    def test_own_person_resolution(self):
+        a = self.setup_people()
+        self.assertEqual(a._people('aa')[1], 'ann')              # matched from the old presence_entity
+        self.assertEqual(a._people('bb')[1], None)               # no own switch: sees people, owns none
+        a.cfg['bb']['presence_person'] = 'bob'
+        self.assertEqual(a._own_entity('bb'), self.B)
+        a.opts = {}                                              # old setup: only presence_entity
+        self.assertEqual(a._people('aa'), ({'self': self.A}, 'self'))
+
+    def test_home_now(self):
+        a = self.setup_people()
+        self.assertEqual(a.home_now('bb'), 'ann, bob')           # a persona without its own switch still sees everyone
+        a.ha.s[self.A] = 'off'
+        self.assertEqual(a.home_now('aa'), 'bob')
+        a.ha.s[self.B] = 'not_home'
+        self.assertEqual(a.home_now('aa'), 'nobody')
+        a.ha.s.clear()
+        self.assertIsNone(a.home_now('aa'))
+        a.opts = {}
+        a.cfg['bb'] = {}
+        self.assertIsNone(a.home_now('bb'))
+
+    def test_event_carries_home_now(self):
+        a = self.setup_people()
+        a.ha.s[self.B] = 'off'
+        a.remind_add('aa', {'when': '2026-11-11 10:05', 'text': 'tea'})
+        self.t += 600
+        a.tick_reminders('aa')
+        ev = self.events(a)
+        self.assertEqual(ev[0]['facts']['home_now'], 'ann')
+
+    def test_other_person_arrival(self):
+        a = self.setup_people()
+        a.ha.s[self.B] = 'off'
+        a.tick_arrivals('aa')
+        c, r = a.remind_add('aa', {'trigger': 'arrive_home', 'person': 'bob', 'text': 'Bring the post in'})
+        self.assertEqual((c, r['person']), (200, 'bob'))
+        c, r = a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'Own one'})
+        self.assertEqual((c, r['person']), (200, 'ann'))
+        listed = {i['text']: i['person'] for i in a.remind_list('aa')[1]['reminders']}
+        self.assertEqual(listed, {'Bring the post in': 'bob', 'Own one': 'ann'})
+        a.ha.s[self.B] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 1)               # only bob's reminder
+        ev = self.events(a)
+        self.assertEqual((ev[0]['facts']['person'], ev[0]['facts']['home_now']), ('bob', 'ann, bob'))
+        self.assertIn('for when bob gets home', ev[0]['suggested_text'])
+        self.assertEqual([i['text'] for i in a.remind_list('aa')[1]['reminders']], ['Own one'])
+        a.ha.s[self.A] = 'off'; a.tick_arrivals('aa'); a.ha.s[self.A] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 1)               # own arrival still works, wording unchanged
+        self.assertIn('when you get home', self.events(a)[1]['suggested_text'])
+
+    def test_unknown_person_and_no_own(self):
+        a = self.setup_people()
+        c, r = a.remind_add('aa', {'trigger': 'arrive_home', 'person': 'zed', 'text': 'x'})
+        self.assertEqual(c, 400)
+        self.assertIn('ann, bob', r['why'])
+        self.assertEqual(a.remind_add('bb', {'trigger': 'arrive_home', 'text': 'x'})[0], 400)   # no own person, none named
+        self.assertEqual(a.remind_add('bb', {'trigger': 'arrive_home', 'person': 'bob', 'text': 'x'})[0], 200)
+
+    def test_legacy_memory_carries_over(self):
+        a = self.setup_people()
+        a.stores['aa'].update_state(lambda s: s.__setitem__('presence_seen', 'off'))
+        a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'old'})
+        self.assertEqual(a.tick_arrivals('aa'), 1)               # off (0.18.0 memory) -> on
+
+    def test_each_persona_watches_alone(self):
+        a = self.setup_people()
+        a.ha.s[self.B] = 'off'
+        a.tick_arrivals('bb'); a.tick_arrivals('aa')
+        a.remind_add('bb', {'trigger': 'arrive_home', 'person': 'bob', 'text': 'for bb'})
+        a.ha.s[self.B] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 0)
+        self.assertEqual(a.tick_arrivals('bb'), 1)
+        self.assertEqual(len(self.events(a, 'bb')), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
