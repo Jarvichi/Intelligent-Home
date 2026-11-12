@@ -154,5 +154,92 @@ class Api(unittest.TestCase):
         self.assertEqual(a.stores['aa'].state()['reminders'], [])
 
 
+class FakeHa:
+    def __init__(self):
+        self.s = {}
+
+    def state(self, ent):
+        return self.s.get(ent)
+
+
+class Arrival(unittest.TestCase):
+    """0.18.0: reminders that fire when the person's presence switch goes off -> on."""
+    make, local, events = Api.make, Api.local, Api.events
+    ENT = 'switch.test_home'
+
+    def setup_arrival(self):
+        a = self.make()
+        a.ha = FakeHa()
+        a.cfg = {'aa': {'presence_entity': self.ENT}, 'bb': {'presence_entity': ''}}
+        return a
+
+    def test_pure_transition(self):
+        self.assertEqual(R.presence_transition(None, 'on'), ('on', False))
+        self.assertEqual(R.presence_transition('off', 'on'), ('on', True))
+        self.assertEqual(R.presence_transition('on', 'on'), ('on', False))
+        self.assertEqual(R.presence_transition('on', 'off'), ('off', False))
+        self.assertEqual(R.presence_transition('off', 'unavailable'), ('off', False))
+        self.assertEqual(R.presence_transition('off', None), ('off', False))
+        self.assertEqual(R.presence_transition('not_home', 'home')[0], 'on')
+
+    def test_add_validation_and_list(self):
+        a = self.setup_arrival()
+        c, r = a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'Take the parcel'})
+        self.assertEqual(c, 200)
+        self.assertEqual(r['expires_at'], self.t + R.ARRIVE_EXPIRY_S)
+        it = a.remind_list('aa')[1]['reminders']
+        self.assertEqual((len(it), it[0]['trigger'], it[0]['due']), (1, 'arrive_home', None))
+        a.remind_add('aa', {'when': '2026-11-12 09:00', 'text': 'timed'})   # lists mix timed and triggered
+        self.assertEqual(len(a.remind_list('aa')[1]['reminders']), 2)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'leave_home', 'text': 'x'})[0], 400)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'arrive_home', 'text': ''})[0], 400)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'x', 'repeat': 'daily'})[0], 400)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'x', 'expires_h': 0})[0], 400)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'x', 'expires_h': R.MAX_ARRIVE_EXPIRY_H + 1})[0], 400)
+        self.assertEqual(a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'x', 'expires_h': 2})[1]['expires_at'], self.t + 7200)
+        self.assertEqual(a.remind_add('bb', {'trigger': 'arrive_home', 'text': 'x'})[0], 400)   # no presence_entity
+        self.assertEqual(a.remind_cancel('aa', {'id': r['id']})[0], 200)
+
+    def test_fires_once_on_off_to_on(self):
+        a = self.setup_arrival()
+        a.ha.s[self.ENT] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 0)              # first sight: just remembered
+        a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'Secret parcel'})
+        self.assertEqual(a.tick_arrivals('aa'), 0)              # still home: no fire
+        a.ha.s[self.ENT] = 'off'
+        self.assertEqual(a.tick_arrivals('aa'), 0)
+        a.ha.s[self.ENT] = 'unavailable'
+        self.assertEqual(a.tick_arrivals('aa'), 0)
+        a.ha.s[self.ENT] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 1)              # arrived
+        ev = self.events(a)
+        self.assertEqual((ev[0]['type'], ev[0]['source'], ev[0]['facts']['trigger']), ('reminder_due', 'reminders', 'arrive_home'))
+        self.assertIn('Secret parcel', ev[0]['suggested_text'])
+        self.assertIn('get home', ev[0]['suggested_text'])
+        self.assertEqual(a.remind_list('aa')[1]['reminders'], [])
+        a.ha.s[self.ENT] = 'off'; a.tick_arrivals('aa'); a.ha.s[self.ENT] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 0)              # once only
+        self.assertFalse(any('Secret parcel' in l for l in self.logs))
+        self.assertEqual(self.events(a, 'bb'), [])
+
+    def test_expired_not_fired(self):
+        a = self.setup_arrival()
+        a.ha.s[self.ENT] = 'off'; a.tick_arrivals('aa')
+        a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'stale'})
+        self.t += R.ARRIVE_EXPIRY_S + 5
+        a.ha.s[self.ENT] = 'on'
+        self.assertEqual(a.tick_arrivals('aa'), 0)
+        self.assertEqual(a.tick_reminders('aa'), 0)
+        self.assertEqual(a.remind_list('aa')[1]['reminders'], [])   # pruned
+        self.assertEqual(self.events(a), [])
+
+    def test_timed_ticks_ignore_triggered(self):
+        a = self.setup_arrival()
+        a.remind_add('aa', {'trigger': 'arrive_home', 'text': 'later'})
+        self.t += 3600
+        self.assertEqual(a.tick_reminders('aa'), 0)
+        self.assertEqual(len(a.remind_list('aa')[1]['reminders']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
