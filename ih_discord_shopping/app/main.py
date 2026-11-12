@@ -24,9 +24,10 @@ import settings as ST
 import shortcut
 import bus_client
 import factsview as FV
+import listmerge as LM
 from features import shopping as S
 
-VERSION = '0.3.9'
+VERSION = '0.4.0'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -75,6 +76,7 @@ def load_options(path=None):
             'mqtt_user': _text(o.get('mqtt_user')) or DEFAULT_MODULE, 'mqtt_password': str(o.get('mqtt_password') or ''),
             'shortcut_token': _text(o.get('shortcut_token')), 'shortcut_base_url': _text(o.get('shortcut_base_url')).rstrip('/'), 'shortcut_dry': o.get('shortcut_dry') is not False,   # anything but an explicit false = dry
             'facts_url': _text(o.get('facts_url')).rstrip('/'), 'facts_key': _text(o.get('facts_key')),   # either empty = no facts: the checklist is as before
+            'merge_duplicates': o.get('merge_duplicates') is True,   # anything but an explicit true = the checklist is as before
             'fresh_aisles': [_text(x) for x in o['fresh_aisles'] if _text(x)] if isinstance(o.get('fresh_aisles'), list) else list(FV.DEFAULT_FRESH),
             'ingest_url': (_text(o.get('ingest_url')) or DEFAULT_INGEST_URL).rstrip('/'), 'ingest_token': _text(o.get('ingest_token'))}
 
@@ -155,19 +157,27 @@ class BusShopping(S.Feature):
         m, ch = self.mod, self.schan
         m.bus_delete_tagged(ch, 'checklist')
         self.add_meal_plan()
-        items = [lbl for lbl, _ in S.merge_batteries(self.items())]
+        pairs = S.merge_batteries(self.items())
         if extras_only:
             mn = S.meal_names(self.root, self.cfg['meal_items_file'])
-            items = [i for i in items if not S.is_meal(i, mn)]
+            pairs = [(lbl, names) for lbl, names in pairs if not S.is_meal(lbl, mn)]
+        merged = {}
+        if m.opts.get('merge_duplicates'):   # one line for same-name items; the list itself is not changed
+            pairs = LM.merge(pairs)
+            merged = LM.merged_names(pairs)
+        items = [lbl for lbl, _ in pairs]
         if not items:
             return self.send("Nothing on the list apart from the meal plan." if extras_only else "The shopping list is empty.")
         order, rank = self.learned()
         texts = S.checklist_messages(items, order, rank, self.aisles)
+        behind = [{str(n): merged[ln.split(' ', 1)[1]] for n, ln in enumerate(t.split('\n')) if n and ' ' in ln and ln.split(' ', 1)[1] in merged} for t in texts]
         sufs = [{} for _ in texts]
-        if self.facts_on() and m.opts.get('fresh_aisles'):   # use-by dates for fresh things, from the first planned meal that needs them
-            dates = FV.fresh_dates(m.opts['facts_url'], m.opts['facts_key'], getattr(m, 'facts_opener', None))
-            texts, sufs = FV.decorate(texts, S.MARK, set(m.opts['fresh_aisles']), dates, m.today())
-        for text, suf in zip(texts, sufs):
+        if self.facts_on() and m.opts.get('fresh_aisles'):   # use-by hints for fresh things: the first planned meal that needs them, else the shelf life
+            opener = getattr(m, 'facts_opener', None)
+            dates = FV.fresh_dates(m.opts['facts_url'], m.opts['facts_key'], opener)
+            days = FV.fresh_days(m.opts['facts_url'], m.opts['facts_key'], opener)
+            texts, sufs = FV.decorate(texts, S.MARK, set(m.opts['fresh_aisles']), dates, m.today(), days=days)
+        for text, suf, names in zip(texts, sufs, behind):
             res = m.bus_post(ch, text, tag='checklist')
             mid = (res or {}).get('discord_id')
             if not (res and res.get('ok') and mid):
@@ -176,7 +186,7 @@ class BusShopping(S.Feature):
             for k in S.KEYS[:n]:
                 m.bus_react(ch, mid, k)
             m.bus_watch(ch, mid, S.KEYS[:n], CHECKLIST_TTL, 'checklist')
-            m.lists[mid] = {'lines': text.split('\n'), 't': self.c.now(), 'renewed': self.c.now(), 'suf': suf}
+            m.lists[mid] = {'lines': text.split('\n'), 't': self.c.now(), 'renewed': self.c.now(), 'suf': suf, 'names': names}
         m.save_state()
 
 
@@ -360,7 +370,10 @@ class Module:
         tl = text.strip().lower().rstrip("?!. ")
         if f.shop_re.fullmatch(tl):
             f.add_meal_plan()
-            items = [lbl for lbl, _ in S.merge_batteries(f.items())]
+            pairs = S.merge_batteries(f.items())
+            if self.opts.get('merge_duplicates'):
+                pairs = LM.merge(pairs)
+            items = [lbl for lbl, _ in pairs]
             if not items:
                 return "The shopping list is empty."
             groups = {}
@@ -414,7 +427,10 @@ class Module:
             item = item[:len(item) - len(suf.strip())].strip()   # the use-by date is not part of the list item
         names = [item]
         bm = S.BATT_LABEL_RE.match(item)
-        if bm:
+        behind = (lst.get('names') or {}).get(str(n))
+        if behind:   # a merged line: tick every list item behind it (each call ticks ONE open item, so same-name twins are both ticked)
+            names = list(behind)
+        elif bm:
             names = [x for x in self.feature.items() if (S.BATT_RE.match(x) or [None, None, None])[2] == bm.group(1)]
         for nm in names:
             try:

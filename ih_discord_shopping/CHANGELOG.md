@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-11-12
+
+### Added
+- Option `merge_duplicates` (default off): the shop checklist shows one line for list items with the same name and adds their counts (`Name x3` + `Name x3 (note)` -> `Name x6 (note)`). The Home Assistant list is never renamed or changed; a tick on the merged line ticks every open item behind it, and an already-ticked item stays ticked.
+- Use-by hint from the item library: a fresh-aisle line with no planned-meal date shows `(use within N days)` when the fact `items/fresh_days` has the item. No fact = no change.
+
 ## [0.3.9] - 2026-11-11
 
 ### Changed

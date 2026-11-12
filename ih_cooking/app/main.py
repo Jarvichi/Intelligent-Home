@@ -7,7 +7,7 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import cooking, recipeadmin
+import cooking, recipeadmin, staples
 
 PORT = int(os.environ.get('IHC_PORT', '8809'))
 INGRESS_PORT = int(os.environ.get('IHC_INGRESS_PORT', '8810'))
@@ -165,6 +165,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 r = st.recipe(p[len('/recipes/'):])
                 self._why = 'no_such_recipe'
                 return self._send(200, r) if r else self._send(404, {'ok': False, 'why': 'no such recipe'})
+            if p == '/staples':
+                return self._send(200, staples.read(st.data))
             if p == '/plan':
                 plan, src = st.plan()
                 return self._send(200, {'plan': plan, 'source': src})
@@ -195,6 +197,10 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 ok, errs = recipeadmin.write_plan(st.data, body)
                 self._why = 'invalid' if not ok else '-'
                 return self._send(200 if ok else 422, {'ok': ok} if ok else {'ok': False, 'errors': errs})
+            if method == 'POST' and p == '/staples/rename':
+                ok, r = staples.rename(st.data, body.get('old'), body.get('new'), body.get('group'))
+                self._why = 'invalid' if not ok else '-'
+                return self._send(200 if ok else 422, dict(r, ok=True) if ok else {'ok': False, 'errors': r})
             if method == 'POST' and p == '/shop':
                 return self._send(200, recipeadmin.shop(st.data, list(body.get('recipes') or []), list(body.get('groups') or [])))
             if method == 'POST' and p == '/shop/merge':

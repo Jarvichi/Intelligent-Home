@@ -1,6 +1,8 @@
 """Reads the shared facts store (ih_orchestrator /facts) for the shop checklist. stdlib only; every failure returns None (= today's output).
 shopping/aisle_learned = {"order": [aisle...], "rank": {item: number}}  -> shop layout order + per-item order inside an aisle.
 cooking/fresh_dates   = {"<normalised item>": "YYYY-MM-DD"}            -> date of the first planned meal that uses the item.
+items/fresh_days      = {"<normalised item>": days}                    -> shelf life from the item library: 'use within N days', shown
+                                                                          only when the item has no planned-meal date.
 Never logs values or the key."""
 import datetime, json, re, urllib.request
 
@@ -9,6 +11,8 @@ DEFAULT_FRESH = ['Meat & fish', 'Fruit & veg', 'Dairy & chilled', 'Bakery']
 UNITS = r'(?:kg|g|ml|l|lb|oz|tbsp|tsp|pack|packs|packet|packets|tin|tins|can|cans|jar|jars|bag|bags|bunch|bunches|pot|pots|punnet|punnets|large|small|medium|big|mixed|fresh|ripe|x)'
 LEAD = re.compile(r'^(?:[0-9.,/½¼¾]+\s*(?:' + UNITS + r'\b)?\s*)+', re.I)
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+FRESH_DAYS_REF = 'items/fresh_days'
+MAX_SHELF_DAYS = 60   # a longer shelf life is not a "fresh" hint: ignored
 
 
 def norm_key(s):
@@ -38,22 +42,17 @@ def tokens(s):
     return [_stem(w) for w in re.findall(r"[a-z0-9&']+", norm_key(s))]
 
 
-def find_date(item, dates, today=None):
-    """-> datetime.date for the item, or None. Exact normalised match first; else the shorter name's words are all in the longer name and
-    the last word (the thing itself) is the same ('chicken thighs' ~ 'chicken thigh', 'peppers' ~ 'mixed peppers'). Earliest date wins; past dates are ignored."""
-    today = today or datetime.date.today()
+def _match(item, table, value):
+    """Smallest value(v) over the keys of `table` that name the item, or None. value(v) -> a comparable value, or None to skip the entry.
+    Exact normalised match first; else the shorter name's words are all in the longer name and the last word (the thing itself) is the same
+    ('chicken thighs' ~ 'chicken thigh', 'peppers' ~ 'mixed peppers')."""
     it = tokens(item)
-    if not it or not isinstance(dates, dict):
+    if not it or not isinstance(table, dict):
         return None
     exact, loose = [], []
-    for k, v in dates.items():
-        if not (isinstance(v, str) and DATE_RE.match(v)):
-            continue
-        try:
-            d = datetime.date.fromisoformat(v)
-        except ValueError:
-            continue
-        if d < today:
+    for k, v in table.items():
+        d = value(v)
+        if d is None:
             continue
         kt = tokens(k)
         if not kt:
@@ -66,6 +65,30 @@ def find_date(item, dates, today=None):
                 loose.append(d)
     pool = exact or loose
     return min(pool) if pool else None
+
+
+def find_date(item, dates, today=None):
+    """-> datetime.date for the item, or None. Matching as _match. Earliest date wins; past dates are ignored."""
+    today = today or datetime.date.today()
+
+    def value(v):
+        if not (isinstance(v, str) and DATE_RE.match(v)):
+            return None
+        try:
+            d = datetime.date.fromisoformat(v)
+        except ValueError:
+            return None
+        return None if d < today else d
+    return _match(item, dates, value)
+
+
+def find_days(item, days):
+    """-> shelf life in days for the item (int), or None. Matching as _match. The shortest shelf life wins."""
+    return _match(item, days, lambda v: v if isinstance(v, int) and not isinstance(v, bool) and 0 < v <= MAX_SHELF_DAYS else None)
+
+
+def fmt_days(n):
+    return 'use within %d day%s' % (n, '' if n == 1 else 's')
 
 
 def fmt_date(d):
@@ -101,21 +124,28 @@ def fresh_dates(url, key, opener=None):
     return v if isinstance(v, dict) else {}
 
 
-def decorate(msgs, mark, fresh_aisles, dates, today=None, limit=1900):
+def fresh_days(url, key, opener=None):
+    v = get_fact(url, key, FRESH_DAYS_REF, opener)
+    return v if isinstance(v, dict) else {}
+
+
+def decorate(msgs, mark, fresh_aisles, dates, today=None, limit=1900, days=None):
     """msgs = checklist texts ('<mark> **Aisle** ...' then 'KEY item' lines). -> (new texts, [{line index: suffix}, ...]).
-    A fresh-aisle line gets ' (Tue 3 Nov)' when `dates` has the item. A message that would pass `limit` characters is left as it was."""
+    A fresh-aisle line gets ' (Tue 3 Nov)' when `dates` has the item; else ' (use within 5 days)' when `days` (shelf life) has it.
+    A message that would pass `limit` characters is left as it was."""
     out, sufs = [], []
     for t in msgs:
         lines = t.split('\n')
         m = re.search(r'\*\*(.+?)\*\*', lines[0])
         suf = {}
-        if m and m.group(1) in fresh_aisles and dates:
+        if m and m.group(1) in fresh_aisles and (dates or days):
             new = list(lines)
             for n in range(1, len(lines)):
                 item = lines[n].split(' ', 1)[1] if ' ' in lines[n] else ''
                 d = find_date(item, dates, today)
-                if d:
-                    suf[str(n)] = ' (%s)' % fmt_date(d)
+                n_days = None if d else find_days(item, days)
+                if d or n_days:
+                    suf[str(n)] = ' (%s)' % (fmt_date(d) if d else fmt_days(n_days))
                     new[n] = lines[n] + suf[str(n)]
             if suf and len('\n'.join(new)) <= limit:
                 lines = new
