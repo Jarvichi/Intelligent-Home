@@ -1,6 +1,8 @@
 """Scheduled and manual runs (pure logic, no files, no clock, no network). A run is a time-boxed spell in which the backlog feeder queues
 to-do items and the gate follows the run's own pace target instead of the day/night levels.
 Kinds: 'night' and 'day' (scheduled, each with its own settings) and 'now' (started by hand). Only one run is active at a time.
+Phases (0.5.0): DRAIN (feed nothing while the queue holds queued or running jobs) -> PLAN (one free-AI plan_todos job, bounded wait) -> BLOCK (feed
+block_size to-do items at once, wait until the worker has consumed them) -> DRAIN again. A short block (fewer items than asked) means the backlog is empty.
 A run ends when: the item count is reached, the pace target is reached (after at least one item was started), the stop-by time passes,
 the 5-hour session or week limit trips, the STOP switch is on, the backlog is empty, or the user stops it."""
 import re
@@ -12,10 +14,13 @@ KINDS = ('night', 'day')
 MAX_ITEMS_LIMIT = 1000
 PACE_LIMIT = 10.0
 HHMM = re.compile(r'^([01]\d|2[0-3]):([0-5]\d)$')
-FIELDS = ('enabled', 'start', 'stop_by', 'pace_target', 'max_items')
+BLOCK_DEFAULT, BLOCK_MAX = 5, 20
+PLAN_WAIT_MIN = 60     # the PLAN phase waits this long for the plan_todos job (the runner allows it 50 min), then carries on
+PLAN_KIND = 'plan_todos'
+FIELDS = ('enabled', 'start', 'stop_by', 'pace_target', 'max_items', 'block_size')
 DEFAULTS = {
-    'night': dict(enabled=True, start='01:00', stop_by='05:30', pace_target=0.0, max_items=None),
-    'day': dict(enabled=False, start='10:00', stop_by='17:00', pace_target=-2.0, max_items=None),
+    'night': dict(enabled=True, start='01:00', stop_by='05:30', pace_target=0.0, max_items=None, block_size=BLOCK_DEFAULT),
+    'day': dict(enabled=False, start='10:00', stop_by='17:00', pace_target=-2.0, max_items=None, block_size=BLOCK_DEFAULT),
 }
 
 
@@ -53,6 +58,21 @@ def clean_max(v):
     return n
 
 
+def clean_block(v):
+    """Block size: a whole number 1..BLOCK_MAX (None or '' -> the default)."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return BLOCK_DEFAULT
+    if isinstance(v, bool) or isinstance(v, float) and v != int(v):
+        raise ValueError('block size must be a whole number')
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        raise ValueError('block size must be a whole number')
+    if not 1 <= n <= BLOCK_MAX:
+        raise ValueError('block size must be from 1 to %d' % BLOCK_MAX)
+    return n
+
+
 def clean_one(raw, base):
     """Merge a partial dict over a full one and validate. Raises ValueError with a plain message."""
     if not isinstance(raw, dict):
@@ -71,6 +91,7 @@ def clean_one(raw, base):
         raise ValueError('start and stop-by must differ')
     out['pace_target'] = clean_pace(out['pace_target'])
     out['max_items'] = clean_max(out['max_items'])
+    out['block_size'] = clean_block(out.get('block_size'))
     return {k: out[k] for k in FIELDS}
 
 
@@ -127,10 +148,10 @@ def due_kind(settings, windows, local_dt):
     return None, None
 
 
-def new_run(kind, pace_target, max_items, now, stop_by=None, dry=False, ident=None):
+def new_run(kind, pace_target, max_items, now, stop_by=None, dry=False, ident=None, block_size=BLOCK_DEFAULT):
     return dict(id=ident or now.strftime('%Y%m%d%H%M%S'), kind=kind, started_at=now.isoformat(timespec='seconds'), pace_target=pace_target,
                 max_items=max_items, stop_by_at=stop_by.isoformat(timespec='seconds') if stop_by else None, started=0, fed=0, gate_mode='idle',
-                dry=bool(dry))
+                dry=bool(dry), block_size=block_size, phase='drain', block_no=0, block_ids=[], block_total=0, ids=[], plan_id=None, plan_at=None, short=False)
 
 
 def effective_started(run):
@@ -167,3 +188,13 @@ def end_reason(run, now, pace, session, week, stopped):
         if run['kind'] == 'now' or effective_started(run) > 0:
             return 'pace target reached (%+.1f)' % pace
     return ''
+
+
+def phase_text(run):
+    """Plain words for the run's phase, e.g. 'block 2: 3 of 5 done'."""
+    ph, b = run.get('phase', 'drain'), run.get('block_ids') or []
+    if ph == 'drain':
+        return 'waiting for the queue to be consumed' if run.get('block_no') else 'waiting for the queue to be empty'
+    if ph == 'plan':
+        return 'planning (free AIs write plans for to-dos without one)'
+    return 'block %d: %d of %d %s' % (run.get('block_no', 0), run.get('block_done', 0), run.get('block_total', 0), 'would be fed' if run.get('dry') else 'done')

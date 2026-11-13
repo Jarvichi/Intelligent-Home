@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""ih_work 0.4.0: the work queue, the pace gate and the task view. See DOCS.md.
+"""ih_work 0.5.0: the work queue, the pace gate and the task view. See DOCS.md.
 API (bearer api_token; an empty token refuses everything except /healthz):
   POST /enqueue {kind, ref, title, instruction, approved?, by?}   GET /list?status=a,b   GET /item/<id>
   POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}
   POST /cancel {id}   POST /retry {id}   GET /status
   POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}   GET /workers
-  GET /runs   POST /runs/settings {night?, day?}   POST /runs/start {pace_target, max_items|null}   POST /runs/stop   GET /healthz (open)
+  GET /runs   POST /runs/settings {night?, day?}   POST /runs/start {pace_target, max_items|null, block_size?}   POST /runs/stop   GET /healthz (open)
 Unknown fields are refused. Nothing secret is logged or returned. stdlib only."""
 import hmac, json, logging, os, re, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,7 +31,7 @@ FIELDS = {   # POST path -> (allowed fields, required fields)
     '/cancel': ({'id'}, {'id'}),
     '/retry': ({'id'}, {'id'}),
     '/runs/settings': ({'night', 'day'}, set()),
-    '/runs/start': ({'pace_target', 'max_items'}, {'pace_target', 'max_items'}),
+    '/runs/start': ({'pace_target', 'max_items', 'block_size'}, {'pace_target', 'max_items'}),
     '/runs/stop': (set(), set()),
     '/workers/status': ({'worker', 'title', 'ref', 'started_at', 'stage', 'detail', 'updated_at'}, {'worker', 'stage'}),
 }
@@ -63,7 +63,7 @@ def load_options(path=None, log=print):
         from datetime import timezone
         tz = timezone.utc
     prefixes = [p.strip() for p in o.get('feed_prefixes', DEFAULT_PREFIXES) if isinstance(p, str) and p.strip()] if isinstance(o.get('feed_prefixes'), list) else DEFAULT_PREFIXES
-    runs_options = {k: o[k] for k in o if re.match(r'^(night|day)_run_(enabled|start|stop_by|pace_target|max_items)$', k)}
+    runs_options = {k: o[k] for k in o if re.match(r'^(night|day)_run_(enabled|start|stop_by|pace_target|max_items|block_size)$', k)}
     return dict(runs_options=runs_options, mode='live' if o.get('mode') == 'live' else 'dry', api_token=text('api_token'), lease_s=int(_num(o, 'lease_minutes', 20, 1, 120) * 60),
                 stop=bool(o.get('stop')), bands=bands, tz=tz, feed_backlog=bool(o.get('feed_backlog')), feed_prefixes=prefixes,
                 todo_entity=text('todo_entity', 'todo.claude_to_do') or 'todo.claude_to_do', week_entity=text('week_usage_entity'),
@@ -128,7 +128,7 @@ def make_handler(svc, token_of):
             svc.set_run_settings(d)
             return svc.runs_view()
         if path == '/runs/start':
-            return svc.run_start_now(d['pace_target'], d['max_items'])
+            return svc.run_start_now(d['pace_target'], d['max_items'], d.get('block_size'))
         if path == '/runs/stop':
             return svc.run_stop()
 

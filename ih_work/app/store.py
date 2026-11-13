@@ -7,7 +7,7 @@ All changes happen under one file lock; every file is written to a temp name and
 import fcntl, glob, json, os, re, tempfile, threading, uuid
 from datetime import datetime, timedelta, timezone
 
-KINDS = ('approved_request', 'ai_flag', 'todo', 'review', 'other')
+KINDS = ('approved_request', 'ai_flag', 'todo', 'review', 'other', 'plan_todos')
 STATUSES = ('queued', 'claimed', 'running', 'done', 'failed', 'cancelled')
 OPEN = ('queued', 'claimed', 'running')
 ACTIVE = ('claimed', 'running')

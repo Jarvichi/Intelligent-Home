@@ -109,6 +109,20 @@ class Runs(Base):
         self.svc.tick()
         return self.svc.load_state()
 
+    def finish_plan(self):
+        """Play the host runner: claim and finish the plan_todos job (if queued)."""
+        c = self.svc.claim('w1')
+        self.assertTrue(c['claimed'], c)
+        self.assertEqual(c['item']['kind'], 'plan_todos')
+        self.svc.store.finish(c['item']['id'], 'w1', True, summary='planned')
+
+    def consume_all(self):
+        while True:
+            c = self.svc.claim('w1')
+            if not c['claimed']:
+                return
+            self.svc.store.finish(c['item']['id'], 'w1', True, summary='ok')
+
     def test_night_run_starts_at_window_and_only_once(self):
         self.make()
         st = self.tick()
@@ -133,39 +147,43 @@ class Runs(Base):
         self.assertEqual(self.tick()['run']['kind'], 'day')
 
     def test_dry_run_logs_and_counts_would_feed_then_ends_at_count(self):
-        self.make(mode='dry')
-        self.svc.set_run_settings({'night': {'max_items': 2}})
-        self.tick()                                         # starts, feeds one (dry)
+        self.make(mode='dry', items=6)
+        self.svc.set_run_settings({'night': {'max_items': 3, 'block_size': 2}})
+        self.tick()                                         # starts, one dry block of 2
         self.assertEqual(self.svc.store.list(), [])         # dry: nothing queued
+        self.assertTrue(any('[DRY] would queue the planning job' in l for l in self.logs))
         self.assertTrue(any('[DRY] would feed: IH: job 0' in l for l in self.logs))
-        self.tick(seconds=31)
-        self.assertTrue(any('IH: job 1' in l for l in self.logs))
+        self.assertTrue(any('[DRY] block 1: 2 to-do(s)' in l for l in self.logs))
+        self.tick(seconds=31)                               # second block is capped by the remaining count (1)
+        self.assertTrue(any('IH: job 2' in l for l in self.logs))
+        self.assertTrue(any('[DRY] block 2: 1 to-do(s)' in l for l in self.logs))
         st = self.tick(seconds=31)
         self.assertNotIn('run', st)
-        self.assertIn('item count reached (2)', st['run_last']['reason'])
-        self.assertFalse(any('job 2' in l for l in self.logs))
+        self.assertIn('item count reached (3)', st['run_last']['reason'])
+        self.assertFalse(any('job 3' in l for l in self.logs))
 
     def test_live_run_feeds_one_at_a_time_and_counts_claims(self):
         self.make(mode='live')
-        self.svc.set_run_settings({'night': {'max_items': 2, 'pace_target': 0.0}})
+        self.svc.set_run_settings({'night': {'max_items': 2, 'pace_target': 0.0, 'block_size': 1}})
         self.pace(-3.0)
-        self.tick()
-        q = self.svc.store.list()
+        self.tick()                                                    # run starts, queue empty -> planning job
+        self.finish_plan()
+        self.tick(seconds=31)
+        q = self.svc.store.list(('queued',))
         self.assertEqual([i['kind'] for i in q], ['todo'])
         self.tick(seconds=31)
-        self.assertEqual(len(self.svc.store.list()), 1)     # still one: one at a time
-        c = self.svc.claim('w1')
-        self.assertTrue(c['claimed'])
-        self.svc.store.finish(c['item']['id'], 'w1', True, summary='ok')
+        self.assertEqual(len(self.svc.store.list(('queued',))), 1)     # still one: the block is being consumed
+        self.consume_all()
+        self.tick(seconds=31)                                          # block consumed -> drain
+        self.tick(seconds=31)                                          # queue empty -> planning job
+        self.finish_plan()
         self.tick(seconds=31)
-        c = self.svc.claim('w1')
-        self.assertTrue(c['claimed'])
-        self.svc.store.finish(c['item']['id'], 'w1', True, summary='ok')
+        self.consume_all()
         st = self.tick(seconds=31)
         self.assertNotIn('run', st)
         self.assertIn('item count', st['run_last']['reason'])
         self.assertEqual(st['run_last']['started'], 2)
-        self.assertEqual(len(self.svc.store.list()), 2)     # never fed a third
+        self.assertEqual(len([i for i in self.svc.store.list() if i['kind'] == 'todo']), 2)     # never fed a third
 
     def test_run_pace_target_replaces_band_levels(self):
         self.make(when=T0.replace(hour=12), mode='live')    # day band: would wait until pace is below -5
@@ -177,7 +195,7 @@ class Runs(Base):
         self.svc.run_start_now(0.0, 2)
         c = self.svc.claim('w1')
         self.assertTrue(c['claimed'])
-        self.assertEqual(self.svc.load_state()['run']['started'], 1)
+        self.assertEqual(self.svc.load_state()['run']['started'], 0)    # 0.5.0: a job the run did not feed does not count as a run item
 
     def test_run_waits_then_ends_when_pace_reached_after_start(self):
         self.make(mode='live')
@@ -187,8 +205,10 @@ class Runs(Base):
         self.assertEqual(self.svc.runs_view()['active']['state'], 'waiting')
         self.assertEqual(self.svc.store.list(), [])
         self.pace(-2.0)
-        self.tick(seconds=31)
-        self.assertEqual(len(self.svc.store.list()), 1)
+        self.tick(seconds=31)                                # drain empty: plan job queued
+        self.finish_plan()
+        self.tick(seconds=31)                                # block fed
+        self.assertEqual(len(self.svc.store.list(('queued',))), 3)
         c = self.svc.claim('w1')
         self.svc.store.finish(c['item']['id'], 'w1', True)
         self.pace(0.2)
@@ -218,7 +238,9 @@ class Runs(Base):
 
     def test_backlog_empty_ends_run(self):
         self.make(items=0)
-        st = self.tick()
+        self.tick()
+        self.finish_plan()
+        st = self.tick(seconds=31)
         self.assertNotIn('run', st)
         self.assertEqual(st['run_last']['reason'], 'backlog empty')
 
