@@ -46,6 +46,14 @@ def pick(items, prefixes, fed, now, any_item=False):
     return None, False
 
 
+HAS_PLAN = re.compile(r'PLAN|AI job|BUILT', re.I)   # same markers the free-AI planning step looks for
+
+
 def instruction(item):
-    return ('Work on this item of the Claude to-do list. Read-only unless the item is marked approved.\nTitle: %s\nDue: %s\nDescription:\n%s'
-            % (str(item.get('summary'))[:200], str(item.get('due') or 'none'), str(item.get('description') or '')[:3000]))[:4000]
+    desc = str(item.get('description') or '')
+    plan = ('' if HAS_PLAN.search(desc) else
+            '\nNO PLAN YET: the free outside AIs did not give this item a plan (not asked, refused, or out of quota). Before anything else, write one: '
+            'a short plan note in the brain (projects/<slug>/plan, with goal, steps, risks, test, effort) and add a line "PLAN (Claude): <note path>" to the item. '
+            'Then carry on with the item as usual (read-only unless approved). Private items (money, health, people) are planned here, never sent out.\n')
+    return ('Work on this item of the Claude to-do list. Read-only unless the item is marked approved.\nTitle: %s\nDue: %s\n%sDescription:\n%s'
+            % (str(item.get('summary'))[:200], str(item.get('due') or 'none'), plan, desc[:3000]))[:4000]

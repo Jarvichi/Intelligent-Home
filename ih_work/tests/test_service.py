@@ -236,6 +236,11 @@ class Feeder(Base):
              todo('d', 'Check: waiting thing', '[waiting]'), todo('e', 'IH: plan it', '[plan]'), todo('f', 'IH: needs ok', '[needs-ok #3]'),
              todo('g', 'Misc tagged', '[claude]'), todo('h', 'IH: approved one', '[approved #4]', due='2026-12-30')]
 
+    def test_instruction_asks_claude_for_a_missing_plan(self):
+        self.assertIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', '')))
+        self.assertNotIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', 'PLAN (unreviewed): brain projects/x/plan')))
+        self.assertNotIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', 'AI job 12')))
+
     def test_pick_rules(self):
         now = DAY
         item, ap = feed.pick(self.ITEMS, ['IH:', 'Check:'], {}, now)

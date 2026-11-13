@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.2] - 2026-11-13
+
+### Added
+- A to-do fed to Claude with no plan marker (PLAN, AI job or BUILT) now tells Claude to write the plan first: the outside AIs may have skipped it, refused it or run out of quota. Private items are planned there too, never sent out.
+
 ## [0.5.1] - 2026-11-13
 
 ### Fixed
