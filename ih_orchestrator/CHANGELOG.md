@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0] - 2026-11-13
+
+### Changed
+- Add-ons page tells real problems from harmless ones. A lookup that finds nothing (cooking `no_such_recipe` / `not_found`) counts as a call, not a failed call.
+- One failing AI provider (`ih_ai_layer_*`) shows a quiet grey tag "Provider failing, others cover it"; the warning only appears if the main AI Layer is failing too.
+- An add-on that is stopped and set to manual start shows grey "Off (manual)", not "Stopped"; it no longer counts as needing a look.
+- Setting wording: "needed settings" are required ones; optional ones say "fine to leave".
+
 ## [0.11.15] - 2026-11-08
 
 ### Fixed

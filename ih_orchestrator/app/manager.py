@@ -90,10 +90,12 @@ def install_order(short, needs, installed, seen=None):
 # an optional group id is used to dedupe. The first row whose slug regex matches is used; USAGE_GENERIC is the fallback for every other add-on.
 _T = r"^(?P<t>\d\d:\d\d:\d\d) "
 _OK = r".*?\bok=(?P<ok>True|False)\b"
+_WHY = r"(?:.*?\bwhy=(?P<why>\S+))?"   # optional reason tag after ok= (cooking logs `ok=False why=no_such_recipe http=404`)
+BENIGN_WHY = {"no_such_recipe", "not_found"}   # a lookup that found nothing is a normal answer, not a failed call
 USAGE_FORMATS = [
     ("ai_layer request line", r"^ih_ai_layer$", re.compile(_T + r"request id=(?P<id>\S*)" + _OK)),       # `12:27:07 request id=.. caller=.. cap=.. ok=True`
     ("provider ask line", r"^ih_ai_layer_", re.compile(_T + r"ask id=(?P<id>\S*)" + _OK)),                # `.. ask id=.. agent=.. ok=True`
-    ("invoke line", r"^ih_(jobs|games|cooking|orchestrator|orchestration_inbox|discord)", re.compile(_T + r"invoke id=(?P<id>\S*)" + _OK)),   # `.. invoke id=run1 src=startup what=trust .. ok=True`
+    ("invoke line", r"^ih_(jobs|games|cooking|orchestrator|orchestration_inbox|discord)", re.compile(_T + r"invoke id=(?P<id>\S*)" + _OK + _WHY)),   # `.. invoke id=run1 src=startup what=trust .. ok=True`
 ]
 USAGE_GENERIC = re.compile(_T + r"(?:.*?\bid=(?P<id>\S*))?" + _OK)   # fallback: any timestamped line holding ok=True / ok=False
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -125,7 +127,7 @@ def parse_usage(short, text, now):
         gd = m.groupdict()
         base = hashlib.sha1((short + "|" + m.group("t") + "|" + (gd.get("id") or line)).encode()).hexdigest()[:10]
         seen[base] = seen.get(base, 0) + 1
-        found.append((h * 3600 + mi * 60 + se, m.group("ok") == "True", "%s#%d" % (base, seen[base])))
+        found.append((h * 3600 + mi * 60 + se, m.group("ok") == "True" or gd.get("why") in BENIGN_WHY, "%s#%d" % (base, seen[base])))
     out = []
     if not found:
         return out
