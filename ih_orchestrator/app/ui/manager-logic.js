@@ -20,7 +20,17 @@
   function seenText(seen) { return seen && seen.age_s != null ? ageText(seen.age_s) : 'never'; }
 
   function installed(rows) { return (rows || []).filter(function (a) { return a.installed; }); }
-  function isStopped(a) { return a.installed && a.state !== 'started'; }
+  /* Off on purpose: boot is manual and it is not running. Not a problem. */
+  function isOff(a) { return !!(a.installed && a.state !== 'started' && a.boot === 'manual'); }
+  function isStopped(a) { return a.installed && a.state !== 'started' && !isOff(a); }
+  /* Provider add-ons (ih_ai_layer_<name>): one failing free provider is covered by the others. */
+  function isProviderAddon(a) { return /^ih_ai_layer_/.test(a.slug || ''); }
+  function routerFailing(usage) { return callsFailing(usageFor(usage, 'ih_ai_layer')); }
+  /* 'real' | 'quiet' | null: how to treat failed calls of one add-on. */
+  function failKind(a, usage) {
+    if (!callsFailing(usageFor(usage, a.slug))) return null;
+    return isProviderAddon(a) && !routerFailing(usage) ? 'quiet' : 'real';
+  }
   function missing(a) { return a.installed && a.missing_settings > 0 ? a.missing_settings : 0; }
   function title(a) { return (a.ui && a.ui.title) || a.name || a.slug; }
   function addonName(a) { return a.name || (a.ui && a.ui.title) || a.slug; }
@@ -41,7 +51,7 @@
     if (isStopped(a)) n += 2;
     if (missing(a)) n += 1;
     if (a.update) n += 1;
-    if (callsFailing(usageFor(usage, a.slug))) n += 1;
+    if (failKind(a, usage) === 'real') n += 1;
     return n;
   }
 
@@ -97,16 +107,17 @@
     installed(rows).forEach(function (a) {
       var m = missing(a);
       if (isStopped(a)) {
-        out.push({ tone: 'warn', title: addonName(a) + ' is stopped', detail: (m ? plural(m, 'setting', 'settings') + ' missing. ' : '') + 'Last seen ' + seenText(a.seen) + '.', go: { tab: 'addons', q: a.slug, show: 'all' } });
+        out.push({ tone: 'warn', title: addonName(a) + ' is stopped', detail: (m ? plural(m, 'needed setting', 'needed settings') + ' missing. ' : '') + 'Last seen ' + seenText(a.seen) + '.', go: { tab: 'addons', q: a.slug, show: 'all' } });
       } else if (m) {
-        out.push({ tone: 'warn', title: addonName(a) + ' needs ' + plural(m, 'setting', 'settings'), detail: 'Running, but not fully set up.', go: { tab: 'addons', q: a.slug, show: 'all' } });
+        out.push({ tone: 'warn', title: addonName(a) + ' needs ' + plural(m, 'required setting', 'required settings'), detail: 'Running, but not fully set up.', go: { tab: 'addons', q: a.slug, show: 'all' } });
       }
       if (a.update) out.push({ tone: 'warn', title: addonName(a) + ' has an update', detail: 'Version ' + (a.version || '?') + ' is installed. ' + (a.latest || 'A newer one') + ' is available.', go: { tab: 'addons', q: a.slug, show: 'all' } });
     });
     if (f.usage) out.push({ tone: 'warn', title: 'Could not read the 7-day usage', detail: 'Failed calls cannot be checked until it loads.', go: { tab: 'health' } });
     else if (ctx.usage && ctx.usage.addons) {
       ctx.usage.addons.forEach(function (u) {
-        if (callsFailing(u)) out.push({ tone: 'warn', title: (nameOf[u.slug] || u.slug) + ': ' + u.failed + ' of ' + u.total + ' calls failed', detail: 'Last 7 days. Usage is on the Health tab.', go: { tab: 'health' } });
+        var row = (rows || []).filter(function (a) { return a.slug === u.slug; })[0] || { slug: u.slug };
+        if (failKind(row, ctx.usage) === 'real') out.push({ tone: 'warn', title: (nameOf[u.slug] || u.slug) + ': ' + u.failed + ' of ' + u.total + ' calls failed', detail: 'Last 7 days. Usage is on the Health tab.', go: { tab: 'health' } });
       });
     }
     if (f.plugins) out.push({ tone: 'warn', title: 'Could not read the jobs', detail: 'Try again from the Jobs tab.', go: { tab: 'jobs' } });
@@ -256,7 +267,7 @@
     ROUTINE_ROOTS: ROUTINE_ROOTS, plural: plural, isRoutine: isRoutine, ageText: ageText, seenText: seenText, addonAttention: addonAttention,
     filterAddons: filterAddons, worthALook: worthALook, tiles: tiles, pill: pill, filterTraces: filterTraces, traceTypes: traceTypes,
     routineCount: routineCount, filterHealth: filterHealth, attrChips: attrChips, usedTxt: usedTxt, imgTxt: imgTxt, schedText: schedText,
-    callsFailing: callsFailing, jobProblem: jobProblem, tabFromHash: tabFromHash, addonName: addonName, missing: missing, isStopped: isStopped,
+    callsFailing: callsFailing, jobProblem: jobProblem, tabFromHash: tabFromHash, addonName: addonName, missing: missing, isStopped: isStopped, isOff: isOff, isProviderAddon: isProviderAddon, failKind: failKind,
     healthUnreadable: healthUnreadable, usageFor: usageFor, installed: installed
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

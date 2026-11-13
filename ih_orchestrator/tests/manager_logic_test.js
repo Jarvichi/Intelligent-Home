@@ -40,9 +40,9 @@ assert.strictEqual(M.filterAddons(many, {}).list.length, 40); // never silently 
 assert.deepStrictEqual(M.worthALook(ctx({})), []);
 let w = M.worthALook(ctx({ addons: [A({ slug: 'ih_b', name: 'Beta', state: 'stopped', missing_settings: 3, seen: { age_s: 681936 } }), A({ slug: 'ih_c', name: 'Cee', missing_settings: 2, update: true, version: '1', latest: '2' })] }));
 assert.strictEqual(w[0].title, 'Beta is stopped');
-assert.strictEqual(w[0].detail, '3 settings missing. Last seen 8 days ago.');
+assert.strictEqual(w[0].detail, '3 needed settings missing. Last seen 8 days ago.');
 assert.deepStrictEqual(w[0].go, { tab: 'addons', q: 'ih_b', show: 'all' });
-assert.ok(w.some(x => x.title === 'Cee needs 2 settings'));
+assert.ok(w.some(x => x.title === 'Cee needs 2 required settings'));
 assert.ok(w.some(x => x.title === 'Cee has an update'));
 w = M.worthALook(ctx({ usage: { addons: [{ slug: 'ih_x', total: 107, failed: 18 }] } }));
 assert.strictEqual(w[0].title, 'X: 18 of 107 calls failed');
@@ -124,4 +124,23 @@ console.log('ok');
   assert.strictEqual(jt[0].href, '/app/abc_ih_games');
   assert.deepStrictEqual(M.jumpTargets(null), []);
   assert.strictEqual(M.plainName({ slug: 's', name: '' }), 's');
+}
+
+// real failures vs harmless: manual+stopped is "off", one failing provider is quiet, a failing router is real
+{
+  const off = A({ slug: 'ih_games', state: 'stopped', boot: 'manual' }), stp = A({ slug: 'ih_jobs', state: 'stopped', boot: 'auto' });
+  assert.ok(M.isOff(off) && !M.isStopped(off) && M.isStopped(stp) && !M.isOff(stp));
+  assert.strictEqual(M.addonAttention(off, null), 0);
+  assert.strictEqual(M.filterAddons([off, stp], {}).counts.stopped, 1);
+  assert.strictEqual(M.pill(ctx({ addons: [off], health: H({}) })).tone, 'ok');
+  assert.ok(!M.worthALook(ctx({ addons: [off] })).some(x => /stopped/.test(x.title)));
+  const prov = A({ slug: 'ih_ai_layer_free', name: 'Free' }), router = A({ slug: 'ih_ai_layer', name: 'Router' });
+  const bad = { slug: 'ih_ai_layer_free', failed: 12, total: 20 }, rbad = { slug: 'ih_ai_layer', failed: 12, total: 20 };
+  assert.strictEqual(M.failKind(prov, { addons: [bad] }), 'quiet');
+  assert.strictEqual(M.failKind(prov, { addons: [bad, rbad] }), 'real');
+  assert.strictEqual(M.failKind(router, { addons: [rbad] }), 'real');
+  assert.strictEqual(M.failKind(prov, { addons: [] }), null);
+  assert.strictEqual(M.addonAttention(prov, { addons: [bad] }), 0);
+  assert.ok(!M.worthALook(ctx({ addons: [prov], usage: { addons: [bad] } })).some(x => /calls failed/.test(x.title)));
+  assert.ok(M.worthALook(ctx({ addons: [router], usage: { addons: [rbad] } })).some(x => /calls failed/.test(x.title)));
 }

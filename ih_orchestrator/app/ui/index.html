@@ -172,11 +172,11 @@ function addonBody(b,a){var h=healthOf(a),sd=S.settings&&S.settings.data?S.setti
  b.appendChild(kvl([['Id',a.slug],['Version',(a.version||'?')+(a.update?' -> update to '+a.latest:' (up to date)'),a.update?'warn':''],['Prebuilt image',IHM.imgTxt(a),a.image?'ok':''],['State',a.state||'-',a.state=='started'?'ok':'bad'],['Health',h.txt,h.cls],
   ['CPU',a.cpu==null?null:a.cpu+' %'],['Memory',a.mem_mb==null?null:a.mem_mb+' MB'],['Last seen',IHM.seenText(a.seen)],['Missing settings',a.missing_settings==null?null:a.missing_settings,a.missing_settings?'warn':''],['Used',IHM.usedTxt(a.used),a.used&&a.used.failed_today?'warn':'']]));
  if(h.checks.length)b.appendChild(E('p','Health: '+h.checks.join('; '),'meta')).style.marginTop='8px';
- if(sd){if(sd.missing.length)b.appendChild(E('p','Missing: '+sd.missing.join(', '),'warnt')).style.marginTop='8px';if(sd.optional_empty&&sd.optional_empty.length)b.appendChild(E('p','Optional, not set: '+sd.optional_empty.join(', '),'meta')).style.marginTop='8px';if(sd.error)b.appendChild(E('p',sd.error,'badt')).style.marginTop='8px'}
+ if(sd){if(sd.missing.length)b.appendChild(E('p','Needed, not set: '+sd.missing.join(', '),'warnt')).style.marginTop='8px';if(sd.optional_empty&&sd.optional_empty.length)b.appendChild(E('p','Optional, not set (fine to leave): '+sd.optional_empty.join(', '),'meta')).style.marginTop='8px';if(sd.error)b.appendChild(E('p',sd.error,'badt')).style.marginTop='8px'}
  if(a.needs&&a.needs.length)b.appendChild(E('p','Needs: '+a.needs.map(function(x){return x.slug+' ('+(x.status=='ok'?'ok':'missing: '+x.status)+')'}).join(', '),'meta')).style.marginTop='8px';
  if(a.needed_by&&a.needed_by.length)b.appendChild(E('p','Needed by: '+a.needed_by.map(function(x){return x.slug}).join(', '),'meta')).style.marginTop='8px';
  if(a.state!='started')b.appendChild(E('p','Next: check the logs and settings before starting.','meta')).style.marginTop='8px';
- if(a.missing_settings)b.appendChild(E('p','Next: fill the missing settings.','warnt')).style.marginTop='8px';
+ if(a.missing_settings)b.appendChild(E('p','Next: fill the needed settings.','warnt')).style.marginTop='8px';
  var bs=E('div',null,'btns');
  if(a.full){var ub=btn(a.ingress?'Open page':'Open page (update needed)',function(){goHA('/app/'+encodeURIComponent(a.full))},a.ingress?'primary':'');if(!a.ingress){ub.disabled=true;ub.title='The installed add-on version does not expose its page yet.'}bs.appendChild(ub)}
  if(a.can_act){
@@ -189,11 +189,11 @@ function addonBody(b,a){var h=healthOf(a),sd=S.settings&&S.settings.data?S.setti
 function notInstalledBody(b,a){b.appendChild(E('p',a.description,'meta')).style.marginTop='10px';b.appendChild(kvl([['Prebuilt image',IHM.imgTxt(a),a.image?'ok':'']]));
  var n=a.needs||[];b.appendChild(E('p',n.length?'Needs: '+n.map(function(x){return x.slug+' ('+(x.status=='ok'?'ok':'missing: '+x.status)+')'}).join(', '):'Needs nothing else.','meta')).style.marginTop='8px';
  var bs=E('div',null,'btns');bs.appendChild(btn('Install '+(a.latest||''),function(){var me=this;ask(me,'Install '+IHM.addonName(a)+'?',function(){act('install',a.slug)})},'primary'));b.appendChild(bs)}
-function addonItem(a,usage){var m=IHM.missing(a),stopped=IHM.isStopped(a),tags=[];
+function addonItem(a,usage){var m=IHM.missing(a),stopped=IHM.isStopped(a),off=IHM.isOff(a),tags=[];
  if(!a.installed)return item('n:'+a.slug,'off',IHM.addonName(a),[['Not installed','']],(a.description||'').slice(0,90),function(b){notInstalledBody(b,a)});
- if(stopped)tags.push(['Stopped','bad']);if(m)tags.push([m+(m==1?' setting missing':' settings missing'),'warn']);if(a.update)tags.push(['Update','warn']);
- var u=IHM.usageFor(usage,a.slug);if(IHM.callsFailing(u))tags.push(['Calls failing','warn']);
- var st=a.state=='started'?'Running':a.state=='stopped'?'Stopped':(a.state||'Unknown');
+ if(stopped)tags.push(['Stopped','bad']);if(off)tags.push(['Off (manual)','']);if(m)tags.push([m+(m==1?' needed setting missing':' needed settings missing'),'warn']);if(a.update)tags.push(['Update','warn']);
+ var u=IHM.usageFor(usage,a.slug);var fk=IHM.failKind(a,usage);if(fk=='real')tags.push(['Calls failing','warn']);else if(fk=='quiet')tags.push(['Provider failing, others cover it','']);
+ var st=a.state=='started'?'Running':off?'Off (manual)':a.state=='stopped'?'Stopped':(a.state||'Unknown');
  return item('a:'+a.slug,stopped?'bad':(m||a.update)?'warn':a.state=='started'?'':'off',IHM.addonName(a),tags,st+' · v'+(a.version||'?')+(a.used&&a.used.today?' · '+a.used.today+' calls today':''),function(b){addonBody(b,a)})}
 function tabAddons(m,rid){
  var top=E('div'),sharedHolder=E('div'),tb=toolbar(),cnt=E('p',null,'count'),lst=E('div',null,'list two');cnt.setAttribute('role','status');
