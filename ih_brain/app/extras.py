@@ -61,6 +61,48 @@ def set_names(text):
 SKIP_DIRS = ('inbox/', 'private/')   # never sent; encrypted private notes live outside the brain folder as well
 
 
+CHOICES = {}          # name -> {'scrub': bool, 'repl': str}; chosen on the Names page (UI), saved in /data/name_choices.json
+RELAXED_TOO = False   # True: the chosen names are also scrubbed in notes marked `scrub: relaxed`
+CHOICES_FILE = 'name_choices.json'
+
+
+def load_choices(data_dir):
+    """Load the names the owner chose on the Names page. Missing/bad file = no choices."""
+    global RELAXED_TOO
+    CHOICES.clear(); RELAXED_TOO = False
+    try:
+        d = json.load(open(os.path.join(data_dir, CHOICES_FILE)))
+        for k, v in (d.get('names') or {}).items():
+            if isinstance(k, str) and k.strip() and isinstance(v, dict):
+                CHOICES[k.strip()] = {'scrub': v.get('scrub') is True, 'repl': str(v.get('repl') or '[name]')[:60]}
+        RELAXED_TOO = d.get('relaxed_too') is True
+    except (OSError, ValueError, AttributeError):
+        pass
+    return CHOICES
+
+
+def save_choices(data_dir, names, relaxed_too):
+    """Validate and save the Names page choices (mode 600), then use them straight away."""
+    clean = {}
+    for k, v in (names or {}).items():
+        k = str(k).strip()
+        if k and len(k) <= 60 and isinstance(v, dict):
+            clean[k] = {'scrub': v.get('scrub') is True, 'repl': (str(v.get('repl') or '[name]').strip() or '[name]')[:60]}
+    path = os.path.join(data_dir, CHOICES_FILE)
+    fd = os.open(path + '.tmp', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump({'names': clean, 'relaxed_too': relaxed_too is True}, f, ensure_ascii=False)
+    os.replace(path + '.tmp', path)
+    return load_choices(data_dir)
+
+
+def _apply_choices(t):
+    for k, c in CHOICES.items():
+        if c.get('scrub'):
+            t = re.sub(r'\b' + re.escape(k) + r"(?=\W|$)", c['repl'], t)
+    return t
+
+
 def scrub(t, relaxed=False):
     t = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '<IP>', t)
     t = re.sub(r'(?<![0-9A-Fa-f:-])(?:[0-9A-Fa-f]{2}[:-]){5,7}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])', '<MAC>', t)
@@ -68,15 +110,66 @@ def scrub(t, relaxed=False):
     t = re.sub(r'[\w.+-]+@[\w-]+\.[\w.-]+', '<EMAIL>', t)
     t = re.sub(r'\b\d{15,}\b', '<NUM>', t)
     if relaxed:
-        return t
+        return _apply_choices(t) if RELAXED_TOO else t
     t = re.sub(r'\b[A-Z]{2}\d{2} ?[A-Z]{3}\b', '<REG>', t)
     for k, v in NAMES.items():
         t = re.sub(r'\b' + k + r"(?=\W|$)", v, t)
-    return t
+    return _apply_choices(t)
 
 
 def leaks(t):
     return re.findall(r'(?i)(password|token|secret|api[_ ]?key)\s*[:=]\s*\S{8,}', t)
+
+
+_NOT_NAMES = set('January February March April May June July August September October November December Monday Tuesday Wednesday Thursday Friday Saturday Sunday Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec Mon Tue Wed Thu Fri Sat Sun'.split())
+
+
+def detect_names(brain_dir, limit=600):
+    """Capitalised words that look like names or places, for the Names page: words that never appear in lower case
+    anywhere in the shareable notes (so not ordinary words), outside code and links. Sorted by how many notes use them.
+    [{'name', 'notes', 'count', 'sample'}]. Words already scrubbed by the scrub_names option are left out."""
+    seen, lower, sample = {}, set(), {}
+    for root, dirs, files in os.walk(brain_dir):
+        dirs[:] = [x for x in dirs if not x.startswith('.')]
+        for f in files:
+            if not f.endswith('.md') or f.startswith('_'):
+                continue
+            p = os.path.join(root, f); rel = os.path.relpath(p, brain_dir)
+            if rel.startswith(SKIP_DIRS) or os.path.islink(p):
+                continue
+            raw = open(p, encoding='utf-8', errors='replace').read()
+            m = re.match(r'---\n(.*?)\n---\n', raw, re.S)
+            if m and re.search(r'(?m)^share:\s*false\s*$', m.group(1)):
+                continue
+            body = re.sub(r'```.*?```|`[^`\n]*`|https?://\S+|\[\[[^\]]*\]\]', ' ', raw[m.end():] if m else raw, flags=re.S)
+            lower.update(re.findall(r'\b[a-z]{3,}\b', body))
+            for w in re.finditer(r'\b[A-Z][a-z]{2,}\b', body):
+                n = w.group(0)
+                if n in _NOT_NAMES:
+                    continue
+                e = seen.setdefault(n, [set(), 0]); e[0].add(rel); e[1] += 1
+                if n not in sample:
+                    sample[n] = re.sub(r'\s+', ' ', body[max(0, w.start() - 50):w.end() + 50]).strip()
+    out = [{'name': n, 'notes': len(v[0]), 'count': v[1], 'sample': sample[n]}
+           for n, v in seen.items() if n.lower() not in lower and n not in NAMES]
+    out.sort(key=lambda r: (-r['notes'], r['name']))
+    return out[:limit]
+
+
+def relaxed_notes(brain_dir):
+    """Paths of shareable notes marked `scrub: relaxed` (their names are sent unless the Names page says 'also relaxed')."""
+    res = []
+    for root, dirs, files in os.walk(brain_dir):
+        dirs[:] = [x for x in dirs if not x.startswith('.')]
+        for f in files:
+            if f.endswith('.md') and not f.startswith('_'):
+                p = os.path.join(root, f); rel = os.path.relpath(p, brain_dir)
+                if rel.startswith(SKIP_DIRS) or os.path.islink(p):
+                    continue
+                m = re.match(r'---\n(.*?)\n---\n', open(p, encoding='utf-8', errors='replace').read(), re.S)
+                if m and re.search(r'(?m)^scrub:\s*relaxed\s*$', m.group(1)) and not re.search(r'(?m)^share:\s*false\s*$', m.group(1)):
+                    res.append(rel)
+    return sorted(res)
 
 
 def select_notes(brain_dir):

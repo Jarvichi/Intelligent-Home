@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.3] - 2026-11-13
+
+### Added
+- Names page (`Names to scrub` button on the Brain page): lists capitalised words that look like names or places, with how many notes use each and an example sentence. Tick a word to hide it from the pocket brain and choose its replacement; one switch also applies the choices to notes marked `scrub: relaxed`. Choices are saved in the add-on's data folder (mode 600) and used at the next sync, together with the `scrub_names` option.
+
 ## [0.5.2] - 2026-11-11
 
 ### Changed
