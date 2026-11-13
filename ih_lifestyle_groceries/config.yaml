@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Groceries"
-version: "0.3.0"
+version: "0.3.1"
 slug: ih_lifestyle_groceries
 image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_groceries"
 description: "Everything the house buys: item library plus the receipts ledger (whole receipts, price changes, due-again). TEST MODE (mode dry) validates only and writes nothing."

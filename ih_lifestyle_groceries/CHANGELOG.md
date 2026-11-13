@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2026-11-13
+### Fixed
+- Price changes now compare the LIST (shelf) price, not the price after offers, so a 2-for-1 week is no longer reported as a price rise. The after-offer change is shown separately as `net_pct`.
+
 ## [0.3.0] - 2026-11-13
 ### Added
 - Dockerfile, run.sh and image name so the add-on builds (0.2.0 had none).
