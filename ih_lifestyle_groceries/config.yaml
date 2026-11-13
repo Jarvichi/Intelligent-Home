@@ -1,14 +1,23 @@
 name: "Intelligent Home - Lifestyle - Groceries"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_lifestyle_groceries
-description: "Item library for everything the house buys: names, aliases, aisle, shelf life. Slice 1: shelf life for the shop checklist. TEST MODE: read-only, no live readers."
+image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_groceries"
+description: "Everything the house buys: item library plus the receipts ledger (whole receipts, price changes, due-again). TEST MODE (mode dry) validates only and writes nothing."
 arch:
   - aarch64
   - amd64
 startup: application
 boot: manual
 init: false
+# Reachable by other add-ons (host name 32c8114c-ih-lifestyle-groceries), NOT published on the network.
+ports:
+  8801/tcp: null
+ports_description:
+  8801/tcp: "Receipts API: add-ons only, not published"
+watchdog: "http://[HOST]:[PORT:8801]/healthz"
 options:
   mode: "dry"
+  api_token: ""
 schema:
   mode: list(dry|live)
+  api_token: password?

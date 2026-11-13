@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2026-11-13
+### Added
+- Dockerfile, run.sh and image name so the add-on builds (0.2.0 had none).
+- Receipts API on port 8801 (add-ons only, not published): `POST /receipts` and `POST /alias` (Bearer `api_token`; no token set = refused), read-only `GET /stats/due|prices|weeks|week_diff`, `GET /healthz`. Mode `dry` validates only and writes nothing; mode `live` stores. Payment details are refused. 13 tests.
+
 ## [0.2.0] - 2026-11-13
 ### Added
 - Receipts ledger (slice 2): SQLite tables for whole receipts (every line, line discounts, cancelled lines kept), till-name aliases, pence-based money, duplicate and balance checks, payment details refused (`app/ledger.py`).
