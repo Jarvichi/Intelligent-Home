@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Discord Transport",
+  "purpose": "Connects the house add-ons to Discord."
+ }
+}

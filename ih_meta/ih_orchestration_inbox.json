@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Orchestration Inbox",
+  "purpose": "Keeps a queue of requests waiting for Claude and other helpers."
+ }
+}

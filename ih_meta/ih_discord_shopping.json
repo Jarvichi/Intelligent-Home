@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Shopping Shortcut",
+  "purpose": "Set up and verify the iPhone Shortcut that adds items to the household shopping list."
+ }
+}

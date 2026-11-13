@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Groceries",
+  "purpose": "Keeps every receipt and shows spend, price changes and what is due again."
+ }
+}

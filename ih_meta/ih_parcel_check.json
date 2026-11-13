@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_ollama"
+ ],
+ "ui": {
+  "title": "Parcel check",
+  "purpose": "Checks doorstep pictures for parcels."
+ }
+}

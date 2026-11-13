@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Jobs",
+  "purpose": "Coordinates the Jobs family and reports scheduled house job activity."
+ }
+}

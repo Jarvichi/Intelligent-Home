@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_jobs"
+ ],
+ "ui": {
+  "title": "Jobs · Met Office",
+  "purpose": "Brings Met Office weather forecasts into the house."
+ }
+}

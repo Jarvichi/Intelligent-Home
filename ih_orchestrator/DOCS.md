@@ -66,7 +66,7 @@ It only touches add-ons from its own repository. A `register_key` is generated o
 
 ### Add-on manager (0.6.0)
 
-Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of `app/catalogue.json` (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
+Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of this repository (read from the Supervisor store; what each needs and what its page is for come from the add-on's `ih_meta/<slug>.json` in the repository, or from `POST /register`) (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
 
 ### Add-on status contributions (0.10.10)
 
@@ -79,7 +79,7 @@ An IH add-on may add `ui_contribution` to its existing authenticated `POST /inge
 `state` is `ok`, `attention` or `unknown`; it describes the add-on's work, while service health remains a separate Manager check. `last_activity_at` is a Unix timestamp or `null`. Supply at most four numeric metrics. Keep the summary, next step and labels short and free of secrets, names, URLs and HTML. Orchestrator validates and stores only these fields. Manager labels a contribution stale after 120 seconds without a push and stops showing its metrics after six hours. Add-ons without a contribution continue to show central health and Supervisor state. Jobs is the first producer; richer applications can retain their own sidebar UI.
 
 ### Prebuilt image (0.9.1)
-Each add-on card shows "Prebuilt image: yes (tag X)" or "no (built on the Pi)". The answer comes from `app/catalogue.json` (`image: true/false`, written by the export from `tools/prebuilt.txt`); it says the published repo offers a ready image, not that this install has pulled it. The tag is the catalogue version.
+Each add-on card shows "Prebuilt image: yes (tag X)" or "no (built on the Pi)". Every add-on of the repository is published with a prebuilt image, so this is "yes"; it says the published repo offers a ready image, not that this install has pulled it. The tag is the catalogue version.
 
 ### Request traces (0.10.0)
 The manager accepts metadata-only trace batches at `POST /trace`, authenticated with the existing `ingest_token`. The Discord AI Bot submits one trace for each accepted request: bot intake, AI Layer call, AI Layer/provider spans, and Discord transport reply. The trace API rejects free-form message fields and stores only bounded identifiers, component/operation names, status/reason codes, timings and parent relationships. Traces remain on the Orchestrator's `/data`, expire after 7 days, and are capped at 5,000 spans. The ingress manager exposes recent traces at `/api/traces` and individual timelines at `/api/trace/<trace_id>`.

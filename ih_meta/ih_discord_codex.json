@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Discord Codex",
+  "purpose": "Runs Codex helper tasks that you request in Discord."
+ }
+}

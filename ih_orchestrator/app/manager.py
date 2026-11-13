@@ -1,5 +1,5 @@
 """Add-on manager page (v0.10.0: trace explorer; consumer outcome progress). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
-Lists the add-ons of catalogue.json merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
+Lists the add-ons of this repository (Supervisor store + each add-on's ih_meta file + registrations) merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import hashlib, json, os, re, threading, time, urllib.request, urllib.error
 from pathlib import Path
@@ -57,12 +57,16 @@ def load_catalogue(path):
 
 SHORT_RE = re.compile(r"^ih_[a-z0-9_]{1,40}$")
 STORE_TTL_S = 60
+META_TTL_S = 3600          # how long an add-on's ih_meta file is trusted before it is read again
+META_WORKERS = 8
+META_DIR = "ih_meta/"      # repository folder holding <slug>.json per add-on (outside the add-on folders: a metadata change must not need an add-on version bump)
 
 
-def merge_catalogue(static, store, registered, prefix, repo=None):
+def merge_catalogue(static, store, registered, prefix, repo=None, meta=None):
     """Dynamic list of this repository's add-ons (13 Nov 2026). Sources, lowest priority first:
     the Supervisor store (name, description, version of every add-on in OUR repository, installed or not),
-    catalogue.json (fallback and hand-written overrides), add-ons that registered themselves (requires, ui title and purpose).
+    `static` (tests only; catalogue.json was removed 13 Nov 2026), each add-on's `ih_meta/<slug>.json` in the repository (requires, ui title and purpose),
+    add-ons that registered themselves while running (same fields).
     -> [catalogue entry]. Static entries keep their order; new ones follow, sorted by slug."""
     out = {c["slug"]: dict(c) for c in static}
     order = [c["slug"] for c in static]
@@ -79,16 +83,36 @@ def merge_catalogue(static, store, registered, prefix, repo=None):
                           "requires": [], "version": str(x.get("version") or ""), "image": True,
                           "ui": {"title": str(x.get("name") or short).replace("Intelligent Home - ", ""), "purpose": str(x.get("description") or "")[:160]}}
             order.append(short)
-    for short, r in (registered or {}).items():
-        if short not in out or not isinstance(r, dict):
-            continue
-        if isinstance(r.get("requires"), list):
-            out[short]["requires"] = [q for q in r["requires"] if isinstance(q, str)]
-        if isinstance(r.get("ui"), dict):
-            out[short]["ui"] = {"title": str(r["ui"].get("title") or out[short].get("ui", {}).get("title") or short)[:40],
-                                "purpose": str(r["ui"].get("purpose") or out[short].get("ui", {}).get("purpose") or "")[:160]}
+    for src in (meta or {}, registered or {}):
+        for short, r in src.items():
+            if short not in out or not isinstance(r, dict):
+                continue
+            if isinstance(r.get("requires"), list):
+                out[short]["requires"] = [q for q in r["requires"] if isinstance(q, str)][:12]
+            if isinstance(r.get("ui"), dict):
+                cur = out[short].get("ui", {})
+                out[short]["ui"] = {"title": str(r["ui"].get("title") or cur.get("title") or short)[:40],
+                                    "purpose": str(r["ui"].get("purpose") or cur.get("purpose") or "")[:160]}
     static_slugs = [c["slug"] for c in static]
     return [out[k] for k in static_slugs] + [out[k] for k in sorted(k for k in order if k not in static_slugs)]
+
+
+def raw_base(source):
+    """'https://github.com/owner/repo' -> raw file base on main. None for anything else (never fetches from a host we do not know)."""
+    m = re.match(r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$", str(source or ""))
+    return "https://raw.githubusercontent.com/%s/%s/main/" % (m.group(1), m.group(2)) if m else None
+
+
+def clean_meta(d):
+    """Only the two fields an ih_meta file may carry, bounded. None when it is not a usable document."""
+    if not isinstance(d, dict):
+        return None
+    out = {}
+    if isinstance(d.get("requires"), list):
+        out["requires"] = [q for q in d["requires"] if isinstance(q, str) and len(q) <= 40][:12]
+    if isinstance(d.get("ui"), dict):
+        out["ui"] = {"title": str(d["ui"].get("title") or "")[:40], "purpose": str(d["ui"].get("purpose") or "")[:160]}
+    return out or None
 
 
 def needs_map(cat):
@@ -229,6 +253,12 @@ class Manager:
                  health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}):
         self.static, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.registered, self._cat = registered, (0, None)
+        self._meta, self._meta_file = {}, os.environ.get("IH_META_CACHE", "/data/meta_cache.json")
+        try:
+            with open(self._meta_file) as f:
+                self._meta = {k: (0, v) for k, v in json.load(f).items() if isinstance(v, dict)}
+        except Exception:
+            pass
         self.health_src, self.http = health, http or http_json
         self.jobs, self.busy, self.lock = Jobs(), set(), threading.Lock()
         self.cache = (0, None)
@@ -236,9 +266,33 @@ class Manager:
         self.usage, self.usage_t, self.usage_err = self._usage_load(), 0, {}
         self.trace_src = traces
 
+    def metas(self, shorts, base):
+        """{short: {requires, ui}} from each add-on's own ih_meta file in the repository (read at most once an hour, 8 at a time). A failed read keeps the last good copy
+        (also kept on disk), so GitHub being unreachable never empties the page."""
+        now = time.time()
+        stale = [x for x in shorts if x not in self._meta or now - self._meta[x][0] > META_TTL_S]
+        if stale and base:
+            from concurrent.futures import ThreadPoolExecutor
+            def one(x):
+                return x, clean_meta(self.http(base + META_DIR + x + ".json"))
+            with ThreadPoolExecutor(max_workers=META_WORKERS) as ex:
+                for x, m in ex.map(one, stale):
+                    if m is not None:
+                        self._meta[x] = (now, m)
+                    elif x in self._meta:
+                        self._meta[x] = (now - META_TTL_S + 300, self._meta[x][1])   # try again in 5 minutes
+            try:
+                tmp = self._meta_file + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump({k: v[1] for k, v in self._meta.items()}, f)
+                os.replace(tmp, self._meta_file)
+            except Exception:
+                pass
+        return {x: self._meta[x][1] for x in shorts if x in self._meta}
+
     @property
     def catalogue(self):
-        """The add-on list: store + catalogue.json + registrations (see merge_catalogue). Falls back to catalogue.json alone when the store cannot be read."""
+        """The add-on list: store + each add-on's ih_meta file + registrations (see merge_catalogue). Falls back to `static` plus cached ih_meta file copies when the store cannot be read."""
         t, cached = self._cat
         if cached is not None and time.time() - t < STORE_TTL_S:
             return cached
@@ -246,9 +300,18 @@ class Manager:
             prefix, repo = self.context()
             lst = self.sup("GET", "/store/addons")
             items = lst.get("addons") if isinstance(lst, dict) else lst
-            merged = merge_catalogue(self.static, items if isinstance(items, list) else [], self.registered(), prefix, repo)
+            items = items if isinstance(items, list) else []
+            base = None
+            try:
+                repos = self.sup("GET", "/store/repositories")
+                repos = repos.get("repositories") if isinstance(repos, dict) else repos
+                base = next((raw_base(r.get("source")) for r in repos if isinstance(r, dict) and r.get("slug") == repo), None)
+            except Exception:
+                pass
+            shorts = [x["slug"][len(prefix) + 1:] for x in items if isinstance(x, dict) and isinstance(x.get("slug"), str) and x["slug"].startswith(prefix + "_ih_")]
+            merged = merge_catalogue(self.static, items, self.registered(), prefix, repo, self.metas(shorts, base))
         except Exception:
-            merged = merge_catalogue(self.static, [], self.registered() if callable(self.registered) else {}, "")
+            merged = cached if cached is not None else merge_catalogue(self.static, [], self.registered() if callable(self.registered) else {}, "", None, {k: v[1] for k, v in self._meta.items()})
         self._cat = (time.time(), merged)
         return merged
 

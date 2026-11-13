@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Discord House",
+  "purpose": "Answers questions about the house in Discord."
+ }
+}

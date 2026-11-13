@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.0] - 2026-11-13
+
+### Changed
+- `app/catalogue.json` is gone. What each add-on needs and what its page is for now live in an `ih_meta/<slug>.json` file at the repository root (22 files added; outside the add-on folders so editing one needs no add-on version bump), read from the repository (GitHub raw, at most once an hour per add-on, last good copy cached in /data and used if GitHub is unreachable). Names, descriptions and versions still come from the Supervisor store. `POST /register` still overrides while an add-on runs.
+- A new add-on needs its `ih_meta/<slug>.json`; a repository test fails without it.
+
 ## [0.13.0] - 2026-11-13
 
 ### Added

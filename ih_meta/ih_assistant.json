@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Assistant",
+  "purpose": "Looks after private chats and check-in messages for each person in the house."
+ }
+}
