@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="ih-ui.css?v=nav1">
   <link rel="stylesheet" href="ih-patterns.css">
   <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="runs.css">
 </head>
 <body>
   <ih-nav data-home-href="/app/32c8114c_ih_orchestrator"></ih-nav>
@@ -34,6 +35,23 @@
         <div id="today-rows"></div>
         <p id="today-foot" class="ih-metadata" hidden></p>
       </ih-card>
+      <ih-card id="runs-card" class="status-card" hidden>
+        <h2>Runs</h2>
+        <p class="status-sub">While a run is active it queues the next open to-do item, one at a time, until it reaches its pace target or item count.</p>
+        <p id="run-status" class="runs-status" role="status" aria-live="polite"></p>
+        <h3 class="runs-h">Run now</h3>
+        <div class="runs-grid">
+          <label>Pace target <input id="now-pace" type="number" step="0.1" value="0"></label>
+          <label>Items <input id="now-max" type="number" min="1" max="1000" step="1" value="3"></label>
+          <label class="runs-check"><input id="now-unl" type="checkbox"> Unlimited</label>
+        </div>
+        <div class="runs-actions">
+          <button id="now-go" class="ih-button" type="button">Run now</button>
+          <button id="now-stop" class="ih-button" type="button">Stop run</button>
+        </div>
+        <div id="run-forms"></div>
+        <p id="run-msg" class="ih-metadata" role="status" aria-live="polite"></p>
+      </ih-card>
       <ih-card class="status-card">
         <h2>What it does</h2>
         <ul id="capabilities" class="status-bullets"></ul>
@@ -55,5 +73,6 @@
   </ih-app>
   <script src="ih-ui.js?v=nav1"></script>
   <script src="ui.js"></script>
+  <script src="runs.js"></script>
 </body>
 </html>

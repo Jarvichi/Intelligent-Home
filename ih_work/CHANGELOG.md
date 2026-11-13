@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-11-13
+
+### Added
+- Runs. A night run and a day run, each with on/off, start time, stop-by time, pace target and a number of items (or unlimited), set on the page and kept in `/data/run_settings.json` (add-on options `night_run_*` and `day_run_*` give the defaults; night on at 01:00, day off). A Run now button with its own pace target and number of items, a status line and a Stop button. One run at a time.
+- While a run is active the backlog feeder queues the next open to-do item (same rules as before) and the gate follows the run's pace target instead of the day and night levels. A run ends at the item count, the pace target (once it has started something; a manual run ends at once if pace is already at or above target), the stop-by time, the 5-hour session or week limit, the STOP switch, an empty backlog, or the Stop button.
+- API: `GET /runs`, `POST /runs/settings`, `POST /runs/start`, `POST /runs/stop` (token). The page reaches them through the ingress server, which keeps the token on the server.
+- In test mode a run only logs `[DRY] would feed: ...` and counts those as started.
+
+### Unchanged
+- Urgent handoffs, leases, the always-on `feed_backlog` option and the day/night gate when no run is active.
+
 ## [0.2.2] - 2026-11-11
 
 ### Changed

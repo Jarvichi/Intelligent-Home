@@ -1,10 +1,34 @@
 """Admin-only ingress UI and local health probe for this add-on."""
-import json, os, time, urllib.request
+import json, os, time, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+DATA=os.environ.get('IHW_DATA','/data')
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
-ASSETS={'/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
+ASSETS={'/runs.js':'runs.js','/runs.css':'runs.css','/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
+RUN_POSTS={'/api/runs/settings':'/runs/settings','/api/runs/start':'/runs/start','/api/runs/stop':'/runs/stop'}
+def api(method,path,body=None):
+ """Call the add-on's own token API on this machine. The token is read from the options file and never sent to the page."""
+ try:
+  with open(os.path.join(DATA,'options.json')) as f: token=json.load(f).get('api_token') or ''
+ except (OSError,ValueError): token=''
+ base=os.environ.get('IHW_API','http://127.0.0.1:%s'%os.environ.get('IHW_PORT','8802'))
+ req=urllib.request.Request(base+path,data=None if body is None else json.dumps(body).encode(),method=method,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+ try:
+  with urllib.request.urlopen(req,timeout=10) as r: return r.status,r.read()
+ except urllib.error.HTTPError as e: return e.code,e.read()
+ except Exception: return 502,b'{"error":"add-on API not reachable"}'
 class Handler(BaseHTTPRequestHandler):
+ def do_POST(self):
+  if self.client_address[0]!=PEER: return self.send_error(403)
+  path=self.path.split('?',1)[0]
+  if path not in RUN_POSTS: return self.send_error(404)
+  if not self.headers.get('Content-Type','').startswith('application/json'): return self.send_error(415)
+  try: n=int(self.headers.get('Content-Length') or 0)
+  except ValueError: return self.send_error(400)
+  if n>8192: return self.send_error(413)
+  try: body=json.loads(self.rfile.read(n) or b'{}')
+  except ValueError: return self.send_error(400)
+  code,out=api('POST',RUN_POSTS[path],body); self.reply(code,out,'application/json; charset=utf-8')
  def do_GET(self):
   if self.client_address[0]!=PEER: return self.send_error(403)
   path=self.path.split('?',1)[0]
@@ -15,6 +39,8 @@ class Handler(BaseHTTPRequestHandler):
     with urllib.request.urlopen(req,timeout=2) as response: healthy=200<=response.status<400; detail='Health endpoint responded'
    except Exception as e: detail=type(e).__name__
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
+  if path=='/api/runs':
+   code,out=api('GET','/runs'); return self.reply(code,out,'application/json; charset=utf-8')
   if path=='/api/today':
    try:
     import today

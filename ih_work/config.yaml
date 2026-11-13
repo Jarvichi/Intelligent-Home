@@ -1,8 +1,8 @@
 name: "Intelligent Home - Work"
-version: "0.2.2"
+version: "0.3.0"
 slug: ih_work
 image: "ghcr.io/jarvichi/{arch}-ih_work"
-description: "The work queue for Claude: one line of jobs (first in, first out) with leases, the pace gate (day and night levels) and a task view. A helper claims a job over a token-protected local API and must report it done. Optional backlog feeder from the Claude to-do list (off by default). TEST MODE by default: the line is kept, nothing is handed out."
+description: "The work queue for Claude: one line of jobs (first in, first out) with leases, the pace gate (day and night levels) and a task view. A helper claims a job over a token-protected local API and must report it done. Scheduled night and day runs and a Run now button (set in the page; they feed the Claude to-do list while a run is active). Optional always-on backlog feeder (off by default). TEST MODE by default: the line is kept, nothing is handed out."
 arch:
   - aarch64
   - amd64
@@ -43,6 +43,14 @@ options:
     - "IH:"
     - "Check:"
     - "Review:"
+  night_run_enabled: true
+  night_run_start: "01:00"
+  night_run_stop_by: "05:30"
+  night_run_pace_target: 0.0
+  day_run_enabled: false
+  day_run_start: "10:00"
+  day_run_stop_by: "17:00"
+  day_run_pace_target: -2.0
 schema:
   log_payloads: bool?
   mode: list(dry|live)
@@ -63,3 +71,13 @@ schema:
   todo_entity: str
   feed_prefixes:
     - str
+  night_run_enabled: bool
+  night_run_start: str
+  night_run_stop_by: str
+  night_run_pace_target: float(-100,100)
+  night_run_max_items: int(1,1000)?
+  day_run_enabled: bool
+  day_run_start: str
+  day_run_stop_by: str
+  day_run_pace_target: float(-100,100)
+  day_run_max_items: int(1,1000)?

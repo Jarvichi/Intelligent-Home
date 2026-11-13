@@ -1,0 +1,14 @@
+/* Runs card (ih_work). Loads after ui.css; canonical tokens only. */
+.runs-status{margin:0 0 12px;font-weight:650;overflow-wrap:anywhere}.runs-status:empty{display:none}
+.runs-h{margin:16px 0 8px;font-size:14px}
+.runs-grid{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end}
+.runs-grid label,.runs-set label{display:flex;flex-direction:column;gap:4px;color:var(--ih-muted);font-size:12px}
+.runs-grid input[type=number],.runs-set input[type=time],.runs-set input[type=number]{min-height:44px;padding:6px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit;font-size:14px;width:7.5em}
+.runs-grid input:focus-visible,.runs-set input:focus-visible{outline:3px solid var(--ih-link);outline-offset:2px}
+label.runs-check{flex-direction:row;align-items:center;gap:8px;min-height:44px;color:var(--ih-text);font-size:14px}
+.runs-check input{width:20px;height:20px}
+.runs-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.runs-set{margin-top:16px;padding-top:12px;border-top:1px solid var(--ih-line)}
+.runs-set .runs-grid{margin-top:8px}
+.runs-set .runs-actions{margin-top:10px}
+#runs-card .ih-metadata:empty{display:none}
