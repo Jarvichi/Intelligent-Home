@@ -3,6 +3,21 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.3] - 2026-11-13
+
+### Added
+- The feeder skips a to-do with an open `[needs-you #N]` marker (a job only the owner can do or decide). A matching `[done-you #N]` marker clears it.
+
+## [0.5.2] - 2026-11-13
+
+### Added
+- A to-do fed to Claude with no plan marker (PLAN, AI job or BUILT) now tells Claude to write the plan first: the outside AIs may have skipped it, refused it or run out of quota. Private items are planned there too, never sent out.
+
+## [0.5.1] - 2026-11-13
+
+### Fixed
+- Runs only fed items whose title started with an allowed prefix (IH:, Check:, Review:) or carried a tag, so on a real list almost nothing was eligible and a run ended at once with "backlog empty". A run now feeds any open to-do item except the skip tags (waiting, needs OK, plan, no-overnight) and items fed in the last 7 days, as the 1am worker did. The prefixes still limit the always-on feeder.
+
 ## [0.5.0] - 2026-11-13
 
 ### Added

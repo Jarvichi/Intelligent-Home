@@ -236,12 +236,20 @@ class Feeder(Base):
              todo('d', 'Check: waiting thing', '[waiting]'), todo('e', 'IH: plan it', '[plan]'), todo('f', 'IH: needs ok', '[needs-ok #3]'),
              todo('g', 'Misc tagged', '[claude]'), todo('h', 'IH: approved one', '[approved #4]', due='2026-12-30')]
 
+    def test_instruction_asks_claude_for_a_missing_plan(self):
+        self.assertIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', '')))
+        self.assertNotIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', 'PLAN (unreviewed): brain projects/x/plan')))
+        self.assertNotIn('NO PLAN YET', feed.instruction(todo('a', 'Check: x', 'AI job 12')))
+
     def test_pick_rules(self):
         now = DAY
         item, ap = feed.pick(self.ITEMS, ['IH:', 'Check:'], {}, now)
         self.assertEqual((item['uid'], ap), ('h', True))                         # approved first
         item, ap = feed.pick([i for i in self.ITEMS if i['uid'] != 'h'], ['IH:', 'Check:'], {}, now)
         self.assertEqual((item['uid'], ap), ('c', False))                        # earliest due
+        item, _ = feed.pick([todo('a', 'Buy milk'), todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now, any_item=True)   # runs: any open item, skip tags still apply
+        self.assertEqual(item['uid'], 'a')
+        self.assertIsNone(feed.pick([todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now, any_item=True)[0])
         item, _ = feed.pick([todo('a', 'Buy milk'), todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now)
         self.assertIsNone(item)                                                  # personal / waiting never
         item, _ = feed.pick(self.ITEMS, ['IH:'], {'h': (now - timedelta(days=6)).isoformat(), 'c': now.isoformat()}, now)
