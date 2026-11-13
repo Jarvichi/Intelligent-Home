@@ -375,7 +375,7 @@ class Service:
                 fed[str(i['ref'])] = iso(now)
         picked = []
         while len(picked) < n:
-            item, approved = feed.pick(todo, self.opts.get('feed_prefixes') or [], fed, now)
+            item, approved = feed.pick(todo, self.opts.get('feed_prefixes') or [], fed, now, any_item=True)   # runs work the whole list (0.5.1); the prefixes only limit the always-on feeder
             if not item:
                 break
             fed[item['uid']] = iso(now)

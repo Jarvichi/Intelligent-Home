@@ -25,8 +25,9 @@ def _recent(fed, uid, now):
     return now - t < timedelta(days=FEED_AGAIN_DAYS)
 
 
-def pick(items, prefixes, fed, now):
-    """-> (item, approved) or (None, False). items = raw HA to-do items (uid, summary, description, due)."""
+def pick(items, prefixes, fed, now, any_item=False):
+    """-> (item, approved) or (None, False). items = raw HA to-do items (uid, summary, description, due).
+    any_item=True (runs, 0.5.1): the prefix/tag gate is off, like the old 1am worker: any open item except the skip tags and ones fed in the last 7 days."""
     pre = tuple(p.strip().lower() for p in prefixes if isinstance(p, str) and p.strip())
     appr, rest = [], []
     for n, i in enumerate(items):
@@ -36,7 +37,7 @@ def pick(items, prefixes, fed, now):
         if _recent(fed, i['uid'], now) or SKIP_TAG.search(summary + '\n' + desc):
             continue
         approved = bool(APPROVED.search(desc))
-        if not (approved or WORK_TAG.search(desc) or (pre and summary.strip().lower().startswith(pre))):
+        if not (any_item or approved or WORK_TAG.search(desc) or (pre and summary.strip().lower().startswith(pre))):
             continue
         (appr if approved else rest).append((_due(i), desc.count('[overnight '), n, i))
     for group, flag in ((appr, True), (rest, False)):

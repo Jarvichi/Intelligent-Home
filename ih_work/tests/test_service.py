@@ -242,6 +242,9 @@ class Feeder(Base):
         self.assertEqual((item['uid'], ap), ('h', True))                         # approved first
         item, ap = feed.pick([i for i in self.ITEMS if i['uid'] != 'h'], ['IH:', 'Check:'], {}, now)
         self.assertEqual((item['uid'], ap), ('c', False))                        # earliest due
+        item, _ = feed.pick([todo('a', 'Buy milk'), todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now, any_item=True)   # runs: any open item, skip tags still apply
+        self.assertEqual(item['uid'], 'a')
+        self.assertIsNone(feed.pick([todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now, any_item=True)[0])
         item, _ = feed.pick([todo('a', 'Buy milk'), todo('d', 'Check: x', '[waiting]')], ['IH:'], {}, now)
         self.assertIsNone(item)                                                  # personal / waiting never
         item, _ = feed.pick(self.ITEMS, ['IH:'], {'h': (now - timedelta(days=6)).isoformat(), 'c': now.isoformat()}, now)
