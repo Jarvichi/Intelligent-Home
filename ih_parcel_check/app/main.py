@@ -33,12 +33,28 @@ def ask(opts, image_bytes):
         return json.load(r).get("response", "")
 
 
+def model_ready(opts):
+    """True when the Ollama add-on answers and already has the model (it downloads models in the background after it starts)."""
+    try:
+        with urllib.request.urlopen(opts["ollama_url"].rstrip("/") + "/api/tags", timeout=10) as r:
+            have = [m.get("name", "") for m in json.load(r).get("models", [])]
+    except Exception as e:
+        STATE["ollama_ok"] = False; STATE["last_error"] = "engine not reachable: " + str(e)[:150]
+        return False
+    ok = any(n == opts["model"] or n.split(":")[0] == opts["model"] for n in have)
+    STATE["ollama_ok"] = ok
+    STATE["last_error"] = None if ok else "model %s is not downloaded yet (check the Intelligent Home - Ollama add-on log)" % opts["model"]
+    return ok
+
+
 def wanted(name, cams):
     return name.lower().endswith(".jpg") and any(name.startswith(c + "_") for c in cams)
 
 
 def scan(opts, done, log_path):
     cams = [c.strip() for c in opts["cameras"].split(",") if c.strip()]
+    if not model_ready(opts):
+        return
     try:
         names = sorted(os.listdir(opts["snapshot_dir"]))
     except OSError:
@@ -82,7 +98,7 @@ class H(BaseHTTPRequestHandler):
 def main():
     opts = load_options()
     defaults = {"dry": True, "snapshot_dir": "/media/eufy_snapshots", "cameras": "front_door,side_door",
-                "ollama_url": "http://127.0.0.1:11434", "model": "moondream",
+                "ollama_url": "http://32c8114c-ih-ollama:11434", "model": "moondream",
                 "poll_seconds": 30, "recheck_after_seconds": 120, "timeout_seconds": 300}
     opts = {**defaults, **opts}
     STATE["dry"] = True  # 0.1.0 is dry whatever the option says

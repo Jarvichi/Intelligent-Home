@@ -2,7 +2,7 @@ name: "Intelligent Home - Parcel check"
 version: "0.1.0"
 slug: ih_parcel_check
 image: "ghcr.io/jarvichi/{arch}-ih_parcel_check"
-description: "Looks at saved doorstep pictures with a small local vision model (Ollama) and says whether a parcel was left. DRY by default: it only writes verdicts to its own log and posts nothing. Pictures never leave the home network."
+description: "Looks at saved doorstep pictures with a small local vision model (via the Intelligent Home - Ollama add-on) and says whether a parcel was left. DRY by default: it only writes verdicts to its own log and posts nothing. Pictures never leave the home network."
 arch:
   - aarch64
 startup: application
@@ -20,7 +20,7 @@ options:
   dry: true
   snapshot_dir: "/media/eufy_snapshots"
   cameras: "front_door,side_door"
-  ollama_url: "http://127.0.0.1:11434"
+  ollama_url: "http://32c8114c-ih-ollama:11434"
   model: "moondream"
   poll_seconds: 30
   recheck_after_seconds: 120
