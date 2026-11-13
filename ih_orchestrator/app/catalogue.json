@@ -280,5 +280,46 @@
    "title": "Work",
    "purpose": "Shows the list of jobs for Claude and when they run."
   }
+ },
+ {
+  "name": "Intelligent Home - Ollama",
+  "slug": "ih_ollama",
+  "description": "A small local AI engine (Ollama) for the other Intelligent Home add-ons: pictures, private text and search without sending anything off the home network. Reachable by other add-ons only.",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.1.0",
+  "image": true,
+  "ui": {
+   "title": "Ollama",
+   "purpose": "Runs small AI models locally for other add-ons. No page of its own."
+  }
+ },
+ {
+  "name": "Intelligent Home - Parcel check",
+  "slug": "ih_parcel_check",
+  "description": "Looks at saved doorstep pictures with a small local vision model and says whether a parcel was left. Dry by default.",
+  "kind": "addon",
+  "requires": [
+   "ih_ollama"
+  ],
+  "version": "0.1.1",
+  "image": true,
+  "ui": {
+   "title": "Parcel check",
+   "purpose": "Checks doorstep pictures for parcels."
+  }
+ },
+ {
+  "name": "Intelligent Home - Lifestyle - Groceries",
+  "slug": "ih_lifestyle_groceries",
+  "description": "Everything the house buys: the item library and a receipts database (whole receipts, price changes, why a week cost more, what is due again). Publishes the spend sensors the Spend page reads.",
+  "kind": "addon",
+  "requires": [],
+  "version": "0.4.0",
+  "image": true,
+  "ui": {
+   "title": "Groceries",
+   "purpose": "Keeps every receipt and shows spend, price changes and what is due again."
+  }
  }
 ]

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.12.1] - 2026-11-13
+
+### Added
+- The Add-ons page lists three add-ons it did not know: Ollama, Parcel check and Lifestyle - Groceries (catalogue entries, so they can be seen, installed and updated here).
+
 ## [0.12.0] - 2026-11-13
 
 ### Changed
