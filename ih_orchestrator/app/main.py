@@ -26,7 +26,6 @@ LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 cha
 LOG = lambda m: print(m, flush=True)
 PORT = int(os.environ.get("IH_PORT", "8790"))
 MANAGER_PORT = int(os.environ.get("IH_MANAGER_PORT", "8789"))   # ingress only (manager.py refuses every client but the Supervisor gateway)
-CATALOGUE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogue.json")
 PROBE_MAX_AGE = 180  # host probe results older than this count as unknown
 SNAPSHOT_MAX_AGE = 180  # a pushed snapshot older than this is stale
 MAX_BODY = 1024 * 1024
@@ -373,7 +372,7 @@ def register(raw):
 def init_manager():
     """Start the ingress-only manager page server on its own port. Never raises."""
     try:
-        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True), registered=lambda: STATE.get("registered") or {})
+        mgr = manager.Manager([], prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True), registered=lambda: STATE.get("registered") or {})
         threading.Thread(target=mgr.warm, daemon=True).start()
         threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
         return mgr

@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_ai_layer"
+ ],
+ "ui": {
+  "title": "Claude CLI",
+  "purpose": "Lets the AI Layer ask Claude, using your own Claude login."
+ }
+}

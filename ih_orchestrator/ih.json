@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Intelligent Home",
+  "purpose": "Operate and inspect the add-on system, jobs, health, traces, settings, and usage."
+ }
+}

@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Work",
+  "purpose": "Shows the list of jobs for Claude and when they run."
+ }
+}

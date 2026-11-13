@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_jobs"
+ ],
+ "ui": {
+  "title": "Jobs · Backup",
+  "purpose": "Reports how much backup space is used."
+ }
+}

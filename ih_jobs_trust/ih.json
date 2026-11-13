@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_jobs",
+  "ih_ai_layer"
+ ],
+ "ui": {
+  "title": "Jobs · Trust",
+  "purpose": "Tests each month how good the outside AIs are."
+ }
+}

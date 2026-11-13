@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "House Brain",
+  "purpose": "Search, browse, read, and map connections between House Brain notes."
+ }
+}

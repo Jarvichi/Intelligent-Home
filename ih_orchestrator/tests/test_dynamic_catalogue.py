@@ -1,4 +1,4 @@
-"""The Add-ons list is built from the Supervisor store + catalogue.json + registrations (13 Nov 2026)."""
+"""The Add-ons list is built from the Supervisor store + each add-on's ih.json + registrations (13 Nov 2026)."""
 import json, sys, unittest
 from pathlib import Path
 
@@ -20,7 +20,7 @@ class Merge(unittest.TestCase):
         self.assertEqual([c["slug"] for c in out], ["ih_jobs", "ih_newthing"])
         new = out[1]
         self.assertEqual((new["name"], new["version"], new["requires"], new["ui"]["title"]), ("Intelligent Home - New Thing", "0.1.0", [], "New Thing"))
-        self.assertEqual(out[0]["name"], "Intelligent Home - Jobs")     # catalogue.json beats the store for known add-ons
+        self.assertEqual(out[0]["name"], "Intelligent Home - Jobs")     # a known (static) entry keeps its name over the store's
 
     def test_registration_sets_requires_and_ui_for_known_only(self):
         reg = {"ih_newthing": {"requires": ["ih_jobs", 5], "ui": {"title": "Thing", "purpose": "x" * 300}}, "ih_ghost": {"requires": ["ih_jobs"]}}
@@ -55,6 +55,56 @@ class Merge(unittest.TestCase):
         self.assertEqual(m2.scope("ih_newthing")[0], "abc_ih_newthing")
         with self.assertRaises(ValueError):
             m2.scope("ih_other_repo")
+
+
+    def test_ih_json_layer_beats_store_and_registration_beats_ih_json(self):
+        meta = {"ih_newthing": {"requires": ["ih_jobs"], "ui": {"title": "From file", "purpose": "file purpose"}}}
+        out = manager.merge_catalogue([], STORE, {}, "abc", "repo", meta)
+        new = [c for c in out if c["slug"] == "ih_newthing"][0]
+        self.assertEqual((new["requires"], new["ui"]["title"]), (["ih_jobs"], "From file"))
+        out = manager.merge_catalogue([], STORE, {"ih_newthing": {"ui": {"title": "Live"}}}, "abc", "repo", meta)
+        new = [c for c in out if c["slug"] == "ih_newthing"][0]
+        self.assertEqual((new["requires"], new["ui"]["title"], new["ui"]["purpose"]), (["ih_jobs"], "Live", "file purpose"))
+
+    def test_raw_base_only_for_github_and_clean_meta_is_bounded(self):
+        self.assertEqual(manager.raw_base("https://github.com/Jarvichi/Intelligent-Home"), "https://raw.githubusercontent.com/Jarvichi/Intelligent-Home/main/")
+        self.assertEqual(manager.raw_base("https://github.com/o/r.git"), "https://raw.githubusercontent.com/o/r/main/")
+        for bad in ("http://github.com/o/r", "https://evil.example/o/r", "https://github.com/o", None, ""):
+            self.assertIsNone(manager.raw_base(bad))
+        self.assertIsNone(manager.clean_meta("x"))
+        self.assertIsNone(manager.clean_meta({"other": 1}))
+        m = manager.clean_meta({"requires": ["a"] * 30 + [1], "ui": {"title": "t" * 99, "purpose": "p" * 999}, "secret": "x"})
+        self.assertEqual((len(m["requires"]), len(m["ui"]["title"]), len(m["ui"]["purpose"]), "secret" in m), (12, 40, 160, False))
+
+    def test_manager_reads_ih_json_caches_and_survives_github_down(self):
+        import os, tempfile
+        calls = []
+        def sup(method, path, body=None):
+            if path == "/addons/self/info":
+                return {"slug": "abc_ih_orchestrator", "repository": "repo"}
+            if path == "/store/addons":
+                return {"addons": STORE}
+            if path == "/store/repositories":
+                return [{"slug": "repo", "source": "https://github.com/Jarvichi/Intelligent-Home"}]
+            return {"addons": []}
+        state = {"down": False}
+        def http(url, timeout=4):
+            calls.append(url)
+            if state["down"]:
+                return None
+            return {"requires": ["ih_jobs"], "ui": {"title": "T", "purpose": "P"}}
+        os.environ["IH_META_CACHE"] = os.path.join(tempfile.mkdtemp(), "meta.json")
+        m = manager.Manager([], sup=sup, http=http, usage_path="/nonexistent/usage.json")
+        cat = {c["slug"]: c for c in m.catalogue}
+        self.assertEqual(cat["ih_newthing"]["requires"], ["ih_jobs"])
+        self.assertTrue(all(u.startswith("https://raw.githubusercontent.com/Jarvichi/Intelligent-Home/main/ih_") and u.endswith("/ih.json") for u in calls))
+        n = len(calls)
+        m._cat = (0, None); m.catalogue                                   # rebuilt within the hour: no new fetches
+        self.assertEqual(len(calls), n)
+        state["down"] = True
+        m._meta = {k: (0, v[1]) for k, v in m._meta.items()}              # make every copy stale; GitHub is down: last good copy stays
+        m._cat = (0, None)
+        self.assertEqual({c["slug"]: c for c in m.catalogue}["ih_newthing"]["requires"], ["ih_jobs"])
 
 
 class Register(unittest.TestCase):

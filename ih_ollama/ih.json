@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Ollama",
+  "purpose": "Runs small AI models locally for other add-ons. No page of its own."
+ }
+}

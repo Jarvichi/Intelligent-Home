@@ -1,0 +1,11 @@
+{
+ "requires": [
+  "ih_discord",
+  "ih_ai_layer",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Discord AI Bot",
+  "purpose": "Answers chosen Discord channels with the AI Layer."
+ }
+}

@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_discord",
+  "mqtt"
+ ],
+ "ui": {
+  "title": "Discord Task Channels",
+  "purpose": "Gives each task its own Discord channel."
+ }
+}

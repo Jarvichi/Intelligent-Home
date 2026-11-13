@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "AI Layer",
+  "purpose": "Sends questions to the best available AI and learns which one answers well."
+ }
+}

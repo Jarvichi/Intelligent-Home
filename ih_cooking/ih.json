@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Cooking",
+  "purpose": "Manage recipes, meal plans, and cooking sessions."
+ }
+}
