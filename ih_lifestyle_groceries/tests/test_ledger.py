@@ -75,3 +75,15 @@ def test_weeks_and_week_diff():
     assert [x['week'] for x in w] == ['2026-11-02', '2026-11-09'] and w[1]['total_p'] == 800   # clothing left out
     dif = S.week_diff(d, '2026-11-02', '2026-11-09')
     assert dif['savings_diff_p'] == 200 and 'SWEET' in dif['only_in_a'] and 'PIZZA' in dif['only_in_b']
+
+
+def test_price_change_uses_list_price_not_promotions():
+    d = mk()
+    L.store_receipt(d, rec('2026-10-01', 3.75, [ln('PASTRAMI', 3.75)]))
+    L.store_receipt(d, rec('2026-11-01', 1.25, [ln('PASTRAMI', 3.75, disc=2.50)]))     # same shelf price, 2-for-5 offer
+    assert S.price_changes(d, date(2026, 11, 13)) == []
+    d2 = mk()
+    L.store_receipt(d2, rec('2026-10-01', 2.0, [ln('OIL', 2.0)]))
+    L.store_receipt(d2, rec('2026-11-01', 1.5, [ln('OIL', 3.0, disc=1.5)]))
+    out = S.price_changes(d2, date(2026, 11, 13))
+    assert out[0]['pct'] == 50.0 and out[0]['net_pct'] == -25.0

@@ -1,5 +1,5 @@
 """Questions the receipts ledger answers (13 Nov 2026): price changes per product, why a week was cheaper, when a product is due again.
-Read-only. Money in pence; weeks run Monday to Sunday. Cancelled lines never count. Net price = line total minus the discount on that line."""
+Read-only. Money in pence; weeks run Monday to Sunday. Cancelled lines never count. Price changes use the LIST (shelf) price; promotions are reported separately as net_pct, so a 2-for-1 week is not read as a price rise."""
 import statistics
 from ledger import q
 from datetime import date, timedelta
@@ -25,8 +25,13 @@ def _unit_net(row):
     return (row['line_total_p'] - row['discount_p']) / qty
 
 
+def _unit_list(row):
+    qty = row['qty'] or 1
+    return row['line_total_p'] / qty
+
+
 def price_changes(d, today, window_days=PRICE_WINDOW_DAYS, min_pct=PRICE_MIN_PCT):
-    """Per product bought on 2+ receipts in the window: first and last net unit price and % change, biggest rises first. Only |change| >= min_pct."""
+    """Per product bought on 2+ receipts in the window: first and last LIST unit price, % change (and net_pct after promotions), biggest rises first. Only |change| >= min_pct."""
     since = (today - timedelta(days=window_days)).isoformat()
     rows = q(d, "SELECT l.key, l.raw_name, l.qty, l.line_total_p, l.discount_p, r.bought_on FROM receipt_lines l JOIN receipts r ON r.id=l.receipt_id "
                    "WHERE l.cancelled=0 AND r.bought_on>=? AND r.bought_on<=? ORDER BY r.bought_on, l.id", (since, today.isoformat()))
@@ -40,13 +45,15 @@ def price_changes(d, today, window_days=PRICE_WINDOW_DAYS, min_pct=PRICE_MIN_PCT
             continue
         first = [r for r in rs if r['bought_on'] == days[0]]
         last = [r for r in rs if r['bought_on'] == days[-1]]
-        a, b = _unit_net(first[0]), _unit_net(last[-1])
+        a, b = _unit_list(first[0]), _unit_list(last[-1])
         if a <= 0:
             continue
         pct = (b - a) / a * 100.0
+        na, nb = _unit_net(first[0]), _unit_net(last[-1])
+        net_pct = (nb - na) / na * 100.0 if na > 0 else 0.0
         if abs(pct) >= min_pct:
             out.append({'key': key, 'name': last[-1]['raw_name'], 'first_day': days[0], 'last_day': days[-1],
-                        'first_p': round(a), 'last_p': round(b), 'pct': round(pct, 1)})
+                        'first_p': round(a), 'last_p': round(b), 'pct': round(pct, 1), 'net_pct': round(net_pct, 1)})
     return sorted(out, key=lambda x: -x['pct'])
 
 
