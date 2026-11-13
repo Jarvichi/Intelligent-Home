@@ -11,9 +11,9 @@ from test_service import Base, opts
 
 
 class Phases(Base):
-    def make(self, items=12, block=5, max_items=None, **o):
+    def make(self, items=12, block=5, max_items=None, review=0, **o):
         super().make(T0, FakeHA(todo(items)), **o)
-        self.svc.set_run_settings({'night': {'block_size': block, 'max_items': max_items, 'pace_target': 0.0}})
+        self.svc.set_run_settings({'night': {'block_size': block, 'max_items': max_items, 'pace_target': 0.0, 'review_batch_size': review}})
         self.pace(-3.0)
         return self.svc
 

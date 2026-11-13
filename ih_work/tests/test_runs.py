@@ -102,6 +102,7 @@ class Pure(unittest.TestCase):
 
 class Runs(Base):
     def make(self, when=T0, items=3, **o):
+        o.setdefault('runs_options', {'night_run_review_batch_size': 0, 'day_run_review_batch_size': 0})   # the review phase has its own tests (test_review.py)
         return super().make(when, FakeHA(todo(items)), **o)
 
     def tick(self, **kw):

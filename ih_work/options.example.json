@@ -26,9 +26,11 @@
   "night_run_stop_by": "05:30",
   "night_run_pace_target": 0.0,
   "night_run_block_size": 5,
+  "night_run_review_batch_size": 10,
   "day_run_enabled": false,
   "day_run_start": "10:00",
   "day_run_stop_by": "17:00",
   "day_run_pace_target": -2.0,
-  "day_run_block_size": 5
+  "day_run_block_size": 5,
+  "day_run_review_batch_size": 10
 }

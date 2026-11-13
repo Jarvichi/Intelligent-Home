@@ -3,7 +3,7 @@
   const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
   const rows = document.getElementById('workers-rows'), empty = document.getElementById('workers-empty');
   if (!rows) return;
-  const LABEL = { starting: 'Starting', assessing: 'Assessing', planning: 'Planning', implementing: 'Implementing', reporting: 'Reporting' };
+  const LABEL = { starting: 'Starting', assessing: 'Assessing', planning: 'Planning', implementing: 'Implementing', reporting: 'Reporting', reviewing: 'Reviewing' };
   const NAME = { queue: 'Work queue', overnight: 'Overnight worker' };
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   function elapsed(s) {

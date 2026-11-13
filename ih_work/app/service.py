@@ -9,7 +9,7 @@ import runs as R
 from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
 
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -126,7 +126,7 @@ class Service:
     def _cancel_unstarted(self, run):
         """A run that ends leaves nothing behind: queued jobs it fed itself (tracked by id: block items and the plan job) are cancelled. Started ones finish."""
         n = 0
-        for iid in list(run.get('block_ids') or []) + ([run['plan_id']] if run.get('plan_id') else []):
+        for iid in list(run.get('block_ids') or []) + ([run['plan_id']] if run.get('plan_id') else []) + ([run['review_id']] if run.get('review_id') else []):
             try:
                 self.store.cancel(iid)
                 n += 1
@@ -135,23 +135,23 @@ class Service:
         if n:
             self.log('run ended: %d queued job(s) that it fed were cancelled' % n)
 
-    def _begin_run(self, st, kind, pace_target, max_items, now, stop_by=None, block_size=R.BLOCK_DEFAULT):
-        run = R.new_run(kind, pace_target, max_items, now, stop_by, dry=self.opts.get('mode') != 'live', block_size=block_size)
+    def _begin_run(self, st, kind, pace_target, max_items, now, stop_by=None, block_size=R.BLOCK_DEFAULT, review_batch_size=R.REVIEW_DEFAULT):
+        run = R.new_run(kind, pace_target, max_items, now, stop_by, dry=self.opts.get('mode') != 'live', block_size=block_size, review_batch_size=review_batch_size)
         st['run'] = run
-        self.log('%srun started (%s): pace target %g, items %s, blocks of %d%s' % ('[DRY] ' if run['dry'] else '', kind, pace_target, 'unlimited' if max_items is None else max_items, block_size,
+        self.log('%srun started (%s): pace target %g, items %s, blocks of %d, %d answers to check%s' % ('[DRY] ' if run['dry'] else '', kind, pace_target, 'unlimited' if max_items is None else max_items, block_size, review_batch_size,
                                                               ', stop by ' + stop_by.astimezone(self.opts.get('tz') or timezone.utc).strftime('%H:%M') if stop_by else ''))
         return run
 
-    def run_start_now(self, pace_target, max_items, block_size=None):
+    def run_start_now(self, pace_target, max_items, block_size=None, review_batch_size=None):
         with self.lock:
             st = self.load_state()
             if st.get('run'):
                 raise StoreError('conflict', 'a run is already active')
             try:
-                t, n, b = R.clean_pace(pace_target), R.clean_max(max_items), R.clean_block(block_size)
+                t, n, b, rv = R.clean_pace(pace_target), R.clean_max(max_items), R.clean_block(block_size), R.clean_review(review_batch_size)
             except ValueError as e:
                 raise StoreError('bad', str(e))
-            self._begin_run(st, 'now', t, n, self.clock(), block_size=b)
+            self._begin_run(st, 'now', t, n, self.clock(), block_size=b, review_batch_size=rv)
             self.save_state(st)
             return self.runs_view()
 
@@ -177,7 +177,7 @@ class Service:
             if kind:
                 s = self.run_settings()[kind]
                 st['run_windows'] = dict(st.get('run_windows') or {}, **{kind: wdate})
-                run = self._begin_run(st, kind, s['pace_target'], s['max_items'], now, R.stop_by_at(self.local(now), s['stop_by']), s['block_size'])
+                run = self._begin_run(st, kind, s['pace_target'], s['max_items'], now, R.stop_by_at(self.local(now), s['stop_by']), s['block_size'], s['review_batch_size'])
         return st.get('run')
 
     def run_decide(self, st, r):
@@ -205,7 +205,7 @@ class Service:
                 shown = dict(run, block_done=done)
                 view['active'] = dict(kind=run['kind'], started_at=run['started_at'], pace_target=run['pace_target'], max_items=run['max_items'], stop_by_at=run['stop_by_at'],
                                       started=R.effective_started(run), dry=run.get('dry', False), state='running' if ok else 'waiting', reason=why,
-                                      block_size=run.get('block_size', R.BLOCK_DEFAULT), phase=run.get('phase', 'drain'), block_no=run.get('block_no', 0),
+                                      block_size=run.get('block_size', R.BLOCK_DEFAULT), review_batch_size=run.get('review_batch_size', 0), phase=run.get('phase', 'drain'), block_no=run.get('block_no', 0),
                                       block_total=run.get('block_total', 0), block_done=done, fed=run.get('fed', 0), phase_text=R.phase_text(shown))
             return view
 
@@ -361,9 +361,20 @@ class Service:
         self.save_state(st)
         return item
 
-    # ---- run phases (0.5.0): DRAIN -> PLAN -> BLOCK -> DRAIN ... ----
+    # ---- run phases (0.6.0): DRAIN -> PLAN -> REVIEW -> BLOCK -> DRAIN ... ----
     PLAN_TITLE = 'Plan open to-dos (free AIs)'
     PLAN_INSTRUCTION = 'Run the free-AI planner (plan_todos.py): writes research plans for open to-dos that have none. No Claude call.'
+
+    REVIEW_TITLE = 'Check outside-AI answers (Claude)'
+
+    def _review_instruction(self, n):
+        return 'review_batch_size=%d. Check the oldest unreviewed outside-AI answers (plans and nightly code reviews) against the real files, entities and brain; record good or wrong, leave unsure ones with a note.' % n
+
+    def _begin_block(self, st, now, d, run):
+        """Planning (and review) are over: move on to the BLOCK phase and feed straight away."""
+        run.update(phase='block', plan_id=None, plan_at=None, review_id=None, review_at=None)
+        self.save_state(st)
+        return self.run_step(st, [i for i in self.store.list()], d, now)
 
     def _pick_block(self, st, now, n, live):
         """Pick up to n distinct open to-dos (feed.pick rules, none already queued). -> [(item, approved)]. Records them as fed."""
@@ -418,9 +429,28 @@ class Service:
                 self.log('run: planning took more than %d min, carrying on' % R.PLAN_WAIT_MIN)
             elif pid in byid and byid[pid]['status'] == 'failed':
                 self.log('run: planning job failed, carrying on')
-            run.update(phase='block', plan_id=None, plan_at=None)
-            self.save_state(st)
-            return self.run_step(st, [i for i in self.store.list()], d, now)
+            rn = run.get('review_batch_size', 0)
+            if rn > 0:                                   # 0.6.0: Claude checks the oldest unreviewed answers before the block
+                it = self.store.enqueue(R.REVIEW_KIND, 'review-%s-%d' % (run['id'], run.get('block_no', 0) + 1), self.REVIEW_TITLE, self._review_instruction(rn), False, 'claude')
+                run.update(phase='review', plan_id=None, plan_at=None, review_id=it['id'], review_at=iso(now))
+                self.log('run: queued the review job (%d answers to check)' % rn)
+                self.save_state(st)
+                return
+            return self._begin_block(st, now, d, run)
+        elif phase == 'review':
+            rid = run.get('review_id')
+            late = (now - (parse(run.get('review_at')) or now)) > timedelta(minutes=R.REVIEW_WAIT_MIN)
+            if rid and is_open(rid) and not late:
+                return
+            if rid and is_open(rid):                     # waited long enough: cancel it if it never started, carry on either way
+                try:
+                    self.store.cancel(rid)
+                except StoreError:
+                    pass
+                self.log('run: the review job took more than %d min, carrying on' % R.REVIEW_WAIT_MIN)
+            elif rid in byid and byid[rid]['status'] == 'failed':
+                self.log('run: review job failed, carrying on')
+            return self._begin_block(st, now, d, run)
         else:   # block
             bids = run.get('block_ids') or []
             if bids:
@@ -477,6 +507,8 @@ class Service:
         if open_n:
             self.log('[DRY] would wait first: %d job(s) in the queue' % open_n)
         self.log('[DRY] would queue the planning job (plan_todos)')
+        if run.get('review_batch_size', 0) > 0:
+            self.log('[DRY] would queue the review job (review_batch, %d answers)' % run['review_batch_size'])
         picked = self._pick_block(st, now, n, False)
         if not picked:
             return self._end_run_save(st, now, 'backlog empty')
