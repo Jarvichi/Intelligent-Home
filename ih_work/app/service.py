@@ -9,7 +9,7 @@ import runs as R
 from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30

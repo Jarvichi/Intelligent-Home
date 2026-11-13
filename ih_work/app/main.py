@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_work 0.6.0: the work queue, the pace gate and the task view. See DOCS.md.
+"""ih_work 0.6.1: the work queue, the pace gate and the task view. See DOCS.md.
 API (bearer api_token; an empty token refuses everything except /healthz):
   POST /enqueue {kind, ref, title, instruction, approved?, by?}   GET /list?status=a,b   GET /item/<id>
   POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}

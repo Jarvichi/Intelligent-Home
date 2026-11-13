@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.1] - 2026-11-13
+
+### Changed
+- A to-do whose description has an open `[replan]` marker (a reviewer graded the outside-AI plan wrong) no longer counts as having a plan. The run instruction then says REPLAN: run the already-done check, otherwise write a corrected plan note and replace the `[replan]` line with `PLAN (Claude, replanned): <path>`. Items with no plan at all keep the NO PLAN YET text. The `[replan]` marker does not match the feeder's `[plan...]` skip tag.
+
 ## [0.6.0] - 2026-11-13
 
 ### Added
