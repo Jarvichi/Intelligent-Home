@@ -56,11 +56,31 @@ def pick(items, prefixes, fed, now, any_item=False):
 HAS_PLAN = re.compile(r'PLAN|AI job|BUILT', re.I)   # same markers the free-AI planning step looks for
 
 
+REPLAN = re.compile(r'\[replan\]', re.I)   # 0.6.1: a reviewer graded the outside-AI plan wrong; Claude must write a corrected one (the line is replaced by "PLAN (Claude, replanned): <path>")
+
+
+def has_plan(desc):
+    """True if the description already carries a usable plan. An open [replan] marker means NO usable plan (its 'old plan' text must not count)."""
+    desc = str(desc or '')
+    return not REPLAN.search(desc) and bool(HAS_PLAN.search(desc))
+
+
 def instruction(item):
     desc = str(item.get('description') or '')
-    plan = ('' if HAS_PLAN.search(desc) else
+    if REPLAN.search(desc):
+        plan = ('\nREPLAN: an earlier plan for this item was graded wrong by a reviewer (reason in the [replan] line). First run the already-done check; '
+                'if the work already exists, report already_done with evidence. Otherwise write a corrected plan note in the brain (projects/<slug>/plan, overwrite or version the old one, '
+                'keep it short: goal, steps, risks, test, effort), replace the [replan] line with a line "PLAN (Claude, replanned): <note path>", '
+                'then carry on with the item as usual (read-only unless approved).\n')
+    else:
+        plan = _no_plan(desc)
+    return ('Work on this item of the Claude to-do list. Read-only unless the item is marked approved.\nTitle: %s\nDue: %s\n%sDescription:\n%s'
+            % (str(item.get('summary'))[:200], str(item.get('due') or 'none'), plan, desc[:3000]))[:4000]
+
+
+def _no_plan(desc):
+    plan = ('' if has_plan(desc) else
             '\nNO PLAN YET: the free outside AIs did not give this item a plan (not asked, refused, or out of quota). Before anything else, write one: '
             'a short plan note in the brain (projects/<slug>/plan, with goal, steps, risks, test, effort) and add a line "PLAN (Claude): <note path>" to the item. '
             'Then carry on with the item as usual (read-only unless approved). Private items (money, health, people) are planned here, never sent out.\n')
-    return ('Work on this item of the Claude to-do list. Read-only unless the item is marked approved.\nTitle: %s\nDue: %s\n%sDescription:\n%s'
-            % (str(item.get('summary'))[:200], str(item.get('due') or 'none'), plan, desc[:3000]))[:4000]
+    return plan
