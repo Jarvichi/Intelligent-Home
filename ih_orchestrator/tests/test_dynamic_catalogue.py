@@ -1,4 +1,4 @@
-"""The Add-ons list is built from the Supervisor store + each add-on's ih.json + registrations (13 Nov 2026)."""
+"""The Add-ons list is built from the Supervisor store + each add-on's ih_meta + registrations (13 Nov 2026)."""
 import json, sys, unittest
 from pathlib import Path
 
@@ -97,7 +97,7 @@ class Merge(unittest.TestCase):
         m = manager.Manager([], sup=sup, http=http, usage_path="/nonexistent/usage.json")
         cat = {c["slug"]: c for c in m.catalogue}
         self.assertEqual(cat["ih_newthing"]["requires"], ["ih_jobs"])
-        self.assertTrue(all(u.startswith("https://raw.githubusercontent.com/Jarvichi/Intelligent-Home/main/ih_") and u.endswith("/ih.json") for u in calls))
+        self.assertTrue(all(u.startswith("https://raw.githubusercontent.com/Jarvichi/Intelligent-Home/main/ih_meta/ih_") and u.endswith(".json") for u in calls))
         n = len(calls)
         m._cat = (0, None); m.catalogue                                   # rebuilt within the hour: no new fetches
         self.assertEqual(len(calls), n)

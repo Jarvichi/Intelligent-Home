@@ -1,5 +1,5 @@
 """Add-on manager page (v0.10.0: trace explorer; consumer outcome progress). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
-Lists the add-ons of this repository (Supervisor store + each add-on's ih.json + registrations) merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
+Lists the add-ons of this repository (Supervisor store + each add-on's ih_meta file + registrations) merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
 import hashlib, json, os, re, threading, time, urllib.request, urllib.error
 from pathlib import Path
@@ -57,15 +57,15 @@ def load_catalogue(path):
 
 SHORT_RE = re.compile(r"^ih_[a-z0-9_]{1,40}$")
 STORE_TTL_S = 60
-META_TTL_S = 3600          # how long an add-on's ih.json is trusted before it is read again
+META_TTL_S = 3600          # how long an add-on's ih_meta file is trusted before it is read again
 META_WORKERS = 8
-META_FILE = "ih.json"
+META_DIR = "ih_meta/"      # repository folder holding <slug>.json per add-on (outside the add-on folders: a metadata change must not need an add-on version bump)
 
 
 def merge_catalogue(static, store, registered, prefix, repo=None, meta=None):
     """Dynamic list of this repository's add-ons (13 Nov 2026). Sources, lowest priority first:
     the Supervisor store (name, description, version of every add-on in OUR repository, installed or not),
-    `static` (tests only; catalogue.json was removed 13 Nov 2026), each add-on's own `ih.json` in the repository (requires, ui title and purpose),
+    `static` (tests only; catalogue.json was removed 13 Nov 2026), each add-on's `ih_meta/<slug>.json` in the repository (requires, ui title and purpose),
     add-ons that registered themselves while running (same fields).
     -> [catalogue entry]. Static entries keep their order; new ones follow, sorted by slug."""
     out = {c["slug"]: dict(c) for c in static}
@@ -104,7 +104,7 @@ def raw_base(source):
 
 
 def clean_meta(d):
-    """Only the two fields an ih.json may carry, bounded. None when it is not a usable document."""
+    """Only the two fields an ih_meta file may carry, bounded. None when it is not a usable document."""
     if not isinstance(d, dict):
         return None
     out = {}
@@ -267,14 +267,14 @@ class Manager:
         self.trace_src = traces
 
     def metas(self, shorts, base):
-        """{short: {requires, ui}} from each add-on's own ih.json in the repository (read at most once an hour, 8 at a time). A failed read keeps the last good copy
+        """{short: {requires, ui}} from each add-on's own ih_meta file in the repository (read at most once an hour, 8 at a time). A failed read keeps the last good copy
         (also kept on disk), so GitHub being unreachable never empties the page."""
         now = time.time()
         stale = [x for x in shorts if x not in self._meta or now - self._meta[x][0] > META_TTL_S]
         if stale and base:
             from concurrent.futures import ThreadPoolExecutor
             def one(x):
-                return x, clean_meta(self.http(base + x + "/" + META_FILE))
+                return x, clean_meta(self.http(base + META_DIR + x + ".json"))
             with ThreadPoolExecutor(max_workers=META_WORKERS) as ex:
                 for x, m in ex.map(one, stale):
                     if m is not None:
@@ -292,7 +292,7 @@ class Manager:
 
     @property
     def catalogue(self):
-        """The add-on list: store + each add-on's ih.json + registrations (see merge_catalogue). Falls back to `static` plus cached ih.json copies when the store cannot be read."""
+        """The add-on list: store + each add-on's ih_meta file + registrations (see merge_catalogue). Falls back to `static` plus cached ih_meta file copies when the store cannot be read."""
         t, cached = self._cat
         if cached is not None and time.time() - t < STORE_TTL_S:
             return cached

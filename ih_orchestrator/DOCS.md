@@ -66,7 +66,7 @@ It only touches add-ons from its own repository. A `register_key` is generated o
 
 ### Add-on manager (0.6.0)
 
-Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of this repository (read from the Supervisor store; what each needs and what its page is for come from the add-on's own `ih.json` in the repository, or from `POST /register`) (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
+Sidebar panel "Intelligent Home" (Supervisor ingress, port 8789, answers only the ingress gateway). Lists every add-on of this repository (read from the Supervisor store; what each needs and what its page is for come from the add-on's `ih_meta/<slug>.json` in the repository, or from `POST /register`) (written by `export_repo.py`) with install state, version, CPU, memory, last seen, missing settings, and what each one needs or is needed by. Buttons: Install, Start, Stop, Restart, Update, Logs. Acts only on add-ons of this repository. Install and update run as background jobs; after an install the provisioner runs once.
 
 ### Add-on status contributions (0.10.10)
 

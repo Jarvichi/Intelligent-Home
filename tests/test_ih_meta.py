@@ -1,4 +1,4 @@
-"""Every add-on carries an ih.json (what it needs, what its page is for): the Add-ons page reads it. 13 Nov 2026."""
+"""Every add-on has ih_meta/<slug>.json (what it needs, what its page is for): the Add-ons page reads it. Kept outside the add-on folders so editing it needs no add-on version bump. 13 Nov 2026."""
 import json, unittest
 from pathlib import Path
 
@@ -10,12 +10,12 @@ class IhMeta(unittest.TestCase):
     def addons(self):
         return sorted(d.name for d in ROOT.iterdir() if d.is_dir() and d.name.startswith("ih_") and (d / "config.yaml").exists())
 
-    def test_every_addon_has_valid_ih_json(self):
+    def test_every_addon_has_valid_ih_meta_file(self):
         names = set(self.addons())
         self.assertTrue(names)
         for n in names:
-            f = ROOT / n / "ih.json"
-            self.assertTrue(f.exists(), n + " has no ih.json")
+            f = ROOT / "ih_meta" / (n + ".json")
+            self.assertTrue(f.exists(), n + " has no ih_meta file")
             d = json.loads(f.read_text())
             self.assertEqual(set(d), {"requires", "ui"}, n)
             self.assertIsInstance(d["requires"], list)
