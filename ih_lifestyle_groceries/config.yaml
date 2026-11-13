@@ -1,0 +1,14 @@
+name: "Intelligent Home - Lifestyle - Groceries"
+version: "0.2.0"
+slug: ih_lifestyle_groceries
+description: "Item library for everything the house buys: names, aliases, aisle, shelf life. Slice 1: shelf life for the shop checklist. TEST MODE: read-only, no live readers."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+options:
+  mode: "dry"
+schema:
+  mode: list(dry|live)
