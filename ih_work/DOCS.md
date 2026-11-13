@@ -7,6 +7,20 @@ Keeps one line of jobs for Claude (first in, first out). A job is handed out onl
 ## Urgent handoffs (0.2.0)
 An item of kind `other` whose ref starts with `handoff-` is a request an assistant passed on while a person waits. It is claimed first and skips the pace pause. The STOP switch, the 5-hour session limit (85%), the week limit (90%) and a cap of 30 such claims in 24 hours still apply.
 
+## Runs (0.3.0)
+
+The page has a **Runs** card. A run is a spell in which the add-on queues the Claude to-do list on its own, one item at a time, with its own pace target and item count.
+- **Night run** and **Day run**: turned on/off, start time, stop-by time, pace target, number of items (a whole number or Unlimited). Night defaults: on, 01:00 to 05:30, target 0.0. Day defaults: off, 10:00 to 17:00, target -2.0. Times are in the `timezone` option. Each window starts at most one run, also if the add-on restarts inside it.
+- **Run now**: its own pace target and number of items (or Unlimited) for that one run, a status line and a **Stop run** button. No stop-by time; it ends by count, pace, limit or Stop.
+- Only one run at a time. A scheduled run that is due while another runs is skipped until the other ends (if its window is still open).
+- Settings saved on the page are kept in `/data/run_settings.json` and win over the options (`night_run_enabled`, `_start`, `_stop_by`, `_pace_target`, `_max_items`, and the same for `day_run_`; leave `_max_items` empty for unlimited). A bad saved file falls back to the options.
+- **Pace target** = run while pace (week used % minus week elapsed %) is below this number. A scheduled run waits (stays active, hands out nothing) until pace is below the target, and ends once pace reaches it after it has started something. A manual run ends at once if pace is already at or above the target. The 5-hour session (85%) and week (90%) limits end a run; they use the same numbers as the normal gate.
+- **Items** counts items the run has handed out (claimed). The run queues no more than that many. Urgent handoffs are not counted.
+- **While a run is active** its pace target replaces the day/night levels for claims. When no run is active the day/night levels apply as before. The always-on `feed_backlog` option still works; during a run the run's rules decide.
+- A run ends at: the item count, the pace target, the stop-by time, the session or week limit, the STOP switch, an empty backlog, or Stop. The page shows the last reason.
+- **Test mode** (`mode: dry`): a run only logs `[DRY] would feed: <title>` and counts each as started, so count limits can be tried safely.
+- API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items}` (`max_items` null = unlimited), `POST /runs/stop`. `409` when a run is already active (start) or none is (stop).
+
 ## Requires
 
 - Home Assistant OS or Supervised (add-ons need the Supervisor)
@@ -40,6 +54,7 @@ An item of kind `other` whose ref starts with `handoff-` is a request an assista
 | `night_start` / `night_stop` | No | Night level: start below -1.0, stop at 0.0. |
 | `night_from` / `night_to` | No | Night hours, `HH:MM`. Default 23:00 to 06:00. |
 | `week_usage_entity`, `session_usage_entity`, `weekly_reset_entity` | No | The three usage sensors. Empty = find the one sensor whose id starts `sensor.claude_usage_` and ends `_week_usage`, `_session_usage`, `_weekly_reset_time`. |
+| `night_run_*`, `day_run_*` | No | Defaults for the two scheduled runs: `enabled`, `start`, `stop_by` (`HH:MM`), `pace_target`, `max_items` (empty = unlimited). See "Runs". |
 | `feed_backlog` | No | Off by default. On = see "Backlog feeder". |
 | `todo_entity` | No | The to-do list to read. Default `todo.claude_to_do`. |
 | `feed_prefixes` | No | Titles that start with one of these are work for Claude. Default `IH:`, `Check:`, `Review:`. |

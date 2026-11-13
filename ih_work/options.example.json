@@ -16,5 +16,17 @@
   "weekly_reset_entity": "",
   "feed_backlog": false,
   "todo_entity": "todo.claude_to_do",
-  "feed_prefixes": ["IH:", "Check:", "Review:"]
+  "feed_prefixes": [
+    "IH:",
+    "Check:",
+    "Review:"
+  ],
+  "night_run_enabled": true,
+  "night_run_start": "01:00",
+  "night_run_stop_by": "05:30",
+  "night_run_pace_target": 0.0,
+  "day_run_enabled": false,
+  "day_run_start": "10:00",
+  "day_run_stop_by": "17:00",
+  "day_run_pace_target": -2.0
 }
