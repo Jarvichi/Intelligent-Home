@@ -55,6 +55,42 @@ def load_catalogue(path):
         return []
 
 
+SHORT_RE = re.compile(r"^ih_[a-z0-9_]{1,40}$")
+STORE_TTL_S = 60
+
+
+def merge_catalogue(static, store, registered, prefix, repo=None):
+    """Dynamic list of this repository's add-ons (13 Nov 2026). Sources, lowest priority first:
+    the Supervisor store (name, description, version of every add-on in OUR repository, installed or not),
+    catalogue.json (fallback and hand-written overrides), add-ons that registered themselves (requires, ui title and purpose).
+    -> [catalogue entry]. Static entries keep their order; new ones follow, sorted by slug."""
+    out = {c["slug"]: dict(c) for c in static}
+    order = [c["slug"] for c in static]
+    for x in store or []:
+        if not isinstance(x, dict) or not isinstance(x.get("slug"), str) or not x["slug"].startswith(prefix + "_ih_"):
+            continue
+        if repo and x.get("repository") not in (None, repo):
+            continue
+        short = x["slug"][len(prefix) + 1:]
+        if not SHORT_RE.match(short):
+            continue
+        if short not in out:
+            out[short] = {"name": str(x.get("name") or short), "slug": short, "description": str(x.get("description") or ""), "kind": "addon",
+                          "requires": [], "version": str(x.get("version") or ""), "image": True,
+                          "ui": {"title": str(x.get("name") or short).replace("Intelligent Home - ", ""), "purpose": str(x.get("description") or "")[:160]}}
+            order.append(short)
+    for short, r in (registered or {}).items():
+        if short not in out or not isinstance(r, dict):
+            continue
+        if isinstance(r.get("requires"), list):
+            out[short]["requires"] = [q for q in r["requires"] if isinstance(q, str)]
+        if isinstance(r.get("ui"), dict):
+            out[short]["ui"] = {"title": str(r["ui"].get("title") or out[short].get("ui", {}).get("title") or short)[:40],
+                                "purpose": str(r["ui"].get("purpose") or out[short].get("ui", {}).get("purpose") or "")[:160]}
+    static_slugs = [c["slug"] for c in static]
+    return [out[k] for k in static_slugs] + [out[k] for k in sorted(k for k in order if k not in static_slugs)]
+
+
 def needs_map(cat):
     """{slug: [required slug]} and the reverse {slug: [slugs that need it]}. Unknown names are kept (e.g. mqtt)."""
     needs = {c["slug"]: [r for r in c.get("requires") or [] if isinstance(r, str)] for c in cat}
@@ -190,14 +226,31 @@ class Jobs:
 
 class Manager:
     def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
-                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None):
-        self.catalogue, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
+                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}):
+        self.static, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
+        self.registered, self._cat = registered, (0, None)
         self.health_src, self.http = health, http or http_json
         self.jobs, self.busy, self.lock = Jobs(), set(), threading.Lock()
         self.cache = (0, None)
         self.usage_path, self.clock, self.ulock = usage_path or os.environ.get("IH_USAGE", "/data/usage.json"), clock, threading.Lock()
         self.usage, self.usage_t, self.usage_err = self._usage_load(), 0, {}
         self.trace_src = traces
+
+    @property
+    def catalogue(self):
+        """The add-on list: store + catalogue.json + registrations (see merge_catalogue). Falls back to catalogue.json alone when the store cannot be read."""
+        t, cached = self._cat
+        if cached is not None and time.time() - t < STORE_TTL_S:
+            return cached
+        try:
+            prefix, repo = self.context()
+            lst = self.sup("GET", "/store/addons")
+            items = lst.get("addons") if isinstance(lst, dict) else lst
+            merged = merge_catalogue(self.static, items if isinstance(items, list) else [], self.registered(), prefix, repo)
+        except Exception:
+            merged = merge_catalogue(self.static, [], self.registered() if callable(self.registered) else {}, "")
+        self._cat = (time.time(), merged)
+        return merged
 
     # ---- scope
     def context(self):

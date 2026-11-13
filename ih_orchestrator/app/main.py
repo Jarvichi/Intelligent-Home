@@ -31,7 +31,7 @@ PROBE_MAX_AGE = 180  # host probe results older than this count as unknown
 SNAPSHOT_MAX_AGE = 180  # a pushed snapshot older than this is stale
 MAX_BODY = 1024 * 1024
 MAX_ITEMS = 500
-STATE = {"manifests": [], "status": [], "received_at": None, "extra": {}}  # extra: pushes from modules, by source name
+STATE = {"manifests": [], "status": [], "received_at": None, "extra": {}, "registered": {}}  # extra: pushes from modules, by source name
 LOCK = threading.Lock()
 
 
@@ -350,10 +350,30 @@ def seen_map(now=None):
     return {n: {"state": states.get(n, "UNKNOWN"), "age_s": None if t is None else int(now - t)} for n, t in pushed.items()}
 
 
+def register(raw):
+    """POST /register (ingest token): an add-on tells the Add-ons page what it needs and what its page is for. In memory only: add-ons register again at
+    start and every hour. Body {"slug": "ih_x", "requires": ["ih_y"], "ui": {"title": "...", "purpose": "..."}}. -> (status, body)"""
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return 400, {"error": "not JSON"}
+    slug = d.get("slug") if isinstance(d, dict) else None
+    if not isinstance(slug, str) or not manager.SHORT_RE.match(slug) or slug == "ih_orchestrator":
+        return 400, {"error": "slug must look like ih_name"}
+    req = d.get("requires", [])
+    if not isinstance(req, list) or len(req) > 12 or not all(isinstance(x, str) and len(x) <= 40 for x in req):
+        return 400, {"error": "requires must be a short list of names"}
+    ui = d.get("ui", {})
+    if not isinstance(ui, dict):
+        return 400, {"error": "ui must be an object"}
+    STATE["registered"][slug] = {"requires": req, "ui": {"title": str(ui.get("title") or "")[:40], "purpose": str(ui.get("purpose") or "")[:160]}, "received_at": time.time()}
+    return 200, {"ok": True}
+
+
 def init_manager():
     """Start the ingress-only manager page server on its own port. Never raises."""
     try:
-        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True))
+        mgr = manager.Manager(manager.load_catalogue(CATALOGUE), prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True), registered=lambda: STATE.get("registered") or {})
         threading.Thread(target=mgr.warm, daemon=True).start()
         threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
         return mgr
@@ -511,6 +531,18 @@ class H(BaseHTTPRequestHandler):
             if n < 0 or n > MAX_BODY:
                 return self._json(413, {"error": "too large"})
             return self._json(*ingest(self.rfile.read(n)))
+        if p == "/register":
+            if not TOKEN:
+                return self._json(503, {"error": "register disabled (no ingest_token)"})
+            if not token_ok(self.headers.get("Authorization")):
+                return self._json(401, {"error": "unauthorized"})
+            try:
+                n = int(self.headers.get("Content-Length", ""))
+            except ValueError:
+                return self._json(411, {"error": "length required"})
+            if n < 0 or n > 4096:
+                return self._json(413, {"error": "too large"})
+            return self._json(*register(self.rfile.read(n)))
         if p == "/trace":
             if not TOKEN:
                 return self._json(503, {"error": "trace ingest disabled (no ingest_token)"})
