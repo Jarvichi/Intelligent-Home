@@ -35,12 +35,12 @@
     const onLabel = el('label', 'runs-check'); onLabel.appendChild(f.on); onLabel.appendChild(document.createTextNode(' Turned on'));
     f.start = Object.assign(document.createElement('input'), { type: 'time' });
     f.stop = Object.assign(document.createElement('input'), { type: 'time' });
-    f.pace = Object.assign(document.createElement('input'), { type: 'number', step: '0.1' });
+    f.pace = Object.assign(document.createElement('input'), { type: 'number', min: '-10', max: '10', step: '0.5' });
     f.max = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: '1000', step: '1' });
     f.unl = Object.assign(document.createElement('input'), { type: 'checkbox' });
-    const unlLabel = el('label', 'runs-check'); unlLabel.appendChild(f.unl); unlLabel.appendChild(document.createTextNode(' Unlimited'));
+    const unlLabel = el('label', 'runs-check'); unlLabel.appendChild(f.unl); unlLabel.appendChild(document.createTextNode(' No limit (keep going through the to-do list until the pace target or stop time)'));
     const grid = el('div', 'runs-grid');
-    for (const n of [onLabel, field('Start', f.start), field('Stop by', f.stop), field('Pace target', f.pace), field('Items', f.max), unlLabel]) grid.appendChild(n);
+    for (const n of [onLabel, field('Start', f.start), field('Stop by', f.stop), field('Pace target (-10 to 10)', f.pace), field('Max to-dos per run', f.max), unlLabel]) grid.appendChild(n);
     f.box.appendChild(grid);
     const actions = el('div', 'runs-actions');
     f.save = el('button', 'ih-button', 'Save ' + NAMES[kind].toLowerCase());
@@ -52,7 +52,7 @@
     f.save.addEventListener('click', async () => {
       const patch = {};
       patch[kind] = { enabled: f.on.checked, start: f.start.value, stop_by: f.stop.value, pace_target: parseFloat(f.pace.value), max_items: maxValue(f.unl, f.max) };
-      if (isNaN(patch[kind].pace_target)) { say('Pace target must be a number.'); return; }
+      if (isNaN(patch[kind].pace_target) || patch[kind].pace_target < -10 || patch[kind].pace_target > 10) { say('Pace target must be from -10 to 10.'); return; }
       f.save.disabled = true;
       try { render(await call('POST', '/settings', patch), true); say(NAMES[kind] + ' saved.'); } catch (e) { say(e.message); }
       f.save.disabled = false;
@@ -93,7 +93,7 @@
   $('now-unl').addEventListener('change', () => { $('now-max').disabled = $('now-unl').checked; });
   $('now-go').addEventListener('click', async () => {
     const pace = parseFloat($('now-pace').value);
-    if (isNaN(pace)) { say('Pace target must be a number.'); return; }
+    if (isNaN(pace) || pace < -10 || pace > 10) { say('Pace target must be from -10 to 10.'); return; }
     $('now-go').disabled = true;
     try { render(await call('POST', '/start', { pace_target: pace, max_items: maxValue($('now-unl'), $('now-max')) })); say(''); } catch (e) { say(e.message); load(); }
   });

@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.1] - 2026-11-13
+
+### Changed
+- Runs card: pace target is a spinner from -10 to 10 (step 0.5, also enforced by the add-on and its options); the item count is labelled "Max to-dos per run" with a checkbox "No limit" that says what it means.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added

@@ -41,9 +41,9 @@
         <p id="run-status" class="runs-status" role="status" aria-live="polite"></p>
         <h3 class="runs-h">Run now</h3>
         <div class="runs-grid">
-          <label>Pace target <input id="now-pace" type="number" step="0.1" value="0"></label>
-          <label>Items <input id="now-max" type="number" min="1" max="1000" step="1" value="3"></label>
-          <label class="runs-check"><input id="now-unl" type="checkbox"> Unlimited</label>
+          <label>Pace target (-10 to 10) <input id="now-pace" type="number" min="-10" max="10" step="0.5" value="-2"></label>
+          <label>Max to-dos for this run <input id="now-max" type="number" min="1" max="1000" step="1" value="3"></label>
+          <label class="runs-check"><input id="now-unl" type="checkbox"> No limit (keep going through the to-do list until the pace target or stop time)</label>
         </div>
         <div class="runs-actions">
           <button id="now-go" class="ih-button" type="button">Run now</button>
