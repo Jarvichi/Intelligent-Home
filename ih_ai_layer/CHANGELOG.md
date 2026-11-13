@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-11-13
+
+### Added
+- `POST /request` accepts an optional `image` (base64 JPEG/PNG text). It forces capability `vision`, goes only to an agent that registered `vision`, and is never logged, classified or sent to search. No built-in provider does vision yet, so nothing changes until a (local) vision agent registers. `/request` may be up to 1.6 MB; other calls stay at 16 KB.
+
 ## [0.5.1] - 2026-11-10
 
 ### Added

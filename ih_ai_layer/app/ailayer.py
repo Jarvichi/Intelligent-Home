@@ -9,6 +9,8 @@ import providers as provmod
 STOP_FILE = 'STOP'
 AGENT_LIVE_S = 120          # an agent that has not re-registered for this long is not used
 MAX_TEXT = 4000
+MAX_IMAGE_B64 = 1500000   # 0.6.0: a picture is base64 text (about 1.1 MB of JPEG/PNG); only for capability 'vision'
+B64_RE = re.compile(r'^[A-Za-z0-9+/=\s]+$')
 ID_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')
 NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 CAP_RE = re.compile(r'^[a-z0-9_]{1,40}$')
@@ -450,6 +452,14 @@ class Layer:
         if model is not None and (not isinstance(model, str) or not MODEL_RE.match(model)):
             return 400, {'ok': False, 'error': 'bad model'}
         cap, classified = obj.get('capability'), False
+        image = obj.get('image')
+        if image is not None:
+            # 0.6.0: a picture goes ONLY to an agent that declares 'vision' (never classified, never to web search, never logged)
+            if not isinstance(image, str) or not image.strip() or len(image) > MAX_IMAGE_B64 or not B64_RE.match(image):
+                return 400, {'ok': False, 'error': 'image must be base64 text up to %d chars' % MAX_IMAGE_B64}
+            if cap is not None and cap != 'vision' or model:
+                return 400, {'ok': False, 'error': "an image needs capability 'vision' and no model"}
+            cap = 'vision'
         if cap is not None and (not isinstance(cap, str) or not CAP_RE.match(cap)):
             return 400, {'ok': False, 'error': 'bad capability'}
         if not cap and not model:
@@ -543,7 +553,7 @@ class Layer:
             a0 = self.clock()
             sc = self.score(cap, name)
             route.update(candidates=len(order), tries=tried, agent=name, score=_score_attr(sc))
-            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller, trace_spans if trace_id else None, route_span_id, _score_attr(sc))
+            ans = self._ask(name, text, cap, ctx or {}, rid, None, caller, trace_spans if trace_id else None, route_span_id, _score_attr(sc), image)
             ms = (self.clock() - a0) * 1000
             self._record(cap, name, ans is not None, ms)
             if ans is not None:
@@ -619,7 +629,7 @@ class Layer:
         w = self.agent_why.pop(rid, None)
         return out(False, "The agents for 'general_qa' did not answer (%d tried)." % tried, None, {'error': w} if w else None)
 
-    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None, trace_spans=None, parent_span_id=None, score=None):
+    def _ask(self, name, text, cap, ctx, rid, model=None, caller=None, trace_spans=None, parent_span_id=None, score=None, image=None):
         """Signed POST to the agent's /ask. -> answer string or None. Errors are logged by type only. Logs one 'try' line per call."""
         a = self.table().get(name)
         if a is None:
@@ -628,10 +638,10 @@ class Layer:
         try:
             if a.get('local'):
                 # in-process provider: no HTTP, no signature. The provider never raises and never logs the text.
-                obj = a['local'].ask({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid, 'caller': caller, **({'model': model} if model else {})},
+                obj = a['local'].ask({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid, 'caller': caller, **({'model': model} if model else {}), **({'image': image} if image else {})},
                                      timeout=self.opts['agent_timeout_s'])
             else:
-                body, headers = jobs_link.pack(self.opts['register_key'], dict({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid}, **({'model': model} if model else {})), now=self.clock())
+                body, headers = jobs_link.pack(self.opts['register_key'], dict({'text': text, 'capability': cap, 'context': ctx, 'request_id': rid}, **({'model': model} if model else {}), **({'image': image} if image else {})), now=self.clock())
                 req = urllib.request.Request(a['url'] + '/ask', data=body, method='POST', headers=headers)
                 with self.opener(req, timeout=self.opts['agent_timeout_s']) as x:
                     raw = x.read(200000)
