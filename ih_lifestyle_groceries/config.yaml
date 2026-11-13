@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Groceries"
-version: "0.3.1"
+version: "0.4.0"
 slug: ih_lifestyle_groceries
 image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_groceries"
 description: "Everything the house buys: item library plus the receipts ledger (whole receipts, price changes, due-again). TEST MODE (mode dry) validates only and writes nothing."
@@ -9,6 +9,7 @@ arch:
 startup: application
 boot: manual
 init: false
+homeassistant_api: true
 # Reachable by other add-ons (host name 32c8114c-ih-lifestyle-groceries), NOT published on the network.
 ports:
   8801/tcp: null

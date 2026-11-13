@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.0] - 2026-11-13
+### Added
+- Publishes `sensor.lifestyle_spend`, `sensor.lifestyle_due_soon` and `sensor.lifestyle_price_rises` to Home Assistant (needs `homeassistant_api`): at start, after every stored receipt or alias, and every hour. Dashboards read the sensors live, so no page is rebuilt after a receipt.
+
 ## [0.3.1] - 2026-11-13
 ### Fixed
 - Price changes now compare the LIST (shelf) price, not the price after offers, so a 2-for-1 week is no longer reported as a price rise. The after-offer change is shown separately as `net_pct`.

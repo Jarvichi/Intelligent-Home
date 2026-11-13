@@ -4,21 +4,32 @@ GET  /stats/due | /stats/prices | /stats/weeks | /stats/week_diff?a=YYYY-MM-DD&b
 POST /receipts   (Bearer api_token) store one whole receipt; in mode dry it only validates and answers what it WOULD store
 POST /alias      (Bearer api_token) {"raw_name":..., "item_id":...}; dry = no write
 No payment details are ever accepted or stored."""
-import hmac, json, os, sys, threading
+import hmac, json, os, sys, threading, time
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import ledger as L, stats as S
+import ledger as L, stats as S, publisher as PUB
 
 PORT = 8801
 MAX_BODY = 512 * 1024
+PUBLISH_EVERY_S = 3600
 
 
 class App:
-    def __init__(self, db, mode='dry', token='', today=date.today):
-        self.db, self.mode, self.token, self.today = db, mode, token or '', today
+    def __init__(self, db, mode='dry', token='', today=date.today, ha=None):
+        self.db, self.mode, self.token, self.today, self.ha = db, mode, token or '', today, ha
+
+    def publish(self):
+        """Push the sensors to Home Assistant (needs the HA client). -> sensors written, 0 when unavailable or failed."""
+        if self.ha is None:
+            return 0
+        try:
+            return PUB.publish(self.db, self.ha, self.today())
+        except Exception as e:
+            print('publish failed: %s' % type(e).__name__, flush=True)
+            return 0
 
     def authed(self, header):
         return bool(self.token) and hmac.compare_digest(str(header or '').encode(), ('Bearer ' + self.token).encode())
@@ -49,11 +60,15 @@ class App:
                 if path == '/alias':
                     if self.mode != 'live':
                         return 200, {'ok': True, 'dry': True, 'would_alias': L.norm_name(body.get('raw_name'))}
-                    return 200, {'ok': True, 'alias': L.add_alias(d, body.get('raw_name'), body.get('item_id'))}
+                    a = L.add_alias(d, body.get('raw_name'), body.get('item_id'))
+                    self.publish()
+                    return 200, {'ok': True, 'alias': a}
                 if self.mode != 'live':
                     L.store_receipt(L.open_ledger(':memory:'), body)   # validate only, in a throwaway database
                     return 200, {'ok': True, 'dry': True, 'would_store': len(body.get('lines') or [])}
                 st, rid, bal = L.store_receipt(d, body)
+                if st == 'stored':
+                    self.publish()
                 return 200, {'ok': True, 'status': st, 'id': rid, 'balanced': bal}
             except L.LedgerError as e:
                 return 400, {'ok': False, 'why': str(e)}
@@ -90,8 +105,14 @@ def main():
     except OSError:
         opts = {}
     d = L.open_ledger(os.path.join(data, 'ih.db'), snapshot_dir=os.path.join(data, 'backup'))
-    app = App(d, opts.get('mode', 'dry'), opts.get('api_token', ''))
+    from ihlib import ha as ihha
+    app = App(d, opts.get('mode', 'dry'), opts.get('api_token', ''), ha=ihha.HA() if os.environ.get('SUPERVISOR_TOKEN') else None)
     print('ih_lifestyle_groceries: mode %s, api on %d' % (app.mode, PORT), flush=True)
+    def loop():
+        while True:
+            print('sensors published: %d' % app.publish(), flush=True)
+            time.sleep(PUBLISH_EVERY_S)
+    threading.Thread(target=loop, daemon=True).start()
     make_server(app).serve_forever()
 
 
