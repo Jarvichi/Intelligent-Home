@@ -1,0 +1,36 @@
+name: "Intelligent Home - Parcel check"
+version: "0.1.0"
+slug: ih_parcel_check
+image: "ghcr.io/jarvichi/{arch}-ih_parcel_check"
+description: "Looks at saved doorstep pictures with a small local vision model (Ollama) and says whether a parcel was left. DRY by default: it only writes verdicts to its own log and posts nothing. Pictures never leave the home network."
+arch:
+  - aarch64
+startup: application
+boot: manual
+init: false
+watchdog: "http://[HOST]:[PORT:8798]/healthz"
+map:
+  - type: media
+    read_only: true
+ports:
+  8798/tcp: 8798
+ports_description:
+  8798/tcp: "Health and status (/healthz, /status)"
+options:
+  dry: true
+  snapshot_dir: "/media/eufy_snapshots"
+  cameras: "front_door,side_door"
+  ollama_url: "http://127.0.0.1:11434"
+  model: "moondream"
+  poll_seconds: 30
+  recheck_after_seconds: 120
+  timeout_seconds: 300
+schema:
+  dry: bool
+  snapshot_dir: str
+  cameras: str
+  ollama_url: str
+  model: str
+  poll_seconds: int(10,600)
+  recheck_after_seconds: int(0,900)
+  timeout_seconds: int(30,900)
