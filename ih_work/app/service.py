@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 import feed
 import gate as G
 import runs as R
+from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -25,6 +26,7 @@ class Service:
         self.opts = opts          # mode, lease_s, stop, bands, tz (tzinfo), feed_backlog, feed_prefixes, todo_entity
         self.reader, self.ha, self.clock, self.log = reader, ha, clock, log
         self.store = Store(data_dir, clock)
+        self.workers = Workers(data_dir, clock)
         self.state_path = os.path.join(data_dir, 'state.json')
         self.lock = threading.RLock()
         self._reading = (0.0, None, '')

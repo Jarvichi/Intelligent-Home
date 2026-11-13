@@ -1,0 +1,8 @@
+/* Working now card (ih_work 0.4.0). Loads after ui.css; canonical tokens only. */
+.wk-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-top:1px solid var(--ih-line)}.wk-row:first-child{border-top:0}
+.wk-title{min-width:0;font-weight:650;overflow-wrap:anywhere}
+.wk-stage{align-self:start;padding:2px 10px;border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-text);font-size:12px;font-weight:750;white-space:nowrap}
+.wk-stage[data-stage=assessing]{color:var(--ih-link)}.wk-stage[data-stage=planning]{color:var(--ih-warn)}.wk-stage[data-stage=implementing]{color:var(--ih-ok)}.wk-stage[data-stage=reporting]{color:var(--ih-muted)}
+.wk-row[data-stalled=true] .wk-stage{color:var(--ih-danger)}
+.wk-meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:2px 12px;color:var(--ih-muted);font-size:13px;overflow-wrap:anywhere}
+.wk-flag{color:var(--ih-danger);font-weight:650}

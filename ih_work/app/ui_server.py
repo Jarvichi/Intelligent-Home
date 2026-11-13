@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 DATA=os.environ.get('IHW_DATA','/data')
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
-ASSETS={'/runs.js':'runs.js','/runs.css':'runs.css','/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
+ASSETS={'/workers.js':'workers.js','/workers.css':'workers.css','/runs.js':'runs.js','/runs.css':'runs.css','/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js','/ih-patterns.css':'ih-patterns.css'}
 RUN_POSTS={'/api/runs/settings':'/runs/settings','/api/runs/start':'/runs/start','/api/runs/stop':'/runs/stop'}
 def api(method,path,body=None):
  """Call the add-on's own token API on this machine. The token is read from the options file and never sent to the page."""
@@ -41,6 +41,8 @@ class Handler(BaseHTTPRequestHandler):
    body=json.dumps({'healthy':healthy,'detail':detail,'checked_at':time.time()}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   if path=='/api/runs':
    code,out=api('GET','/runs'); return self.reply(code,out,'application/json; charset=utf-8')
+  if path=='/api/workers':
+   code,out=api('GET','/workers'); return self.reply(code,out,'application/json; charset=utf-8')
   if path=='/api/today':
    try:
     import today
