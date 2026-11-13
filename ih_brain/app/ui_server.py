@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import extras
 import instructions_api
 
 GATEWAY_PEER = "172.30.32.2"
@@ -109,7 +110,7 @@ def _graph_summary(brain):
     return json.loads(brain.t_brain_graph({}))
 
 
-def make_handler(brain, editor=None):
+def make_handler(brain, editor=None, data_dir=None):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body, content_type="application/json; charset=utf-8"):
             data = body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode()
@@ -142,6 +143,10 @@ def make_handler(brain, editor=None):
                 return self._file("vendor/force-graph-1.43.5.min.js" if path == "/force-graph.min.js" else path[1:])
             if path == "/instructions":
                 return self._file("instructions.html")
+            if path == "/names":
+                return self._file("names.html")
+            if path == "/names.js":
+                return self._file("names.js")
             if path in INSTRUCTIONS_ASSETS:
                 return self._file(path[1:])
             if path.startswith(INSTRUCTIONS_API):
@@ -207,6 +212,14 @@ def make_handler(brain, editor=None):
                                             "title": brain._title(note_path, raw), "content": raw,
                                             "private": _is_private(meta), "status": meta.get("status", ""),
                                             "date": _date_of(meta, note.stat().st_mtime)})
+                if path == "/api/names":
+                    # The Names page: capitalised words that look like names/places, with the choices saved so far.
+                    names = extras.detect_names(str(brain.base))
+                    for n in names:
+                        c = extras.CHOICES.get(n["name"], {})
+                        n["scrub"], n["repl"] = c.get("scrub", False), c.get("repl", "[name]")
+                    return self._send(200, {"names": names, "relaxed_too": extras.RELAXED_TOO,
+                                            "relaxed_notes": extras.relaxed_notes(str(brain.base)), "mapped": sorted(extras.NAMES)})
                 if path == "/api/graph":
                     return self._send(200, _graph_summary(brain))
                 return self._send(404, {"error": "Not found"})
@@ -219,6 +232,16 @@ def make_handler(brain, editor=None):
             if self._blocked():
                 return
             path = urlsplit(self.path).path.rstrip("/")
+            if path == "/api/names" and data_dir:
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    if n < 0 or n > 400000:
+                        return self._send(413, {"error": "Too large"})
+                    body = json.loads(self.rfile.read(n) or b"{}")
+                    saved = extras.save_choices(data_dir, body.get("names") or {}, body.get("relaxed_too"))
+                except (ValueError, OSError, AttributeError):
+                    return self._send(400, {"error": "Bad request"})
+                return self._send(200, {"ok": True, "scrubbed": sorted(k for k, v in saved.items() if v["scrub"]), "relaxed_too": extras.RELAXED_TOO})
             if not path.startswith(INSTRUCTIONS_API):
                 return self._send(404, {"error": "Not found"})
             if editor is None:
@@ -248,7 +271,7 @@ def make_handler(brain, editor=None):
     return Handler
 
 
-def serve(brain, editor=None):
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor))
+def serve(brain, editor=None, data_dir=None):
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor, data_dir))
     threading.Thread(target=server.serve_forever, name="ih-brain-ui", daemon=True).start()
     return server

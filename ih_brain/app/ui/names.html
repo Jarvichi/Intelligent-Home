@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101511">
+  <title>Names to scrub · House Brain</title>
+  <link rel="stylesheet" href="./ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="./ui.css">
+  <style>
+    .nm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+    .nm-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:start;padding:10px 0;border-top:1px solid var(--ih-line,#2a3a2c)}
+    .nm-row small{display:block;opacity:.75;overflow-wrap:anywhere}
+    .nm-row input[type=text]{width:9em}
+    .nm-row input[type=checkbox]{width:22px;height:22px;margin-top:4px}
+    .nm-msg{min-height:1.4em}
+    .nm-sticky{position:sticky;bottom:0;padding:10px 0;background:var(--ih-bg,#101511)}
+    a.nm-back{display:inline-block;margin:8px 0}
+  </style>
+  <script defer src="./names.js"></script>
+</head>
+<body>
+  <ih-app>
+    <ih-header>
+      <span class="ih-kicker">Intelligent Home · Knowledge</span>
+      <h1>Names to scrub</h1>
+      <p>Tick a word to hide it from the pocket brain (Cloudflare copy). Ticked words are replaced by the text beside them. Nothing changes until you press Save.</p>
+    </ih-header>
+    <a class="nm-back" href="./">← House Brain</a>
+    <ih-card>
+      <div class="nm-bar">
+        <label>Show only words in at least <input id="min" type="number" min="1" value="1" style="width:4em"> notes</label>
+        <label><input id="only" type="checkbox"> only ticked</label>
+        <label>Find <input id="find" type="search" placeholder="type a word" style="width:9em"></label>
+      </div>
+      <div class="nm-bar"><label><input id="relaxed" type="checkbox"> Also scrub these in the <strong id="rn">0</strong> notes marked <em>relaxed</em> (otherwise those notes keep their names)</label></div>
+      <div id="list"><ih-empty>Loading…</ih-empty></div>
+      <div class="nm-sticky"><button type="button" id="save" class="ih-button">Save choices</button> <span id="msg" class="nm-msg" role="status"></span></div>
+    </ih-card>
+  </ih-app>
+</body>
+</html>
