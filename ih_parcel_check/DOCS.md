@@ -15,7 +15,7 @@ Looks at saved doorstep pictures with a small local vision model (model `moondre
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Parcel check**.
 2. Install and start **Intelligent Home - Ollama** first and wait for `models ready` in its log. Then leave `dry` on and start this add-on.
-3. Open `http://<home-assistant>:8798/status` to see how many pictures were checked and the last verdict. Every verdict is also saved in `/data/verdicts.jsonl`.
+3. Open `http://<home-assistant>:8816/status` to see how many pictures were checked and the last verdict. Every verdict is also saved in `/data/verdicts.jsonl`.
 4. Check a few verdicts against the pictures. Turning on alerts is a later version.
 
 ## Options
