@@ -109,7 +109,7 @@ def main():
             done = {json.loads(l)["file"] for l in f if l.strip()}
     except OSError:
         pass
-    threading.Thread(target=lambda: HTTPServer(("0.0.0.0", 8798), H).serve_forever(), daemon=True).start()
+    threading.Thread(target=lambda: HTTPServer(("0.0.0.0", 8816), H).serve_forever(), daemon=True).start()
     while True:
         scan(opts, done, log_path)
         time.sleep(opts["poll_seconds"])
