@@ -1,9 +1,11 @@
 # Changelog
 
-## [0.12.1] - 2026-11-13
+## [0.13.0] - 2026-11-13
 
 ### Added
-- The Add-ons page lists three add-ons it did not know: Ollama, Parcel check and Lifestyle - Groceries (catalogue entries, so they can be seen, installed and updated here).
+- The Add-ons page builds its list itself. It reads every add-on of this repository from the Supervisor store (installed or not), then applies `catalogue.json` (kept as fallback and hand-written overrides) and what add-ons register. A new add-on appears without anyone editing a file; if the store cannot be read the page falls back to `catalogue.json` alone.
+- `POST /register` (ingest token): a running add-on says what it needs (`requires`) and what its page is for (`ui.title`, `ui.purpose`). Kept in memory, so add-ons register at start and every hour. A registration never creates an add-on, it only describes one the store already lists.
+- Catalogue entries for Ollama, Parcel check and Lifestyle - Groceries (so they show even before they register).
 
 ## [0.12.0] - 2026-11-13
 
