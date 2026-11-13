@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-11-13
+
+### Added
+- Working now. A card at the top of the page shows each Claude worker that is running: task title, worker, stage (Starting, Assessing, Planning, Implementing, Reporting), a short detail, how long it has run, and a Stalled flag when it has sent no update for 5 minutes. It refreshes every 5 seconds.
+- API: `POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}` and `GET /workers` (token). The runner sends a message when its stage or detail changes (at most one every 5 seconds) and a final `idle`, which removes the entry. Entries with no update for 30 minutes are dropped. The add-on keeps the list in memory and a short copy in `/data/workers.json`.
+
+### Unchanged
+- The queue, leases, the pace gate and runs.
+
 ## [0.3.1] - 2026-11-13
 
 ### Changed

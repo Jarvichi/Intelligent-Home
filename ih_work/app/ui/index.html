@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="ih-patterns.css">
   <link rel="stylesheet" href="ui.css">
   <link rel="stylesheet" href="runs.css">
+  <link rel="stylesheet" href="workers.css">
 </head>
 <body>
   <ih-nav data-home-href="/app/32c8114c_ih_orchestrator"></ih-nav>
@@ -19,6 +20,12 @@
         <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Connecting…</ih-status>
       </div>
       <p id="purpose" class="status-purpose"></p>
+      <ih-card id="workers-card" class="status-card">
+        <h2>Working now</h2>
+        <p class="status-sub">What each Claude worker is doing right now. Stage is worked out from the tools the worker uses.</p>
+        <div id="workers-rows" aria-live="polite"></div>
+        <p id="workers-empty" class="ih-empty-inline">No worker is running.</p>
+      </ih-card>
       <ih-card class="status-card">
         <div class="status-line">
           <div class="status-line-text">
@@ -74,5 +81,6 @@
   <script src="ih-ui.js?v=nav1"></script>
   <script src="ui.js"></script>
   <script src="runs.js"></script>
+  <script src="workers.js"></script>
 </body>
 </html>

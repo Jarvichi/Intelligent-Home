@@ -21,6 +21,13 @@ The page has a **Runs** card. A run is a spell in which the add-on queues the Cl
 - **Test mode** (`mode: dry`): a run only logs `[DRY] would feed: <title>` and counts each as started, so count limits can be tried safely.
 - API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items}` (`max_items` null = unlimited), `POST /runs/stop`. `409` when a run is already active (start) or none is (stop).
 
+## Working now (0.4.0)
+
+The top of the page has a **Working now** card: one row for each Claude worker that is running, with the task title, the worker (Work queue or Overnight worker), the stage, a short detail (the last tool and a short target, never a full command line), how long it has run, and **Stalled** when it has sent no update for 5 minutes. It refreshes every 5 seconds.
+- **Stages**: Starting; Assessing (reading, searching, read-only checks); Planning (writing brain or plan notes); Implementing (editing files or commands that change things); Reporting (giving the final result). The runner works the stage out from the tools Claude calls; the add-on only stores what it is told.
+- API (token): `POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}`. `worker` is 1-20 lowercase letters, digits, `-` or `_`. `stage` is `starting`, `assessing`, `planning`, `implementing`, `reporting` or `idle` (idle removes the entry). Text is capped (title 120, detail 80) and key-like strings are replaced. The add-on uses its own clock for `updated_at`. `GET /workers` returns `{workers: [{worker, title, ref, started_at, stage, detail, updated_at, elapsed_s, age_s, stalled}], now}`.
+- No update for 5 minutes = `stalled: true`. No update for 30 minutes = the entry is dropped. At most 8 workers. The list is kept in memory with a short copy in `/data/workers.json`.
+
 ## Requires
 
 - Home Assistant OS or Supervised (add-ons need the Supervisor)
