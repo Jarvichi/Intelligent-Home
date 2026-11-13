@@ -15,11 +15,14 @@ The page has a **Runs** card. A run is a spell in which the add-on queues the Cl
 - Only one run at a time. A scheduled run that is due while another runs is skipped until the other ends (if its window is still open).
 - Settings saved on the page are kept in `/data/run_settings.json` and win over the options (`night_run_enabled`, `_start`, `_stop_by`, `_pace_target`, `_max_items`, and the same for `day_run_`; leave `_max_items` empty for unlimited). A bad saved file falls back to the options.
 - **Pace target** = run while pace (week used % minus week elapsed %) is below this number. A scheduled run waits (stays active, hands out nothing) until pace is below the target, and ends once pace reaches it after it has started something. A manual run ends at once if pace is already at or above the target. The 5-hour session (85%) and week (90%) limits end a run; they use the same numbers as the normal gate.
-- **Items** counts items the run has handed out (claimed). The run queues no more than that many. Urgent handoffs are not counted.
+- **Items** counts the to-dos the run fed and the runner started. The run queues no more than that many in total. Urgent handoffs are not counted.
 - **While a run is active** its pace target replaces the day/night levels for claims. When no run is active the day/night levels apply as before. The always-on `feed_backlog` option still works; during a run the run's rules decide.
+- **Phases (0.5.0)**: a run works in rounds. (1) DRAIN: nothing is fed while the queue holds queued or running jobs; the runner consumes them. (2) PLAN: the run queues ONE `plan_todos` job; the runner runs the free-AI planner (no Claude call, no budget) and the run waits for it, at most 60 minutes, then carries on (a failed or late plan never stops the run). (3) BLOCK: the run queues `block_size` open to-dos at once (1 to 20, default 5; the usual picking rules, distinct, none already queued) and waits until the runner has consumed them. Then it starts again at DRAIN. The status shows the phase and the block progress ("block 2: 3 of 5 done").
+- **Block size** is a per-run setting (night, day and Run now; options `night_run_block_size`, `day_run_block_size`). **Max to-dos** still counts to-dos fed in total and cuts the last block to the remaining count. A block smaller than asked means the backlog is empty: the run ends when it is consumed.
+- **Pace**: claims still follow the run's pace target. When the target is reached (or any other end), the run cancels the queued jobs it fed itself that have not started (tracked by id). Jobs that already started finish; jobs the run did not feed are never touched.
 - A run ends at: the item count, the pace target, the stop-by time, the session or week limit, the STOP switch, an empty backlog, or Stop. The page shows the last reason.
-- **Test mode** (`mode: dry`): a run only logs `[DRY] would feed: <title>` and counts each as started, so count limits can be tried safely.
-- API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items}` (`max_items` null = unlimited), `POST /runs/stop`. `409` when a run is already active (start) or none is (stop).
+- **Test mode** (`mode: dry`): a run only logs per phase (`[DRY] would queue the planning job`, `[DRY] would feed: <title>`, `[DRY] block N: n to-do(s) would be fed`), queues nothing, does not wait for jobs already in the queue, and counts each fed to-do as started, so count and block limits can be tried safely.
+- API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items, block_size?}` (`max_items` null = unlimited), `POST /runs/stop`. `409` when a run is already active (start) or none is (stop).
 
 ## Working now (0.4.0)
 
@@ -61,7 +64,7 @@ The top of the page has a **Working now** card: one row for each Claude worker t
 | `night_start` / `night_stop` | No | Night level: start below -1.0, stop at 0.0. |
 | `night_from` / `night_to` | No | Night hours, `HH:MM`. Default 23:00 to 06:00. |
 | `week_usage_entity`, `session_usage_entity`, `weekly_reset_entity` | No | The three usage sensors. Empty = find the one sensor whose id starts `sensor.claude_usage_` and ends `_week_usage`, `_session_usage`, `_weekly_reset_time`. |
-| `night_run_*`, `day_run_*` | No | Defaults for the two scheduled runs: `enabled`, `start`, `stop_by` (`HH:MM`), `pace_target`, `max_items` (empty = unlimited). See "Runs". |
+| `night_run_*`, `day_run_*` | No | Defaults for the two scheduled runs: `enabled`, `start`, `stop_by` (`HH:MM`), `pace_target`, `max_items` (empty = unlimited), `block_size` (1 to 20, default 5). See "Runs". |
 | `feed_backlog` | No | Off by default. On = see "Backlog feeder". |
 | `todo_entity` | No | The to-do list to read. Default `todo.claude_to_do`. |
 | `feed_prefixes` | No | Titles that start with one of these are work for Claude. Default `IH:`, `Check:`, `Review:`. |
@@ -89,7 +92,7 @@ All calls need `Authorization: Bearer <api_token>` and JSON bodies. Port 8802 (t
 2. Do the work. Every few minutes `POST /heartbeat {"id": "...", "consumer": "runner-1"}`.
 3. `POST /complete {"id", "consumer", "summary"}` or `POST /fail {"id", "consumer", "error"}`.
 
-Other calls: `POST /enqueue {kind, ref, title, instruction, approved?, by?}` (same kind + ref while open returns the existing item), `GET /list?status=queued,failed` (`{"items": [...], "corrupt_files": [...]}`), `GET /item/<id>`, `POST /cancel {"id"}` (queued only), `POST /retry {"id"}` (failed only, goes to the back), `GET /status`, `GET /healthz` (open). Unknown fields are refused with 400. Errors: 400 bad input, 401 no/wrong token, 403 another consumer holds the job, 404 no such job, 409 wrong state.
+Job kinds: approved_request, ai_flag, todo, review, other, plan_todos (the last one is run by the host runner with the free planner, no Claude call). Other calls: `POST /enqueue {kind, ref, title, instruction, approved?, by?}` (same kind + ref while open returns the existing item), `GET /list?status=queued,failed` (`{"items": [...], "corrupt_files": [...]}`), `GET /item/<id>`, `POST /cancel {"id"}` (queued only), `POST /retry {"id"}` (failed only, goes to the back), `GET /status`, `GET /healthz` (open). Unknown fields are refused with 400. Errors: 400 bad input, 401 no/wrong token, 403 another consumer holds the job, 404 no such job, 409 wrong state.
 
 `GET /status` has `counts` (queued, running, done, failed, cancelled; running includes claimed), `next`, `running`, `last_finished`, `worker` (`state`, `reason`, `mode`, `band`, `updated`), `gate` (one line), `gate_at`, `pace`, `week`, `session`, `corrupt_files`.
 

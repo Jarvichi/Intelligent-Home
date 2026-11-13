@@ -3,6 +3,20 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-11-13
+
+### Added
+- Runs work in phases. DRAIN: while the queue holds queued or running jobs the run feeds nothing; the runner consumes them first. PLAN: once the queue is empty the run queues one `plan_todos` job (free outside AIs write plans for to-dos that lack one; no Claude call) and waits for it, at most 60 minutes. BLOCK: the run queues a block of open to-dos at once, waits until the runner has consumed the block, then starts again with DRAIN. A block that is smaller than asked means the backlog is empty and the run ends after it.
+- New run setting `block_size` (1 to 20, default 5): in the Runs card for the night run, the day run and Run now; options `night_run_block_size` and `day_run_block_size`; `POST /runs/settings` and optional `block_size` in `POST /runs/start`.
+- The run status and the Runs card show the phase and the block progress, for example "block 2: 3 of 5 done".
+- New job kind `plan_todos` (handled by the host runner with the free planner, never by Claude).
+
+### Changed
+- "Max to-dos" still counts to-dos fed in total; the last block is cut to the remaining count. Only the to-dos a run fed count as its items (not the planning job and not other jobs).
+- When a run ends for any reason, the queued jobs it fed itself (block items not yet started, a waiting plan job) are cancelled by id. Started jobs finish. Other jobs are never touched.
+- The pace gate is unchanged: new claims only while pace is under the run's target; a block part done when the target is reached ends the run.
+- Test mode (`mode: dry`) logs per phase (`would queue the planning job`, `would feed: ...`, `block N: n to-do(s) would be fed`), queues nothing and does not wait for existing jobs.
+
 ## [0.4.0] - 2026-11-13
 
 ### Added

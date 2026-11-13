@@ -37,21 +37,23 @@
     f.stop = Object.assign(document.createElement('input'), { type: 'time' });
     f.pace = Object.assign(document.createElement('input'), { type: 'number', min: '-10', max: '10', step: '0.5' });
     f.max = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: '1000', step: '1' });
+    f.block = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: '20', step: '1' });
     f.unl = Object.assign(document.createElement('input'), { type: 'checkbox' });
     const unlLabel = el('label', 'runs-check'); unlLabel.appendChild(f.unl); unlLabel.appendChild(document.createTextNode(' No limit (keep going through the to-do list until the pace target or stop time)'));
     const grid = el('div', 'runs-grid');
-    for (const n of [onLabel, field('Start', f.start), field('Stop by', f.stop), field('Pace target (-10 to 10)', f.pace), field('Max to-dos per run', f.max), unlLabel]) grid.appendChild(n);
+    for (const n of [onLabel, field('Start', f.start), field('Stop by', f.stop), field('Pace target (-10 to 10)', f.pace), field('Max to-dos per run', f.max), unlLabel, field('Block size (to-dos fed at once, 1 to 20)', f.block)]) grid.appendChild(n);
     f.box.appendChild(grid);
     const actions = el('div', 'runs-actions');
     f.save = el('button', 'ih-button', 'Save ' + NAMES[kind].toLowerCase());
     f.save.type = 'button';
     actions.appendChild(f.save);
     f.box.appendChild(actions);
-    for (const i of [f.on, f.start, f.stop, f.pace, f.max, f.unl]) i.addEventListener('input', () => { editing = true; });
+    for (const i of [f.on, f.start, f.stop, f.pace, f.max, f.unl, f.block]) i.addEventListener('input', () => { editing = true; });
     f.unl.addEventListener('change', () => { f.max.disabled = f.unl.checked; });
     f.save.addEventListener('click', async () => {
       const patch = {};
-      patch[kind] = { enabled: f.on.checked, start: f.start.value, stop_by: f.stop.value, pace_target: parseFloat(f.pace.value), max_items: maxValue(f.unl, f.max) };
+      patch[kind] = { enabled: f.on.checked, start: f.start.value, stop_by: f.stop.value, pace_target: parseFloat(f.pace.value), max_items: maxValue(f.unl, f.max), block_size: parseInt(f.block.value, 10) };
+      if (isNaN(patch[kind].block_size) || patch[kind].block_size < 1 || patch[kind].block_size > 20) { say('Block size must be from 1 to 20.'); return; }
       if (isNaN(patch[kind].pace_target) || patch[kind].pace_target < -10 || patch[kind].pace_target > 10) { say('Pace target must be from -10 to 10.'); return; }
       f.save.disabled = true;
       try { render(await call('POST', '/settings', patch), true); say(NAMES[kind] + ' saved.'); } catch (e) { say(e.message); }
@@ -64,7 +66,7 @@
   function fill(kind, s) {
     const f = forms[kind];
     f.on.checked = !!s.enabled; f.start.value = s.start; f.stop.value = s.stop_by; f.pace.value = s.pace_target;
-    f.unl.checked = s.max_items === null; f.max.disabled = f.unl.checked; f.max.value = s.max_items === null ? 3 : s.max_items;
+    f.unl.checked = s.max_items === null; f.max.disabled = f.unl.checked; f.max.value = s.max_items === null ? 3 : s.max_items; f.block.value = s.block_size || 5;
   }
 
   function say(t) { $('run-msg').textContent = t || ''; }
@@ -77,7 +79,7 @@
     const a = v.active, st = $('run-status');
     if (a) {
       const items = a.max_items === null ? 'no item limit' : a.started + ' of ' + a.max_items + ' items';
-      st.textContent = (a.dry ? '[test mode] ' : '') + (a.kind === 'now' ? 'Manual run' : NAMES[a.kind]) + ' is ' + a.state + '. ' + items + ', pace target ' + a.pace_target +
+      st.textContent = (a.dry ? '[test mode] ' : '') + (a.kind === 'now' ? 'Manual run' : NAMES[a.kind]) + ' is ' + a.state + '. ' + (a.phase_text ? 'Phase: ' + a.phase_text + '. ' : '') + items + ' (blocks of ' + a.block_size + '), pace target ' + a.pace_target +
         (a.stop_by_at ? ', stop by ' + clockText(a.stop_by_at) : '') + '. ' + (a.reason || '');
     } else if (v.last) {
       st.textContent = 'No run active. Last run ended ' + clockText(v.last.ended_at) + ': ' + v.last.reason + ' (' + v.last.started + ' items).';
@@ -95,7 +97,7 @@
     const pace = parseFloat($('now-pace').value);
     if (isNaN(pace) || pace < -10 || pace > 10) { say('Pace target must be from -10 to 10.'); return; }
     $('now-go').disabled = true;
-    try { render(await call('POST', '/start', { pace_target: pace, max_items: maxValue($('now-unl'), $('now-max')) })); say(''); } catch (e) { say(e.message); load(); }
+    try { render(await call('POST', '/start', { pace_target: pace, max_items: maxValue($('now-unl'), $('now-max')), block_size: parseInt($('now-block').value, 10) || 5 })); say(''); } catch (e) { say(e.message); load(); }
   });
   $('now-stop').addEventListener('click', async () => {
     try { render(await call('POST', '/stop', {})); say(''); } catch (e) { say(e.message); load(); }

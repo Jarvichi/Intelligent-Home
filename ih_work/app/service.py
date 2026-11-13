@@ -9,7 +9,7 @@ import runs as R
 from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -119,26 +119,39 @@ class Service:
     def _end_run(self, st, now, reason):
         run = st.pop('run', None)
         if run:
+            self._cancel_unstarted(run)
             st['run_last'] = dict(kind=run['kind'], started_at=run['started_at'], ended_at=iso(now), reason=reason, started=R.effective_started(run), dry=run.get('dry', False))
             self.log('run ended (%s run, %d items): %s' % (run['kind'], R.effective_started(run), reason))
 
-    def _begin_run(self, st, kind, pace_target, max_items, now, stop_by=None):
-        run = R.new_run(kind, pace_target, max_items, now, stop_by, dry=self.opts.get('mode') != 'live')
+    def _cancel_unstarted(self, run):
+        """A run that ends leaves nothing behind: queued jobs it fed itself (tracked by id: block items and the plan job) are cancelled. Started ones finish."""
+        n = 0
+        for iid in list(run.get('block_ids') or []) + ([run['plan_id']] if run.get('plan_id') else []):
+            try:
+                self.store.cancel(iid)
+                n += 1
+            except StoreError:
+                pass      # already started, finished or gone
+        if n:
+            self.log('run ended: %d queued job(s) that it fed were cancelled' % n)
+
+    def _begin_run(self, st, kind, pace_target, max_items, now, stop_by=None, block_size=R.BLOCK_DEFAULT):
+        run = R.new_run(kind, pace_target, max_items, now, stop_by, dry=self.opts.get('mode') != 'live', block_size=block_size)
         st['run'] = run
-        self.log('%srun started (%s): pace target %g, items %s%s' % ('[DRY] ' if run['dry'] else '', kind, pace_target, 'unlimited' if max_items is None else max_items,
+        self.log('%srun started (%s): pace target %g, items %s, blocks of %d%s' % ('[DRY] ' if run['dry'] else '', kind, pace_target, 'unlimited' if max_items is None else max_items, block_size,
                                                               ', stop by ' + stop_by.astimezone(self.opts.get('tz') or timezone.utc).strftime('%H:%M') if stop_by else ''))
         return run
 
-    def run_start_now(self, pace_target, max_items):
+    def run_start_now(self, pace_target, max_items, block_size=None):
         with self.lock:
             st = self.load_state()
             if st.get('run'):
                 raise StoreError('conflict', 'a run is already active')
             try:
-                t, n = R.clean_pace(pace_target), R.clean_max(max_items)
+                t, n, b = R.clean_pace(pace_target), R.clean_max(max_items), R.clean_block(block_size)
             except ValueError as e:
                 raise StoreError('bad', str(e))
-            self._begin_run(st, 'now', t, n, self.clock())
+            self._begin_run(st, 'now', t, n, self.clock(), block_size=b)
             self.save_state(st)
             return self.runs_view()
 
@@ -164,7 +177,7 @@ class Service:
             if kind:
                 s = self.run_settings()[kind]
                 st['run_windows'] = dict(st.get('run_windows') or {}, **{kind: wdate})
-                run = self._begin_run(st, kind, s['pace_target'], s['max_items'], now, R.stop_by_at(self.local(now), s['stop_by']))
+                run = self._begin_run(st, kind, s['pace_target'], s['max_items'], now, R.stop_by_at(self.local(now), s['stop_by']), s['block_size'])
         return st.get('run')
 
     def run_decide(self, st, r):
@@ -186,8 +199,14 @@ class Service:
             view = dict(settings=self.run_settings(), active=None, last=st.get('run_last'), mode=self.opts.get('mode'), pace=r and r['pace'], timezone=str(self.opts.get('tz')))
             if run:
                 ok, why = self.run_decide(dict(st, run=dict(run)), r)
+                byid = {i['id']: i for i in self.store.list()}
+                bids = run.get('block_ids') or []
+                done = run.get('block_total', 0) if run.get('dry') else sum(1 for x in bids if x in byid and byid[x]['status'] not in OPEN)
+                shown = dict(run, block_done=done)
                 view['active'] = dict(kind=run['kind'], started_at=run['started_at'], pace_target=run['pace_target'], max_items=run['max_items'], stop_by_at=run['stop_by_at'],
-                                      started=R.effective_started(run), dry=run.get('dry', False), state='running' if ok else 'waiting', reason=why)
+                                      started=R.effective_started(run), dry=run.get('dry', False), state='running' if ok else 'waiting', reason=why,
+                                      block_size=run.get('block_size', R.BLOCK_DEFAULT), phase=run.get('phase', 'drain'), block_no=run.get('block_no', 0),
+                                      block_total=run.get('block_total', 0), block_done=done, fed=run.get('fed', 0), phase_text=R.phase_text(shown))
             return view
 
     # ---- gate-guarded claim ----
@@ -257,7 +276,7 @@ class Service:
                 self.log('[DRY] would hand out item %s: %s' % (head['id'], head['title']))
                 return dict(claimed=False, dry=True, would_claim=brief(head), reason='test mode: would hand out item %s' % head['id'], gate=self.gate_line(d, r))
             it = self.store.claim(consumer, lease)
-            if run and st.get('run'):
+            if run and st.get('run') and it.get('kind') == 'todo' and it['id'] in (st['run'].get('ids') or []):   # only the to-dos the run fed count (not the plan job, not other jobs)
                 st['run']['started'] += 1
             st[key] = recent + [iso(now)]
             self.save_state(st)
@@ -304,28 +323,30 @@ class Service:
             st['snapshot'] = dict(worker=dict(w, updated=iso(now)), gate=self.gate_line(d, r), pace=r and r['pace'], at=iso(now))
             self.save_state(st)
             try:
-                self.feed_once(st, items, d, now, st.get('run'))
+                if st.get('run'):
+                    self.run_step(st, items, d, now)
+                else:
+                    self.feed_once(st, items, d, now)
             except Exception as e:
                 self.log('feed failed (%s)' % type(e).__name__)
 
-    # ---- backlog feeder (default off) ----
-    def feed_once(self, st, items, d, now, run=None):
-        """Queue the next to-do item. Runs when feed_backlog is on (always) or while a run is active (the run decides when and how many)."""
-        if not (self.opts.get('feed_backlog') or run) or not self.ha or self.stopped():
+    # ---- backlog feeder (default off): one item at a time, only while no run is active ----
+    def _todo_items(self):
+        ent = self.opts['todo_entity']
+        resp = self.ha.post('services/todo/get_items?return_response', {'entity_id': ent, 'status': 'needs_action'}, 20)
+        return ((resp or {}).get('service_response') or {}).get(ent, {}).get('items') or []
+
+    def feed_once(self, st, items, d, now):
+        """Queue the next to-do item (option feed_backlog). A run feeds through run_step instead."""
+        if not self.opts.get('feed_backlog') or not self.ha or self.stopped():
             return None
         if any(i['status'] in OPEN for i in items) or not d.ok:
             return None
-        if run:
-            n = run.get('max_items')
-            if n is not None and run['fed'] >= n:
-                return None
         t = parse(st.get('last_feed_check'))
-        if t and (now - t).total_seconds() < (RUN_FEED_CHECK_S if run else FEED_CHECK_S):
+        if t and (now - t).total_seconds() < FEED_CHECK_S:
             return None
         st['last_feed_check'] = iso(now)
-        ent = self.opts['todo_entity']
-        resp = self.ha.post('services/todo/get_items?return_response', {'entity_id': ent, 'status': 'needs_action'}, 20)
-        todo = ((resp or {}).get('service_response') or {}).get(ent, {}).get('items') or []
+        todo = self._todo_items()
         live = self.opts.get('mode') == 'live'
         fed = {k: v for k, v in (st.get('fed' if live else 'fed_dry') or {}).items() if (parse(v) or now) > now - timedelta(days=FED_KEEP_DAYS)}
         item, approved = feed.pick(todo, self.opts.get('feed_prefixes') or [], fed, now)
@@ -336,10 +357,131 @@ class Service:
                 self.log('fed to-do item: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
             else:
                 self.log('[DRY] would feed: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
-            if run:
-                run['fed'] += 1
-        elif run:   # nothing left to queue for this run
-            self._end_run(st, now, 'backlog empty')
         st['fed' if live else 'fed_dry'] = fed
         self.save_state(st)
         return item
+
+    # ---- run phases (0.5.0): DRAIN -> PLAN -> BLOCK -> DRAIN ... ----
+    PLAN_TITLE = 'Plan open to-dos (free AIs)'
+    PLAN_INSTRUCTION = 'Run the free-AI planner (plan_todos.py): writes research plans for open to-dos that have none. No Claude call.'
+
+    def _pick_block(self, st, now, n, live):
+        """Pick up to n distinct open to-dos (feed.pick rules, none already queued). -> [(item, approved)]. Records them as fed."""
+        todo = self._todo_items()
+        key = 'fed' if live else 'fed_dry'
+        fed = {k: v for k, v in (st.get(key) or {}).items() if (parse(v) or now) > now - timedelta(days=FED_KEEP_DAYS)}
+        for i in self.store.list(OPEN):
+            if i.get('kind') == 'todo':
+                fed[str(i['ref'])] = iso(now)
+        picked = []
+        while len(picked) < n:
+            item, approved = feed.pick(todo, self.opts.get('feed_prefixes') or [], fed, now)
+            if not item:
+                break
+            fed[item['uid']] = iso(now)
+            picked.append((item, approved))
+        st[key] = fed
+        return picked
+
+    def run_step(self, st, items, d, now):
+        """Advance the active run's phase. Called by tick after run_eval (so the run is not over). Caller has the lock. Saves st when it changes."""
+        run = st.get('run')
+        if not run or not self.ha or self.stopped():
+            return
+        live = self.opts.get('mode') == 'live'
+        byid = {i['id']: i for i in items}
+        is_open = lambda iid: iid in byid and byid[iid]['status'] in OPEN
+        phase = run.get('phase', 'drain')
+        if not live:   # test mode: log what would happen, nothing is queued, a block counts as consumed at once
+            return self._dry_step(st, items, d, now, run)
+        if phase == 'drain':
+            if any(i['status'] in OPEN for i in items):
+                return                                   # the host worker consumes what is there first
+            if not d.ok:
+                return                                   # nothing new while the pace gate is shut
+            if not run.get('block_ids') and run.get('short'):
+                return self._end_run_save(st, now, 'backlog empty')
+            it = self.store.enqueue(R.PLAN_KIND, 'plan-%s-%d' % (run['id'], run.get('block_no', 0) + 1), self.PLAN_TITLE, self.PLAN_INSTRUCTION, False, 'claude')
+            run.update(phase='plan', plan_id=it['id'], plan_at=iso(now))
+            self.log('run: queued the planning job (block %d next)' % (run.get('block_no', 0) + 1))
+            self.save_state(st)
+        elif phase == 'plan':
+            pid = run.get('plan_id')
+            late = (now - (parse(run.get('plan_at')) or now)) > timedelta(minutes=R.PLAN_WAIT_MIN)
+            if pid and is_open(pid) and not late:
+                return
+            if pid and is_open(pid):                     # waited long enough: carry on without it
+                try:
+                    self.store.cancel(pid)
+                except StoreError:
+                    pass
+                self.log('run: planning took more than %d min, carrying on' % R.PLAN_WAIT_MIN)
+            elif pid in byid and byid[pid]['status'] == 'failed':
+                self.log('run: planning job failed, carrying on')
+            run.update(phase='block', plan_id=None, plan_at=None)
+            self.save_state(st)
+            return self.run_step(st, [i for i in self.store.list()], d, now)
+        else:   # block
+            bids = run.get('block_ids') or []
+            if bids:
+                if any(is_open(x) for x in bids):
+                    return                               # the worker is still consuming this block
+                run.update(block_ids=[], phase='drain')
+                self.log('run: block %d consumed' % run.get('block_no', 0))
+                self.save_state(st)
+                if run.get('short'):
+                    return self._end_run_save(st, now, 'backlog empty')
+                return
+            if not d.ok:
+                return
+            t = parse(st.get('last_feed_check'))
+            if t and (now - t).total_seconds() < RUN_FEED_CHECK_S:
+                return
+            st['last_feed_check'] = iso(now)
+            n = run.get('block_size', R.BLOCK_DEFAULT)
+            if run.get('max_items') is not None:
+                n = min(n, run['max_items'] - run['fed'])
+            if n <= 0:
+                return self._end_run_save(st, now, 'item count reached (%d)' % run['max_items'])
+            picked = self._pick_block(st, now, n, True)
+            if not picked:
+                return self._end_run_save(st, now, 'backlog empty')
+            ids = []
+            for item, approved in picked:
+                it = self.store.enqueue('todo', item['uid'], str(item['summary'])[:200], feed.instruction(item), approved, 'claude')
+                ids.append(it['id'])
+                self.log('fed to-do item: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
+            run.update(block_ids=ids, block_no=run.get('block_no', 0) + 1, block_total=len(ids), fed=run['fed'] + len(ids), short=len(ids) < n,
+                       ids=(run.get('ids') or [])[-300:] + ids)
+            self.log('run: block %d fed (%d to-dos)' % (run['block_no'], len(ids)))
+            self.save_state(st)
+
+    def _end_run_save(self, st, now, reason):
+        self._end_run(st, now, reason)
+        self.save_state(st)
+
+    def _dry_step(self, st, items, d, now, run):
+        """Test mode: per feed check log the phases that would happen, count the block as fed and consumed. Nothing is queued."""
+        if not d.ok:
+            return
+        t = parse(st.get('last_feed_check'))
+        if t and (now - t).total_seconds() < RUN_FEED_CHECK_S:
+            return
+        st['last_feed_check'] = iso(now)
+        n = run.get('block_size', R.BLOCK_DEFAULT)
+        if run.get('max_items') is not None:
+            n = min(n, run['max_items'] - run['fed'])
+        if n <= 0:
+            return self._end_run_save(st, now, 'item count reached (%d)' % run['max_items'])
+        open_n = sum(1 for i in items if i['status'] in OPEN)
+        if open_n:
+            self.log('[DRY] would wait first: %d job(s) in the queue' % open_n)
+        self.log('[DRY] would queue the planning job (plan_todos)')
+        picked = self._pick_block(st, now, n, False)
+        if not picked:
+            return self._end_run_save(st, now, 'backlog empty')
+        for item, approved in picked:
+            self.log('[DRY] would feed: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
+        run.update(phase='block', block_no=run.get('block_no', 0) + 1, block_total=len(picked), fed=run['fed'] + len(picked))
+        self.log('[DRY] block %d: %d to-do(s) would be fed' % (run['block_no'], len(picked)))
+        self.save_state(st)
