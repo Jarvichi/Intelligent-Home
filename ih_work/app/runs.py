@@ -10,7 +10,7 @@ import gate as G
 
 KINDS = ('night', 'day')
 MAX_ITEMS_LIMIT = 1000
-PACE_LIMIT = 100.0
+PACE_LIMIT = 10.0
 HHMM = re.compile(r'^([01]\d|2[0-3]):([0-5]\d)$')
 FIELDS = ('enabled', 'start', 'stop_by', 'pace_target', 'max_items')
 DEFAULTS = {
