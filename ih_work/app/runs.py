@@ -1,7 +1,7 @@
 """Scheduled and manual runs (pure logic, no files, no clock, no network). A run is a time-boxed spell in which the backlog feeder queues
 to-do items and the gate follows the run's own pace target instead of the day/night levels.
 Kinds: 'night' and 'day' (scheduled, each with its own settings) and 'now' (started by hand). Only one run is active at a time.
-Phases (0.5.0): DRAIN (feed nothing while the queue holds queued or running jobs) -> PLAN (one free-AI plan_todos job, bounded wait) -> BLOCK (feed
+Phases (0.6.0): DRAIN (feed nothing while the queue holds queued or running jobs) -> PLAN (one free-AI plan_todos job, bounded wait) -> REVIEW (one review_batch job: Claude checks the oldest unreviewed outside-AI answers, bounded wait; skipped when review_batch_size is 0) -> BLOCK (feed
 block_size to-do items at once, wait until the worker has consumed them) -> DRAIN again. A short block (fewer items than asked) means the backlog is empty.
 A run ends when: the item count is reached, the pace target is reached (after at least one item was started), the stop-by time passes,
 the 5-hour session or week limit trips, the STOP switch is on, the backlog is empty, or the user stops it."""
@@ -17,10 +17,13 @@ HHMM = re.compile(r'^([01]\d|2[0-3]):([0-5]\d)$')
 BLOCK_DEFAULT, BLOCK_MAX = 5, 20
 PLAN_WAIT_MIN = 60     # the PLAN phase waits this long for the plan_todos job (the runner allows it 50 min), then carries on
 PLAN_KIND = 'plan_todos'
-FIELDS = ('enabled', 'start', 'stop_by', 'pace_target', 'max_items', 'block_size')
+REVIEW_KIND = 'review_batch'
+REVIEW_DEFAULT, REVIEW_MAX = 10, 30
+REVIEW_WAIT_MIN = 60   # the REVIEW phase waits this long for the review_batch job, then cancels it if still queued and carries on
+FIELDS = ('enabled', 'start', 'stop_by', 'pace_target', 'max_items', 'block_size', 'review_batch_size')
 DEFAULTS = {
-    'night': dict(enabled=True, start='01:00', stop_by='05:30', pace_target=0.0, max_items=None, block_size=BLOCK_DEFAULT),
-    'day': dict(enabled=False, start='10:00', stop_by='17:00', pace_target=-2.0, max_items=None, block_size=BLOCK_DEFAULT),
+    'night': dict(enabled=True, start='01:00', stop_by='05:30', pace_target=0.0, max_items=None, block_size=BLOCK_DEFAULT, review_batch_size=REVIEW_DEFAULT),
+    'day': dict(enabled=False, start='10:00', stop_by='17:00', pace_target=-2.0, max_items=None, block_size=BLOCK_DEFAULT, review_batch_size=REVIEW_DEFAULT),
 }
 
 
@@ -73,6 +76,21 @@ def clean_block(v):
     return n
 
 
+def clean_review(v):
+    """Answers to check per run: a whole number 0..REVIEW_MAX (0 = skip the review phase; None or '' -> the default)."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return REVIEW_DEFAULT
+    if isinstance(v, bool) or isinstance(v, float) and v != int(v):
+        raise ValueError('answers to check must be a whole number')
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        raise ValueError('answers to check must be a whole number')
+    if not 0 <= n <= REVIEW_MAX:
+        raise ValueError('answers to check must be from 0 to %d (0 = skip)' % REVIEW_MAX)
+    return n
+
+
 def clean_one(raw, base):
     """Merge a partial dict over a full one and validate. Raises ValueError with a plain message."""
     if not isinstance(raw, dict):
@@ -92,6 +110,7 @@ def clean_one(raw, base):
     out['pace_target'] = clean_pace(out['pace_target'])
     out['max_items'] = clean_max(out['max_items'])
     out['block_size'] = clean_block(out.get('block_size'))
+    out['review_batch_size'] = clean_review(out.get('review_batch_size'))
     return {k: out[k] for k in FIELDS}
 
 
@@ -148,10 +167,10 @@ def due_kind(settings, windows, local_dt):
     return None, None
 
 
-def new_run(kind, pace_target, max_items, now, stop_by=None, dry=False, ident=None, block_size=BLOCK_DEFAULT):
+def new_run(kind, pace_target, max_items, now, stop_by=None, dry=False, ident=None, block_size=BLOCK_DEFAULT, review_batch_size=REVIEW_DEFAULT):
     return dict(id=ident or now.strftime('%Y%m%d%H%M%S'), kind=kind, started_at=now.isoformat(timespec='seconds'), pace_target=pace_target,
                 max_items=max_items, stop_by_at=stop_by.isoformat(timespec='seconds') if stop_by else None, started=0, fed=0, gate_mode='idle',
-                dry=bool(dry), block_size=block_size, phase='drain', block_no=0, block_ids=[], block_total=0, ids=[], plan_id=None, plan_at=None, short=False)
+                dry=bool(dry), block_size=block_size, review_batch_size=review_batch_size, phase='drain', block_no=0, block_ids=[], block_total=0, ids=[], plan_id=None, plan_at=None, review_id=None, review_at=None, short=False)
 
 
 def effective_started(run):
@@ -197,4 +216,6 @@ def phase_text(run):
         return 'waiting for the queue to be consumed' if run.get('block_no') else 'waiting for the queue to be empty'
     if ph == 'plan':
         return 'planning (free AIs write plans for to-dos without one)'
+    if ph == 'review':
+        return 'reviewing (Claude checks outside-AI answers)'
     return 'block %d: %d of %d %s' % (run.get('block_no', 0), run.get('block_done', 0), run.get('block_total', 0), 'would be fed' if run.get('dry') else 'done')

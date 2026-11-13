@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-11-13
+
+### Added
+- New run phase REVIEW between PLAN and BLOCK: the run queues one `review_batch` job (ref `review-<run id>-<n>`) and waits for it, at most 60 minutes (cancelled if it never started; a failed job never stops the run). The host runner has Claude check the oldest unreviewed outside-AI answers and records good or wrong; unsure ones stay on the owner's list with a note. The job does not count as a to-do item.
+- New run setting `review_batch_size` (0 to 30, default 10, 0 = skip), per run (night, day, Run now): Runs card field "Answers to check per run (0 = skip)", options `night_run_review_batch_size` and `day_run_review_batch_size`, `POST /runs/settings`, optional field in `POST /runs/start`.
+- New job kind `review_batch`. Test mode only logs `[DRY] would queue the review job`.
+
 ## [0.5.3] - 2026-11-13
 
 ### Added

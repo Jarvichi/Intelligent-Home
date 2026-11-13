@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from store import Store, StoreError, iso, parse, utcnow
 
-STAGES = ('starting', 'assessing', 'planning', 'implementing', 'reporting', 'idle')
+STAGES = ('starting', 'assessing', 'planning', 'implementing', 'reporting', 'reviewing', 'idle')
 STALLED_S = 300
 DROP_S = 1800
 MAX_WORKERS = 8
