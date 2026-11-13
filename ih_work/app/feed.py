@@ -1,5 +1,5 @@
 """Backlog feeder rules (pure): which open item of the Claude to-do list is queued next. Replaces the nightly worker's picking.
-Rules: never an item fed in the last 7 days; never an item tagged waiting / needs OK / plan / no-overnight; only items whose title starts with an
+Rules: never an item fed in the last 7 days; never an item tagged waiting / needs OK / plan / no-overnight / with an open [needs-you #N] (cleared by [done-you #N]); only items whose title starts with an
 allowed work prefix (option feed_prefixes) or that carry the tag [claude] or [approved #N]; approved items first, then earliest due date
 (no date last), then the item worked on least (fewest '[overnight ' lines), then list order."""
 import re
@@ -7,8 +7,15 @@ from datetime import datetime, timedelta, timezone
 
 FEED_AGAIN_DAYS = 7
 SKIP_TAG = re.compile(r'\[(needs-ok[^\]]*|no-overnight|waiting[^\]]*|plan[^\]]*|needs ok[^\]]*)\]', re.I)
+NEEDS_YOU = re.compile(r'\[needs-you #(\d+)\]', re.I)   # 0.5.3: only the owner can do it; cleared by a matching [done-you #N]
 APPROVED = re.compile(r'\[approved #\d+\]', re.I)
 WORK_TAG = re.compile(r'\[claude\]', re.I)
+
+
+def open_needs_you(text):
+    """True if text has a [needs-you #N] marker without a matching [done-you #N ...] (the owner has not done it yet)."""
+    text = text or ''
+    return any(not re.search(r'\[done-you #%s[ \]]' % n, text, re.I) for n in NEEDS_YOU.findall(text))
 
 
 def _due(item):
@@ -34,7 +41,7 @@ def pick(items, prefixes, fed, now, any_item=False):
         if not isinstance(i, dict) or not i.get('uid') or not i.get('summary'):
             continue
         summary, desc = str(i['summary']), str(i.get('description') or '')
-        if _recent(fed, i['uid'], now) or SKIP_TAG.search(summary + '\n' + desc):
+        if _recent(fed, i['uid'], now) or SKIP_TAG.search(summary + '\n' + desc) or open_needs_you(desc):
             continue
         approved = bool(APPROVED.search(desc))
         if not (any_item or approved or WORK_TAG.search(desc) or (pre and summary.strip().lower().startswith(pre))):
