@@ -1,0 +1,39 @@
+name: "Intelligent Home - Files"
+version: "0.2.0"
+slug: ih_files
+image: "ghcr.io/jarvichi/{arch}-ih_files"
+description: "Per-person Samba logins, family and guest folders, Andrew-only brain share"
+arch:
+  - aarch64
+startup: services
+# boot: manual = start it yourself. After install the owner sets: boot auto, watchdog on, auto_update on.
+boot: manual
+init: false
+map:
+  - share:rw
+ports:
+  445/tcp: 4451
+ports_description:
+  445/tcp: "SMB port. Test on 4451 (the old local House files add-on uses 4450). Change to 445 only after the old share is stopped."
+options:
+  allow_hosts:
+    - 192.168.0.0/16
+  guest_cap_gb: 5
+  guest_days: 30
+  users:
+    - name: andrew
+      password: REPLACE_ME
+    - name: claire
+      password: REPLACE_ME
+    - name: rob
+      password: REPLACE_ME
+  guest_password: REPLACE_ME
+schema:
+  allow_hosts:
+    - str
+  guest_cap_gb: int(1,50)
+  guest_days: int(1,365)
+  users:
+    - name: match(^(andrew|claire|rob)$)
+      password: password
+  guest_password: password
