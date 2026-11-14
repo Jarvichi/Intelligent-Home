@@ -6,6 +6,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 import provisioner
+import wizard
 
 INGRESS_IP = "172.30.32.2"   # the Supervisor ingress gateway; host_network means the port is open to the LAN, so every other client is refused
 ACTIONS = ("install", "start", "stop", "restart", "update")
@@ -684,6 +685,70 @@ class Manager:
                 "error": (st.get(r["slug"]) or {}).get("error")} for r in rows if r["installed"] and r["slug"] in st]
         return 200, {"addons": out, "provisioner": bool(p), "config_slug": own}
 
+    # ---- setup wizards (Andrew OK #101, 14 Nov 2026: pilot ih_games, saves automatically, restarts the add-on)
+    def wizards(self):
+        """{wizards:[{slug, installed, first_run}]} for add-ons that ship a definition. Names and flags only."""
+        out = []
+        for short in wizard.available():
+            try:
+                full, _ = self.scope(short)
+                info = self.sup("GET", "/addons/%s/info" % full)
+                inst = isinstance(info, dict) and "version" in info and info.get("state") is not None
+                first = bool(inst and wizard.state(wizard.load(short), info)["first_run"])
+            except (provisioner.SupError, ValueError):
+                inst, first = False, False
+            out.append({"slug": short, "installed": inst, "first_run": first})
+        return 200, {"wizards": out}
+
+    def wizard_state(self, short):
+        try:
+            defn = wizard.load(short)
+        except (ValueError, OSError):
+            return 500, {"error": "bad wizard definition"}
+        if defn is None:
+            return 404, {"error": "no wizard for this add-on"}
+        try:
+            full, _ = self.scope(short)
+            info = self.sup("GET", "/addons/%s/info" % full)
+        except ValueError:
+            return 404, {"error": "not an add-on of this repository"}
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        if not isinstance(info, dict):
+            return 502, {"error": "no info"}
+        return 200, dict(wizard.state(defn, info), slug=short, restarts=info.get("state") == "started")
+
+    def wizard_save(self, short, answers):
+        """Write ONLY the options named in the definition, then restart if the add-on is running. Never returns values."""
+        try:
+            defn = wizard.load(short)
+        except (ValueError, OSError):
+            return 500, {"error": "bad wizard definition"}
+        if defn is None:
+            return 404, {"error": "no wizard for this add-on"}
+        try:
+            full, _ = self.scope(short)
+            info = self.sup("GET", "/addons/%s/info" % full)
+            if not isinstance(info, dict):
+                return 502, {"error": "no info"}
+            try:
+                opts, changed = wizard.apply(defn, info, answers)
+            except ValueError as e:
+                return 400, {"error": str(e)}
+            if not changed:
+                return 200, {"ok": True, "changed": [], "restarted": False}
+            self.sup("POST", "/addons/%s/options" % full, {"options": opts})
+            restarted = False
+            if info.get("state") == "started":
+                self.sup("POST", "/addons/%s/restart" % full)
+                restarted = True
+        except ValueError:
+            return 404, {"error": "not an add-on of this repository"}
+        except provisioner.SupError as e:
+            return 502, {"error": str(e)}
+        self.log("wizard: %s saved %s%s" % (short, ",".join(changed), " (restarted)" if restarted else ""))
+        return 200, {"ok": True, "changed": changed, "restarted": restarted}
+
     def fill_now(self):
         if not self.prov():
             return 409, {"error": "the settings hub is off (turn on 'provision' in the orchestrator configuration)"}
@@ -725,7 +790,7 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
-                if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/manager-logic.js"):
+                if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/manager-logic.js", "/wizard-ui.js"):
                     name = p[1:]
                     body = (Path(__file__).parent / "ui" / name).read_bytes()
                     return self._send(200, body, "text/css; charset=utf-8" if name.endswith(".css") else "text/javascript; charset=utf-8")
@@ -739,6 +804,10 @@ def make_handler(mgr):
                     return self._json(*mgr.trace_list())
                 if p.startswith("/api/trace/"):
                     return self._json(*mgr.trace_detail(p[len("/api/trace/"):]))
+                if p == "/api/wizards":
+                    return self._json(*mgr.wizards())
+                if p.startswith("/api/wizard/"):
+                    return self._json(*mgr.wizard_state(p[len("/api/wizard/"):]))
                 if p == "/api/health":
                     return self._json(*mgr.health())
                 if p == "/api/addons":
@@ -761,6 +830,13 @@ def make_handler(mgr):
                 return self._json(*mgr.act(parts[2], parts[3], wr))
             if len(parts) == 4 and parts[:2] == ["api", "plugin"] and parts[3] in ("live", "dry"):
                 return self._json(*mgr.plugin_set(unquote(parts[2]), parts[3] == "live"))
+            if len(parts) == 3 and parts[:2] == ["api", "wizard"]:
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    body = json.loads(self.rfile.read(n) if 0 < n <= 65536 else b"{}")
+                except (ValueError, UnicodeDecodeError):
+                    return self._json(400, {"error": "bad json"})
+                return self._json(*mgr.wizard_save(parts[2], body))
             if parts == ["api", "provision"]:
                 return self._json(*mgr.fill_now())
             self._json(404, {"error": "not found"})

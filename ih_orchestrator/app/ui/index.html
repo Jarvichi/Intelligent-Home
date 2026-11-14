@@ -102,6 +102,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding
 </div>
 <script src="ih-ui.js?v=nav1"></script>
 <script src="manager-logic.js"></script>
+<script src="wizard-ui.js"></script>
 <script>
 var B=location.pathname.endsWith('/')?location.pathname:location.pathname+'/';
 var TABS=['today','addons','jobs','requests','health'],TAB='today',RID=0,SHOWALL=false;
@@ -166,6 +167,11 @@ function contributionOf(slug){var h=S.health&&S.health.data;return h&&h.ui_contr
 function reportBlock(c){var p=E('section',null,'report');p.appendChild(E('b','Add-on report'));if(c.stale){p.appendChild(E('p','Report out of date: open the add-on page or check its logs.','warnt'))}else{p.appendChild(E('p',c.summary,c.state=='attention'?'warnt':'meta'));var m=(c.metrics||[]).map(function(x){return[x.label,String(x.value)]});if(c.last_activity_at!=null)m.push(['Last useful work',T(c.last_activity_at)]);if(m.length)p.appendChild(kvl(m));p.appendChild(E('p','Next: '+c.next_step,'meta'))}return p}
 function logsToggle(slug,holder){var p=holder.querySelector('pre');if(p){p.remove();return}p=E('pre','loading...');holder.appendChild(p);
  fetch(U('api/logs/'+slug)).then(function(r){return r.json()}).then(function(j){p.textContent=j.error?j.error:(j.lines||[]).join('\n')}).catch(function(){p.textContent='Could not read the logs. Try again.'})}
+/* Setup wizards (OK #101): the list comes from api/wizards; an installed add-on that has nothing set opens its wizard once per browser session. */
+var WIZ=[];
+function loadWiz(){return fetch(U('api/wizards')).then(function(r){return r.json()}).then(function(j){WIZ=j.wizards||[]}).catch(function(){WIZ=[]})}
+function wizardFor(slug){return WIZ.filter(function(w){return w.slug==slug&&w.installed})[0]}
+function autoWizard(){var w=WIZ.filter(function(x){return x.installed&&x.first_run})[0];if(!w)return;var k='ihwiz:'+w.slug;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}IHWizard.open({base:B,slug:w.slug,onDone:function(){loadWiz().then(function(){show(true)})}})}
 function addonBody(b,a){var h=healthOf(a),sd=S.settings&&S.settings.data?S.settings.data.addons.filter(function(x){return x.slug==a.slug})[0]:null,con=contributionOf(a.slug);
  if(con)b.appendChild(reportBlock(con));
  var purpose=(a.ui&&a.ui.purpose)||a.description;if(purpose)b.appendChild(E('p',purpose,'meta')).style.marginTop='10px';
@@ -185,6 +191,7 @@ function addonBody(b,a){var h=healthOf(a),sd=S.settings&&S.settings.data?S.setti
   if(a.update)bs.appendChild(btn('Update to '+a.latest,function(){var me=this;ask(me,'Update '+IHM.addonName(a)+' to '+a.latest+'?',function(){act('update',a.slug)})}));
   bs.appendChild(btn('Logs',function(){logsToggle(a.slug,b)}))}
  if(a.full)bs.appendChild(cfgBtn(a.full,'Settings'));
+ if(wizardFor(a.slug))bs.appendChild(btn('Set up',function(){IHWizard.open({base:B,slug:a.slug,onDone:function(){loadWiz().then(function(){show(true)})}})}));
  b.appendChild(bs)}
 function notInstalledBody(b,a){b.appendChild(E('p',a.description,'meta')).style.marginTop='10px';b.appendChild(kvl([['Prebuilt image',IHM.imgTxt(a),a.image?'ok':'']]));
  var n=a.needs||[];b.appendChild(E('p',n.length?'Needs: '+n.map(function(x){return x.slug+' ('+(x.status=='ok'?'ok':'missing: '+x.status)+')'}).join(', '):'Needs nothing else.','meta')).style.marginTop='8px';
@@ -360,6 +367,7 @@ function show(silent){var rid=++RID;REPAINT=null;SHOWN='';BACKFN=null;navSync();
 TABS.forEach(function(t,i){var b=$('tab-'+t);b.onclick=function(){jump(t)};b.onkeydown=function(e){var n=e.key=='ArrowRight'?i+1:e.key=='ArrowLeft'?i-1:e.key=='Home'?0:e.key=='End'?TABS.length-1:-1;if(n<0)return;n=(n+TABS.length)%TABS.length;e.preventDefault();$('tab-'+TABS[n]).focus();jump(TABS[n])}});
 var first=IHM.tabFromHash(location.hash);if(first)TAB=first;if(location.hash=='#install')AQ.show='notinst';
 show(false);
+loadWiz().then(autoWizard);
 /* refresh quietly while a data tab is open; never while logs are open or a button is armed */
 setInterval(function(){if(document.hidden||ARMED||!REPAINT)return;var rid=RID,names=TAB=='addons'?['addons','health','settings','usage']:TAB=='today'?['addons','health','usage','plugins','traces']:null;if(!names||$('main').querySelector('pre'))return;
  Promise.all(names.map(load)).then(function(){if(rid!==RID||ARMED||$('main').querySelector('pre'))return;paintHead();REPAINT()})},30000);
