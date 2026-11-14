@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HUB = "/app/32c8114c_ih_orchestrator"
-ADOPTED = ["ih_games", "ih_jobs", "ih_orchestrator", "ih_assistant", "ih_ai_layer", "ih_ai_layer_claude_cli", "ih_discord",
+ADOPTED = ["ih_games", "ih_jobs", "ih_orchestrator", "ih_assistant", "ih_ai_layer", "ih_ai_layer_claude_cli", "ih_ai_layer_ollama", "ih_discord",
            "ih_discord_codex", "ih_discord_house", "ih_discord_ai_bot", "ih_discord_taskchannels", "ih_jobs_metoffice",
            "ih_orchestration_inbox", "ih_jobs_trust", "ih_jobs_backup", "ih_work"]
 

@@ -1,0 +1,46 @@
+name: "Intelligent Home - AI Layer - Ollama Agent"
+version: "0.1.0"
+slug: ih_ai_layer_ollama
+image: "ghcr.io/jarvichi/{arch}-ih_ai_layer_ollama"
+description: "Agent of Intelligent Home - AI Layer. Answers general questions, summaries and picture questions by calling an Ollama server on ANOTHER machine in the house (never on the Raspberry Pi). Nothing leaves the home network. ollama_url empty = off. No Home Assistant access. Maps no folders."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# boot: manual = start it yourself (the default here). After install the owner sets: boot auto, watchdog on, auto_update on.
+# watchdog: add  watchdog: http://[HOST]:[PORT:8817]/healthz  once boot is auto.
+boot: manual
+init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Ollama"
+panel_icon: mdi:home-circle
+panel_admin: true
+ports:
+  8817/tcp: 8817
+ports_description:
+  8817/tcp: "Signed /ask from the parent, plus /healthz and /status"
+options:
+  register_key: ""
+  parent_url: "http://172.30.32.1:8801"
+  callback_url: ""
+  ollama_url: ""
+  model: "llama3.2:3b"
+  vision_model: "llava:7b"
+  timeout_s: 120
+  daily_cap: 500
+  shadow: true
+  max_chars: 1900
+  log_payloads: false
+schema:
+  register_key: password
+  parent_url: str
+  callback_url: str?
+  ollama_url: str?
+  model: str
+  vision_model: str
+  timeout_s: int(5,600)
+  daily_cap: int(0,100000)
+  shadow: bool
+  max_chars: int(100,4000)
+  log_payloads: bool?

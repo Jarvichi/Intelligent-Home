@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_ai_layer"
+ ],
+ "ui": {
+  "title": "Ollama",
+  "purpose": "Lets the AI Layer ask a local Ollama server (not on the Pi)."
+ }
+}
