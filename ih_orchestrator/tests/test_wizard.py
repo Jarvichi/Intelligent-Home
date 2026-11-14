@@ -28,6 +28,13 @@ class WizardUnit(unittest.TestCase):
         with self.assertRaises(ValueError):
             wizard.validate(dup)
 
+    def test_long_help_text_is_accepted(self):
+        d = json.loads(json.dumps(DEF)); d["groups"][0]["help"] = "Needs a key; get it from the site. " * 4
+        self.assertTrue(wizard.validate(d)["groups"][0]["help"])
+        d["groups"][0]["help"] = "x" * 181
+        with self.assertRaises(ValueError):
+            wizard.validate(d)
+
     def test_state_never_has_values(self):
         d = wizard.validate(DEF)
         st = wizard.state(d, info({"steam_api_key": "SECRETVALUE", "psn_npsso": "", "providers_enabled": ["steam_library"]}))
