@@ -191,7 +191,7 @@ class Claim(Base):
     def test_status_shape(self):
         self.make(); self.add('1'); self.add('2'); self.svc.claim('w')
         s = self.svc.status()
-        self.assertEqual(s['counts'], {'queued': 1, 'running': 1, 'done': 0, 'failed': 0, 'cancelled': 0})
+        self.assertEqual(s['counts'], {'queued': 1, 'running': 1, 'done': 0, 'failed': 0, 'cancelled': 0, 'waiting': 0})
         self.assertEqual(s['running']['claimed_by'], 'w')
         self.assertEqual(s['next']['title'], 't2')
         self.assertEqual(s['worker']['state'], 'working')
