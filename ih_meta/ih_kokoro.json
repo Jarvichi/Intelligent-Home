@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Kokoro",
+  "purpose": "A natural-sounding local voice for house announcements (alternative to Piper). No page of its own."
+ }
+}
