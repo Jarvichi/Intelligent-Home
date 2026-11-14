@@ -1,5 +1,5 @@
 name: "Intelligent Home - Files"
-version: "0.2.0"
+version: "0.2.1"
 slug: ih_files
 image: "ghcr.io/jarvichi/{arch}-ih_files"
 description: "Per-person Samba logins, family and guest folders, Andrew-only brain share"
