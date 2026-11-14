@@ -1,9 +1,9 @@
-"""ih_parcel_check: dry-mode parcel verdicts for saved doorstep pictures (stdlib only)."""
+"""ih_parcel_check: dry-mode parcel verdicts for saved doorstep pictures, asked of the Intelligent Home AI layer (stdlib only)."""
 import base64, json, os, threading, time, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PROMPT = "Is there a parcel, package or cardboard box on the ground or doorstep in this picture? Answer only yes or no."
-STATE = {"seen": 0, "last": None, "ollama_ok": None, "dry": True}
+STATE = {"seen": 0, "last": None, "ai_layer_ok": None, "dry": True}
 
 
 def load_options(path="/data/options.json"):
@@ -23,27 +23,33 @@ def parse_verdict(answer):
     return "unsure"
 
 
-def ask(opts, image_bytes):
-    body = json.dumps({"model": opts["model"], "prompt": PROMPT, "stream": False,
-                       "images": [base64.b64encode(image_bytes).decode()],
-                       "keep_alive": "30s"}).encode()
-    req = urllib.request.Request(opts["ollama_url"].rstrip("/") + "/api/generate", body,
-                                 {"Content-Type": "application/json"})
+def ask(opts, image_bytes, name="x"):
+    """One picture + the question to the AI layer (capability 'vision'). The layer picks the agent. Raises on any failure."""
+    rid = "pc-" + "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)[:50] + "-%d" % int(time.time())
+    body = json.dumps({"text": PROMPT, "capability": "vision", "request_id": rid, "caller": "ih_parcel_check",
+                       "image": base64.b64encode(image_bytes).decode()}).encode()
+    req = urllib.request.Request(opts["ai_layer_url"].rstrip("/") + "/request", body,
+                                 {"Content-Type": "application/json", "Authorization": "Bearer " + opts["api_token"]})
     with urllib.request.urlopen(req, timeout=opts["timeout_seconds"]) as r:
-        return json.load(r).get("response", "")
+        obj = json.load(r)
+    if not obj.get("ok"):
+        raise RuntimeError(str(obj.get("answer") or obj.get("error") or "AI layer said no")[:150])
+    return obj.get("answer", "")
 
 
-def model_ready(opts):
-    """True when the Ollama add-on answers and already has the model (it downloads models in the background after it starts)."""
-    try:
-        with urllib.request.urlopen(opts["ollama_url"].rstrip("/") + "/api/tags", timeout=10) as r:
-            have = [m.get("name", "") for m in json.load(r).get("models", [])]
-    except Exception as e:
-        STATE["ollama_ok"] = False; STATE["last_error"] = "engine not reachable: " + str(e)[:150]
+def layer_ready(opts):
+    """True when the AI layer answers /healthz and a token is set."""
+    if not opts.get("api_token"):
+        STATE["ai_layer_ok"] = False; STATE["last_error"] = "api_token is empty (set it, or let the settings hub fill it)"
         return False
-    ok = any(n == opts["model"] or n.split(":")[0] == opts["model"] for n in have)
-    STATE["ollama_ok"] = ok
-    STATE["last_error"] = None if ok else "model %s is not downloaded yet (check the Intelligent Home - Ollama add-on log)" % opts["model"]
+    try:
+        with urllib.request.urlopen(opts["ai_layer_url"].rstrip("/") + "/healthz", timeout=10) as r:
+            ok = r.read(10).strip() == b"ok"
+    except Exception as e:
+        STATE["ai_layer_ok"] = False; STATE["last_error"] = "AI layer not reachable: " + str(e)[:150]
+        return False
+    STATE["ai_layer_ok"] = ok
+    STATE["last_error"] = None if ok else "AI layer did not answer ok"
     return ok
 
 
@@ -53,7 +59,7 @@ def wanted(name, cams):
 
 def scan(opts, done, log_path):
     cams = [c.strip() for c in opts["cameras"].split(",") if c.strip()]
-    if not model_ready(opts):
+    if not layer_ready(opts):
         return
     try:
         names = sorted(os.listdir(opts["snapshot_dir"]))
@@ -68,10 +74,10 @@ def scan(opts, done, log_path):
         t0 = time.time()
         try:
             with open(p, "rb") as f:
-                ans = ask(opts, f.read())
-            STATE["ollama_ok"] = True
-        except Exception as e:  # Ollama down or busy: retry next round
-            STATE["ollama_ok"] = False
+                ans = ask(opts, f.read(), n)
+            STATE["ai_layer_ok"] = True
+        except Exception as e:  # AI layer down, no vision agent, or a spend cap: retry next round
+            STATE["ai_layer_ok"] = False
             STATE["last_error"] = str(e)[:200]
             return
         rec = {"file": n, "time": int(time.time()), "verdict": parse_verdict(ans),
@@ -98,7 +104,7 @@ class H(BaseHTTPRequestHandler):
 def main():
     opts = load_options()
     defaults = {"dry": True, "snapshot_dir": "/media/eufy_snapshots", "cameras": "front_door,side_door",
-                "ollama_url": "http://32c8114c-ih-ollama:11434", "model": "moondream",
+                "ai_layer_url": "http://172.30.32.1:8801", "api_token": "",
                 "poll_seconds": 30, "recheck_after_seconds": 120, "timeout_seconds": 300}
     opts = {**defaults, **opts}
     STATE["dry"] = True  # 0.1.0 is dry whatever the option says

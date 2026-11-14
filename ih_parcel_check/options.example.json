@@ -2,9 +2,9 @@
   "dry": true,
   "snapshot_dir": "/media/eufy_snapshots",
   "cameras": "front_door,side_door",
-  "ollama_url": "http://32c8114c-ih-ollama:11434",
-  "model": "moondream",
   "poll_seconds": 30,
   "recheck_after_seconds": 120,
-  "timeout_seconds": 300
+  "timeout_seconds": 300,
+  "ai_layer_url": "http://172.30.32.1:8801",
+  "api_token": ""
 }

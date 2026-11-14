@@ -2,19 +2,18 @@
 
 ## What it does
 
-Looks at saved doorstep pictures with a small local vision model (model `moondream`, run by the **Intelligent Home - Ollama** add-on) and answers one question: is there a parcel on the doorstep? Version 0.1.0 is **dry only**: it writes each verdict (yes, no or unsure) to its own log and posts nothing. Pictures never leave the home network.
+Looks at saved doorstep pictures through the **Intelligent Home - AI Layer** (capability `vision`) and answers one question: is there a parcel on the doorstep? Version 0.2.0 is **dry only**: it writes each verdict (yes, no or unsure) to its own log and posts nothing. The AI layer chooses the provider: a local vision agent keeps the picture in the house; the built-in Gemini provider sends it to Google.
 
 ## Requires
 
-- The **Intelligent Home - Ollama** add-on, installed and started, with the `moondream` model downloaded (its default).
+- The **Intelligent Home - AI Layer** add-on, started, with a provider that declares `vision` (for example Gemini with a key and a `spend_cap` above 0) and an `api_token` for it.
 - A folder of saved camera pictures that Home Assistant can read at `/media` (default `/media/eufy_snapshots`, files named `<camera>_<date>_<time>.jpg`).
-- While a picture is being checked, about 2 GB of memory is used by the Ollama add-on. Watch memory on a small machine (a Raspberry Pi 5 with 8 GB works but swaps for a minute on the first picture).
 - Home Assistant OS or Supervised (add-ons need the Supervisor).
 
 ## Set-up
 
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Parcel check**.
-2. Install and start **Intelligent Home - Ollama** first and wait for `models ready` in its log. Then leave `dry` on and start this add-on.
+2. Start **Intelligent Home - AI Layer** with a vision provider, then set `api_token` here (the settings hub can fill it) and leave `dry` on.
 3. Open `http://<home-assistant>:8816/status` to see how many pictures were checked and the last verdict. Every verdict is also saved in `/data/verdicts.jsonl`.
 4. Check a few verdicts against the pictures. Turning on alerts is a later version.
 
@@ -25,13 +24,12 @@ Looks at saved doorstep pictures with a small local vision model (model `moondre
 | `dry` | No | Default `true`. 0.1.0 is dry whatever this says. |
 | `snapshot_dir` | No | Folder of saved pictures. Default `/media/eufy_snapshots`. |
 | `cameras` | No | Comma list of camera names; only files starting with `<name>_` are checked. |
-| `ollama_url` | No | Default `http://32c8114c-ih-ollama:11434` (the Ollama add-on). |
-| `model` | No | Default `moondream`. |
+| `ai_layer_url` | No | Default `http://172.30.32.1:8801`. |
+| `api_token` | Yes | The AI layer's API token. |
 | `poll_seconds` | No | How often to look for new pictures (10 to 600). |
 | `recheck_after_seconds` | No | A picture is checked only after it is this old, so the courier has left (0 to 900). |
 | `timeout_seconds` | No | Longest wait for one answer (30 to 900). |
 
 ## Troubleshooting
 
-- `/status` shows `ollama_ok: false`: the Ollama add-on is stopped, still starting, or still downloading the model; `last_error` says which. It retries every round.
-- Memory pressure on the first picture is normal on a Pi; later checks are faster.
+- `/status` shows `ai_layer_ok: false`: the AI layer is stopped, the token is wrong or empty, or no vision agent is live; `last_error` says which. It retries every round.
