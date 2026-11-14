@@ -1,0 +1,21 @@
+name: "Intelligent Home - Kokoro"
+version: "0.1.0"
+slug: ih_kokoro
+image: "ghcr.io/jarvichi/{arch}-ih_kokoro"
+description: "A natural-sounding local voice (Kokoro) for Home Assistant speech, served over the Wyoming protocol. Runs on the home network only."
+arch:
+  - aarch64
+startup: services
+boot: manual
+init: false
+# Wyoming port: reachable by Home Assistant at 32c8114c-ih-kokoro:10210, NOT published on the network.
+ports:
+  10210/tcp: null
+ports_description:
+  10210/tcp: "Wyoming speech (add-ons and Home Assistant only, not published)"
+options:
+  default_voice: bm_george
+  speed: 1.0
+schema:
+  default_voice: match(^[a-z]{2}_[a-z]+$)
+  speed: float(0.5,1.5)
