@@ -152,6 +152,16 @@ class T(unittest.TestCase):
         s2 = Store(self.dir, self.c)
         self.assertEqual(s2.get(a['id'])['claimed_by'], 'w')
 
+    def test_wait_is_not_done_and_requeue_goes_to_the_back(self):
+        a = self.add('1'); b = self.add('2'); self.s.claim('w', 600)
+        w = self.s.wait(a['id'], 'w', 'needs_ok', 'needs your OK')
+        self.assertEqual((w['status'], w['waiting_kind'], w['result_summary']), ('waiting', 'needs_ok', 'needs your OK'))
+        with self.assertRaises(StoreError): self.s.wait(b['id'], 'w', 'needs_ok')      # not held
+        with self.assertRaises(StoreError): self.s.wait(b['id'], 'w', 'bogus')
+        r = self.s.requeue(a['id'])
+        self.assertEqual((r['status'], r['waiting_kind']), ('queued', None)); self.assertGreater(r['seq'], b['seq'])
+        with self.assertRaises(StoreError): self.s.requeue(a['id'])                      # no longer waiting
+
 
 if __name__ == '__main__':
     unittest.main()

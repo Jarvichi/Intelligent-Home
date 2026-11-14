@@ -2,7 +2,7 @@
 """ih_work 0.6.1: the work queue, the pace gate and the task view. See DOCS.md.
 API (bearer api_token; an empty token refuses everything except /healthz):
   POST /enqueue {kind, ref, title, instruction, approved?, by?}   GET /list?status=a,b   GET /item/<id>
-  POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}
+  POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}   POST /wait {id, consumer, kind, summary?}   POST /requeue {id}
   POST /cancel {id}   POST /retry {id}   GET /status
   POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}   GET /workers
   GET /runs   POST /runs/settings {night?, day?}   POST /runs/start {pace_target, max_items|null, block_size?}   POST /runs/stop   GET /healthz (open)
@@ -28,6 +28,8 @@ FIELDS = {   # POST path -> (allowed fields, required fields)
     '/heartbeat': ({'id', 'consumer', 'lease_s'}, {'id', 'consumer'}),
     '/complete': ({'id', 'consumer', 'summary'}, {'id', 'consumer'}),
     '/fail': ({'id', 'consumer', 'error'}, {'id', 'consumer'}),
+    '/wait': ({'id', 'consumer', 'kind', 'summary'}, {'id', 'consumer', 'kind'}),
+    '/requeue': ({'id'}, {'id'}),
     '/cancel': ({'id'}, {'id'}),
     '/retry': ({'id'}, {'id'}),
     '/runs/settings': ({'night', 'day'}, set()),
@@ -118,6 +120,10 @@ def make_handler(svc, token_of):
             return s.finish(str(d['id']), d['consumer'], True, summary=d.get('summary'))
         if path == '/fail':
             return s.finish(str(d['id']), d['consumer'], False, error=d.get('error'))
+        if path == '/wait':
+            return s.wait(str(d['id']), d['consumer'], d['kind'], summary=d.get('summary'))
+        if path == '/requeue':
+            return s.requeue(str(d['id']))
         if path == '/cancel':
             return s.cancel(str(d['id']))
         if path == '/retry':

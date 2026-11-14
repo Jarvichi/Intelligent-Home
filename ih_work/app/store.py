@@ -1,6 +1,6 @@
 """Work queue store: one JSON file per item under <dir>/items, FIFO by a monotonic seq, with leases.
 
-Item statuses: queued, claimed (handed to a consumer, lease running), running (consumer sent a heartbeat), done, failed, cancelled.
+Item statuses: queued, claimed (handed to a consumer, lease running), running (consumer sent a heartbeat), done, failed, cancelled, waiting (worker stopped without finishing: waiting_kind needs_ok | needs_you | progress | cannot; a person or a requeue moves it on).
 A consumer holds an item only while its lease is valid. `heartbeat` renews it. A lease that runs out puts the item back in the queue
 (attempts + 1, same place in line); after MAX_ATTEMPTS expired leases the item is failed. `complete` and `fail` need the consumer that holds the lease.
 All changes happen under one file lock; every file is written to a temp name and renamed. Same kind + ref while open (queued, claimed, running) returns the existing item."""
@@ -8,7 +8,8 @@ import fcntl, glob, json, os, re, tempfile, threading, uuid
 from datetime import datetime, timedelta, timezone
 
 KINDS = ('approved_request', 'ai_flag', 'todo', 'review', 'other', 'plan_todos', 'review_batch')
-STATUSES = ('queued', 'claimed', 'running', 'done', 'failed', 'cancelled')
+STATUSES = ('queued', 'claimed', 'running', 'done', 'failed', 'cancelled', 'waiting')
+WAITING_KINDS = ('needs_ok', 'needs_you', 'progress', 'cannot')
 OPEN = ('queued', 'claimed', 'running')
 ACTIVE = ('claimed', 'running')
 MAX_ATTEMPTS = 3
@@ -224,6 +225,31 @@ class Store:
             items, now = self._fresh()
             it = self._holder(items, iid, consumer)
             it.update(status='done' if ok else 'failed', finished_at=iso(now), lease_expires_at=None, result_summary=summary, error=error)
+            self._save(it)
+            return it
+
+    def wait(self, iid, consumer, kind, summary=None):
+        """Held item -> waiting: the worker did NOT finish it (needs an OK or a person, partial progress, or it could not run). Only a real `complete` makes Done."""
+        if kind not in WAITING_KINDS:
+            raise StoreError('bad', 'kind must be from: ' + ', '.join(WAITING_KINDS))
+        summary = clean(summary, 'summary') if summary is not None else None
+        with self.lock():
+            items, now = self._fresh()
+            it = self._holder(items, iid, consumer)
+            it.update(status='waiting', waiting_kind=kind, finished_at=iso(now), lease_expires_at=None, result_summary=summary, error=None)
+            self._save(it)
+            return it
+
+    def requeue(self, iid):
+        """waiting -> queued at the BACK (new seq), for a person who answered or a retry. Attempts start again at 0."""
+        with self.lock():
+            items, now = self._fresh()
+            it = self._find(items, iid)
+            if it['status'] != 'waiting':
+                raise StoreError('conflict', 'only waiting items can be requeued')
+            os.remove(self._path(it))
+            it.update(seq=self._next_seq(), status='queued', waiting_kind=None, claimed_by=None, lease_expires_at=None, heartbeat_at=None, started_at=None,
+                      finished_at=None, error=None, attempts=0)
             self._save(it)
             return it
 

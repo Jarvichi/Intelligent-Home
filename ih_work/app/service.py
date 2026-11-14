@@ -290,7 +290,7 @@ class Service:
             items = self.store.list()
             st = self.load_state()
             d, r = self.decide(st, now)
-            counts = {s: 0 for s in ('queued', 'running', 'done', 'failed', 'cancelled')}
+            counts = {s: 0 for s in ('queued', 'running', 'done', 'failed', 'cancelled', 'waiting')}
             for i in items:
                 counts['running' if i['status'] in ACTIVE else i['status']] += 1
             fin = [i for i in items if i.get('finished_at') and i['status'] in ('done', 'failed')]
