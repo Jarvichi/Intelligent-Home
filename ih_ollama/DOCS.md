@@ -9,6 +9,7 @@ Runs [Ollama](https://ollama.com) (an official, pinned release) so that other In
 - Home Assistant OS or Supervised (add-ons need the Supervisor).
 - Disk: about 1.6 GB for Ollama plus the models (moondream is about 1.8 GB).
 - Memory: a small model needs about 2 GB while it answers. On a Raspberry Pi with 8 GB, keep to one small model at a time.
+- **Hardware: not recommended on a Raspberry Pi or other small board.** Running a model there is slow and can starve Home Assistant of memory. This add-on is for a Home Assistant machine with plenty of RAM (16 GB or more) and, ideally, a GPU. On small hardware, run Ollama on another machine and point the AI layer at it instead.
 
 ## Set-up
 
