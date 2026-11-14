@@ -8,6 +8,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 sys.path.insert(0, os.path.dirname(__file__))
+import jobsdb
 from plugins import bus_watch as B
 import test_bus_watch_return as T
 
@@ -68,6 +69,7 @@ NOW = dt.datetime(2026, 11, 9, 9, 0, tzinfo=UTC)
 class TestTypes(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
+        self.addCleanup(jobsdb.close_all)
 
     def look(self, veh, http, now=NOW, dry=False, token='', **over):
         s = T.base_settings(**dict({'fleet_list_url': 'https://fleet.example/list', 'operator_name': 'Example Buses'}, **over))

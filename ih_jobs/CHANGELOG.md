@@ -3,6 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.19.0] - 2026-11-14
+
+### Added
+- The add-on has its own SQLite database, `/data/ih.db` (table `bus_deck_overrides`), made with `ihlib.db` (new `app/jobsdb.py`). A person's answer to "what type is bus OP-12345?" is stored there, not in a plain file. Nightly snapshot (kept 3, restore-checked) and the 30-day trash are handled by the same helper.
+- `GET` and `POST /plugin/bus_watch/overrides` (same `files_token` as the other plugin endpoints). POST body `{"code": "OP-12345", "deck": "single" | "double" | "unknown"}`; `unknown` removes the answer. A database that cannot save answers `503` with the reason, never a false "saved".
+
+### Changed
+- `bus_watch` reads deck answers from the database. An old `deck_overrides.json` in the plugin state folder is imported once in live mode (entries it cannot use are logged) and then moved to `/data/trash` (deleted after 30 days). In dry mode the file is only read, never moved.
+- If the database cannot open, lookups fall back to the old file and the bus job keeps running.
+
 ## [0.18.3] - 2026-11-14
 
 ### Added

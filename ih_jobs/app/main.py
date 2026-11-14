@@ -396,6 +396,9 @@ def make_handler(mod):
                 self._reply(404, {'ok': False, 'why': 'unknown plugin'}); return None
             return parts[2], parts[3:]
 
+        def _plugin_mod(self, name):
+            return (mod.plugins.mods if mod.plugins else pluginhost.discover()).get(name)
+
         def _get_plugin(self, p):
             r = self._plugin_files(p)
             if r is None:
@@ -404,6 +407,12 @@ def make_handler(mod):
             if rest == ['files']:
                 fl = {f: os.path.getsize(os.path.join(d, f)) for f in sorted(os.listdir(d)) if FNAME_RE.match(f) and os.path.isfile(os.path.join(d, f))} if os.path.isdir(d) else {}
                 self._reply(200, {'files': fl})
+            elif rest == ['overrides']:   # 0.19.0: a person's answers (bus deck types) from the add-on's own database
+                fn = getattr(self._plugin_mod(name), 'http_overrides', None)
+                if fn is None:
+                    self._reply(404, {'ok': False, 'why': 'not found'}); return
+                code, obj = fn(d, 'GET', log=mod.log)
+                self._reply(code, obj)
             elif len(rest) == 2 and rest[0] == 'file':
                 if not FNAME_RE.match(rest[1]) or '..' in rest[1]:
                     self._reply(400, {'ok': False, 'why': 'bad file name'}); return
@@ -440,6 +449,18 @@ def make_handler(mod):
                     self._reply(409, {'ok': False, 'why': 'plugin not configured'}); return
                 ok, why = mod.plugins.event(name, obj)
                 self._reply(200 if ok else 500, {'ok': ok, 'plugin': name, 'mode': mod.plugins.mode(name)[0], 'why': why}); return
+            if rest == ['overrides']:   # 0.19.0: set one answer; stored in the add-on's own database, never in a file
+                fn = getattr(self._plugin_mod(name), 'http_overrides', None)
+                if fn is None:
+                    self._reply(404, {'ok': False, 'why': 'not found'}); return
+                if n > EVENT_MAX:
+                    self._reply(413, {'ok': False, 'why': 'body too large'}); return
+                try:
+                    obj = json.loads(self.rfile.read(n) or b'{}')
+                except Exception:
+                    obj = None
+                code, out = fn(os.path.join(DATA, name), 'POST', obj, log=mod.log)
+                self._reply(code, out); return
             if rest != ['import']:
                 self._reply(404, {'ok': False, 'why': 'not found'}); return
             if n > IMPORT_MAX:

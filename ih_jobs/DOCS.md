@@ -297,6 +297,7 @@ written with the HA state API every publish_interval seconds (HA forgets REST st
 Config seeding: lists/dicts you leave empty are read from plugin state (the folder /data/bus_watch/): config.json = the old config.json (stops, schedule, closed,
 route_polyline), route_stops.json = the old route_stops.json, vehicle_types.json = the old type cache. Shapes are unchanged, so the old files can be copied in.
 Files in /data/bus_watch/: shadow.jsonl (same rows as the old shadow.jsonl), promise_log.jsonl (same records as the old promise_log.jsonl), sessions.json, vehicle_types.json.
+Deck answers (0.19.0): what a person says a bus is (single or double) is kept in the add-on's own database `/data/ih.db`, not in a file. Set one with `POST /plugin/bus_watch/overrides` (header `Authorization: Bearer <files_token>`, body `{"code": "OP-12345", "deck": "single"}`; `double` or `unknown` too, `unknown` removes it) and list them with `GET` on the same address. An old `/data/bus_watch/deck_overrides.json` is imported once in live mode and moved to `/data/trash` (deleted after 30 days). If the database cannot open, lookups use the old file and a save answers 503 with the reason.
 More seed files (0.18.0): route_stops_outbound.json (the return route; config.json may hold the old "return" section).
 ```
 
