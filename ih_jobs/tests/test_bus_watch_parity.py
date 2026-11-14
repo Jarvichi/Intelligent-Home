@@ -146,6 +146,21 @@ class TestTypes(unittest.TestCase):
         self.assertEqual(lay.asked, [])
         self.assertEqual(self.look('OP-55', h, NOW + dt.timedelta(minutes=61), token='t')[0], 'Zed Enviro400 (AI, unverified)')
 
+    def test_manual_override_wins_over_page_and_ai_guess(self):
+        T.ihlib.state.Store(self.dir).save('deck_overrides', {'77': 'single', '88': 'double'})
+        T.ihlib.state.Store(self.dir).save('vehicle_types', {'88': 'Zed Solo (AI, unverified)'})
+        h = Http(pages={'op-77': 'Zed Enviro400'})
+        a = self.look('OP-77', h)[0]
+        self.assertEqual((a, B.classify(a), B.deck_of(a)), ('Single deck (manual)', 'single', 'single'))
+        b = self.look('OP-88', h)[0]
+        self.assertEqual((b, B.classify(b), B.deck_of(b)), ('Double deck (manual)', 'double', 'double'))
+        self.assertEqual(h.urls, [])   # no lookups at all
+        self.assertEqual(T.ihlib.state.Store(self.dir).load('vehicle_types'), {'88': 'Zed Solo (AI, unverified)'})   # override not cached
+
+    def test_override_unknown_or_missing_falls_through(self):
+        T.ihlib.state.Store(self.dir).save('deck_overrides', {'77': 'unknown', '5': 'junk'})
+        self.assertEqual(self.look('OP-77', Http(pages={'op-77': 'Page Type'}))[0], 'Page Type')
+
     def test_seeded_cache_is_used(self):
         T.ihlib.state.Store(self.dir).save('vehicle_types', {'42': 'Seeded Type'})
         h = Http()
