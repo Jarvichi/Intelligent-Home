@@ -1,6 +1,7 @@
 {
  "requires": [
-  "ih_ollama"
+  "ih_ollama",
+  "ih_ai_layer"
  ],
  "ui": {
   "title": "Parcel check",
