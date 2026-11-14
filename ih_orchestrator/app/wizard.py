@@ -45,8 +45,8 @@ def validate(raw):
             raise ValueError("enable values without enable option")
         fields = []
         raw_fields = g.get("fields")
-        if not isinstance(raw_fields, list) or not 1 <= len(raw_fields) <= 10:
-            raise ValueError("bad wizard fields")
+        if not isinstance(raw_fields, list) or len(raw_fields) > 10 or not (raw_fields or ev):
+            raise ValueError("bad wizard fields")   # a service with no keys (e.g. Xbox via Home Assistant) must at least enable providers
         for f in raw_fields:
             if not isinstance(f, dict) or not isinstance(f.get("option"), str) or not IDENT.fullmatch(f["option"]) \
                     or f["option"] in seen or f.get("kind") not in KINDS:
