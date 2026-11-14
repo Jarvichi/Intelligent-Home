@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-11-14
+
+### Added
+- New item status `waiting` with a `waiting_kind` (`needs_ok`, `needs_you`, `progress`, `cannot`). `POST /wait {id, consumer, kind, summary?}` ends a held item without calling it done; `POST /requeue {id}` puts a waiting item back at the end of the line. Only `/complete` makes an item Done, so Done means the work was finished. Status counts include `waiting`.
+
 ## [0.6.1] - 2026-11-13
 
 ### Changed
