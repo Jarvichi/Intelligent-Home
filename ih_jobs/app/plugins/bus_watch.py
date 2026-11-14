@@ -21,6 +21,8 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   route_polyline           [[lat, lon], ...] rough route (first 2 points, then the stop, then the last point) and the closing point used with route_stops
   start_before_min [25], shadow_after_min [25], dm_when_eta_min [15] (only marks 'would_dm' in the log), avg_speed_kmh [35], road_factor [1.25], stale_min [5]
   sweep_start ['07:00'], sweep_end ['09:00'], sweep_km [1.5], sweep_stop (key), promise_stop (key of the promised journey; default sweep_stop)
+  deck_overrides          plugin state file deck_overrides.json (the old rob_bus/deck_overrides.json shape: {"63705": "single", "34470": "double"}, key = number after the last '-').
+                           Wins over every lookup and over a cached AI guess; read on each lookup so a new answer applies at once. Import it with the plugin files endpoint.
   vehicle_page_url        page per vehicle with an og:description type text; {veh} = vehicle ref lower case (bustimes style); looked up 1 per second, cached
   promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change. Optional: leave it empty and the host pulls the log instead
                            (GET /plugin/bus_watch/file/promise_log.jsonl with the files_token option). Empty = not posted.
@@ -184,6 +186,8 @@ def classify(text):
         return 'unknown'
     if '(AI, unverified)' in text:
         return 'unknown'   # an AI guess never decides kept/broken
+    if text.endswith('(manual)'):
+        return 'single' if text.startswith('Single') else 'double' if text.startswith('Double') else 'unknown'   # a person's override (deck_overrides)
     if DOUBLE.search(text):
         return 'double'
     if SINGLE.search(text):
@@ -421,6 +425,9 @@ def vehicle_type(ctx, box, s, veh):
     """Vehicle type text, cached by the number after the last '-'. Tiers (same as the old script): 1 the vehicle page, 2 the operator fleet list page, 3 an outside AI
     ('(AI, unverified)'). '?' when every lookup failed (not cached); None if the page has no text."""
     num = veh.split('-')[-1]
+    over = box.load('deck_overrides').get(num)   # a person's answer (the set-unknown UI) wins over every lookup and over a cached AI guess; never cached
+    if over in ('single', 'double'):
+        return '%s deck (manual)' % over.capitalize()
     cache = box.load('vehicle_types')
     if num not in cache:
         t = None

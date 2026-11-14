@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.18.3] - 2026-11-14
+
+### Added
+- `bus_watch` reads manual deck answers from the plugin state file `deck_overrides.json` (same shape as the old tracker's file, e.g. `{"63705": "single"}`). A manual answer wins over the vehicle page, the fleet list and any cached AI guess, and is never cached. "unknown" or any other value is ignored. The AI step (tier 3) was already in 0.18.x and stays "unverified" = unknown for promise records.
+
 ## [0.18.2] - 2026-11-11
 
 ### Changed
