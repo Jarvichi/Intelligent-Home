@@ -1,0 +1,14 @@
+{
+  "title": "Ollama",
+  "purpose": "Lets the AI Layer ask a local Ollama server (not on the Pi).",
+  "description": "Lets the AI Layer ask an Ollama server on another machine in the house for answers, summaries and picture questions. Nothing leaves the home network. With no server address set it is switched off and the AI Layer skips it. It has no access to Home Assistant.",
+  "health_port": 8817,
+  "health_path": "/healthz",
+  "navigation": [
+    "Answers general questions locally",
+    "Looks at one picture and answers a question",
+    "Skipped automatically when the server is not set or is off"
+  ],
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
+}

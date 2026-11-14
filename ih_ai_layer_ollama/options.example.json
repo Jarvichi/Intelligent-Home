@@ -1,0 +1,13 @@
+{
+  "register_key": "",
+  "parent_url": "http://172.30.32.1:8801",
+  "callback_url": "",
+  "ollama_url": "",
+  "model": "llama3.2:3b",
+  "vision_model": "llava:7b",
+  "timeout_s": 120,
+  "daily_cap": 500,
+  "shadow": true,
+  "max_chars": 1900,
+  "log_payloads": false
+}
