@@ -17,10 +17,17 @@ class ManagerLogic(unittest.TestCase):
         r = subprocess.run(["node", str(HERE / "manager_logic_test.js")], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_wizard_logic(self):
+        r = subprocess.run(["node", str(HERE / "wizard_ui_test.js")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_page_rules(self):
         page = (UI / "index.html").read_text(encoding="utf-8")
         logic = (UI / "manager-logic.js").read_text(encoding="utf-8")
-        for src in (page, logic):
+        wiz = (UI / "wizard-ui.js").read_text(encoding="utf-8")
+        self.assertIn('src="wizard-ui.js"', page)
+        for src in (page, logic, wiz):
             self.assertNotIn("innerHTML", src)
             self.assertNotIn("confirm(", src.replace("Tap again to confirm", ""))
             self.assertNotIn("alert(", src)
@@ -35,13 +42,14 @@ class ManagerLogic(unittest.TestCase):
     def test_every_api_call_kept(self):
         page = (UI / "index.html").read_text(encoding="utf-8")
         for call in ("api/addons", "api/health", "api/usage", "api/plugins", "api/settings", "api/traces", "api/trace/", "api/logs/",
-                     "api/job/", "api/action/", "api/plugin/", "api/provision"):
+                     "api/job/", "api/action/", "api/plugin/", "api/provision", "api/wizards"):
             self.assertIn(call, page, call)
 
     def test_assets_are_served_and_ingress_only(self):
         # the handler serves the logic file next to the page, and only to the ingress gateway
         src = (HERE.parent / "app" / "manager.py").read_text(encoding="utf-8")
         self.assertIn('"/manager-logic.js"', src)
+        self.assertIn('"/wizard-ui.js"', src)
         self.assertTrue((UI / "manager-logic.js").is_file())
         self.assertTrue(manager.client_allowed("172.30.32.2"))
         self.assertFalse(manager.client_allowed("203.0.113.5"))

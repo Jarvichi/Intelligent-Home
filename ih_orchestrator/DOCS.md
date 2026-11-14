@@ -93,3 +93,7 @@ The **Usage** disclosure on the Health tab and the line "Used: N today (M failed
 - "Not used in 7 days" is highlighted in the Usage disclosure: those add-ons are candidates to stop or remove.
 
 Jobs may relay up to 20 child reports from its signed registration channel. Child source names stay within the Jobs family. Reports retain the child sample timestamp for freshness and expire after six hours; forwarding does not replace service health, add credentials, send error text or confirm external delivery.
+
+## Setup wizards
+
+An add-on opts in with `app/wizards/<slug>.json` (version 1: `title`, `enable_option`, `groups[]` of `id`, `label`, `help`, `enable_values`, `fields[]` of `option`, `label`, `kind` = `secret` or `text`). The Manager shows a **Set up** button for it and opens the wizard once when nothing is set. The wizard writes only the options named in the file, then restarts the add-on if it is running (no confirm step). It never returns or logs values; a blank field keeps the stored value. Per-player settings inside list options are not covered yet.

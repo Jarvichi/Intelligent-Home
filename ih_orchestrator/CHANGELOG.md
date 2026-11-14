@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.15.0] - 2026-11-14
+
+### Added
+- Setup wizards (Andrew OK #101). An add-on opts in by a definition file `app/wizards/<slug>.json` (option names, labels, which providers each service turns on; no values, no HTML). The Add-ons page gets a **Set up** button for those add-ons and opens the wizard by itself once when the add-on has nothing set. The wizard writes only the options named in the definition, saves on the last step (no confirm step, by choice) and restarts the add-on if it runs. Values are never returned or logged: `GET /api/wizard/<slug>` says only which fields are set. No add-on ships a definition yet (ih_games is the next pull request).
+
 ## [0.14.0] - 2026-11-13
 
 ### Changed
