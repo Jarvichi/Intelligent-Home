@@ -14,7 +14,7 @@ class GamesWizard(unittest.TestCase):
         cfg = (ROOT / "ih_games" / "config.yaml").read_text(encoding="utf-8")
         schema = cfg.split("\nschema:", 1)[1]
         providers = {p.stem for p in (ROOT / "ih_games" / "app" / "providers").glob("*.py") if p.stem != "__init__"}
-        self.assertIn("\n  %s: " % d["enable_option"], schema)
+        self.assertIn("\n  %s:" % d["enable_option"], schema)
         for g in d["groups"]:
             for v in g["enable_values"]:
                 self.assertIn(v, providers, v)

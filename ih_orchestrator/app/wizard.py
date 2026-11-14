@@ -12,7 +12,7 @@ import provisioner
 WIZ_DIR = Path(__file__).parent / "wizards"
 IDENT = re.compile(r"[a-z][a-z0-9_]{0,59}\Z")
 SHORT = re.compile(r"ih_[a-z0-9_]{1,35}\Z")
-LABEL = re.compile(r"[A-Za-z0-9 ._/()&',:;!?-]{1,80}\Z")
+LABEL = re.compile(r"[A-Za-z0-9 ._/()&',:;!?-]+\Z")
 KINDS = ("secret", "text")
 MAX_VALUE = 2000
 
