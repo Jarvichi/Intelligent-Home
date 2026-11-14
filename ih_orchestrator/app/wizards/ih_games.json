@@ -1,0 +1,65 @@
+{
+ "version": 1,
+ "title": "Games setup",
+ "enable_option": "providers_enabled",
+ "groups": [
+  {
+   "id": "steam",
+   "label": "Steam",
+   "help": "Needs a Steam Web API key from the Steam developer site.",
+   "enable_values": [
+    "steam_achievements",
+    "steam_library",
+    "steam_presence"
+   ],
+   "fields": [
+    {
+     "option": "steam_api_key",
+     "label": "Steam Web API key",
+     "kind": "secret"
+    }
+   ]
+  },
+  {
+   "id": "psn",
+   "label": "PlayStation",
+   "help": "Needs the npsso token from a signed-in PlayStation web session.",
+   "enable_values": [
+    "psn_trophies",
+    "psn_trophy_names",
+    "psn_trophy_titles"
+   ],
+   "fields": [
+    {
+     "option": "psn_npsso",
+     "label": "PSN npsso token",
+     "kind": "secret"
+    }
+   ]
+  },
+  {
+   "id": "xbox",
+   "label": "Xbox",
+   "help": "Uses the Home Assistant Xbox sensors; no key here. Set the entity names per player in the add-on settings.",
+   "enable_values": [
+    "xbox_gamerscore"
+   ],
+   "fields": []
+  },
+  {
+   "id": "destiny",
+   "label": "Destiny 2",
+   "help": "Needs a Bungie API key from the Bungie developer portal.",
+   "enable_values": [
+    "destiny"
+   ],
+   "fields": [
+    {
+     "option": "bungie_api_key",
+     "label": "Bungie API key",
+     "kind": "secret"
+    }
+   ]
+  }
+ ]
+}
