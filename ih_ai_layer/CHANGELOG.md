@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-11-13
+
+### Added
+- `POST /request` accepts an optional `image` (base64 JPEG/PNG text). It forces capability `vision`, goes only to an agent that registered `vision`, and is never logged, classified or sent to search. The built-in `gemini` provider (0.3.0) now declares `vision` and sends the picture to Google (inline JPEG/PNG; Andrew OK'd outside providers 13 Nov 2026). Groq and the others do not do vision yet. Other agents can register `vision` too. `/request` may be up to 1.6 MB; other calls stay at 16 KB.
+
 ## [0.5.1] - 2026-11-10
 
 ### Added

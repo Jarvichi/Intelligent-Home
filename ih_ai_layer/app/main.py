@@ -8,6 +8,7 @@ from providers import art
 
 PORT = 8801
 MAX_BODY = 16384
+MAX_BODY_IMAGE = 1600000   # /request only: room for one base64 picture (capability 'vision')
 
 
 def make_handler(layer):
@@ -46,7 +47,7 @@ def make_handler(layer):
             n = int(self.headers.get('Content-Length') or 0)
             if p not in ('/request', '/feedback', '/register'):
                 self.send_error(404); return
-            if n > MAX_BODY:
+            if n > (MAX_BODY_IMAGE if p == '/request' else MAX_BODY):
                 self.send_error(413); return
             raw = self.rfile.read(n)
             if p == '/register':
