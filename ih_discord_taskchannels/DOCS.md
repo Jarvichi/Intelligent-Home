@@ -33,6 +33,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `done_category` | No | Category KEYS (defined in the transport option `categories`). Default: `done`. |
 | `template` | No | Permission template name to ask for. Empty = the one granted to this module |
 | `cleanup_days` | No | Delete done channels after this many days. Default: `30`. |
+| `push_events` | No | On: also listens in the open task channels this add-on created and offers wake-up events on `/events`. Default: `false`. |
+| `events_token` | No | Secret a local consumer sends to read `/events` (16 characters or more). Empty: every request is refused. |
 | `mqtt_host` | No | MQTT broker host (default: the Mosquitto add-on). |
 | `mqtt_port` | No | MQTT broker port. Default: `1883`. |
 | `mqtt_user` | No | MQTT user name for this add-on. Default: `ih_discord_taskchannels`. |
@@ -80,3 +82,11 @@ The transport can also stop only the admin operations with `/data/STOP_ADMIN` (a
 ### Endpoints
 
 `GET /healthz` (200 ok, 503 when not healthy) and `GET /status` (no secrets). Port 8797.
+
+### Push events (optional)
+
+With `push_events: true` the module claims every open task channel it created (the transport must grant this module's row those keys, which it does for
+channels the module created). `GET /events?after=<number>&wait=<seconds up to 25>` with `Authorization: Bearer <events_token>` answers
+`{"ok":true,"boot":"...","last":7,"gap":false,"events":[{"n":7,"channel_key":"...","msg_id":"...","ts":...}]}`. It waits until an event arrives or the
+time is up. An event never holds the message text. The list is in memory only: after a restart `boot` changes and the consumer should check every
+channel once. Channels made by hand or by another tool are not covered, so a consumer should keep a slow fallback check.

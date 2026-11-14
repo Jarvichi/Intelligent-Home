@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- Push events (option `push_events`, default off): the module claims the key of every open task channel it created. When an allowed user posts there it records a wake-up event (a number, the channel key and the message id; never the text). A local consumer waits on `GET /events?after=N&wait=S` (long poll, bearer `events_token`) instead of asking Discord itself every few seconds. With the option off nothing changes: no extra claims, and `/events` answers 404. With the token empty or shorter than 16 characters every request is refused (401).
+- `/status` shows `push_events` (on, token set, claimed channels, events seen).
+
 ## [0.1.12] - 2026-11-11
 
 ### Changed

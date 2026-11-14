@@ -14,16 +14,19 @@ A daily cleanup deletes channels that have been done for more than `cleanup_days
 (the transport refuses anything else). The goal text is never stored here; names and dates are (/data/state.json).
 SHADOW (option, default true): every op is sent with dry=true and logged '[DRY] would ...'; nothing is created and no state is recorded.
 /data/STOP_LIVE forces the same at once. The transport can also stop admin ops alone with /data/STOP_ADMIN (or _<module>).
+PUSH EVENTS (option `push_events`, default false; 0.2.0): the module also claims the key of every open task channel it created. When an allowed user
+posts there, it records a wake-up event (number, channel key, message id; never the text) and a local consumer waits on `GET /events` (bearer
+`events_token`; refused while the token is empty). Off = no extra claims and /events answers 404: nothing changes.
 No Home Assistant access is needed (no homeassistant_api). stdlib only (paho-mqtt for the real bus). Serves /healthz and /status (no secrets)."""
-import json, os, re, sys, threading, time, logging, collections, urllib.request
+import json, os, re, sys, threading, time, logging, collections, urllib.request, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import bus_client
+import bus_client, events
 
-VERSION = '0.1.7'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHT_PORT', '8797'))
@@ -77,6 +80,7 @@ def load_options(path=None):
             'template': _text(o.get('template')), 'cleanup_days': days,
             'mqtt_host': _text(o.get('mqtt_host')) or 'core-mosquitto', 'mqtt_port': int(o.get('mqtt_port') or 1883),
             'mqtt_user': _text(o.get('mqtt_user')) or DEFAULT_MODULE, 'mqtt_password': str(o.get('mqtt_password') or ''),
+            'push_events': o.get('push_events') is True, 'events_token': _text(o.get('events_token')),
             'ingest_url': (_text(o.get('ingest_url')) or DEFAULT_INGEST_URL).rstrip('/'), 'ingest_token': _text(o.get('ingest_token'))}
 
 
@@ -109,6 +113,9 @@ class Module:
         self.tasks = {}                  # slug -> {name, key, id, state (wip|done), created, moved, summary}
         self.last_cleanup = 0.0
         self.synced = False
+        self.events = events.EventLog(clock=clock)
+        self.task_claims = set()         # task channel keys claimed for push events
+        self.task_in = 0
         self.slug_max = max(1, min(SLUG_MAX, 60 - len(opts['module']) - 1))
         self.load_state()
 
@@ -182,6 +189,7 @@ class Module:
                                               clock=self.clock, threaded=self.threaded, log_payloads=self.opts.get('log_payloads', False), ops_needed=OPS_NEEDED, dry=True)
         self.client.on_message(self.opts['command_channel_key'], self.on_in, any=True)
         self.client.on_events('_admin', self.on_admin)
+        self.claim_tasks()
         self.apply_mode()
         return True
 
@@ -210,6 +218,46 @@ class Module:
             if out:
                 self.reply(out, d.get('msg_id'))
 
+    # ---- push events (option push_events): claim the open task channels, record who needs waking, never the text ----
+    def claim_tasks(self):
+        """Make the claims match the open task channels. Sends one hello when they changed. -> True when they changed."""
+        if not self.opts.get('push_events') or self.client is None:
+            return False
+        want = {t['key'] for t in self.tasks.values() if t.get('state') == 'wip' and t.get('key') and t['key'] != self.opts['command_channel_key']}
+        changed = False
+        for k in sorted(want - self.task_claims):
+            try:
+                self.client.on_message(k, self.on_task_in, any=True)
+            except ValueError:
+                continue   # not a usable channel key: skip it
+            self.task_claims.add(k); changed = True
+        for k in sorted(self.task_claims - want):
+            self.client.claims = [c for c in self.client.claims if c['channel_key'] != k]
+            self.client.handlers.pop(k, None)
+            self.task_claims.discard(k); changed = True
+        if changed and self.client.started:
+            self.client.hello()   # the transport reads claims from hello; do not wait for the next heartbeat
+        return changed
+
+    @trace.traced('task_message_in')
+    def on_task_in(self, d):
+        """One verified `in` event in an open task channel: record a wake-up event. The text is not read, stored or logged."""
+        if d.get('type') != 'message' or not d.get('allowed'):
+            return
+        ck = d.get('channel_key')
+        if ck not in self.task_claims:
+            return
+        self.task_in += 1
+        self.events.add(ck, d.get('msg_id'))
+
+    def events_answer(self, auth, after, wait):
+        """-> (http status, body dict) for GET /events."""
+        if not self.opts.get('push_events'):
+            return 404, {'ok': False, 'why': 'push_events is off'}
+        if not events.token_ok(auth, self.opts.get('events_token')):
+            return 401, {'ok': False, 'why': 'unauthorized'}
+        return 200, self.events.since(after, wait)
+
     @trace.traced('admin_event')
     def on_admin(self, d):
         """The transport says a channel this module created is gone from Discord (deleted by hand)."""
@@ -221,6 +269,7 @@ class Module:
                     self.tasks.pop(s, None)
                     self.lg.info('task channel %s was deleted in Discord: forgotten', s)
             self.save_state()
+            self.claim_tasks()
 
     # ---- commands ----
     def command(self, text, mid=None):
@@ -273,6 +322,7 @@ class Module:
         self.tasks[sl] = {'name': name[:100], 'key': key, 'id': cid, 'state': 'wip', 'created': int(self.clock()), 'moved': None, 'summary': ''}
         self.created += 1
         self.save_state()
+        self.claim_tasks()
         self.bus_post(key, '**%s**\n%s' % (name[:200], pretty(opening or goal or 'New task channel.')[:1500]), tag='task')
         return "Created <#%s> in Work in Progress." % cid
 
@@ -292,6 +342,7 @@ class Module:
         t['state'], t['moved'], t['summary'] = 'done', int(self.clock()), summary.strip()[:300]
         self.finished += 1
         self.save_state()
+        self.claim_tasks()
         days = self.opts['cleanup_days']
         self.bus_post(t['key'], 'Done%s (moved to Done; deleted after %d days)' % (': ' + t['summary'] if t['summary'] else '', days), tag='task')
         return "Moved <#%s> to Done. It is deleted after %d days." % (t['id'], days)
@@ -310,6 +361,7 @@ class Module:
             return "(dry run) would move `%s` back." % s
         t['state'], t['moved'] = 'wip', None
         self.save_state()
+        self.claim_tasks()
         return "Moved <#%s> back to Work in Progress." % t['id']
 
     def cmd_list(self):
@@ -344,6 +396,7 @@ class Module:
                 gone.append(s)
         self.last_cleanup = now
         self.save_state()
+        self.claim_tasks()
         return gone
 
     def sync(self):
@@ -357,6 +410,7 @@ class Module:
                 self.tasks.pop(s, None)
                 self.lg.info('task channel %s is no longer listed by the transport: forgotten', s)
         self.save_state()
+        self.claim_tasks()
         return True
 
     def tick(self):
@@ -386,6 +440,8 @@ class Module:
                 'counts': {'in': self.in_count, 'out': self.out_ops, 'out_failed': self.out_failed, 'created': self.created, 'finished': self.finished,
                            'deleted': self.deleted, 'rejected': sum((self.client.rejected if self.client else {}).values())},
                 'tasks': {'open': len([1 for t in self.tasks.values() if t.get('state') == 'wip']), 'done': len([1 for t in self.tasks.values() if t.get('state') == 'done'])},
+                'push_events': {'on': bool(self.opts.get('push_events')), 'token_set': bool(self.opts.get('events_token')), 'claimed': len(self.task_claims),
+                                'in': self.task_in, 'last': self.events.last},
                 'last_cleanup_s': None if not self.last_cleanup else int(now - self.last_cleanup),
                 'last_in_s': None if self.last_in is None else int(now - self.last_in),
                 'would_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
@@ -416,8 +472,12 @@ def push(mod, manifest, now=None, opener=None, log=print):
 def make_handler(mod):
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
-            p = self.path.split('?')[0]
-            if p == '/healthz':
+            p, _, q = self.path.partition('?')
+            if p == '/events':
+                qs = urllib.parse.parse_qs(q)
+                code, d = mod.events_answer(self.headers.get('Authorization'), (qs.get('after') or ['0'])[0], (qs.get('wait') or ['0'])[0])
+                body, ct = json.dumps(d).encode(), 'application/json'
+            elif p == '/healthz':
                 code, body, ct = (200 if mod.healthy() else 503), (b'ok' if mod.healthy() else b'not ok'), 'text/plain'
             elif p == '/status':
                 code, body, ct = 200, json.dumps(mod.status()).encode(), 'application/json'
