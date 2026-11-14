@@ -8,7 +8,8 @@ import json, os, re, threading, time, urllib.request
 CAPS_QA = ['general_qa', 'summarize']
 MAX_IN = 8000
 SYSTEM = {'general_qa': 'You are a general assistant. Answer the question clearly and briefly in plain text. You know nothing about the asker, their home or their location; do not ask for personal details. If the question needs current information (prices, dates, news) that you cannot verify, say so instead of guessing. Never invent links.',
-          'summarize': 'You are a general assistant. Summarize the text you are given clearly and briefly in plain text. Do not add facts that are not in the text.'}
+          'summarize': 'You are a general assistant. Summarize the text you are given clearly and briefly in plain text. Do not add facts that are not in the text.',
+          'vision': 'You look at one picture and answer the question about it clearly and briefly in plain text. Describe only what is visible. Do not guess names or identify people.'}
 
 _EMAIL = re.compile(r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+')
 _URL = re.compile(r'(https?://[^\s?#]+)[?#]\S*')
@@ -30,6 +31,16 @@ def _tag(v, default='-'):
     """A short safe token for a log line (letters, digits and . _ : - only)."""
     t = re.sub(r'[^A-Za-z0-9._:-]', '_', str(v if v is not None else default))[:64]
     return t or default
+
+
+def image_mime(b64):
+    """'image/jpeg' or 'image/png' when the base64 text starts like one of them, else None."""
+    import base64
+    try:
+        head = base64.b64decode(str(b64)[:16], validate=False)
+    except Exception:
+        return None
+    return 'image/jpeg' if head[:3] == b'\xff\xd8\xff' else 'image/png' if head[:8] == b'\x89PNG\r\n\x1a\n' else None
 
 
 def scrub(text):
@@ -208,6 +219,8 @@ class Provider:
             self.log(self.log_line(obj, cap, text, ok, answer, kw, t0))
             return dict({'ok': ok, 'answer': answer, 'request_id': rid, 'agent': self.agent_name(), 'free': self.is_free(), 'model': self.opts.get('model')}, **kw)
         self.served += 1
+        if cap == 'vision' and (cap not in self.CAPABILITIES or image_mime(obj.get('image')) is None):
+            return res(False, 'This agent cannot look at that picture.', why='bad_request')
         if cap not in self.CAPABILITIES or not text:
             return res(False, 'This agent only does %s.' % ' and '.join(self.CAPABILITIES), why='bad_request')
         if obj.get('model') and (not self.HAS_MODELS or obj.get('model') != self.opts['model']):
@@ -235,7 +248,7 @@ class Provider:
             self._count()
         to = self.opts['timeout_s'] if not timeout else max(1, min(self.opts['timeout_s'], timeout))
         try:
-            answer = self.generate(cap, scrub(text[:MAX_IN]), to)
+            answer = self.generate(cap, scrub(text[:MAX_IN]), to, **({'image': obj['image']} if cap == 'vision' else {}))
         except Exception as e:
             self.log('%s failed: %s' % (self.NAME, type(e).__name__))      # type only: never the message
             return res(False, '%s did not answer.' % self.LABEL, why='upstream_error')
