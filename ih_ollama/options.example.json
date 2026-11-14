@@ -1,6 +1,0 @@
-{
-  "models": ["moondream"],
-  "keep_alive": "30s",
-  "max_loaded_models": 1,
-  "num_parallel": 1
-}
