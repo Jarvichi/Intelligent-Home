@@ -751,7 +751,7 @@ def promise_payload(s, rows, now):
         for j in ('morning', 'return'):
             sel = sorted((r for r in rows if journey_of(r) == j), key=lambda r: (r['date'], r['scheduled']), reverse=True)[:n]
             for r in sel:
-                out.append({'date': r['date'], 'journey': j, 'scheduled': r['scheduled'], 'stop': r['stop'], 'stop_name': r.get('stop_name'), 'day_type': r.get('day_type', 'college'),
+                out.append({'id': '%s-%s-%s' % (r['date'], j, r['scheduled']), 'date': r['date'], 'journey': j, 'scheduled': r['scheduled'], 'stop': r['stop'], 'stop_name': r.get('stop_name'), 'day_type': r.get('day_type', 'college'),
                             'promise_journey': bool(r.get('promise_journey')), 'vehicle': r.get('vehicle'), 'vehicle_type': r.get('vehicle_type'), 'deck': r.get('deck'),
                             'verdict': r['verdict'], 'label': LABEL.get(r['verdict'], r['verdict']), 'text': row_text(r),
                             'bus': (r['vehicle'] + (' (%s)' % r['vehicle_type'] if r.get('vehicle_type') and r['vehicle_type'] != '?' else '')) if r.get('vehicle') else '-'})
