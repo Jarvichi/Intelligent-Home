@@ -72,6 +72,12 @@ Nothing is copied by hand between add-ons.
 |---|---|---|---|
 | **Intelligent Home Games** (`ih_games`) | Turns game activity (PlayStation trophies, Xbox gamerscore, Steam, Destiny 2) into friendly chat: decides what is worth saying and queues messages for the chat bots. | `ih_discord`, `mqtt` | [DOCS](ih_games/DOCS.md) |
 
+### Tasks
+
+| Add-on | What it does | Needs | Docs |
+|---|---|---|---|
+| **Intelligent Home - Tasks** (`ih_tasks`) | One list of tasks with stages, one approval step by the owner, questions as a flag on the task, and a full history (board page, token API, own database). | nothing else | [DOCS](ih_tasks/DOCS.md) |
+
 ### Cooking
 
 | Add-on | What it does | Needs | Docs |

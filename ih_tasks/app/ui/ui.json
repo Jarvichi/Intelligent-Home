@@ -1,0 +1,13 @@
+{
+  "title": "Tasks",
+  "purpose": "One list of tasks with stages. You approve a plan once; questions and comments stay on the same task.",
+  "description": "Each task has one number and one stage: To do, Planning, Approved, Implementing, Verifying, Done, or Closed (with a reason). A worker writes the plan. Only you can approve it. A task that needs your input shows a flag and a short form; your answer carries on the same task. Every change is kept in the task's history.",
+  "health_port": 8818,
+  "health_path": "/healthz",
+  "navigation": [
+    "Shows every task on a board, one column per stage",
+    "Lets you approve or reject a plan, answer questions and close a task with a reason",
+    "Keeps the full history of each task"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

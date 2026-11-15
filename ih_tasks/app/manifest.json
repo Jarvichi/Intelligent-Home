@@ -1,0 +1,26 @@
+{
+ "name": "ih_tasks",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "One list of tasks with stages, a single approval step by the owner, questions as a flag on the task, and a full history. Own database, token-protected API, board page.",
+ "owner": "local add-on ih_tasks",
+ "start": "Supervisor add-on 32c8114c_ih_tasks (boot auto)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8818/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8818,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token",
+  "owner_token"
+ ],
+ "restore": "Stop the add-on. The tasks live in the add-on's own database (/data/ih.db, daily snapshots in /data/backup) and are lost on uninstall.",
+ "requires": []
+}
