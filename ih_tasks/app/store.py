@@ -1,0 +1,442 @@
+"""ih_tasks storage: the add-on's own SQLite file (/data/ih.db) through ihlib.db. Rules live in model.py; this file stores what they allow.
+Every change writes one row to `events` in the same transaction, so the history of a task is complete.
+No secrets are stored. Use one long-lived thread per caller (ihlib keeps one connection per thread)."""
+import json
+import os
+import time
+from datetime import datetime, timezone
+
+import model as M
+from ihlib import db as ihdb
+
+MIGRATIONS = [
+    (1, '''CREATE TABLE tasks(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', plan TEXT NOT NULL DEFAULT '',
+            stage TEXT NOT NULL, due TEXT NOT NULL DEFAULT '', verify_by TEXT NOT NULL DEFAULT 'check', revise INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT '', result TEXT NOT NULL DEFAULT '', closed_reason TEXT NOT NULL DEFAULT '', closed_detail TEXT NOT NULL DEFAULT '',
+            duplicate_of INTEGER, created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)'''),
+    (2, 'CREATE INDEX tasks_stage ON tasks(stage)'),
+    (3, '''CREATE TABLE events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id), at TEXT NOT NULL, actor TEXT NOT NULL, kind TEXT NOT NULL,
+            from_stage TEXT NOT NULL DEFAULT '', to_stage TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '')'''),
+    (4, 'CREATE INDEX events_task ON events(task_id, id)'),
+    (5, '''CREATE TABLE questions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id), status TEXT NOT NULL, asked_at TEXT NOT NULL, asked_by TEXT NOT NULL,
+            questions TEXT NOT NULL, after TEXT NOT NULL, answers TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', answered_at TEXT NOT NULL DEFAULT '')'''),
+    (6, "CREATE UNIQUE INDEX questions_one_open ON questions(task_id) WHERE status = 'open'"),
+    (7, '''CREATE TABLE links(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id), at TEXT NOT NULL, actor TEXT NOT NULL, kind TEXT NOT NULL,
+            url TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '')'''),
+    (8, 'CREATE TABLE legacy(kind TEXT NOT NULL, value TEXT NOT NULL, task_id INTEGER NOT NULL REFERENCES tasks(id), PRIMARY KEY(kind, value))'),
+    (9, "CREATE TABLE mirror(task_id INTEGER PRIMARY KEY REFERENCES tasks(id), uid TEXT NOT NULL DEFAULT '', sent TEXT NOT NULL DEFAULT '')"),
+]
+TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
+             'duplicate_of', 'created_by', 'created_at', 'updated_at')
+LIST_LIMIT = 500
+IDENTITY_KINDS = ('todo_uid', 'queue_id')   # sending the same old item twice returns the task it already became; other old ids only label a task
+COMMENT_MAX = 4000
+
+
+def waiting_on(task):
+    """Who has to act next: 'owner', 'worker', 'check' or '' (finished)."""
+    s = task['stage']
+    if s in ('done', 'closed'):
+        return ''
+    if task.get('needs_input'):
+        return 'owner'
+    if s == 'planning':
+        return 'worker' if task.get('revise') else 'owner'
+    if s == 'verifying':
+        return 'owner' if task.get('verify_by') == 'owner' else 'check'
+    return 'worker'
+
+
+class TaskStore:
+    def __init__(self, data_dir, clock=time.time, path=None):
+        self.clock = clock
+        self.path = path or os.path.join(data_dir, ihdb.DB_FILE_NAME)
+        self.db = ihdb.open(self.path, MIGRATIONS, snapshot_dir=os.path.join(data_dir, 'backup'), clock=clock)
+
+    def close(self):
+        self.db.close()
+
+    def now(self):
+        return datetime.fromtimestamp(self.clock(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # ---- reading ----
+    def _row(self, con, task_id):
+        if isinstance(task_id, bool) or not isinstance(task_id, int):
+            raise M.RuleError('bad', 'task number must be a whole number')
+        r = con.execute('SELECT %s FROM tasks WHERE id = ?' % ', '.join(TASK_COLS), (task_id,)).fetchone()
+        if not r:
+            raise M.RuleError('missing', 'no task %d' % task_id)
+        return dict(zip(TASK_COLS, r))
+
+    def _open_question(self, con, task_id):
+        r = con.execute("SELECT id, asked_at, asked_by, questions, after FROM questions WHERE task_id = ? AND status = 'open'", (task_id,)).fetchone()
+        return None if not r else {'id': r[0], 'asked_at': r[1], 'asked_by': r[2], 'questions': json.loads(r[3]), 'after': r[4]}
+
+    def _view(self, con, t, open_ids=None):
+        t = dict(t)
+        t['revise'] = bool(t['revise'])
+        t['needs_input'] = (t['id'] in open_ids) if open_ids is not None else self._open_question(con, t['id']) is not None
+        t['stage_label'] = M.STAGE_LABELS[t['stage']]
+        t['waiting_on'] = waiting_on(t)
+        return t
+
+    def get(self, task_id):
+        """The whole task: fields, open question set, past question sets, links, old identifiers and the full history."""
+        con = self.db.con
+        t = self._view(con, self._row(con, task_id))
+        t['question'] = self._open_question(con, task_id)
+        t['past_questions'] = [{'id': r[0], 'status': r[1], 'asked_at': r[2], 'questions': json.loads(r[3]), 'after': r[4],
+                                'answers': json.loads(r[5]) if r[5] else {}, 'note': r[6], 'answered_at': r[7]}
+                               for r in con.execute("SELECT id, status, asked_at, questions, after, answers, note, answered_at FROM questions WHERE task_id = ? AND status != 'open' ORDER BY id", (task_id,))]
+        t['links'] = [{'id': r[0], 'at': r[1], 'actor': r[2], 'kind': r[3], 'url': r[4], 'text': r[5]}
+                      for r in con.execute('SELECT id, at, actor, kind, url, text FROM links WHERE task_id = ? ORDER BY id', (task_id,))]
+        t['legacy'] = [{'kind': r[0], 'value': r[1]} for r in con.execute('SELECT kind, value FROM legacy WHERE task_id = ? ORDER BY kind, value', (task_id,))]
+        t['history'] = self.history(task_id)
+        t['comments'] = [e for e in t['history'] if e['kind'] == 'comment']
+        return t
+
+    def history(self, task_id):
+        con = self.db.con
+        self._row(con, task_id)
+        return [{'id': r[0], 'at': r[1], 'actor': r[2], 'kind': r[3], 'from': r[4], 'to': r[5], 'text': r[6], 'data': json.loads(r[7]) if r[7] else {}}
+                for r in con.execute('SELECT id, at, actor, kind, from_stage, to_stage, text, data FROM events WHERE task_id = ? ORDER BY id', (task_id,))]
+
+    def list(self, stages=None, needs_input=None, waiting=None, q='', limit=LIST_LIMIT):
+        """Task summaries (no plan or description text), oldest number first. Filters: stages (list), needs_input (bool), waiting (owner|worker|check), q (text in the title or the number)."""
+        con = self.db.con
+        for s in stages or ():
+            if s not in M.STAGES:
+                raise M.RuleError('bad', 'stage must be from: ' + ', '.join(M.STAGES))
+        if waiting not in (None, '', 'owner', 'worker', 'check'):
+            raise M.RuleError('bad', 'waiting must be owner, worker or check')
+        sql, args = 'SELECT %s FROM tasks' % ', '.join(TASK_COLS), []
+        if stages:
+            sql += ' WHERE stage IN (%s)' % ', '.join('?' * len(stages))
+            args += list(stages)
+        open_ids = {r[0] for r in con.execute("SELECT task_id FROM questions WHERE status = 'open'")}
+        out, needle = [], (q or '').strip().lower().lstrip('#')
+        for r in con.execute(sql + ' ORDER BY id', args):
+            t = self._view(con, dict(zip(TASK_COLS, r)), open_ids)
+            if needs_input is not None and t['needs_input'] != bool(needs_input):
+                continue
+            if waiting and t['waiting_on'] != waiting:
+                continue
+            if needle and needle not in t['title'].lower() and needle != str(t['id']):
+                continue
+            t['has_plan'] = bool(t.pop('plan'))
+            t.pop('description')
+            out.append(t)
+        return out[:max(1, min(int(limit), LIST_LIMIT))]
+
+    def board(self):
+        """{columns: [{stage, label, count, tasks}], needs_input, total} for the Kanban page."""
+        items = self.list()
+        return {'columns': [{'stage': s, 'label': M.STAGE_LABELS[s], 'tasks': [t for t in items if t['stage'] == s]} for s in M.STAGES],
+                'needs_input': sum(1 for t in items if t['needs_input']), 'total': len(items)}
+
+    def by_legacy(self, kind, value):
+        r = self.db.con.execute('SELECT task_id FROM legacy WHERE kind = ? AND value = ?', (kind, value)).fetchone()
+        return self.get(r[0]) if r else None
+
+    def counts(self):
+        c = {s: 0 for s in M.STAGES}
+        for stage, n in self.db.con.execute('SELECT stage, COUNT(*) FROM tasks GROUP BY stage'):
+            c[stage] = n
+        return c
+
+    # ---- writing (each method is one transaction) ----
+    def _event(self, con, task_id, actor, kind, frm='', to='', text='', data=None):
+        at = self.now()
+        con.execute('INSERT INTO events(task_id, at, actor, kind, from_stage, to_stage, text, data) VALUES(?,?,?,?,?,?,?,?)',
+                    (task_id, at, actor, kind, frm, to, text, json.dumps(data, ensure_ascii=False) if data else ''))
+        con.execute('UPDATE tasks SET updated_at = ? WHERE id = ?', (at, task_id))
+
+    def _add_legacy(self, con, task_id, legacy):
+        for x in legacy:
+            r = con.execute('SELECT task_id FROM legacy WHERE kind = ? AND value = ?', (x['kind'], x['value'])).fetchone()
+            if r and r[0] != task_id:
+                raise M.RuleError('conflict', 'old identifier %s already belongs to task %d' % (x['kind'], r[0]))
+            con.execute('INSERT OR IGNORE INTO legacy(kind, value, task_id) VALUES(?,?,?)', (x['kind'], x['value'], task_id))
+
+    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor):
+        at = self.now()
+        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                          (title, description, plan, stage, due, verify_by, source, actor, at, at))
+        return cur.lastrowid
+
+    def _close(self, con, t, actor, c):
+        if c['duplicate_of'] is not None:
+            self._row(con, c['duplicate_of'])
+        con.execute('UPDATE tasks SET stage = ?, closed_reason = ?, closed_detail = ?, duplicate_of = ? WHERE id = ?',
+                    ('closed', c['reason_kind'], c['detail'], c['duplicate_of'], t['id']))
+        open_q = self._open_question(con, t['id'])
+        if open_q:
+            con.execute("UPDATE questions SET status = 'withdrawn', answered_at = ? WHERE id = ?", (self.now(), open_q['id']))
+        self._event(con, t['id'], actor, 'closed', t['stage'], 'closed', c['detail'], {'reason': c['reason_kind'], 'duplicate_of': c['duplicate_of']})
+
+    def create(self, title, actor, description='', due='', source='', legacy=None, allow_duplicate=False):
+        """New task in To do. If an OPEN task has nearly the same title, the new task is still stored (so nothing is lost) but closed at once as a
+        duplicate of it, with a link in its history. -> {task, duplicate_of, similar, existing}. A task that already owns the same old to-do uid or queue id is returned as-is (existing True)."""
+        M.check_actor(actor)
+        title = M.clean_text(title, M.TITLE_MAX, 'title', required=True)
+        description = M.clean_text(description, M.TEXT_MAX, 'description')
+        source = M.clean_text(source, 200, 'source')
+        due = M.check_due(due)
+        legacy = M.check_legacy(legacy)
+        with self.db.tx() as con:
+            for x in legacy:
+                r = con.execute('SELECT task_id FROM legacy WHERE kind = ? AND value = ?', (x['kind'], x['value'])).fetchone() if x['kind'] in IDENTITY_KINDS else None
+                if r:
+                    return {'task': self.get(r[0]), 'duplicate_of': None, 'similar': [], 'existing': True}
+            hits = [] if allow_duplicate else M.find_duplicates(title, con.execute(
+                'SELECT id, title FROM tasks WHERE stage IN (%s)' % ', '.join('?' * len(M.OPEN_STAGES)), M.OPEN_STAGES).fetchall())
+            tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor)
+            self._add_legacy(con, tid, legacy)
+            self._event(con, tid, actor, 'created', '', 'todo', '', {'source': source} if source else None)
+            dup = None
+            if hits:
+                dup = hits[0][0]
+                c = {'reason_kind': 'duplicate', 'detail': 'Same as task %d (title match %d%%). Closed when it was created.' % (dup, round(hits[0][2] * 100)), 'duplicate_of': dup}
+                self._close(con, {'id': tid, 'stage': 'todo'}, 'system', c)
+                self._event(con, dup, 'system', 'duplicate_linked', text='Task %d was created with nearly the same title and closed as a duplicate of this one.' % tid, data={'task': tid})
+        return {'task': self.get(tid), 'duplicate_of': dup, 'similar': [{'id': h[0], 'title': h[1], 'score': h[2]} for h in hits], 'existing': False}
+
+    def transition(self, task_id, to, actor, reason='', plan='', result='', verify_by=None):
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            c = M.check_transition(t, to, actor, reason, plan, result, self._open_question(con, task_id) is not None)
+            if verify_by is not None:
+                if verify_by not in M.VERIFY_BY:
+                    raise M.RuleError('bad', 'verify_by must be check or owner')
+                if actor not in ('worker', 'owner') or to not in ('planning', 'verifying'):
+                    raise M.RuleError('bad', 'verify_by is set by the worker with the plan or when the work goes to Verifying')
+            sets, args = ['stage = ?'], [to]
+            if c['plan']:
+                if to != 'planning':
+                    raise M.RuleError('bad', 'a plan is only sent with a move to Planning')
+                sets.append('plan = ?'); args.append(c['plan'])
+            if to == 'planning':
+                # back in Planning after approval: the plan must be looked at again, so flag it for the worker unless a new plan came with the move
+                sets.append('revise = ?'); args.append(0 if (t['stage'] == 'todo' or c['plan']) else 1)
+            if c['result']:
+                sets.append('result = ?'); args.append(c['result'])
+            if verify_by is not None:
+                sets.append('verify_by = ?'); args.append(verify_by)
+            if to == 'todo':
+                sets += ["closed_reason = ''", "closed_detail = ''", 'duplicate_of = NULL', 'revise = 0']
+            con.execute('UPDATE tasks SET %s WHERE id = ?' % ', '.join(sets), args + [task_id])
+            data = {k: v for k, v in (('result', c['result']), ('verify_by', verify_by), ('plan_sent', bool(c['plan']))) if v}
+            self._event(con, task_id, actor, 'moved', t['stage'], to, c['reason'], data or None)
+        return self.get(task_id)
+
+    def set_plan(self, task_id, actor, plan, verify_by=None):
+        """A worker rewrites the plan while the task is in Planning (after a rejection or an answer). Clears the 'revise' flag. An approved plan cannot be changed: move the task back to Planning first."""
+        M.check_actor(actor)
+        if actor != 'worker':
+            raise M.RuleError('forbidden', 'only a worker writes the plan')
+        plan = M.clean_text(plan, M.TEXT_MAX, 'plan', required=True)
+        if verify_by is not None and verify_by not in M.VERIFY_BY:
+            raise M.RuleError('bad', 'verify_by must be check or owner')
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            if t['stage'] != 'planning':
+                raise M.RuleError('conflict', 'the plan can only be changed in Planning (the task is in %s)' % M.STAGE_LABELS[t['stage']])
+            con.execute('UPDATE tasks SET plan = ?, revise = 0, verify_by = COALESCE(?, verify_by) WHERE id = ?', (plan, verify_by, task_id))
+            self._event(con, task_id, actor, 'plan', text='Plan rewritten.')
+        return self.get(task_id)
+
+    def reject(self, task_id, actor, comment):
+        """The owner sends a plan back: the task stays in Planning, flagged for the worker to revise, with the owner's comment in the history."""
+        M.check_actor(actor)
+        if actor != 'owner':
+            raise M.RuleError('forbidden', 'only the owner rejects a plan')
+        comment = M.clean_text(comment, COMMENT_MAX, 'comment', required=True)
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            if t['stage'] != 'planning':
+                raise M.RuleError('conflict', 'only a task in Planning can be rejected (to stop another task, close it with a reason)')
+            con.execute('UPDATE tasks SET revise = 1 WHERE id = ?', (task_id,))
+            self._event(con, task_id, actor, 'rejected', 'planning', 'planning', comment)
+        return self.get(task_id)
+
+    def close_task(self, task_id, actor, reason_kind, detail='', duplicate_of=None):
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            self._close(con, t, actor, M.check_close(t, actor, reason_kind, detail, duplicate_of))
+        return self.get(task_id)
+
+    def comment(self, task_id, actor, text):
+        """A note on the task. It never creates another task and never changes the stage."""
+        M.check_actor(actor)
+        text = M.clean_text(text, COMMENT_MAX, 'comment', required=True)
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            self._event(con, task_id, actor, 'comment', text=text)
+        return self.get(task_id)
+
+    def edit(self, task_id, actor, title=None, description=None, due=None):
+        M.check_actor(actor)
+        if actor not in ('owner', 'worker'):
+            raise M.RuleError('forbidden', 'only the owner or a worker edits a task')
+        sets, args, changed = [], [], []
+        if title is not None:
+            sets.append('title = ?'); args.append(M.clean_text(title, M.TITLE_MAX, 'title', required=True)); changed.append('title')
+        if description is not None:
+            sets.append('description = ?'); args.append(M.clean_text(description, M.TEXT_MAX, 'description')); changed.append('description')
+        if due is not None:
+            sets.append('due = ?'); args.append(M.check_due(due)); changed.append('due')
+        if not sets:
+            raise M.RuleError('bad', 'nothing to change')
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            con.execute('UPDATE tasks SET %s WHERE id = ?' % ', '.join(sets), args + [task_id])
+            self._event(con, task_id, actor, 'edited', text='Changed: ' + ', '.join(changed))
+        return self.get(task_id)
+
+    def ask(self, task_id, actor, questions, after):
+        """Open THE question set of a task (at most one open). `after` says in plain words what happens once it is answered."""
+        M.check_actor(actor)
+        if actor not in ('worker', 'system'):
+            raise M.RuleError('forbidden', 'questions come from a worker')
+        qs = M.clean_questions(questions)
+        after = M.clean_text(after, 1000, 'after (what happens after the answer)', required=True)
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            if t['stage'] in ('done', 'closed'):
+                raise M.RuleError('conflict', 'the task is finished')
+            if self._open_question(con, task_id):
+                raise M.RuleError('conflict', 'this task already has open questions; wait for the answer or withdraw them')
+            con.execute("INSERT INTO questions(task_id, status, asked_at, asked_by, questions, after) VALUES(?, 'open', ?, ?, ?, ?)",
+                        (task_id, self.now(), actor, json.dumps(qs, ensure_ascii=False), after))
+            self._event(con, task_id, actor, 'asked', text=after, data={'questions': len(qs)})
+        return self.get(task_id)
+
+    def withdraw_question(self, task_id, actor, reason):
+        M.check_actor(actor)
+        if actor not in ('worker', 'owner'):
+            raise M.RuleError('forbidden', 'only the owner or a worker withdraws questions')
+        reason = M.clean_text(reason, M.REASON_MAX, 'reason', required=True)
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            q = self._open_question(con, task_id)
+            if not q:
+                raise M.RuleError('conflict', 'this task has no open questions')
+            con.execute("UPDATE questions SET status = 'withdrawn', note = ?, answered_at = ? WHERE id = ?", (reason, self.now(), q['id']))
+            self._event(con, task_id, actor, 'question_withdrawn', text=reason)
+        return self.get(task_id)
+
+    def answer(self, task_id, actor, answers, note=''):
+        """The owner answers the open question set. The SAME task carries on (same stage); in Planning it is flagged for the worker to update the plan."""
+        M.check_actor(actor)
+        if actor != 'owner':
+            raise M.RuleError('forbidden', 'only the owner answers')
+        note = M.clean_text(note, COMMENT_MAX, 'note')
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            q = self._open_question(con, task_id)
+            if not q:
+                raise M.RuleError('conflict', 'this task has no open questions')
+            clean = M.clean_answers(q['questions'], answers)
+            con.execute("UPDATE questions SET status = 'answered', answers = ?, note = ?, answered_at = ? WHERE id = ?",
+                        (json.dumps(clean, ensure_ascii=False), note, self.now(), q['id']))
+            if t['stage'] == 'planning':
+                con.execute('UPDATE tasks SET revise = 1 WHERE id = ?', (task_id,))
+            self._event(con, task_id, actor, 'answered', text=note, data={'answers': clean})
+        return self.get(task_id)
+
+    def add_link(self, task_id, actor, kind, url='', text=''):
+        """Attach a result or a pull request link."""
+        M.check_actor(actor)
+        if kind not in M.LINK_KINDS:
+            raise M.RuleError('bad', 'kind must be one of: ' + ', '.join(M.LINK_KINDS))
+        url = M.clean_text(url, 500, 'url')
+        text = M.clean_text(text, COMMENT_MAX, 'text')
+        if url and not (url.startswith('https://') or url.startswith('http://')):
+            raise M.RuleError('bad', 'url must start with http:// or https://')
+        if not url and not text:
+            raise M.RuleError('bad', 'give a url or a text')
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            con.execute('INSERT INTO links(task_id, at, actor, kind, url, text) VALUES(?,?,?,?,?,?)', (task_id, self.now(), actor, kind, url, text))
+            self._event(con, task_id, actor, 'link', text=text, data={'kind': kind, 'url': url})
+        return self.get(task_id)
+
+    def add_legacy(self, task_id, actor, legacy):
+        M.check_actor(actor)
+        legacy = M.check_legacy(legacy)
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            self._add_legacy(con, task_id, legacy)
+        return self.get(task_id)
+
+    def import_task(self, item):
+        """Migration only (owner token). item: {title, stage, description?, plan?, due?, verify_by?, legacy?, question?: {questions, after},
+        close?: {reason_kind, detail}, notes?: [text], why?: text}. Stored in the given stage with ONE 'imported' event that says why.
+        A task that already owns the same old to-do uid or queue id is left alone. -> {task, existing}."""
+        if not isinstance(item, dict):
+            raise M.RuleError('bad', 'item must be an object')
+        extra = set(item) - {'title', 'stage', 'description', 'plan', 'due', 'verify_by', 'legacy', 'question', 'close', 'notes', 'why'}
+        if extra:
+            raise M.RuleError('bad', 'unknown field: %s' % sorted(extra)[0][:30])
+        title = M.clean_text(item.get('title'), M.TITLE_MAX, 'title', required=True)
+        stage = item.get('stage')
+        if stage not in M.STAGES or stage in ('implementing', 'verifying', 'done'):
+            raise M.RuleError('bad', 'an imported task starts in todo, planning, approved or closed')
+        description = M.clean_text(item.get('description'), M.TEXT_MAX, 'description')
+        plan = M.clean_text(item.get('plan'), M.TEXT_MAX, 'plan')
+        if stage in ('planning', 'approved') and not plan:
+            raise M.RuleError('bad', 'a task imported into Planning or Approved needs a plan')
+        due = M.check_due(item.get('due'))
+        verify_by = item.get('verify_by', 'check')
+        if verify_by not in M.VERIFY_BY:
+            raise M.RuleError('bad', 'verify_by must be check or owner')
+        legacy = M.check_legacy(item.get('legacy'))
+        why = M.clean_text(item.get('why'), M.REASON_MAX, 'why')
+        notes = item.get('notes') or []
+        if not isinstance(notes, list) or len(notes) > 100:
+            raise M.RuleError('bad', 'notes must be a short list of texts')
+        notes = [M.clean_text(n, COMMENT_MAX, 'note', required=True) for n in notes]
+        question = item.get('question')
+        if question is not None:
+            if not isinstance(question, dict) or stage == 'closed':
+                raise M.RuleError('bad', 'question must be {questions, after} on an open task')
+            qs = M.clean_questions(question.get('questions'))
+            after = M.clean_text(question.get('after'), 1000, 'after', required=True)
+        close = item.get('close')
+        if (stage == 'closed') != (close is not None):
+            raise M.RuleError('bad', 'a closed task needs close {reason_kind, detail}; an open one must not have it')
+        with self.db.tx() as con:
+            for x in legacy:
+                r = con.execute('SELECT task_id FROM legacy WHERE kind = ? AND value = ?', (x['kind'], x['value'])).fetchone() if x['kind'] in IDENTITY_KINDS else None
+                if r:
+                    return {'task': self.get(r[0]), 'existing': True}
+            first = 'todo' if stage == 'closed' else stage
+            tid = self._insert(con, title, description, plan, first, due, verify_by, 'import', 'system')
+            self._add_legacy(con, tid, legacy)
+            self._event(con, tid, 'system', 'imported', '', first, why)
+            for n in notes:
+                self._event(con, tid, 'system', 'comment', text=n, data={'imported': True})
+            if question is not None:
+                con.execute("INSERT INTO questions(task_id, status, asked_at, asked_by, questions, after) VALUES(?, 'open', ?, 'system', ?, ?)",
+                            (tid, self.now(), json.dumps(qs, ensure_ascii=False), after))
+                self._event(con, tid, 'system', 'asked', text=after, data={'questions': len(qs)})
+            if close is not None:
+                if not isinstance(close, dict):
+                    raise M.RuleError('bad', 'close must be {reason_kind, detail}')
+                t = {'id': tid, 'stage': 'todo'}
+                self._close(con, t, 'system', M.check_close(t, 'system', close.get('reason_kind'), close.get('detail', ''), close.get('duplicate_of')))
+        return {'task': self.get(tid), 'existing': False}
+
+    # ---- mirror bookkeeping (see mirror.py) ----
+    def mirror_rows(self):
+        return {r[0]: {'uid': r[1], 'sent': r[2]} for r in self.db.con.execute('SELECT task_id, uid, sent FROM mirror')}
+
+    def mirror_set(self, task_id, uid, sent):
+        self.db.execute('INSERT INTO mirror(task_id, uid, sent) VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET uid = excluded.uid, sent = excluded.sent', (task_id, uid, sent))
+
+    def legacy_uids(self):
+        return {r[0]: r[1] for r in self.db.con.execute("SELECT task_id, value FROM legacy WHERE kind = 'todo_uid'")}

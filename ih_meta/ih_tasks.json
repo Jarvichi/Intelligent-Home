@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Tasks",
+  "purpose": "One board of tasks with stages. You approve a plan once; questions stay on the same task."
+ }
+}
