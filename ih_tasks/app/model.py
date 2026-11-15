@@ -226,21 +226,31 @@ def check_legacy(legacy):
 
 # ---- duplicate titles (same idea as the old host helper: sequence ratio or word overlap, whichever is higher) ----
 
-_PREFIX = re.compile(r'^(handoff( from \w+)?|plan|built|waiting|todo|ih|check|review)\s*:\s*')
+# Labels that say where a task came from, not what it is. Stripped (repeatedly) before titles are compared, so
+# "Handoff: X", "Handoff from <name>: X", "OK: X", "OK #12: X" and "Reopened: X" all compare as "X".
+_PREFIX = re.compile(r"^(handoff( from [\w.'-]+( [\w.'-]+)?)?|ok( ?#?\d+)?|reopened|plan|built|waiting|todo|ih|check|review)\s*:\s*")
 
 
 def _words(s):
-    s = _PREFIX.sub('', (s or '').lower().strip())
+    s = (s or '').lower().strip()
+    for _ in range(4):
+        cut = _PREFIX.sub('', s)
+        if cut == s:
+            break
+        s = cut
     return re.sub(r'[^a-z0-9 ]+', ' ', s).split()
 
 
-def similar(a, b):
-    """0..1 for two titles."""
-    wa, wb = _words(a), _words(b)
+def _similar_words(wa, wb):
     if not wa or not wb:
         return 0.0
     sa, sb = set(wa), set(wb)
     return max(difflib.SequenceMatcher(None, ' '.join(wa), ' '.join(wb)).ratio(), len(sa & sb) / len(sa | sb))
+
+
+def similar(a, b):
+    """0..1 for two titles."""
+    return _similar_words(_words(a), _words(b))
 
 
 def find_duplicates(title, candidates, threshold=DUPLICATE_THRESHOLD, limit=5):
@@ -251,3 +261,64 @@ def find_duplicates(title, candidates, threshold=DUPLICATE_THRESHOLD, limit=5):
         if s >= threshold:
             hits.append((cid, ctitle, round(s, 2)))
     return sorted(hits, key=lambda h: (-h[2], h[0]))[:limit]
+
+
+def duplicate_groups(tasks, dismissed=(), threshold=DUPLICATE_THRESHOLD):
+    """tasks: [(id, title)] of OPEN tasks; dismissed: pairs (low id, high id) the owner said are not duplicates.
+    -> [{'ids': [id, ...], 'score': lowest match in the group}] lowest first id first; only groups of 2 or more.
+    A group is built around its first (lowest numbered) task: every other member matches THAT task, so titles cannot drift
+    along a chain, and no member is a dismissed pair with a task already in the group."""
+    dismissed = set(dismissed)
+    items = sorted((tid, _words(title)) for tid, title in tasks)
+    used, groups = set(), []
+    for i, (seed, sw) in enumerate(items):
+        if seed in used or not sw:
+            continue
+        ids, low = [seed], 1.0
+        for other, ow in items[i + 1:]:
+            if other in used or not ow:
+                continue
+            s = _similar_words(sw, ow)
+            if s < threshold or any((m, other) in dismissed for m in ids):
+                continue
+            ids.append(other)
+            low = min(low, s)
+        if len(ids) > 1:
+            used.update(ids)
+            groups.append({'ids': ids, 'score': round(low, 2)})
+    return groups
+
+
+# ---- merge ----
+
+MERGE_MAX = 20
+_RANK = {s: n for n, s in enumerate(OPEN_STAGES)}
+_APPROVED = _RANK['approved']
+
+
+def default_keeper(tasks):
+    """tasks: [{id, stage}] (open) -> the id to keep: the most advanced stage, then the lowest number.
+    So an Approved (or later) task is never the one that is closed by default."""
+    return max(tasks, key=lambda t: (_RANK.get(t['stage'], -1), -t['id']))['id']
+
+
+def check_merge(keeper, others, actor):
+    """Refuse (RuleError) a merge of `others` (task dicts) into `keeper`. Open stages may differ, but an owner's approval is never lost:
+    a task that is Approved or further on cannot be merged into a task in an earlier stage."""
+    check_actor(actor)
+    if actor == 'check':
+        raise RuleError('forbidden', 'a check cannot merge tasks')
+    if not others:
+        raise RuleError('bad', 'merge needs at least one other task')
+    if len(others) > MERGE_MAX:
+        raise RuleError('bad', 'at most %d tasks in one merge' % MERGE_MAX)
+    ids = [t['id'] for t in others]
+    if keeper['id'] in ids or len(set(ids)) != len(ids):
+        raise RuleError('bad', 'each task can be named once; the task to keep is not in the merge list')
+    for t in [keeper] + list(others):
+        if t['stage'] not in OPEN_STAGES:
+            raise RuleError('conflict', 'task %d is %s; only open tasks can be merged' % (t['id'], STAGE_LABELS[t['stage']]))
+    for t in others:
+        if _RANK[t['stage']] >= _APPROVED and _RANK[t['stage']] > _RANK[keeper['stage']]:
+            raise RuleError('conflict', 'task %d is %s and task %d is only %s: keep task %d instead, so the approval is not lost'
+                            % (t['id'], STAGE_LABELS[t['stage']], keeper['id'], STAGE_LABELS[keeper['stage']], t['id']))
