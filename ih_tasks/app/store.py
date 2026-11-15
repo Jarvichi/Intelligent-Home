@@ -29,6 +29,8 @@ MIGRATIONS = [
             url TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '')'''),
     (8, 'CREATE TABLE legacy(kind TEXT NOT NULL, value TEXT NOT NULL, task_id INTEGER NOT NULL REFERENCES tasks(id), PRIMARY KEY(kind, value))'),
     (9, "CREATE TABLE mirror(task_id INTEGER PRIMARY KEY REFERENCES tasks(id), uid TEXT NOT NULL DEFAULT '', sent TEXT NOT NULL DEFAULT '')"),
+    # pairs of tasks the owner said are NOT duplicates (a < b), so "Find duplicates" stops offering them
+    (10, 'CREATE TABLE not_duplicates(a INTEGER NOT NULL REFERENCES tasks(id), b INTEGER NOT NULL REFERENCES tasks(id), at TEXT NOT NULL, PRIMARY KEY(a, b))'),
 ]
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
              'duplicate_of', 'created_by', 'created_at', 'updated_at')
@@ -372,6 +374,91 @@ class TaskStore:
             self._row(con, task_id)
             self._add_legacy(con, task_id, legacy)
         return self.get(task_id)
+
+    # ---- merge and likely duplicates ----
+    def _ids(self, ids, name, least):
+        if not isinstance(ids, list) or not least <= len(ids) <= M.MERGE_MAX or any(isinstance(x, bool) or not isinstance(x, int) for x in ids):
+            raise M.RuleError('bad', '%s must be a list of %d to %d task numbers' % (name, least, M.MERGE_MAX))
+        if len(set(ids)) != len(ids):
+            raise M.RuleError('bad', '%s names a task twice' % name)
+        return ids
+
+    def merge(self, keep, merge, actor):
+        """Merge tasks `merge` INTO task `keep`, in ONE transaction (all of it or none of it). For each merged task:
+        its comments are copied to the keeper as "From #N: ..."; its open question set moves to the keeper when the keeper has none
+        (otherwise the question text becomes a comment); its links are copied; its old ids move, so they now find the keeper;
+        the keeper takes the earliest due date; then the task is closed as a duplicate of the keeper. Both histories get a line.
+        The plan and description of a merged task stay on that (closed) task. -> {task: keeper, merged: [ids]}."""
+        self._ids(merge, 'merge', 1)
+        with self.db.tx() as con:
+            k = self._row(con, keep)
+            others = [self._row(con, i) for i in merge]
+            M.check_merge(k, others, actor)
+            due = min([t['due'] for t in [k] + others if t['due']] or [''])
+            for t in [k] + others:      # pin each task to its own mirrored list item before old ids move (see mirror.py)
+                uid = con.execute("SELECT MIN(value) FROM legacy WHERE task_id = ? AND kind = 'todo_uid'", (t['id'],)).fetchone()[0]
+                if uid:
+                    con.execute("INSERT INTO mirror(task_id, uid, sent) VALUES(?, ?, '') ON CONFLICT(task_id) DO UPDATE SET uid = excluded.uid WHERE mirror.uid = ''", (t['id'], uid))
+            for t in others:
+                n = t['id']
+                comments = con.execute("SELECT at, actor, text FROM events WHERE task_id = ? AND kind = 'comment' ORDER BY id", (n,)).fetchall()
+                for at, who, text in comments:
+                    self._event(con, keep, who, 'comment', text='From #%d: %s' % (n, text), data={'merged_from': n, 'at': at})
+                q = self._open_question(con, n)
+                moved_q = False
+                if q and not self._open_question(con, keep):
+                    con.execute('UPDATE questions SET task_id = ? WHERE id = ?', (keep, q['id']))
+                    self._event(con, keep, q['asked_by'], 'asked', text=q['after'], data={'questions': len(q['questions']), 'merged_from': n})
+                    moved_q = True
+                elif q:
+                    lines = ['%s%s' % (x['text'], ' (%s)' % ' / '.join(x['options']) if x['options'] else '') for x in q['questions']]
+                    self._event(con, keep, q['asked_by'], 'comment', text='From #%d: open question: %s' % (n, ' | '.join(lines)), data={'merged_from': n, 'question': True})
+                have = set(con.execute('SELECT kind, url, text FROM links WHERE task_id = ?', (keep,)).fetchall())
+                links = 0
+                for at, who, kind, url, text in con.execute('SELECT at, actor, kind, url, text FROM links WHERE task_id = ? ORDER BY id', (n,)).fetchall():
+                    if (kind, url, text) not in have:
+                        have.add((kind, url, text))
+                        con.execute('INSERT INTO links(task_id, at, actor, kind, url, text) VALUES(?,?,?,?,?,?)', (keep, at, who, kind, url, text))
+                        links += 1
+                old = [{'kind': r[0], 'value': r[1]} for r in con.execute('SELECT kind, value FROM legacy WHERE task_id = ? ORDER BY kind, value', (n,))]
+                con.execute('UPDATE legacy SET task_id = ? WHERE task_id = ?', (keep, n))
+                moved = {'comments': len(comments), 'links': links, 'old_ids': old, 'question': 'moved' if moved_q else 'comment' if q else ''}
+                self._close(con, t, actor, M.check_close(t, actor, 'duplicate', 'Merged into task %d.' % keep, keep))
+                self._event(con, n, actor, 'merged_into', text='Merged into task %d. Its comments, links and old ids are on that task now.' % keep, data=dict(moved, task=keep))
+                self._event(con, keep, actor, 'merged', text='Task %d (%s) was merged into this one.' % (n, t['title']), data=dict(moved, task=n, stage=t['stage']))
+            if due != k['due']:
+                con.execute('UPDATE tasks SET due = ? WHERE id = ?', (due, keep))
+                self._event(con, keep, actor, 'edited', text='Changed: due (the earliest date of the merged tasks)')
+        return {'task': self.get(keep), 'merged': list(merge)}
+
+    def duplicates(self):
+        """Groups of OPEN tasks whose titles nearly match (labels such as "Handoff from <name>:" are ignored), without the pairs marked as not duplicates.
+        -> {groups: [{ids, score, keep (the task a merge would keep by default), tasks: [summaries]}]}"""
+        con = self.db.con
+        by_id = {t['id']: t for t in self.list(stages=list(M.OPEN_STAGES))}
+        dismissed = con.execute('SELECT a, b FROM not_duplicates').fetchall()
+        groups = M.duplicate_groups([(i, t['title']) for i, t in by_id.items()], dismissed)
+        for g in groups:
+            g['tasks'] = [by_id[i] for i in g['ids']]
+            g['keep'] = M.default_keeper(g['tasks'])
+        return {'groups': groups}
+
+    def not_duplicates(self, ids, actor):
+        """Remember that these tasks are NOT duplicates of each other (every pair), so they are not offered again."""
+        M.check_actor(actor)
+        if actor == 'check':
+            raise M.RuleError('forbidden', 'a check cannot decide this')
+        ids = sorted(self._ids(ids, 'ids', 2))
+        with self.db.tx() as con:
+            for i in ids:
+                self._row(con, i)
+            at = self.now()
+            for x, a in enumerate(ids):
+                for b in ids[x + 1:]:
+                    con.execute('INSERT OR IGNORE INTO not_duplicates(a, b, at) VALUES(?,?,?)', (a, b, at))
+            for i in ids:
+                self._event(con, i, actor, 'not_duplicate', text='Marked as not a duplicate of %s.' % ', '.join('#%d' % o for o in ids if o != i))
+        return {'ids': ids}
 
     def import_task(self, item):
         """Migration only (owner token). item: {title, stage, description?, plan?, due?, verify_by?, legacy?, question?: {questions, after},

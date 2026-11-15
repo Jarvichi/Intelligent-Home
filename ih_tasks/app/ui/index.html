@@ -49,6 +49,13 @@
           </div>
         </div>
 
+        <div class="t-tools">
+          <button id="merge-toggle" class="t-button" type="button" aria-pressed="false">Merge</button>
+          <button id="dup-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="dup-view">Find duplicates</button>
+        </div>
+        <p id="tools-msg" class="t-msg" role="status" aria-live="polite"></p>
+        <section id="dup-view" class="t-dups" aria-label="Likely duplicates" hidden></section>
+
         <div id="board" class="t-board"></div>
         <details id="closed-box" class="t-closed">
           <summary><span id="closed-title">Closed</span></summary>
@@ -63,6 +70,7 @@
       </section>
 
       <p id="access" class="ih-metadata"></p>
+      <div id="merge-bar" class="t-mergebar" role="region" aria-label="Merge tasks" hidden></div>
     </main>
   </ih-app>
   <script src="ih-ui.js"></script>

@@ -12,6 +12,7 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?}
   POST /tasks/<n>/ask {questions, after}   POST /tasks/<n>/answer {answers, note?}   POST /tasks/<n>/withdraw {reason}
   POST /tasks/<n>/link {kind, url?, text?}   POST /tasks/<n>/legacy {legacy}   POST /import {item} (owner token)
+  POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
 The ingress page (IHT_UI_PORT, Home Assistant sign-in, admin only) uses the same routes under /api/ and always acts as the owner.
 Unknown fields are refused. Task text is never logged. stdlib only."""
 import hmac
@@ -32,7 +33,7 @@ import mirror as MIRROR
 import model as M
 from store import TaskStore
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -119,6 +120,8 @@ def dispatch(store, status, method, path, query, body, role):
             if ni not in ('', '0', '1'):
                 raise M.RuleError('bad', 'needs_input must be 0 or 1')
             return {'tasks': store.list(stages or None, None if ni == '' else ni == '1', one('waiting') or None, one('q'))}
+        if path == '/tasks/duplicates':
+            return store.duplicates()
         if path == '/legacy':
             q = parse_qs(query)
             kind, value = (q.get('kind') or [''])[0], (q.get('value') or [''])[0]
@@ -142,6 +145,14 @@ def dispatch(store, status, method, path, query, body, role):
         if not isinstance(body.get('allow_duplicate', False), bool):
             raise M.RuleError('bad', 'allow_duplicate must be true or false')
         return store.create(body['title'], actor, body.get('description', ''), body.get('due', ''), body.get('source', ''), body.get('legacy'), body.get('allow_duplicate', False))
+    if path == '/tasks/merge':
+        actor = actor_of(role, body)
+        check_fields(body, {'keep', 'merge'}, {'keep', 'merge'})
+        return store.merge(body['keep'], body['merge'], actor)
+    if path == '/tasks/duplicates/dismiss':
+        actor = actor_of(role, body)
+        check_fields(body, {'ids'}, {'ids'})
+        return store.not_duplicates(body['ids'], actor)
     if path == '/import':
         if role != 'owner':
             raise M.RuleError('forbidden', 'import needs the owner token: it can place a task past the approval step')

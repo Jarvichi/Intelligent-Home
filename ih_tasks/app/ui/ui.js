@@ -3,11 +3,11 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { board: null, meta: null, open: null };
+  var state = { board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
-    duplicate_linked: 'Duplicate' };
+    duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -50,8 +50,18 @@
     var sub = [];
     if (t.due) sub.push('Due ' + t.due);
     if (t.stage === 'closed' && t.closed_reason) sub.push(closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : ''));
-    return el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Task ' + t.id + ': ' + t.title, on: { click: function () { openTask(t.id); } } },
-      [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null]);
+    var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null];
+    if (state.merging && isOpen(t)) {
+      /* merge mode: the whole card is the tap target of its checkbox */
+      var box = el('input', { type: 'checkbox', 'aria-label': 'Select task ' + t.id + ': ' + t.title, checked: !!state.picked[t.id], on: { change: function () {
+        if (box.checked) state.picked[t.id] = true; else delete state.picked[t.id];
+        lab.setAttribute('data-picked', box.checked ? 'true' : 'false');
+        renderMergeBar();
+      } } });
+      var lab = el('label', { 'class': 't-card t-pick', 'data-picked': state.picked[t.id] ? 'true' : 'false' }, [box, el('span', {}, body)]);
+      return lab;
+    }
+    return el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Task ' + t.id + ': ' + t.title, on: { click: function () { openTask(t.id); } } }, body);
   }
   function closeLabel(id) {
     var r = (state.meta ? state.meta.close_reasons : []).filter(function (x) { return x.id === id; })[0];
@@ -83,13 +93,110 @@
     $('f-count').textContent = shown + ' of ' + total + ' tasks';
     $('board-empty').hidden = shown > 0;
   }
+  /* ---- merge ---- */
+  function rank(t) { var ids = (state.meta ? state.meta.stages : []).map(function (x) { return x.id; }); return ids.indexOf(t.stage); }
+  function isOpen(t) { return t.stage !== 'done' && t.stage !== 'closed'; }
+  /* Same rules as the server: keep the most advanced stage (then the lowest number); an Approved or later task is never merged into an earlier one. */
+  function defaultKeep(tasks) {
+    return tasks.slice().sort(function (a, b) { return rank(b) - rank(a) || a.id - b.id; })[0].id;
+  }
+  function canKeep(t, tasks) {
+    var approved = rank({ stage: 'approved' });
+    return tasks.every(function (o) { return o.id === t.id || rank(o) < approved || rank(o) <= rank(t); });
+  }
+  function short(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  /* Keeper picker + two-tap confirm for a set of tasks. keep: {id} is shared with the caller so a pick survives a redraw. */
+  function mergeControls(tasks, keep, label, done, msg) {
+    if (!tasks.some(function (t) { return t.id === keep.id && canKeep(t, tasks); })) keep.id = defaultKeep(tasks);
+    var wrap = el('div', { 'class': 't-merge-controls' });
+    var draw = function () {
+      clear(wrap);
+      var sel = el('select', { 'aria-label': 'Task to keep' }, tasks.map(function (t) {
+        return el('option', { value: String(t.id), selected: t.id === keep.id, disabled: !canKeep(t, tasks), text: 'Keep #' + t.id + ' · ' + stageLabel(t.stage) + ' · ' + short(t.title, 60) });
+      }));
+      sel.addEventListener('change', function () { keep.id = parseInt(sel.value, 10); draw(); });
+      var others = tasks.filter(function (t) { return t.id !== keep.id; }).map(function (t) { return t.id; });
+      var go = confirmButton(label(tasks.length, keep.id), 'primary', function () {
+        go.disabled = true; msg.removeAttribute('data-tone'); msg.textContent = 'Merging…';
+        api('POST', '/tasks/merge', { keep: keep.id, merge: others }).then(function () {
+          done('Merged ' + others.map(function (i) { return '#' + i; }).join(', ') + ' into #' + keep.id + '. To undo, open a merged task under Closed and reopen it.');
+        }).catch(function (e) { go.disabled = false; msg.setAttribute('data-tone', 'error'); msg.textContent = e.message; });
+      });
+      wrap.appendChild(sel); wrap.appendChild(go);
+    };
+    draw();
+    return wrap;
+  }
+  var barKeep = { id: null };
+  function pickedTasks() {
+    var out = [];
+    if (state.board) state.board.columns.forEach(function (c) { c.tasks.forEach(function (t) { if (state.picked[t.id] && isOpen(t)) out.push(t); }); });
+    return out;
+  }
+  function renderMergeBar() {
+    var bar = $('merge-bar'); clear(bar);
+    bar.hidden = !state.merging || !!state.open;
+    document.body.classList.toggle('t-merging', !bar.hidden);
+    if (bar.hidden) return;
+    var tasks = pickedTasks(), msg = msgLine();
+    var cancel = el('button', { 'class': 't-button', type: 'button', text: 'Cancel', on: { click: function () { setMerging(false); } } });
+    if (tasks.length < 2) {
+      bar.appendChild(el('div', { 'class': 't-mergebar-row' }, [el('p', { 'class': 't-mergebar-text', text: tasks.length ? '1 task selected. Select 1 more to merge.' : 'Select 2 or more tasks to merge.' }), cancel]));
+      return;
+    }
+    bar.appendChild(el('p', { 'class': 't-mergebar-text', text: 'Merge ' + tasks.length + ' tasks into one. The others close as duplicates of the task you keep.' }));
+    bar.appendChild(el('div', { 'class': 't-mergebar-row' }, [mergeControls(tasks, barKeep, function (n, k) { return 'Merge ' + n + ' tasks into #' + k; }, function (text) {
+      setMerging(false); $('tools-msg').textContent = text; loadBoard(); if (state.dups) loadDups();
+    }, msg), cancel]));
+    bar.appendChild(msg);
+  }
+  function setMerging(on) {
+    state.merging = on; state.picked = {}; barKeep.id = null;
+    $('merge-toggle').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('merge-toggle').textContent = on ? 'Stop merging' : 'Merge';
+    if (on) $('tools-msg').textContent = '';
+    renderBoard(); renderMergeBar();
+  }
+
+  /* ---- likely duplicates ---- */
+  function renderDups() {
+    var box = $('dup-view'); clear(box);
+    box.hidden = !state.dups;
+    $('dup-toggle').setAttribute('aria-expanded', state.dups ? 'true' : 'false');
+    $('dup-toggle').textContent = state.dups ? 'Hide duplicates' : 'Find duplicates';
+    if (!state.dups) return;
+    box.appendChild(el('h2', { text: 'Likely duplicates (' + state.dups.length + ')' }));
+    if (!state.dups.length) { box.appendChild(el('p', { 'class': 'ih-empty-inline', text: 'No open tasks look the same.' })); return; }
+    state.dups.forEach(function (g) {
+      var msg = msgLine(), keep = { id: g.keep };
+      var after = function (text) { $('tools-msg').textContent = text; loadBoard(); loadDups(); };
+      var no = el('button', { 'class': 't-button', type: 'button', text: 'Not duplicates', on: { click: function () {
+        no.disabled = true; msg.removeAttribute('data-tone'); msg.textContent = 'Saving…';
+        api('POST', '/tasks/duplicates/dismiss', { ids: g.ids }).then(function () { after('Noted: ' + g.ids.map(function (i) { return '#' + i; }).join(', ') + ' are not duplicates.'); })
+          .catch(function (e) { no.disabled = false; msg.setAttribute('data-tone', 'error'); msg.textContent = e.message; });
+      } } });
+      box.appendChild(el('ih-card', { 'class': 't-dup' }, [
+        el('ul', { 'class': 't-dup-list' }, g.tasks.map(function (t) {
+          return el('li', {}, [el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + t.id + ': ' + t.title, on: { click: function () { openTask(t.id); } } },
+            [el('b', { text: '#' + t.id }), t.title, el('small', { text: [stageLabel(t.stage), t.due ? 'Due ' + t.due : '', t.needs_input ? 'Needs your input' : ''].filter(Boolean).join(' · ') })])]);
+        })),
+        el('div', { 'class': 't-dup-actions' }, [mergeControls(g.tasks, keep, function (n, k) { return 'Merge group into #' + k; }, after, msg), no]),
+        msg
+      ]));
+    });
+  }
+  function loadDups() {
+    return api('GET', '/tasks/duplicates').then(function (d) { state.dups = d.groups; renderDups(); })
+      .catch(function (e) { $('tools-msg').textContent = e.message; });
+  }
+
   function loadBoard() {
     return api('GET', '/board').then(function (b) {
       state.board = b;
       var s = $('service-status');
       s.setAttribute('status', b.needs_input ? 'warn' : 'ok');
       s.textContent = b.needs_input ? b.needs_input + ' need your input' : 'Up to date';
-      renderBoard();
+      renderBoard(); renderMergeBar();
     }).catch(function (e) {
       var s = $('service-status'); s.setAttribute('status', 'error'); s.textContent = 'Not reachable';
       $('f-count').textContent = e.message;
@@ -219,6 +326,7 @@
     root.appendChild(el('ih-card', {}, [el('h3', { text: 'History' }), el('ul', { 'class': 't-history' }, t.history.map(function (h) {
       var line = (KIND_TEXT[h.kind] || h.kind) + ' by ' + h.actor;
       if (h.kind === 'moved') line = stageLabel(h.from) + ' → ' + stageLabel(h.to) + ' by ' + h.actor;
+      if ((h.kind === 'merged' || h.kind === 'merged_into') && h.data && h.data.task) line = (h.kind === 'merged' ? 'Merged in #' : 'Merged into #') + h.data.task + ' by ' + h.actor;
       if (h.kind === 'closed' && h.data && h.data.reason) line += ' (' + closeLabel(h.data.reason) + (h.data.duplicate_of ? ' of #' + h.data.duplicate_of : '') + ')';
       var extra = h.text || '';
       if (h.kind === 'answered' && h.data && h.data.answers) extra = Object.keys(h.data.answers).map(function (k) { var v = h.data.answers[k]; return k + ': ' + (v === true ? 'Yes' : v === false ? 'No' : Array.isArray(v) ? v.join(', ') : v); }).join(' | ') + (extra ? ' | ' + extra : '');
@@ -230,7 +338,7 @@
   }
   function openTask(id) {
     api('GET', '/tasks/' + id).then(function (t) {
-      state.open = t; $('board-view').hidden = true; $('detail-view').hidden = false; renderDetail(); window.scrollTo(0, 0); $('back').focus();
+      state.open = t; $('board-view').hidden = true; $('detail-view').hidden = false; renderDetail(); renderMergeBar(); window.scrollTo(0, 0); $('back').focus();
       trail([{ label: 'Tasks', onClick: closeTask }], 'Task ' + t.id);
     }).catch(function (e) { $('f-count').textContent = e.message; });
   }
@@ -239,6 +347,8 @@
 
   /* ---- start ---- */
   $('back').addEventListener('click', closeTask);
+  $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
+  $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
   ['f-search', 'f-stage', 'f-waiting'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
   $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; renderBoard(); });
   $('add-form').addEventListener('submit', function (ev) {
@@ -260,5 +370,5 @@
     state.meta = m;
     m.stages.forEach(function (s) { $('f-stage').appendChild(el('option', { value: s.id, text: s.label })); });
   }).catch(function () {}).then(loadBoard);
-  setInterval(function () { if (!state.open && document.visibilityState === 'visible') loadBoard(); }, 60000);
+  setInterval(function () { if (!state.open && !state.merging && document.visibilityState === 'visible') loadBoard(); }, 60000);
 })();

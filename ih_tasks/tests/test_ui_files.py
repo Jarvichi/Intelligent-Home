@@ -34,6 +34,21 @@ class Files(unittest.TestCase):
             self.assertNotIn(bad, js)
         self.assertIn("rel: 'noopener noreferrer'", js)
 
+    def test_merge_controls(self):
+        page = (UI / 'index.html').read_text()
+        css = (UI / 'ui.css').read_text()
+        js = (UI / 'ui.js').read_text()
+        self.assertRegex(page, r'<button id="merge-toggle"[^>]*aria-pressed="false">Merge</button>')
+        self.assertRegex(page, r'<button id="dup-toggle"[^>]*>Find duplicates</button>')
+        self.assertIn('id="merge-bar"', page)
+        self.assertRegex(css, r'\.t-mergebar\{position:fixed;left:0;right:0;bottom:0')
+        self.assertRegex(css, r'\.t-mergebar\{[^}]*grid-template-columns:minmax\(0,1fr\)')      # never wider than a phone screen
+        self.assertRegex(css, r'\.t-pick\{[^}]*min-height:56px')
+        self.assertRegex(css, r'\.t-mergebar \.t-button[^{]*\{min-height:48px')
+        self.assertIn("confirmButton(label(tasks.length, keep.id)", js)                        # merging takes two taps
+        self.assertIn("api('POST', '/tasks/merge', { keep: keep.id, merge: others })", js)
+        self.assertIn("api('POST', '/tasks/duplicates/dismiss', { ids: g.ids })", js)
+
     def test_versions_and_ports_agree(self):
         cfg = (ADDON / 'config.yaml').read_text()
         version = re.search(r'^version: "([^"]+)"', cfg, re.M).group(1)

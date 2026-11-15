@@ -22,6 +22,7 @@ Rules the add-on enforces (a request that breaks one is refused):
 - **Going back.** Approved, Implementing or Verifying can go back to Planning with a reason; the plan must then be approved again. Verifying can go back to Implementing with a reason (the check failed). An approved plan cannot be edited in place.
 - **Closing** needs one of the four reasons. `duplicate` needs the number of the task it repeats. A worker must also give a detail for won't do and dropped. Only the owner reopens a Closed or Done task.
 - **Duplicates on create.** A new task whose title nearly matches an OPEN task is still stored (nothing is lost), then closed at once as a duplicate of that task, with a line in both histories. Send `allow_duplicate: true` to skip the check.
+- **Merge.** Open tasks that are the same piece of work can be merged into one (see "Merge and duplicates"). An approval is never lost in a merge.
 - **History.** Every change writes one history line (who, when, from, to, text) in the same database transaction.
 - **Old identifiers.** A task can carry the ids it had in an older system (`todo_uid`, `queue_id`, `ok_number`, `wy_id`) and can be found by them.
 
@@ -66,7 +67,33 @@ The `api_token` can never act as the owner. If both tokens are set to the same t
 - Filter: a search box with a result count, then **Stage** and **Waiting for** selects and **Clear** on one row.
 - "Add" makes a task in To do.
 - A task opens on its own page: plan, the question form when input is needed, **Approve** and **Reject** (only in Planning with no open questions), a comment box, close with a reason, reopen, links and the history.
-- Approve, close and reopen need two taps (no pop-up dialog).
+- Approve, close, reopen and merge need two taps (no pop-up dialog).
+- **Merge** turns merge mode on: every open card gets a checkbox (tap anywhere on the card). With 2 or more selected, a bar at the bottom of the screen shows the task to keep (you can change it) and **Merge N tasks into #X**. Cancel or **Stop merging** leaves the mode.
+- **Find duplicates** lists groups of open tasks with nearly the same title. Each group has **Merge group into #X** and **Not duplicates** (remembered: the group is not offered again).
+
+## Merge and duplicates
+
+A merge keeps ONE task and folds the others into it. Who: the owner or a worker (the same as closing). Everything happens in one database transaction: all of it or none of it.
+
+For each merged task:
+
+- Its comments are copied to the kept task, marked `From #N:`.
+- Its open question set moves to the kept task when that task has none. When the kept task already has open questions, the merged task's questions are added as a comment and withdrawn.
+- Its links are copied (the same link is not added twice).
+- Its old ids (`todo_uid`, `queue_id`, `ok_number`, `wy_id`) MOVE to the kept task, so a look-up by an old id finds the kept task.
+- The kept task takes the earliest due date.
+- The merged task is closed with the reason duplicate of the kept task. Both histories get a line.
+- Its plan and description are NOT copied. They stay readable on the closed task.
+
+Rules:
+
+- Only open tasks can be merged (not Done, not Closed). At most 20 tasks in one merge.
+- The stages may differ. The default task to keep is the one in the most advanced stage, then the lowest number.
+- **An approval is never lost.** A task that is Approved, Implementing or Verifying cannot be merged into a task in an earlier stage: keep that task instead. The page greys out the choices that would be refused.
+
+**Undo:** open the merged task (under Closed) and reopen it, as for any closed task (owner only). It comes back in To do. What the merge copied stays on the kept task, and the old ids stay with the kept task; move them back by hand (`POST /tasks/<n>/legacy` does not take an id from another task).
+
+**Find duplicates** compares the titles of open tasks with the same measure as the duplicate check on create (threshold 0.72). Labels that only say where a task came from are ignored: `Handoff:`, `Handoff from <name>:`, `OK:`, `OK #12:`, `Reopened:` (and `Plan:`, `Built:`, `Waiting:`, `Todo:`, `IH:`, `Check:`, `Review:`). A group is built around its lowest-numbered task: every other member matches that task.
 
 ## API
 
@@ -93,6 +120,9 @@ Port 8818. Send `Authorization: Bearer <token>` and JSON. Unknown fields are ref
 | `POST /tasks/<n>/withdraw` | `reason` | Takes the open question set back. |
 | `POST /tasks/<n>/link` | `kind` (`pr`, `result`, `note`, `other`), `url?`, `text?` | Attach a result or a pull request link. |
 | `POST /tasks/<n>/legacy` | `legacy` `[{kind, value}]` | |
+| `POST /tasks/merge` | `keep` (task number), `merge` (list of task numbers) | Owner or worker. Reply: `task` (the kept task), `merged`. `409` when a task is not open or an approval would be lost. |
+| `GET /tasks/duplicates` | | `groups`: each has `ids`, `score` (lowest title match in the group), `keep` (the default task to keep) and `tasks` (summaries). |
+| `POST /tasks/duplicates/dismiss` | `ids` (2 or more task numbers) | Owner or worker. Remembers that these tasks are not duplicates of each other. |
 | `POST /import` | `item` | Owner token only. Used by the migration tool. |
 
 Errors: `400` bad request, `401` no or wrong token, `403` this caller may not do that, `404` no such task, `409` the task is in the wrong state.
@@ -126,7 +156,7 @@ python3 tools/migrate.py --live --api http://HOST:8818 --token-file FILE ...   #
 
 ## Data
 
-- `/data/ih.db`: tasks, history, question sets, links, old ids, mirror bookkeeping. A snapshot is taken once a day into `/data/backup` (newest 3 kept).
+- `/data/ih.db`: tasks, history, question sets, links, old ids, "not duplicates" pairs, mirror bookkeeping. A snapshot is taken once a day into `/data/backup` (newest 3 kept).
 - No secrets are stored in the database. Tokens stay in the add-on options.
 - Restore: stop the add-on, copy a snapshot over `/data/ih.db`, delete `ih.db-wal` and `ih.db-shm`, start the add-on.
 
@@ -138,4 +168,7 @@ python3 tools/migrate.py --live --api http://HOST:8818 --token-file FILE ...   #
 
 - The container image build.
 - The page inside the real Home Assistant ingress frame, on a phone, and in dark mode.
+- Merge mode and Find duplicates were checked in a browser against a local test server (made-up tasks, 1280 and 393 px wide), not inside Home Assistant and not on a real phone.
+- Find duplicates on a large list: it compares every pair of open tasks (checked with about 10 tasks; a few hundred open tasks will take longer).
+- The mirror after a merge, when both tasks came from the old list (each task is pinned to its own list item before the old ids move; unit-tested in the store only).
 - The mirror against a real to-do list (the plan step is unit-tested; the Home Assistant calls are tested with a fake).
