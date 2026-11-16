@@ -2,6 +2,7 @@
 import calendar
 import datetime as dt
 import json
+import re
 import sqlite3
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 
@@ -26,10 +27,11 @@ def money(value):
 
 
 def validate(c):
-    if not isinstance(c, dict) or not all(isinstance(c.get(k), str) and c[k] for k in ('id', 'name', 'kind', 'start', 'end')):
+    if not isinstance(c, dict) or not all(isinstance(c.get(k), str) and c[k] for k in ('id', 'name', 'kind')):
         raise ValueError('invalid contract')
-    start, end = dt.date.fromisoformat(c['start']), dt.date.fromisoformat(c['end'])
-    if end <= start:
+    start = dt.date.fromisoformat(c['start']) if c.get('start') else None
+    end = dt.date.fromisoformat(c['end']) if c.get('end') else None
+    if start and end and end <= start:
         raise ValueError('invalid dates')
     months = c.get('remind_months', [6, 3] if c['kind'] == 'car lease' else [1])
     if not isinstance(months, list) or any(type(m) is not int or not 1 <= m <= 120 for m in months):
@@ -44,6 +46,12 @@ def validate(c):
     if 'settlement_quote' in c:
         money(c['settlement_quote']['amount'])
         dt.date.fromisoformat(c['settlement_quote']['as_of'])
+    if 'observed_balance' in c:
+        money(c['observed_balance']['amount'])
+        date = c['observed_balance']['as_of']
+        if not isinstance(date, str) or not re.fullmatch(r'\d{4}-\d{2}(?:-\d{2})?', date):
+            raise ValueError('invalid balance date')
+        dt.date.fromisoformat(date if len(date) == 10 else date + '-01')
     return c
 
 
@@ -75,6 +83,8 @@ def project(c, today):
     result = dict(c)
     if 'monthly_payment' not in c:
         return result
+    if 'loan' in c['kind'].lower() or 'mortgage' in c['kind'].lower():
+        return result  # principal and interest need a loan model, not lease subtraction
     payment = money(c['monthly_payment'])
     if c.get('balance_snapshot'):
         snapshot = c['balance_snapshot']
@@ -90,7 +100,7 @@ def project(c, today):
         result.update(balance_as_of=anchor.isoformat(), balance_snapshot=float(initial),
                       projected_balance=float(balance),
                       remaining_payments=int((balance / payment).to_integral_value(rounding=ROUND_CEILING)))
-    else:
+    elif c.get('end'):
         end = dt.date.fromisoformat(c['end'])
         months = max(0, (end.year - today.year) * 12 + end.month - today.month + 1)
         result.update(estimated_payments=months, estimated_scheduled_total=float(payment * months))
@@ -106,14 +116,15 @@ def records(db, today):
     rows = []
     for row in db.execute('SELECT data FROM contracts'):
         c = project(json.loads(row[0]), today)
-        start, end = dt.date.fromisoformat(c['start']), dt.date.fromisoformat(c['end'])
-        total = (end - start).days
+        start = dt.date.fromisoformat(c['start']) if c.get('start') else None
+        end = dt.date.fromisoformat(c['end']) if c.get('end') else None
+        total = (end - start).days if start and end else None
         months = c.get('remind_months') or ([6, 3] if c['kind'] == 'car lease' else [1])
-        c.update(days_total=total, days_left=(end - today).days,
-                 percent=max(0, min(100, round(100 * (today - start).days / total))),
-                 months=months, reminders=[reminder_date(end, m).isoformat() for m in months])
+        c.update(days_total=total, days_left=(end - today).days if end else None,
+                 percent=max(0, min(100, round(100 * (today - start).days / total))) if total else None,
+                 months=months, reminders=[reminder_date(end, m).isoformat() for m in months] if end else [])
         rows.append(c)
-    return sorted(rows, key=lambda c: c['end'])
+    return sorted(rows, key=lambda c: c.get('end') or '9999-12-31')
 
 
 def raw_records(db):
@@ -123,10 +134,12 @@ def raw_records(db):
 def markdown(rows):
     lines = ['| Contract | Start | End | Progress | Left |', '|---|---|---|---|---|']
     for c in rows:
-        n = c['percent'] // 10
+        n = c['percent'] // 10 if c['percent'] is not None else None
         name = c['name'].replace('|', '\\|').replace('\n', ' ')
-        lines.append("| %s | %s | %s | %s%s %s%% | %s d |" % (
-            name, c['start'], c['end'], '█' * n, '░' * (10 - n), c['percent'], c['days_left']))
+        progress = '%s%s %s%%' % ('█' * n, '░' * (10 - n), c['percent']) if n is not None else '—'
+        left = '%s d' % c['days_left'] if c['days_left'] is not None else '—'
+        lines.append('| %s | %s | %s | %s | %s |' % (
+            name, c.get('start') or '—', c.get('end') or '—', progress, left))
     return '\n'.join(lines)
 
 
@@ -134,6 +147,8 @@ def due(db, today):
     sent = {row[0] for row in db.execute('SELECT key FROM sent')}
     out = []
     for c in records(db, today):
+        if not c.get('end'):
+            continue
         end = dt.date.fromisoformat(c['end'])
         for months in c['months']:
             key = '%s:%s' % (c['id'], months)

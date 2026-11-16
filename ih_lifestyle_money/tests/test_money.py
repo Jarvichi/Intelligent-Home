@@ -124,6 +124,28 @@ class MoneyTests(unittest.TestCase):
         self.assertEqual(response.status, 403)
         response.read()
 
+    def test_partial_insurance_and_dated_mortgage_balance(self):
+        insurance = {'id': 'policy', 'name': 'Pet policy', 'kind': 'pet insurance', 'end': '2026-12-10'}
+        mortgage = {'id': 'mortgage', 'name': 'Mortgage', 'kind': 'mortgage', 'monthly_payment': 1000,
+                    'observed_balance': {'amount': 200000, 'as_of': '2026-09'}}
+        store.import_once(self.db, [insurance, mortgage], {})
+        rows = store.records(self.db, dt.date(2026, 11, 16))
+        loan = next(row for row in rows if row['id'] == 'mortgage')
+        policy = next(row for row in rows if row['id'] == 'policy')
+        self.assertNotIn('projected_balance', loan)
+        self.assertNotIn('estimated_scheduled_total', loan)
+        self.assertEqual(loan['observed_balance']['as_of'], '2026-09')
+        self.assertEqual(policy['days_left'], 24)
+        self.assertIsNone(policy['percent'])
+        self.assertIn('Mortgage', store.markdown(rows))
+        self.assertEqual([x['id'] for x in store.due(self.db, dt.date(2026, 11, 16))], ['policy'])
+
+    def test_loan_is_never_projected_as_a_lease(self):
+        c = dict(self.c, kind='mortgage')
+        projected = store.project(c, dt.date(2027, 1, 1))
+        self.assertNotIn('projected_balance', projected)
+        self.assertEqual(projected['balance_snapshot'], c['balance_snapshot'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Support contracts with unknown dates and show dated loan balances without applying lease calculations.
+
 ## 0.3.0
 
 - Add an admin-only Money page for viewing and editing private contracts.
