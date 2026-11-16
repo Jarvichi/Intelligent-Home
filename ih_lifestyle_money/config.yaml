@@ -1,8 +1,11 @@
 name: "Intelligent Home - Lifestyle - Money"
-version: "0.2.0"
+version: "0.2.1"
 slug: ih_lifestyle_money
+image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_money"
 description: "Private contracts, leases and loan records with calculated balances."
-arch: [aarch64, amd64]
+arch:
+  - aarch64
+  - amd64
 startup: application
 boot: manual
 init: false

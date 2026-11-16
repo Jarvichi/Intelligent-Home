@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Build and use prebuilt images for both supported architectures.
+
 ## 0.2.0
 
 - Publish dashboard-compatible contract progress and provide a checked legacy migration tool.
