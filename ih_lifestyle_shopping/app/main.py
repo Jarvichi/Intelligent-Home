@@ -6,8 +6,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 import ha_client
+import cooking_client
 import layouts
 import list_bridge
+import meal_merge
 import service
 
 PEER = '172.30.32.2'
@@ -68,8 +70,9 @@ def main():
     token = opts.get('api_token') or ''
     entity = opts.get('shopping_list_entity') or 'todo.shopping_list'
     shopping = list_bridge.ShoppingList(ha_client.HA(os.environ.get('SUPERVISOR_TOKEN','')), entity)
+    meals = meal_merge.MealShopping(cooking_client.Cooking(opts.get('cooking_url') or '', opts.get('cooking_api_token') or ''), shopping)
     def app():
-        return service.App(layouts.connect(os.path.join(data,'shopping.db')), shopping, opts.get('list_writes_enabled'))
+        return service.App(layouts.connect(os.path.join(data,'shopping.db')), shopping, opts.get('list_writes_enabled'), meals)
     ingress = HTTPServer(('0.0.0.0',8826),make_handler(app(), token, ingress=True))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     HTTPServer(('0.0.0.0',8804),make_handler(app(), token)).serve_forever()

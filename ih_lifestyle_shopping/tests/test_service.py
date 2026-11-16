@@ -34,5 +34,18 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.app.route('POST','/list/add',{'name':'Example'})[0],200)
         self.assertEqual(self.ha.calls[0][1],'add_item')
 
+    def test_meal_preview_is_read_only_and_apply_is_gated(self):
+        class Meals:
+            def __init__(self):self.applied=False
+            def preview(self,groups,include):return {'add':[],'revision':'fixture'}
+            def apply(self,groups,include,rev):self.applied=True;return {'ok':False,'uncertain':True}
+        self.app.meals=Meals();body={'groups':[],'include_completed':True,'revision':'fixture'}
+        self.assertEqual(self.app.route('POST','/meal/preview',body)[0],200)
+        self.assertEqual(self.app.route('POST','/meal/apply',body)[0],403)
+        self.assertFalse(self.app.meals.applied)
+        self.app.list_writes_enabled=True
+        self.assertEqual(self.app.route('POST','/meal/apply',body)[0],502)
+        self.assertTrue(self.app.meals.applied)
+
 
 if __name__ == '__main__': unittest.main()

@@ -1,12 +1,14 @@
 """Shopping backend routes, with live list writes disabled by default."""
 import layouts
 import list_bridge
+import meal_merge
 
 
 class App:
-    def __init__(self, db, shopping, list_writes_enabled=False):
+    def __init__(self, db, shopping, list_writes_enabled=False, meals=None):
         self.db, self.shopping = db, shopping
         self.list_writes_enabled = list_writes_enabled is True
+        self.meals = meals
 
     def route(self, method, path, body=None):
         if method == 'GET' and path == '/healthz':
@@ -27,6 +29,17 @@ class App:
                 return 200, {'ok': True, 'revision': rev}
             if method == 'GET' and path == '/list':
                 return 200, self.shopping.items()
+            if method == 'POST' and path in ('/meal/preview','/meal/apply'):
+                if not self.meals:
+                    return 503, {'error':'Meal shopping is not configured.'}
+                if not isinstance(body,dict) or not isinstance(body.get('groups'),list) or not isinstance(body.get('include_completed'),bool):
+                    return 400, {'error':'Check the shopping choices.'}
+                if path == '/meal/preview':
+                    return 200, self.meals.preview(body['groups'],body['include_completed'])
+                if not self.list_writes_enabled:
+                    return 403, {'error':'Shopping list changes are not enabled.'}
+                result=self.meals.apply(body['groups'],body['include_completed'],body.get('revision'))
+                return (200 if result.get('ok') else 502), result
             if method == 'POST' and path in ('/list/add', '/list/state', '/list/group', '/list/quantity'):
                 if not self.list_writes_enabled:
                     return 403, {'error': 'Shopping list changes are not enabled.'}
@@ -43,6 +56,8 @@ class App:
                 return 200, {'ok': True}
         except layouts.LayoutConflict:
             return 409, {'error': 'Layouts changed. Reload before saving.'}
+        except meal_merge.MealError:
+            return 409, {'error': 'Plan, recipes or list need review. Reload before continuing.'}
         except (layouts.LayoutError, list_bridge.ListError):
             return 400, {'error': 'Check the details or reload the list.'}
         except Exception:
