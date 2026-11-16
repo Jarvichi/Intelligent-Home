@@ -172,6 +172,7 @@ def shop(data, names, groups, now=time.time, write_ledger=True):
     return {'items': items, 'recipes': titles, 'staples': staples, 'groups': [st[g]['name'] for g in gs]}
 
 
+@serialized_write
 def write_plan(data, p):
     if not isinstance(p, dict) or not set(p) <= set(DAYS) or not all(isinstance(v, str) and len(v) <= 80 for v in p.values()):
         return False, ['plan: an object with keys mon..sun and text values']

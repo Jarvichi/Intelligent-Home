@@ -27,6 +27,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `ha_url` | No | Home Assistant (default `http://supervisor/core`) and a token (calendars, states, services). |
 | `ha_token` | No | Home Assistant (default `http://supervisor/core`) and a token (calendars, states, services). |
 | `plan_entity_prefix` | No | Optional, see above. |
+| `manage_plan` | No | Enables the ingress meal-plan write path. Default false; leave it off until legacy plan writers have been stopped and the handover verified. |
 | `rate_per_min` | No | Requests per minute (default 60). |
 | `clash_config` | No | JSON text with the house-specific calendar settings (below). |
 | `cook_mode` | No | `off` (cooks refused), `dry` (default; logs only), `live` (acts, if the guard allows). |
@@ -113,6 +114,8 @@ Live control is allowed only when **all** of these hold, checked when a cook sta
 If anything cannot be read or is in doubt, live control is refused (fail closed). If the guard fails while a cook is running, the cook carries on in dry mode and the log says `GUARD: ...`. `GET /cook` shows the reason.
 
 The recipe editor supports equipment, a child reminder note and short display labels for each step. Editing step wording preserves its existing oven and other metadata. Invalid fields are rejected before writing and every existing-recipe save keeps a distinct backup. The editor does not replace Home Assistant meal-plan controls or their access model.
+
+The admin ingress API has `GET /api/plan` for a read-only seven-day view with a revision and source. When `manage_plan` is enabled, `PUT /api/plan` accepts `{plan, revision}` and rejects an outdated revision. This is migration groundwork: it does not replace legacy meal-plan controls, usual-week presets, staples, shopping-list generation or family access. Leave the existing owner active until a coordinated cutover is ready. When ownership is enabled, an explicitly empty plan stays empty instead of falling back to old helpers.
 
 
 Recipe-note publishing remains off unless configured and enabled by the owner. The Cooking page reports

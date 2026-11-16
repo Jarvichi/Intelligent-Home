@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-11-16
+
+### Added
+- Add a read-only ingress meal-plan endpoint and an opt-in, revision-checked write path for a future coordinated migration.
+
+### Fixed
+- When meal-plan ownership is enabled, keep an intentionally empty plan empty rather than falling back to legacy helpers.
+
 ## [0.7.0] - 2026-11-12
 
 ### Added

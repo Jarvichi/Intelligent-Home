@@ -1,6 +1,6 @@
 """Intelligent Home - Cooking (ih_cooking): recipes, meal plan, meal-vs-calendar clashes, the recipes page (ingress) and the cook engine.
 Two listeners: the bearer API on 8809 and the ingress page on 8810 (only the Supervisor may reach it)."""
-import json, logging, os, re, sys, threading
+import hashlib, json, logging, os, re, sys, threading
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -15,11 +15,30 @@ SUPERVISOR_IPS = ('172.30.32.2',)
 EAT_RE = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 
 
+def plan_view(st):
+    plan, source = st.plan()
+    plan = {day: str(plan.get(day) or '') for day in recipeadmin.DAYS}
+    revision = hashlib.sha256(json.dumps({'plan': plan, 'source': source}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    return {'plan': plan, 'source': source, 'revision': revision, 'editable': st.opts.get('manage_plan') is True}
+
+
 def ingress_api(st, method, p, body):
     """The recipes page API (same paths and shapes as the old host page service, minus the /api prefix handled by the caller). -> (code, obj)."""
     m = re.fullmatch(r'/recipes/([a-z0-9-]+)', p)
     if method == 'GET' and p == '/publication':
         return 200, st.publication_status()
+    if method == 'GET' and p == '/plan':
+        return 200, plan_view(st)
+    if method == 'PUT' and p == '/plan':
+        if st.opts.get('manage_plan') is not True:
+            return 403, {'errors': ['Meal plan editing is not enabled.']}
+        if not isinstance(body, dict) or not isinstance(body.get('plan'), dict):
+            return 422, {'errors': ['Invalid meal plan.']}
+        with recipeadmin._WRITE_LOCK:
+            if body.get('revision') != plan_view(st)['revision']:
+                return 409, {'errors': ['The meal plan changed. Reload before saving.']}
+            ok, errors = recipeadmin.write_plan(st.data, body['plan'])
+        return (200, plan_view(st)) if ok else (422, {'errors': errors})
     if method == 'GET' and p == '/recipes':
         return 200, recipeadmin.listing(st.data)
     if method == 'GET' and m:
@@ -102,7 +121,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(200, open(os.path.join(HERE, name), 'rb').read(), kind)
             if not p.startswith('/api/'):
                 return self._send(404, {'error': 'not found'})
-            self._logit = True
+            self._logit = p != '/api/plan'  # Meal selections are private, even when payload logging is enabled.
             try:
                 body = self._body() if method in ('PUT', 'POST') else {}
             except Exception as ex:
