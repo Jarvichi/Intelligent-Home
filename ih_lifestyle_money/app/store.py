@@ -116,6 +116,10 @@ def records(db, today):
     return sorted(rows, key=lambda c: c['end'])
 
 
+def raw_records(db):
+    return [json.loads(row[0]) for row in db.execute('SELECT data FROM contracts ORDER BY id')]
+
+
 def markdown(rows):
     lines = ['| Contract | Start | End | Progress | Left |', '|---|---|---|---|---|']
     for c in rows:

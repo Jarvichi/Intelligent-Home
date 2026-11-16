@@ -2,12 +2,16 @@ import datetime as dt
 import sqlite3
 import sys
 import unittest
+import http.client
+import json
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'app'))
 import main
 import store
 import delivery
+import ui_server
 
 
 class MoneyTests(unittest.TestCase):
@@ -82,6 +86,43 @@ class MoneyTests(unittest.TestCase):
         calls = []
         delivery.run(self.db, dt.date(2026, 11, 30), {'first': 'persona'}, lambda *args: calls.append(args))
         self.assertEqual(calls, [])
+
+    def test_ingress_edit_preserves_contract_fields_and_history(self):
+        c = dict(self.c, who=['person'], private_note='keep me', remind_months=[6, 3])
+        store.import_once(self.db, [c], {'vehicle:6': '2026-11-30'})
+        server = ui_server.make_server(self.db, ['person'], host='127.0.0.1', port=0, peer='127.0.0.1')
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=2)
+        self.addCleanup(conn.close)
+        conn.request('GET', '/api/contracts')
+        response = conn.getresponse()
+        raw = json.loads(response.read())['contracts'][0]
+        self.assertIsInstance(raw['balance_snapshot'], dict)
+        raw['monthly_payment'] = 110
+        conn.request('POST', '/api/contracts', json.dumps(raw), {'Content-Type': 'application/json'})
+        response = conn.getresponse()
+        self.assertEqual(response.status, 200)
+        response.read()
+        saved = store.raw_records(self.db)[0]
+        self.assertEqual(saved['private_note'], 'keep me')
+        self.assertEqual(saved['remind_months'], [6, 3])
+        self.assertEqual(saved['monthly_payment'], 110)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM sent').fetchone()[0], 1)
+
+    def test_ingress_rejects_non_gateway(self):
+        server = ui_server.make_server(self.db, [], host='127.0.0.1', port=0, peer='192.0.2.1')
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=2)
+        self.addCleanup(conn.close)
+        conn.request('GET', '/api/contracts')
+        response = conn.getresponse()
+        self.assertEqual(response.status, 403)
+        response.read()
 
 
 if __name__ == '__main__':

@@ -1,0 +1,9 @@
+{
+  "title": "Money",
+  "purpose": "Keep contracts and payments together.",
+  "description": "View and edit leases, insurance, loans and other contracts, including payments and reminders.",
+  "health_port": 8818,
+  "health_path": "/healthz",
+  "navigation": ["View leases and projected payments", "Manage insurance, loans and other contracts", "Edit dates, amounts and reminders"],
+  "access": "Home Assistant authenticated admin ingress only"
+}
