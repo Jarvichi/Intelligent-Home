@@ -4,7 +4,7 @@ import datetime as dt
 import json
 import re
 import sqlite3
-from decimal import Decimal, InvalidOperation, ROUND_CEILING
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
 
 
 def open_store(path):
@@ -52,6 +52,15 @@ def validate(c):
         if not isinstance(date, str) or not re.fullmatch(r'\d{4}-\d{2}(?:-\d{2})?', date):
             raise ValueError('invalid balance date')
         dt.date.fromisoformat(date if len(date) == 10 else date + '-01')
+    if 'interest_rate_percent' in c:
+        try:
+            rate = Decimal(str(c['interest_rate_percent']))
+            if not rate.is_finite() or rate < 0 or rate > 1000:
+                raise ValueError('invalid interest rate')
+        except (InvalidOperation, TypeError):
+            raise ValueError('invalid interest rate') from None
+    if c.get('interest_rate_until'):
+        dt.date.fromisoformat(c['interest_rate_until'])
     return c
 
 
@@ -132,14 +141,16 @@ def raw_records(db):
 
 
 def projection_series(c):
-    """One recorded lease snapshot followed by assumed scheduled payments.
+    """One recorded snapshot followed by an explicitly illustrative schedule.
 
     This is not payment history. Never apply lease subtraction to loans or
     fabricate a series when the balance, payment or payment day is missing.
     """
     validate(c)
     kind = c['kind'].lower()
-    if 'lease' not in kind or 'loan' in kind or 'mortgage' in kind or not c.get('balance_snapshot'):
+    if 'loan' in kind or 'mortgage' in kind:
+        return loan_projection_series(c)
+    if 'lease' not in kind or not c.get('balance_snapshot'):
         return []
     snapshot = c['balance_snapshot']
     anchor = dt.date.fromisoformat(snapshot['as_of'])
@@ -161,6 +172,42 @@ def projection_series(c):
     except (ValueError, OverflowError):
         return []
     return points
+
+
+def loan_projection_series(c):
+    """Monthly nominal interest and fixed payment; no fees or rate changes.
+
+    The snapshot is assumed to be after that month's payment. A monthly point
+    is only included when its month end is within the known rate/term period.
+    """
+    snapshot = c.get('observed_balance') or c.get('balance_snapshot')
+    if not snapshot or 'interest_rate_percent' not in c or not c.get('monthly_payment'):
+        return []
+    balance = money(snapshot['amount'])
+    if not balance:
+        return []
+    rate = Decimal(str(c['interest_rate_percent'])) / Decimal(1200)
+    payment = money(c['monthly_payment'])
+    label = snapshot['as_of']
+    anchor = dt.date.fromisoformat(label if len(label) == 10 else label + '-01')
+    limits = [dt.date.fromisoformat(c[k]) for k in ('interest_rate_until', 'end') if c.get(k)]
+    limit = min(limits) if limits else None
+    points = [{'date': label, 'balance': float(balance)}]
+    month = anchor.replace(day=1)
+    try:
+        for i in range(600):
+            month = (month.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+            month_end = month.replace(day=calendar.monthrange(month.year, month.month)[1])
+            if limit and month_end > limit:
+                break
+            interest = (balance * rate).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+            balance = max(Decimal(0), balance + interest - payment)
+            points.append({'date': month.strftime('%Y-%m'), 'balance': float(balance)})
+            if balance == 0 or (i >= 11 and points[1]['balance'] >= points[0]['balance']):
+                break
+    except (ValueError, OverflowError, InvalidOperation):
+        return []
+    return points if len(points) > 1 else []
 
 
 def markdown(rows):

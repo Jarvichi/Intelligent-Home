@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Add interest rates and illustrative loan and mortgage balance graphs.
+
 ## 0.3.3
 
 - Show a labelled scheduled-payment projection on eligible lease cards.
