@@ -144,6 +144,7 @@ def listing(data):
     return out
 
 
+@serialized_write
 def shop(data, names, groups, now=time.time, write_ledger=True):
     """Merged shopping list for these recipes (host `recipes.py shop`) and update of the meal-plan ledger meal_items.json."""
     rdir = os.path.join(data, 'recipes')
@@ -158,18 +159,25 @@ def shop(data, names, groups, now=time.time, write_ledger=True):
     except (OSError, ValueError, KeyError): st = {}
     gs = [g for g in groups if g in st]
     staples = [it for g in gs for it in st[g]['items']]
-    try:
-        if not write_ledger: raise OSError
-        lf = os.path.join(data, 'meal_items.json')
-        try: led = json.load(open(lf))
-        except (OSError, ValueError): led = {}
-        t = now()
-        led = {k: v for k, v in led.items() if t - v < 45 * 86400}
-        for it in items + staples: led[re.sub(r'^(meals|staples): ', '', it.lower().strip())] = t
-        json.dump(led, open(lf, 'w'), ensure_ascii=False)
-    except OSError:
-        pass
-    return {'items': items, 'recipes': titles, 'staples': staples, 'groups': [st[g]['name'] for g in gs]}
+    ledger_written = False
+    if write_ledger:
+        try:
+            lf = os.path.join(data, 'meal_items.json')
+            try:
+                with open(lf, encoding='utf-8') as handle:
+                    led = json.load(handle)
+            except FileNotFoundError:
+                led = {}
+            if not isinstance(led, dict):
+                raise ValueError('invalid ledger')
+            t = now()
+            led = {k: v for k, v in led.items() if t - v < 45 * 86400}
+            for it in items + staples: led[re.sub(r'^(meals|staples): ', '', it.lower().strip())] = t
+            atomic(lf, led)
+            ledger_written = True
+        except (OSError, ValueError, TypeError):
+            pass
+    return {'items': items, 'recipes': titles, 'staples': staples, 'groups': [st[g]['name'] for g in gs], 'ledger_written': ledger_written}
 
 
 @serialized_write
@@ -290,4 +298,4 @@ def merge(data, names, groups, have, commit=False, now=time.time):
         msg = '**Shopping for the week**'
         if res['items']: msg += '\n\n**Meals** (%s)\n\n%s' % (', '.join(res['recipes']), '\n'.join('- ' + i for i in res['items']))
         if res['staples']: msg += '\n\n**Staples** (%s)\n\n%s' % (', '.join(res['groups']), '\n'.join('- ' + i for i in res['staples']))
-    return {'add': add, 'skipped': skipped, 'recipes': res['recipes'], 'groups': res['groups'], 'message': msg, 'ledger_written': bool(commit)}
+    return {'add': add, 'skipped': skipped, 'recipes': res['recipes'], 'groups': res['groups'], 'message': msg, 'ledger_written': res['ledger_written']}

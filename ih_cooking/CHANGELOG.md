@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.1] - 2026-11-16
+
+### Fixed
+- Report whether the meal-item ledger was actually saved, write it atomically, and preserve unreadable ledgers for review.
+
 ## [0.8.0] - 2026-11-16
 
 ### Added

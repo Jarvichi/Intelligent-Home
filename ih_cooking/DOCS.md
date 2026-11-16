@@ -79,6 +79,7 @@ Calendars, the oven, the speaker and the cooking sensor are your own Home Assist
 | `GET /staples` | the staple groups `{groups: {id: {name, items}}}` |
 | `POST /staples/rename` | `{old, new, group?}` changes the text of one staple line (in every group that has it, or only in `group`); the old file is kept in `/data/staples_backups/` (newest 20). 422 with `errors` when nothing matches or the text is not valid |
 | `POST /shop` | `{recipes:[slugs], groups:[...]}` -> merged shopping list, updates the meal-items ledger |
+| `POST /shop/merge` | `{recipes, groups, have, commit}` -> proposed additions; `commit: false` never writes the ledger. `ledger_written` is true only after a successful atomic ledger save. This endpoint does not add items to Home Assistant. |
 | `GET /clashes?days=7&today=YYYY-MM-DD` | who is away for each planned meal (see below) |
 | `POST /cook` | `{recipe, eat:"HH:MM"}` starts (replaces) a cook; `POST /cook/stop`; `GET /cook` status |
 | `POST /cook/done`, `/cook/ack`, `/cook/tick`, `/cook/delay` | the wall display buttons: `{row, did}`, `{row}`, `{row}`, `{minutes, row}` |
