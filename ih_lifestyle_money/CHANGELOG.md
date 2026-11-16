@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- Publish dashboard-compatible contract progress and provide a checked legacy migration tool.
+- Add optional per-recipient reminder delivery with durable uncertain-delivery review.
+
 ## 0.1.0
 
 - Add private contract records, balance projections and an authenticated migration endpoint.
