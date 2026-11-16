@@ -10,6 +10,7 @@ def open_store(path):
     db = sqlite3.connect(path, check_same_thread=False)
     db.execute("CREATE TABLE IF NOT EXISTS contracts (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS sent (key TEXT PRIMARY KEY, sent_date TEXT NOT NULL)")
+    db.execute("CREATE TABLE IF NOT EXISTS deliveries (key TEXT NOT NULL, recipient TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY (key, recipient))")
     db.commit()
     return db
 
@@ -102,7 +103,27 @@ def reminder_date(end, months):
 
 
 def records(db, today):
-    return sorted((project(json.loads(row[0]), today) for row in db.execute('SELECT data FROM contracts')), key=lambda c: c['end'])
+    rows = []
+    for row in db.execute('SELECT data FROM contracts'):
+        c = project(json.loads(row[0]), today)
+        start, end = dt.date.fromisoformat(c['start']), dt.date.fromisoformat(c['end'])
+        total = (end - start).days
+        months = c.get('remind_months') or ([6, 3] if c['kind'] == 'car lease' else [1])
+        c.update(days_total=total, days_left=(end - today).days,
+                 percent=max(0, min(100, round(100 * (today - start).days / total))),
+                 months=months, reminders=[reminder_date(end, m).isoformat() for m in months])
+        rows.append(c)
+    return sorted(rows, key=lambda c: c['end'])
+
+
+def markdown(rows):
+    lines = ['| Contract | Start | End | Progress | Left |', '|---|---|---|---|---|']
+    for c in rows:
+        n = c['percent'] // 10
+        name = c['name'].replace('|', '\\|').replace('\n', ' ')
+        lines.append("| %s | %s | %s | %s%s %s%% | %s d |" % (
+            name, c['start'], c['end'], '█' * n, '░' * (10 - n), c['percent'], c['days_left']))
+    return '\n'.join(lines)
 
 
 def due(db, today):
@@ -110,7 +131,7 @@ def due(db, today):
     out = []
     for c in records(db, today):
         end = dt.date.fromisoformat(c['end'])
-        for months in c.get('remind_months', [6, 3] if c['kind'] == 'car lease' else [1]):
+        for months in c['months']:
             key = '%s:%s' % (c['id'], months)
             if reminder_date(end, months) <= today <= end and key not in sent:
                 out.append({'key': key, 'id': c['id'], 'months': months, 'end': c['end'], 'who': c.get('who', [])})

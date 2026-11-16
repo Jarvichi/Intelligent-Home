@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Money"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_lifestyle_money
 description: "Private contracts, leases and loan records with calculated balances."
 arch: [aarch64, amd64]
@@ -15,6 +15,14 @@ watchdog: "http://[HOST]:[PORT:8818]/healthz"
 options:
   api_token: ""
   publish_sensor: false
+  reminders_enabled: false
+  assistant_url: ""
+  assistant_token: ""
+  recipient_personas: []
 schema:
   api_token: password?
   publish_sensor: bool
+  reminders_enabled: bool
+  assistant_url: str?
+  assistant_token: password?
+  recipient_personas: [str]

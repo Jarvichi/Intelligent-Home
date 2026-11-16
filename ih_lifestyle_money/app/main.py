@@ -8,6 +8,7 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import store
+import delivery
 
 
 class App:
@@ -24,6 +25,18 @@ class App:
                 return 200, {'contracts': store.records(self.db, self.today())}
             if method == 'GET' and path == '/reminders':
                 return 200, {'due': store.due(self.db, self.today())}
+            if method == 'GET' and path == '/deliveries':
+                return 200, {'deliveries': [{'key': k, 'recipient': r, 'status': s} for k, r, s in
+                                            self.db.execute('SELECT key, recipient, status FROM deliveries')]}
+            if method == 'POST' and path == '/deliveries/resolve':
+                if not isinstance(body, dict) or set(body) != {'key', 'recipient', 'resolution'} or body['resolution'] not in ('sent', 'retry'):
+                    return 400, {'error': 'invalid resolution'}
+                with self.db:
+                    if body['resolution'] == 'retry':
+                        cursor = self.db.execute("DELETE FROM deliveries WHERE key=? AND recipient=? AND status='uncertain'", (body['key'], body['recipient']))
+                    else:
+                        cursor = self.db.execute("UPDATE deliveries SET status='sent' WHERE key=? AND recipient=? AND status='uncertain'", (body['key'], body['recipient']))
+                return (200, {'ok': True}) if cursor.rowcount else (404, {'error': 'uncertain delivery not found'})
             if method == 'POST' and path == '/import':
                 if not isinstance(body, dict) or set(body) != {'contracts', 'sent'}:
                     return 400, {'error': 'contracts and sent history required'}
@@ -78,6 +91,23 @@ def main():
     except (OSError, ValueError):
         opts = {}
     db = store.open_store(os.path.join(data, 'money.db'))
+    if opts.get('reminders_enabled') and opts.get('assistant_url') and opts.get('assistant_token'):
+        def reminders():
+            while True:
+                try:
+                    now = dt.datetime.now()
+                    if now.hour >= 8:
+                        personas = dict(item.split('=', 1) for item in opts.get('recipient_personas', []) if '=' in item)
+                        connection = store.open_store(os.path.join(data, 'money.db'))
+                        try:
+                            delivery.run(connection, now.date(), personas, lambda persona, text:
+                                delivery.send(opts['assistant_url'], opts['assistant_token'], persona, text))
+                        finally:
+                            connection.close()
+                except Exception:
+                    print('reminder check failed', flush=True)
+                time.sleep(3600)
+        threading.Thread(target=reminders, daemon=True).start()
     if opts.get('publish_sensor') and os.environ.get('SUPERVISOR_TOKEN'):
         def publish():
             while True:
@@ -87,7 +117,8 @@ def main():
                     rows = store.records(connection, dt.date.today())
                     connection.close()
                     payload = json.dumps({'state': len(rows), 'attributes': {
-                        'friendly_name': 'Lifestyle money contracts', 'rows': rows}}).encode()
+                        'friendly_name': 'Lifestyle money contracts', 'rows': rows,
+                        'md': store.markdown(rows)}}).encode()
                     request = urllib.request.Request('http://supervisor/core/api/states/sensor.lifestyle_money_contracts',
                         data=payload, method='POST', headers={'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + os.environ['SUPERVISOR_TOKEN']})
