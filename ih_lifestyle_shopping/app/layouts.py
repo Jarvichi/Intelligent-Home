@@ -20,7 +20,7 @@ class LayoutConflict(LayoutError):
 
 
 def connect(path):
-    db = sqlite3.connect(path, timeout=10)
+    db = sqlite3.connect(path, timeout=10, check_same_thread=False)
     db.execute('CREATE TABLE IF NOT EXISTS layout_document (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL, revision TEXT NOT NULL)')
     db.commit()
     return db
