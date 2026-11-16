@@ -171,6 +171,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(500, {'ok': False, 'why': type(ex).__name__})
 
         def _get(self, p, q):
+            if p == '/capabilities':
+                return self._send(200, {'meal_ledger_write_verified': True})
             if p == '/status':
                 s = st.status(); s['cook'] = engine(st).status()
                 return self._send(200, s)

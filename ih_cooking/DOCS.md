@@ -72,6 +72,7 @@ Calendars, the oven, the speaker and the cooking sensor are your own Home Assist
 |---|---|
 | `GET /healthz` | `ok` (no token) |
 | `GET /status` | version, counts, whether tokens are set (never the tokens), plus `cook` (mode, live, guard reason, running) |
+| `GET /capabilities` | reports `meal_ledger_write_verified` when the ledger response is trustworthy |
 | `GET /recipes`, `GET /recipes/<slug>` | list, one recipe |
 | `PUT /recipes/<slug>` | validated edit of an existing recipe; the old file is kept in `/data/recipe_backups/` |
 | `POST /recipes` | new recipe from `{name, steps:[{before,text,short}], prep, shopping, equipment}` |
