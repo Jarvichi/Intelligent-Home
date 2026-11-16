@@ -1,0 +1,7 @@
+{
+  "requires": [],
+  "ui": {
+    "title": "Lifestyle Money",
+    "purpose": "Keeps private contracts and calculates lease balances."
+  }
+}
