@@ -165,6 +165,32 @@ class MoneyTests(unittest.TestCase):
         c = dict(self.c, balance_snapshot={'amount': 0, 'as_of': '2026-11-16'})
         self.assertEqual(store.projection_series(c), [])
 
+    def test_loan_graph_includes_interest_and_stops_at_rate_end(self):
+        c = {'id': 'loan', 'name': 'Loan', 'kind': 'mortgage', 'monthly_payment': 100,
+             'observed_balance': {'amount': 1000, 'as_of': '2026-12'},
+             'interest_rate_percent': 12, 'interest_rate_until': '2027-02-28'}
+        self.assertEqual(store.projection_series(c), [
+            {'date': '2026-12', 'balance': 1000.0},
+            {'date': '2027-01', 'balance': 910.0},
+            {'date': '2027-02', 'balance': 819.1}])
+        self.assertNotIn('projected_balance', store.project(c, dt.date(2027, 1, 1)))
+
+    def test_loan_graph_zero_rate_and_insufficient_payment(self):
+        c = {'id': 'loan', 'name': 'Loan', 'kind': 'loan', 'monthly_payment': 100,
+             'observed_balance': {'amount': 250, 'as_of': '2026-11'}, 'interest_rate_percent': 0}
+        self.assertEqual([p['balance'] for p in store.projection_series(c)], [250, 150, 50, 0])
+        c.update(monthly_payment=1, observed_balance={'amount': 1000, 'as_of': '2026-11'}, interest_rate_percent=24)
+        points = store.projection_series(c)
+        self.assertEqual(len(points), 13)
+        self.assertGreater(points[-1]['balance'], points[0]['balance'])
+        c.pop('interest_rate_percent')
+        self.assertEqual(store.projection_series(c), [])
+
+    def test_loan_interest_rate_validation(self):
+        for bad in (-1, 'NaN', 1001):
+            with self.assertRaises(ValueError):
+                store.validate(dict(self.c, interest_rate_percent=bad))
+
 
 if __name__ == '__main__':
     unittest.main()

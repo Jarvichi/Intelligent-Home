@@ -2,9 +2,11 @@
 
 The admin-only Money page in Home Assistant lets you add and edit contracts, lease payments, balance snapshots, settlement quotes and reminders. The page talks to the add-on through Home Assistant ingress and never needs the API token. Existing fields and reminder history are retained when a record is edited. The dashboard sensor refreshes hourly.
 
-Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. Loan and mortgage balances are shown as dated observations, not projected from payments: interest and rate changes require a separate loan calculation. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
+Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
 
 Lease cards with a recorded balance, monthly payment and payment day show that snapshot and a dashed scheduled-payment estimate. Every point after the snapshot is an assumption, including any past payments; it is not payment history. The graph clamps the last estimate to zero, handles short months, and is omitted when information is missing or the estimate exceeds 600 payments. Payment estimates are also available as text. Settlement quotes are separate dated snapshots.
+
+Loan and mortgage cards can also show an illustrative graph when a recorded balance, monthly payment and annual interest rate are known. The model assumes nominal annual rate divided by 12, interest rounded to the nearest penny each month, a fixed rate and payment, no fees or overpayments, and payments from the month after the snapshot. Actual lender accrual and rate changes can differ; it is not a current lender balance or statement. It stops at a known rate end or contract end, at zero, or after 600 months; if payments do not reduce the balance it shows at most 12 months. Dates on projected points indicate months, not actual payment days.
 
 This add-on stores private contract records in `/data/money.db`. Set a unique API token. Its internal port is not published to the LAN. The health endpoint exposes no financial data; all other endpoints require the token.
 
