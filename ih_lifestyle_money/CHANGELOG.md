@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add an admin-only Money page for viewing and editing private contracts.
+
 ## 0.2.1
 
 - Build and use prebuilt images for both supported architectures.

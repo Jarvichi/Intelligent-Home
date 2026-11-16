@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Money"
-version: "0.2.1"
+version: "0.3.0"
 slug: ih_lifestyle_money
 image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_money"
 description: "Private contracts, leases and loan records with calculated balances."
@@ -9,6 +9,11 @@ arch:
 startup: application
 boot: manual
 init: false
+ingress: true
+ingress_port: 8824
+panel_title: "IH · Money"
+panel_icon: mdi:cash-multiple
+panel_admin: true
 homeassistant_api: true
 ports:
   8818/tcp: null

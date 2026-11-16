@@ -9,6 +9,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import store
 import delivery
+import ui_server
 
 
 class App:
@@ -91,6 +92,9 @@ def main():
     except (OSError, ValueError):
         opts = {}
     db = store.open_store(os.path.join(data, 'money.db'))
+    ui_db = store.open_store(os.path.join(data, 'money.db'))
+    recipients = [item.split('=', 1)[0] for item in opts.get('recipient_personas', []) if '=' in item and item.split('=', 1)[0]]
+    threading.Thread(target=ui_server.make_server(ui_db, recipients).serve_forever, daemon=True).start()
     if opts.get('reminders_enabled') and opts.get('assistant_url') and opts.get('assistant_token'):
         def reminders():
             while True:
