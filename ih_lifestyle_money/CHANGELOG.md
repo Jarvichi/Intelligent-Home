@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Make contract type a dropdown while retaining custom types.
+
 ## 0.3.1
 
 - Support contracts with unknown dates and show dated loan balances without applying lease calculations.
