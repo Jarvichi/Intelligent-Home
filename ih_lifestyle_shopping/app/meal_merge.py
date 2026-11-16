@@ -1,7 +1,7 @@
 """Review meal shopping additions through existing data owners.
 
-No messages, list changes or ledger writes are made. Applying the preview is
-not available until the Cooking ledger handover can be verified safely.
+Preview never writes. Apply requires a reviewed revision and an explicitly
+verified Cooking ledger API; it never sends messages or retries an uncertain call.
 """
 import hashlib
 import json
@@ -16,6 +16,17 @@ class MealError(ValueError):
 
 def _fingerprint(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+
+
+def _item_key(value):
+    value = value.strip().casefold()
+    for prefix in ('meals: ', 'staples: '):
+        if value.startswith(prefix): return value[len(prefix):]
+    return value
+
+
+def _plan_key(snapshot):
+    return _fingerprint({k: snapshot[k] for k in ('plan','recipes','staples','groups','picks')})
 
 
 class MealShopping:
@@ -66,8 +77,40 @@ class MealShopping:
         proposal=self.cooking.merge(before['picks'],groups,have,False)
         if not isinstance(proposal,dict) or proposal.get('ledger_written') is not False or not isinstance(proposal.get('add'),list) or any(not isinstance(x,str) for x in proposal['add']):
             raise MealError('Shopping preview unavailable')
+        keys=[_item_key(x) for x in proposal['add']]
+        if any(not x for x in keys) or len(set(keys)) != len(keys):
+            raise MealError('Shopping preview contains duplicates')
         after=self._snapshot(groups,include_completed)
         if _fingerprint(before)!=_fingerprint(after):
             raise MealError('Plan or list changed; reload')
         return {'add':proposal['add'],'skipped':proposal.get('skipped',[]),'revision':_fingerprint(before)}
+
+    def apply(self, groups, include_completed, revision):
+        if not isinstance(revision,str): raise MealError('Review the list first')
+        if not self.cooking.supports_verified_ledger(): raise MealError('Cooking ledger is not ready')
+        preview=self.preview(groups,include_completed)
+        if preview['revision'] != revision: raise MealError('Plan or list changed; review again')
+        state=self._snapshot(groups,include_completed)
+        if _fingerprint(state) != revision: raise MealError('Plan or list changed; review again')
+        stable_plan=_plan_key(state)
+        added=0
+        for name in preview['add']:
+            current=self._snapshot(groups,include_completed)
+            if _plan_key(current) != stable_plan:
+                return {'ok':False,'added':added,'uncertain':False,'ledger_recorded':False,'reason':'plan_changed'}
+            if _item_key(name) in {_item_key(row['summary']) for row in current['items']}:
+                continue
+            try:
+                self.shopping.add(name)
+            except Exception:
+                return {'ok':False,'added':added,'uncertain':True,'ledger_recorded':False,'reason':'add_unconfirmed'}
+            added+=1
+        if _plan_key(self._snapshot(groups,include_completed)) != stable_plan:
+            return {'ok':False,'added':added,'uncertain':False,'ledger_recorded':False,'reason':'plan_changed'}
+        try:
+            ledger=self.cooking.merge(state['picks'],groups,[],True)
+            recorded=isinstance(ledger,dict) and ledger.get('ledger_written') is True
+        except Exception:
+            return {'ok':False,'added':added,'uncertain':True,'ledger_recorded':False,'reason':'ledger_unconfirmed'}
+        return {'ok':recorded,'added':added,'uncertain':False,'ledger_recorded':recorded,'reason':None if recorded else 'ledger_failed'}
 
