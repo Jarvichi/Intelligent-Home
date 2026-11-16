@@ -131,6 +131,38 @@ def raw_records(db):
     return [json.loads(row[0]) for row in db.execute('SELECT data FROM contracts ORDER BY id')]
 
 
+def projection_series(c):
+    """One recorded lease snapshot followed by assumed scheduled payments.
+
+    This is not payment history. Never apply lease subtraction to loans or
+    fabricate a series when the balance, payment or payment day is missing.
+    """
+    validate(c)
+    kind = c['kind'].lower()
+    if 'lease' not in kind or 'loan' in kind or 'mortgage' in kind or not c.get('balance_snapshot'):
+        return []
+    snapshot = c['balance_snapshot']
+    anchor = dt.date.fromisoformat(snapshot['as_of'])
+    balance = money(snapshot['amount'])
+    payment = money(c['monthly_payment'])
+    count = int((balance / payment).to_integral_value(rounding=ROUND_CEILING))
+    if count == 0 or count > 600:
+        return []
+    points = [{'date': anchor.isoformat(), 'balance': float(balance)}]
+    month = anchor.replace(day=1)
+    try:
+        while balance > 0:
+            due = month.replace(day=min(c['payment_day'], calendar.monthrange(month.year, month.month)[1]))
+            if due > anchor:
+                balance = max(Decimal(0), balance - payment)
+                points.append({'date': due.isoformat(), 'balance': float(balance)})
+            if balance:
+                month = (month.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+    except (ValueError, OverflowError):
+        return []
+    return points
+
+
 def markdown(rows):
     lines = ['| Contract | Start | End | Progress | Left |', '|---|---|---|---|---|']
     for c in rows:
