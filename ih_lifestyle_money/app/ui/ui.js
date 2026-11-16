@@ -26,7 +26,8 @@
   }
   function open(c) {
     current=c || null;form.reset();$('#form-status').textContent='';$('#edit-title').textContent=c?'Edit contract':'Add contract';
-    const v=c||{};for(const key of ['name','kind','start','end','monthly_payment','payment_day'])field(key).value=v[key]??'';
+    const v=c||{};for(const key of ['name','start','end','monthly_payment','payment_day'])field(key).value=v[key]??'';
+    const known=Array.from(field('kind').options).some(option=>option.value===v.kind && option.value!=='__custom__');field('kind').value=known?v.kind:v.kind?'__custom__':'';field('kind_custom').value=known?'':v.kind||'';syncType();
     field('balance').value=(v.observed_balance||v.balance_snapshot)?.amount??'';field('balance_date').value=(v.observed_balance||v.balance_snapshot)?.as_of??'';
     field('settlement').value=v.settlement_quote?.amount??'';field('settlement_date').value=v.settlement_quote?.as_of??'';
     field('remind_months').value=(v.remind_months||[]).join(', ');
@@ -39,9 +40,12 @@
     catch(e){$('#status').textContent='Could not load contracts. Please try again.';}
   }
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));editor.hidden=true;render();});
+  function syncType(){const custom=field('kind').value==='__custom__';$('#custom-type-label').hidden=!custom;field('kind_custom').required=custom;}
+  field('kind').addEventListener('change',syncType);
   $('#add').onclick=()=>open(null);$('#close').onclick=$('#cancel').onclick=()=>{editor.hidden=true;};
   form.addEventListener('submit',async e=>{e.preventDefault();const v=current?JSON.parse(JSON.stringify(current)):{};
-    for(const key of ['name','kind','start','end'])v[key]=field(key).value.trim();
+    for(const key of ['name','start','end'])v[key]=field(key).value.trim();v.kind=field('kind').value==='__custom__'?field('kind_custom').value.trim():field('kind').value;
+    if(!v.kind){$('#form-status').textContent='Choose a contract type.';return;}
     for(const key of ['monthly_payment','payment_day']){const value=field(key).value;if(value==='')delete v[key];else v[key]=Number(value);}
     const balance=field('balance').value, balanceDate=field('balance_date').value, settlement=field('settlement').value, settlementDate=field('settlement_date').value;
     if((balance==='')!==(!balanceDate)||(settlement==='')!==(!settlementDate)){ $('#form-status').textContent='Enter both the amount and date, or leave both blank.';return; }
