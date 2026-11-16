@@ -99,7 +99,9 @@ class MoneyTests(unittest.TestCase):
         self.addCleanup(conn.close)
         conn.request('GET', '/api/contracts')
         response = conn.getresponse()
-        raw = json.loads(response.read())['contracts'][0]
+        payload = json.loads(response.read())
+        raw = payload['contracts'][0]
+        self.assertEqual(payload['series']['vehicle'][0], {'date': '2026-11-16', 'balance': 250.0})
         self.assertIsInstance(raw['balance_snapshot'], dict)
         raw['monthly_payment'] = 110
         conn.request('POST', '/api/contracts', json.dumps(raw), {'Content-Type': 'application/json'})
@@ -145,6 +147,23 @@ class MoneyTests(unittest.TestCase):
         projected = store.project(c, dt.date(2027, 1, 1))
         self.assertNotIn('projected_balance', projected)
         self.assertEqual(projected['balance_snapshot'], c['balance_snapshot'])
+
+    def test_graph_uses_snapshot_and_scheduled_month_end_payments(self):
+        c = dict(self.c, payment_day=31, monthly_payment=100,
+                 balance_snapshot={'amount': 250, 'as_of': '2027-01-31'})
+        self.assertEqual(store.projection_series(c), [
+            {'date': '2027-01-31', 'balance': 250.0},
+            {'date': '2027-02-28', 'balance': 150.0},
+            {'date': '2027-03-31', 'balance': 50.0},
+            {'date': '2027-04-30', 'balance': 0.0}])
+
+    def test_graph_requires_lease_data_and_is_bounded(self):
+        self.assertEqual(store.projection_series(dict(self.c, kind='mortgage')), [])
+        self.assertEqual(store.projection_series(dict(self.c, kind='loan lease')), [])
+        c = dict(self.c, balance_snapshot={'amount': 1000000, 'as_of': '2026-11-16'})
+        self.assertEqual(store.projection_series(c), [])
+        c = dict(self.c, balance_snapshot={'amount': 0, 'as_of': '2026-11-16'})
+        self.assertEqual(store.projection_series(c), [])
 
 
 if __name__ == '__main__':

@@ -4,6 +4,8 @@ The admin-only Money page in Home Assistant lets you add and edit contracts, lea
 
 Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. Loan and mortgage balances are shown as dated observations, not projected from payments: interest and rate changes require a separate loan calculation. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
 
+Lease cards with a recorded balance, monthly payment and payment day show that snapshot and a dashed scheduled-payment estimate. Every point after the snapshot is an assumption, including any past payments; it is not payment history. The graph clamps the last estimate to zero, handles short months, and is omitted when information is missing or the estimate exceeds 600 payments. Payment estimates are also available as text. Settlement quotes are separate dated snapshots.
+
 This add-on stores private contract records in `/data/money.db`. Set a unique API token. Its internal port is not published to the LAN. The health endpoint exposes no financial data; all other endpoints require the token.
 
 The authenticated `POST /import` accepts an object with `contracts` (a list) and `sent` (a mapping of legacy reminder keys to dates). The import is atomic and accepted only when the database is empty. Send both the existing records and reminder history together; keep the originals and verify the imported result before any cutover.

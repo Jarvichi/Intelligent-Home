@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- Show a labelled scheduled-payment projection on eligible lease cards.
+
 ## 0.3.2
 
 - Make contract type a dropdown while retaining custom types.

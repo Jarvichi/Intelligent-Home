@@ -39,8 +39,10 @@ def make_server(db, recipients, port=8824, peer=INGRESS_PEER, host='0.0.0.0'):
             if not self.allowed(): return
             path = self.path.split('?', 1)[0]
             if path == '/api/contracts':
-                return self.output(200, {'contracts': store.raw_records(db),
+                contracts = store.raw_records(db)
+                return self.output(200, {'contracts': contracts,
                                          'projections': store.records(db, dt.date.today()),
+                                         'series': {c['id']: store.projection_series(c) for c in contracts},
                                          'recipients': recipients})
             if path in ASSETS:
                 name, content_type = ASSETS[path]
