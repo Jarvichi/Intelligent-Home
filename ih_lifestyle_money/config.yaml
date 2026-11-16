@@ -1,0 +1,20 @@
+name: "Intelligent Home - Lifestyle - Money"
+version: "0.1.0"
+slug: ih_lifestyle_money
+description: "Private contracts, leases and loan records with calculated balances."
+arch: [aarch64, amd64]
+startup: application
+boot: manual
+init: false
+homeassistant_api: true
+ports:
+  8818/tcp: null
+ports_description:
+  8818/tcp: "Private API for other add-ons; not published on the network"
+watchdog: "http://[HOST]:[PORT:8818]/healthz"
+options:
+  api_token: ""
+  publish_sensor: false
+schema:
+  api_token: password?
+  publish_sensor: bool
