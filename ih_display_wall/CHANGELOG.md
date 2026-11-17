@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- Add an optional read-only hourly forecast preview with a fallback source and unavailable state.
+
 ## 0.8.0
 
 - Add an optional read-only urgent alert banner to the wall preview.

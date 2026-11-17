@@ -4,6 +4,8 @@ import http.client
 import json
 import re
 import time
+import datetime
+import math
 import urllib.error
 import urllib.request
 import frames
@@ -64,7 +66,31 @@ class HA:
                 result.append({'title':title,'detail':detail,'priority':priority})
             return result
         except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-    def snapshot(self,entities,todo,feed='',shared=None):
+    def forecast(self,primary,fallback,now=None):
+        now=time.time() if now is None else now
+        for entity,source in ((primary,'primary'),(fallback,'fallback')):
+            if not isinstance(entity,str) or not entity.startswith('sensor.') or not ENTITY.fullmatch(entity):continue
+            try:
+                value=self.request('states/'+entity)
+                if not isinstance(value,dict) or value.get('state') in ('unknown','unavailable'):continue
+                updated=datetime.datetime.fromisoformat(str(value.get('last_updated','')).replace('Z','+00:00'))
+                if updated.tzinfo is None or not -60<=now-updated.timestamp()<=10800:continue
+                attrs=value['attributes'];hourly=attrs['hourly']
+                if not isinstance(hourly,list) or len(hourly)>500:continue
+                hours=[]
+                for row in hourly:
+                    if not isinstance(row,dict):continue
+                    date=datetime.datetime.fromisoformat(str(row.get('datetime','')).replace('Z','+00:00'))
+                    if date.tzinfo is None:continue
+                    stamp=date.timestamp();temp=row.get('temperature');condition=row.get('condition')
+                    if stamp<=now-3600 or stamp>now+86400 or isinstance(temp,bool) or not isinstance(temp,(int,float)) or not math.isfinite(temp) or not isinstance(condition,str) or not condition:continue
+                    hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' ')}))
+                hours.sort(key=lambda x:x[0])
+                if not hours or hours[0][0]>now+3600:continue
+                return {'source':source,'hours':[x[1] for x in hours[:5]]}
+            except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
+        return None
+    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback=''):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
         with ThreadPoolExecutor(max_workers=8) as pool:
@@ -72,6 +98,7 @@ class HA:
             tf=pool.submit(self.todos,todo) if todo else None
             ff=pool.submit(self.task_feed,feed) if feed else None
             sf=pool.submit(shared) if shared else None
+            wf=pool.submit(self.forecast,weather_primary,weather_fallback) if weather_primary or weather_fallback else None
             sources=[f.result() for f in (ff,tf) if f is not None]
             shared_result=sf.result() if sf else None
             shared_partial=bool(sf and (shared_result is None or not shared_result.get('complete',False)))
@@ -85,7 +112,7 @@ class HA:
                         tasks.extend(item if isinstance(item,dict) else {'title':item,'detail':'','priority':'normal'} for item in source)
                 ranks={'high':0,'normal':1,'low':2}
                 tasks.sort(key=lambda item:ranks[item['priority']])
-            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial}
+            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial,'weather':wf.result() if wf else None,'weather_configured':bool(wf)}
 
 def svg(profile,data,alerts=None,now=None):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')
@@ -118,6 +145,16 @@ def svg(profile,data,alerts=None,now=None):
             if detail:parts.append(f'<text x="950" y="{331+i*75}" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(detail,43)}</text>')
         if data.get('tasks_partial'):parts.append('<text x="930" y="658" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
     parts.append('<text x="930" y="694" fill="#c4d5c9" font-family="sans-serif" font-size="18">Only selected sources are shown</text>')
+    if data.get('weather_configured'):
+        weather=data.get('weather')
+        parts.append('<rect x="70" y="730" width="1405" height="75" rx="16" fill="#26352f"/>')
+        if not weather:parts.append('<text x="90" y="775" fill="#ffd88c" font-family="sans-serif" font-size="22">Hourly forecast unavailable</text>')
+        else:
+            label='Hourly forecast' if weather['source']=='primary' else 'Hourly forecast · fallback'
+            parts.append(f'<text x="90" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{label}</text>')
+            for i,hour in enumerate(weather['hours']):
+                text=hour['time']+'  '+str(hour['temperature'])+'°  '+hour['condition']
+                parts.append(f'<text x="{90+i*270}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(text,26)}</text>')
     if alerts is None:
         parts.append('<text x="70" y="172" fill="#ffd88c" font-family="sans-serif" font-size="19">Alert preview not connected</text>')
     elif not alerts.get('configured'):

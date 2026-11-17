@@ -54,7 +54,7 @@ def main():
     store=frames.Frames(opts.get('source_url',''))
     profile=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),opts.get('profile_id',''))
     ha=render.HA(os.environ.get('SUPERVISOR_TOKEN',''))
-    def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''),profile.message_tasks if opts.get('render_shared_messages') is True else None)
+    def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''),profile.message_tasks if opts.get('render_shared_messages') is True else None,opts.get('weather_forecast_entity',''),opts.get('weather_forecast_fallback_entity',''))
     ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     HTTPServer(('0.0.0.0',8806),make_handler(store)).serve_forever()

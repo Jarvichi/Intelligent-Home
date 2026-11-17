@@ -1,4 +1,5 @@
 import io
+import datetime
 import json
 import pathlib
 import sys
@@ -19,6 +20,24 @@ class Opener:
             return Response(json.dumps({'state':'21','attributes':{'friendly_name':'Example temperature','unit_of_measurement':'°C'}}).encode())
         return Response(json.dumps({'service_response':{'todo.example':{'items':[{'summary':'Example task'}]}}}).encode())
 class Tests(unittest.TestCase):
+    def test_forecast_primary_fallback_stale_and_escaping(self):
+        now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
+        def row(offset,condition='cloudy'):
+            return {'datetime':datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat(),'temperature':9.4,'condition':condition}
+        class Forecast(render.HA):
+            def __init__(self,values):self.values=values;self.calls=[]
+            def request(self,path,body=None):self.calls.append(path);return self.values[path.rsplit('/',1)[-1]]
+        valid={'state':'ok','last_updated':row(0)['datetime'],'attributes':{'hourly':[row(0,'cloudy <test>'),row(3600)]}}
+        old={'state':'ok','last_updated':row(0)['datetime'],'attributes':{'hourly':[row(-7200)]}}
+        ha=Forecast({'sensor.primary':valid,'sensor.fallback':old})
+        data=ha.forecast('sensor.primary','sensor.fallback',now);self.assertEqual(data['source'],'primary');self.assertEqual(len(ha.calls),1)
+        picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':data})
+        self.assertIn(b'cloudy &lt;test&gt;',picture)
+        ha=Forecast({'sensor.primary':old,'sensor.fallback':valid});data=ha.forecast('sensor.primary','sensor.fallback',now);self.assertEqual(data['source'],'fallback')
+        self.assertIn(b'fallback',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':data}))
+        ha=Forecast({'sensor.primary':old,'sensor.fallback':old});self.assertIsNone(ha.forecast('sensor.primary','sensor.fallback',now))
+        stale=dict(valid,last_updated=row(-10801)['datetime']);ha=Forecast({'sensor.primary':stale,'sensor.fallback':valid});self.assertEqual(ha.forecast('sensor.primary','sensor.fallback',now)['source'],'fallback')
+        self.assertIn(b'Hourly forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':None}))
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')
