@@ -52,7 +52,7 @@ def main():
     store=frames.Frames(opts.get('source_url',''))
     profile=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),opts.get('profile_id',''))
     ha=render.HA(os.environ.get('SUPERVISOR_TOKEN',''))
-    def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''))
+    def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''))
     ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     HTTPServer(('0.0.0.0',8806),make_handler(store)).serve_forever()

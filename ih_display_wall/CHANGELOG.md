@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Combine an optional structured task feed with a to-do list and show when a source is unavailable.
+
 ## 0.3.0
 
 - Add a side-by-side, profile-sized display rendering prototype using configured read-only Home Assistant data.
