@@ -6,5 +6,11 @@
   "recheck_after_seconds": 120,
   "timeout_seconds": 300,
   "ai_layer_url": "http://172.30.32.1:8801",
-  "api_token": ""
+  "api_token": "",
+  "checks": [
+    {"name": "parcel", "cameras": "front_door,side_door", "question": "Is there a parcel, package or cardboard box on the ground or doorstep in this picture? Answer only yes or no.", "yes_means": "parcel left"},
+    {"name": "person", "cameras": "front_door", "question": "Is there a person standing at the door in this picture? Answer only yes or no.", "yes_means": "person at the door"},
+    {"name": "car", "cameras": "drive", "question": "Is there a car parked on the drive in this picture? Answer only yes or no.", "yes_means": "car on the drive"},
+    {"name": "bins", "cameras": "drive", "question": "Are wheelie bins standing out at the kerb in this picture? Answer only yes or no.", "yes_means": "bins out"}
+  ]
 }
