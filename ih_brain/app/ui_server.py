@@ -219,7 +219,8 @@ def make_handler(brain, editor=None, data_dir=None, pocket=None):
                         c = extras.CHOICES.get(n["name"], {})
                         n["scrub"], n["repl"] = c.get("scrub", False), c.get("repl", "[name]")
                     return self._send(200, {"names": names, "relaxed_too": extras.RELAXED_TOO,
-                                            "relaxed_notes": extras.relaxed_notes(str(brain.base)), "mapped": sorted(extras.NAMES)})
+                                            "relaxed_notes": extras.relaxed_notes(str(brain.base)), "ignore_custom": list(extras.IGNORE_CUSTOM),
+                                            "ignore_builtin_count": len(extras.IGNORE_BUILTIN), "mapped": sorted(extras.NAMES)})
                 if path == "/api/pocket":
                     return self._send(200, pocket.status() if pocket else {"configured": False, "history": [], "last": None, "failing": False})
                 if path == "/api/graph":
@@ -240,10 +241,10 @@ def make_handler(brain, editor=None, data_dir=None, pocket=None):
                     if n < 0 or n > 400000:
                         return self._send(413, {"error": "Too large"})
                     body = json.loads(self.rfile.read(n) or b"{}")
-                    saved = extras.save_choices(data_dir, body.get("names") or {}, body.get("relaxed_too"))
+                    saved = extras.save_choices(data_dir, body.get("names") or {}, body.get("relaxed_too"), body.get("ignore"))
                 except (ValueError, OSError, AttributeError):
                     return self._send(400, {"error": "Bad request"})
-                return self._send(200, {"ok": True, "scrubbed": sorted(k for k, v in saved.items() if v["scrub"]), "relaxed_too": extras.RELAXED_TOO})
+                return self._send(200, {"ok": True, "scrubbed": sorted(k for k, v in saved.items() if v["scrub"]), "relaxed_too": extras.RELAXED_TOO, "ignore_custom": list(extras.IGNORE_CUSTOM)})
             if not path.startswith(INSTRUCTIONS_API):
                 return self._send(404, {"error": "Not found"})
             if editor is None:
