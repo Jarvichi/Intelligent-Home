@@ -15,6 +15,7 @@ import robot_tasks
 import health_tasks
 import registry_snapshot
 import battery_tasks
+import household_tasks
 
 ROOT = Path(__file__).parent / 'ui'
 ASSETS = {'/': ('index.html','text/html'), '/ih-ui.css': ('ih-ui.css','text/css'), '/ih-ui.js': ('ih-ui.js','text/javascript'), '/ui.css': ('ui.css','text/css'), '/ui.js': ('ui.js','text/javascript'), '/ui.json': ('ui.json','application/json')}
@@ -87,7 +88,9 @@ def main():
     health=health_tasks.Health({key:opts.get('health_'+key+'_entity','') for key in health_tasks.FIELDS},opts.get('health_display_name','Display'),dish._get)
     snapshots=registry_snapshot.Snapshot(os.environ.get('SUPERVISOR_TOKEN',''))
     battery=battery_tasks.BatteryMaintenance(opts,snapshots.read)
-    tasks=dishwasher.Combined(feed,dish,power,robots,health,battery,bins)
+    energy=household_tasks.EnergyReminders(opts.get('booking_status_entity',''),opts.get('wheel_result_entity',''),opts.get('oven_clean_entity',''),opts.get('free_power_event',''),dish._get,provider=opts.get('energy_provider_name','Energy'))
+    tomorrow=household_tasks.Tomorrow(opts.get('tomorrow_event_entity',''),dish._get)
+    tasks=dishwasher.Combined(feed,dish,power,energy,robots,health,battery,tomorrow,bins)
     ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed,task_feed=tasks)).serve_forever()

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.8.0"
+version: "0.9.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -28,6 +28,11 @@ options:
   collection_sources: []
   collection_calendar: ""
   free_power_event: ""
+  energy_provider_name: "Energy"
+  booking_status_entity: ""
+  wheel_result_entity: ""
+  oven_clean_entity: ""
+  tomorrow_event_entity: ""
   robots: []
   robot_weather_entity: ""
   robot_forecast_entity: ""
@@ -63,6 +68,11 @@ schema:
       label: str
   collection_calendar: str?
   free_power_event: str?
+  energy_provider_name: str
+  booking_status_entity: str?
+  wheel_result_entity: str?
+  oven_clean_entity: str?
+  tomorrow_event_entity: str?
   robots:
     - name: str
       kind: list(vacuum|mower)
