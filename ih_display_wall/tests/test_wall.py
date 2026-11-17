@@ -31,6 +31,19 @@ class TestFrames(unittest.TestCase):
             opener=Opener();store=frames.Frames(url,opener);self.assertEqual(store.refresh()['state'],'not_configured');self.assertEqual(opener.calls,0)
     def test_no_redirect(self):
         self.assertIsNone(frames.NoRedirect().redirect_request(None,None,302,'Found',{},'http://example.test/'))
+    def test_render_is_admin_only_and_requires_profile(self):
+        store=frames.Frames('',Opener())
+        class Profile:
+            def __init__(self,ready):self.ready=ready
+            def read(self):return {'state':'ready','width':1920,'height':1080} if self.ready else {'state':'unavailable'}
+        def server(peer,ready):
+            s=HTTPServer(('127.0.0.1',0),main.make_handler(store,True,peer,Profile(ready),lambda:{'items':[],'tasks':[]}));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
+        def request(port):
+            c=http.client.HTTPConnection('127.0.0.1',port,timeout=3);self.addCleanup(c.close);c.request('GET','/api/render.svg');r=c.getresponse();return r.status,r.getheader('Content-Type'),r.read()
+        self.assertEqual(request(server('192.0.2.1',True))[0],403)
+        self.assertEqual(request(server('127.0.0.1',False))[0],503)
+        status,kind,data=request(server('127.0.0.1',True));self.assertEqual(status,200);self.assertEqual(kind,'image/svg+xml');self.assertIn(b'<svg',data)
+
     def test_private_ingress_and_health(self):
         store=frames.Frames('http://example.test/image',Opener())
         def server(ingress,peer):
