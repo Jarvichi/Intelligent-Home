@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- Add optional read-only home health, frost and display health tasks.
+
 ## 0.6.0
 
 - Add configurable read-only robot and mower status tasks to the shared display feed.

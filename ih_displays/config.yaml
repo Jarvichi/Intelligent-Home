@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.6.0"
+version: "0.7.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -34,6 +34,17 @@ options:
   robot_forecast_fallback_entity: ""
   robot_recent_rain_entity: ""
   robot_mower_stored_entity: ""
+  health_dns_entity: ""
+  health_smoke_entity: ""
+  health_backup_entity: ""
+  health_forecast_entity: ""
+  health_forecast_fallback_entity: ""
+  health_disk_entity: ""
+  health_temperature_entity: ""
+  health_offline_entity: ""
+  health_display_seen_entity: ""
+  health_display_battery_entity: ""
+  health_display_name: "Display"
 schema:
   api_token: password?
   message_entities:
@@ -60,3 +71,14 @@ schema:
   robot_forecast_fallback_entity: str?
   robot_recent_rain_entity: str?
   robot_mower_stored_entity: str?
+  health_dns_entity: str?
+  health_smoke_entity: str?
+  health_backup_entity: str?
+  health_forecast_entity: str?
+  health_forecast_fallback_entity: str?
+  health_disk_entity: str?
+  health_temperature_entity: str?
+  health_offline_entity: str?
+  health_display_seen_entity: str?
+  health_display_battery_entity: str?
+  health_display_name: str
