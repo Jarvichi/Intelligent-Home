@@ -103,6 +103,8 @@ Per persona options, all optional: `emoji_level`, `gif_level`, `checkin_level`, 
 
 Hard gates in the add-on: `checkin_level` 0 sends no check-ins at all; otherwise the daily cap is `max_per_day` scaled by the level (at least 1) and the planned gap `min_gap_h` is stretched (level 5 = twice as long). `emoji_level` caps the emoji in each `reply` (0 removes all; extras are cut from the end). `gif_level`: `GET /behaviour` returns `gif_ok` (0 = always false, 10 = always true, else chance level/10); the engine must send a GIF only when it is true. The other levels shape the persona prompt only: add the `prompt` text from `GET /behaviour` to it. Levels change only in the add-on options (no chat command).
 
+Check-in offer (0.20.0): `GET /behaviour` also returns `checkin_offer` and `offer_prompt` (already added to `prompt`). When true, the persona asks once "Would you like me to check in more often?" and reports with `POST /persona/<key>/checkin_offer` `{"answer": "asked"|"no"|"yes"}`. At most one ask per 7 days; `no` stops it for good; `yes` pauses it and the persona posts a request for the owner to raise `checkin_level` or add a planned slot (the add-on cannot change its own options). Not offered at level 10.
+
 ### Tell
 A persona may tell only the keys in its own `can_tell` list (default none; 403 otherwise). Unknown persona 404. Limit 20 a day per pair (429). The add-on writes one event to the target's inbox and reads nothing of the target; the sender's log keeps only the length.
 

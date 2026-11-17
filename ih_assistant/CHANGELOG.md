@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.20.0] - 2026-11-17
+
+### Added
+- Check-in offer: `GET /persona/<key>/behaviour` now adds `checkin_offer` (true or false) and `offer_prompt`; when true, the text is also added to the end of `prompt`. It tells the persona to ask once, lightly, "Would you like me to check in more often?", at most once a week, never again after a no, and not while a yes waits for the owner. Why: Rob and Claire went quiet because their settings are thin, and the owner wants them to offer more check-ins instead of changing their schedule.
+- `POST /persona/<key>/checkin_offer` with `answer` = `asked` (starts the week), `no` (never ask again) or `yes` (the persona asks the owner to approve a higher level; the add-on never changes its own options). Not offered at `checkin_level` 10.
+
 ## [0.19.0] - 2026-11-12
 
 ### Added
