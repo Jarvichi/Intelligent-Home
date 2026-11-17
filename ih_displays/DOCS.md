@@ -25,3 +25,7 @@ Set `free_power_event` to an event entity with an `events` attribute containing 
 ## Robot status tasks
 
 `robots` optionally lists vacuum and mower entities with their names, last-completed sensors and optional last-active, error, last-error, battery and blade sensors. Mower weather, forecast, recent-rain and winter-storage entities are configured separately. The feed reports offline devices or missed runs using last activity as well as last completion; it considers the configured error, battery, blade and weather data for the reason. A configured winter-storage switch suppresses mower tasks. It never controls a robot or sends notifications. No devices are configured by default. When a required configured source cannot be read, the feed is marked incomplete.
+
+## Home and display health tasks
+
+Optional `health_*_entity` settings provide DNS, smoke-device connectivity, backup age, frost, system capacity and display heartbeat/battery data. Each source is read only; unset sources produce no task. Unreadable configured inputs mark the shared task feed incomplete. Urgent states are flagged for display, not sent as notifications. `health_display_name` supplies the label for heartbeat and charge tasks. No household-specific entity IDs are shipped.
