@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin, brainpub, threading
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.8.1'
+VERSION = '0.9.0'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -279,7 +279,7 @@ class Store:
         m = {}
         for r in self.recipes():
             full = self.recipe(r['slug']) or {}
-            for k in (full.get('title'), full.get('name')):
+            for k in (r['slug'], full.get('title'), full.get('name')):
                 if k:
                     m[k.lower()] = {'serves': full.get('serves'), 'meal_time': full.get('meal_time')}
         return m

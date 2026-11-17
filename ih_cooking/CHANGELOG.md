@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.0] - 2026-11-17
+
+### Added
+- Add a seven-day meal planner to the Cooking page; editing remains disabled until ownership is deliberately switched.
+- Recognise recipe IDs in meal-plan consumers as well as recipe titles.
+
 ## [0.8.1] - 2026-11-16
 
 ### Fixed
