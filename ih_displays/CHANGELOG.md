@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add an optional read-only dishwasher task with a four-hour cooling interval to the shared task feed.
+
 ## 0.2.0
 
 - Provide an optional read-only feed of configured display messages.

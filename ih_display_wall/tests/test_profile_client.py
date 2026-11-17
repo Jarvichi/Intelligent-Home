@@ -51,7 +51,7 @@ class Tests(unittest.TestCase):
             def read(self):return {'configured':True,'complete':False,'items':[{'title':'Example','detail':'','priority':'high'}]}
         with tempfile.TemporaryDirectory() as folder:
             path=str(pathlib.Path(folder)/'profiles.sqlite');db=shared.profiles.connect(path);db.close()
-            server=HTTPServer(('127.0.0.1',0),shared.make_handler(path,'example-token',message_feed=Feed()));threading.Thread(target=server.serve_forever,daemon=True).start()
+            server=HTTPServer(('127.0.0.1',0),shared.make_handler(path,'example-token',message_feed=Feed(),task_feed=Feed()));threading.Thread(target=server.serve_forever,daemon=True).start()
             try:
                 client=ProfileClient('http://127.0.0.1:'+str(server.server_port),'example-token',IDENT)
                 feed=client.message_tasks();self.assertFalse(feed['complete']);self.assertEqual(feed['items'][0]['title'],'Example')

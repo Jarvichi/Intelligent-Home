@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- Read the shared task feed, including the optional dishwasher task.
+
 ## 0.5.1
 
 - Label the task preview as selected sources so an empty partial migration is not presented as a complete task list.

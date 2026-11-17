@@ -8,12 +8,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 import profiles
 import messages
+import dishwasher
 
 ROOT = Path(__file__).parent / 'ui'
 ASSETS = {'/': ('index.html','text/html'), '/ih-ui.css': ('ih-ui.css','text/css'), '/ih-ui.js': ('ih-ui.js','text/javascript'), '/ui.css': ('ui.css','text/css'), '/ui.js': ('ui.js','text/javascript'), '/ui.json': ('ui.json','application/json')}
 PEER = '172.30.32.2'
 
-def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None):
+def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None, task_feed=None):
     class Handler(BaseHTTPRequestHandler):
         def reply(self, status, data, kind='application/json'):
             body = data if isinstance(data,bytes) else json.dumps(data,ensure_ascii=False).encode()
@@ -41,6 +42,7 @@ def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None):
                     if not isinstance(body,dict): raise ValueError()
                 except (ValueError,UnicodeError): return self.reply(400,{'error':'Invalid request.'})
             if path=='/v1/message-tasks' and method=='GET':return self.reply(200,message_feed.read() if message_feed else {'configured':False,'complete':True,'items':[]})
+            if path=='/v1/tasks' and method=='GET':return self.reply(200,task_feed.read() if task_feed else {'configured':False,'complete':True,'items':[]})
             db=profiles.connect(db_path)
             try:
                 if path=='/v1/profiles' and method=='GET': return self.reply(200,{'profiles':profiles.listing(db)})
@@ -72,8 +74,10 @@ def main():
     except (OSError,ValueError): opts={}
     db_path=str(data/'displays.db'); db=profiles.connect(db_path); db.close()
     feed=messages.Messages(opts.get('message_entities',[]),os.environ.get('SUPERVISOR_TOKEN',''))
-    ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed))
+    dish=dishwasher.Dishwasher(opts.get('dishwasher_pending_entity',''),opts.get('dishwasher_finished_entity',''),os.environ.get('SUPERVISOR_TOKEN',''))
+    tasks=dishwasher.Combined(feed,dish)
+    ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
-    ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed)).serve_forever()
+    ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed,task_feed=tasks)).serve_forever()
 
 if __name__=='__main__': main()

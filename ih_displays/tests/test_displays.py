@@ -17,8 +17,8 @@ class Tests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.path=str(pathlib.Path(self.tmp.name)/'db.sqlite')
         db=profiles.connect(self.path);db.close()
-    def server(self,ingress=False,peer='127.0.0.1',token='example-token',feed=None):
-        s=HTTPServer(('127.0.0.1',0),main.make_handler(self.path,token,ingress,peer,message_feed=feed));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
+    def server(self,ingress=False,peer='127.0.0.1',token='example-token',feed=None,tasks=None):
+        s=HTTPServer(('127.0.0.1',0),main.make_handler(self.path,token,ingress,peer,message_feed=feed,task_feed=tasks));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
     def req(self,port,method,path,body=None,auth=None):
         c=http.client.HTTPConnection('127.0.0.1',port,timeout=3);self.addCleanup(c.close);headers={}
         if body is not None: body=json.dumps(body);headers['Content-Type']='application/json'
@@ -50,6 +50,14 @@ class Tests(unittest.TestCase):
         status,body=self.req(api,'GET','/v1/message-tasks',auth='example-token')
         self.assertEqual(status,200);self.assertEqual(body['items'][0]['title'],'Example')
         self.assertEqual(self.req(api,'POST','/v1/message-tasks',{},'example-token')[0],405)
+
+    def test_combined_task_feed_is_authenticated_and_read_only(self):
+        class Feed:
+            def read(self):return {'configured':True,'complete':True,'items':[{'title':'Example task','detail':'','priority':'normal'}]}
+        api=self.server(tasks=Feed())
+        self.assertEqual(self.req(api,'GET','/v1/tasks')[0],401)
+        status,body=self.req(api,'GET','/v1/tasks',auth='example-token');self.assertEqual(status,200);self.assertEqual(body['items'][0]['title'],'Example task')
+        self.assertEqual(self.req(api,'POST','/v1/tasks',{},'example-token')[0],405)
 
     def test_rejects_invalid_or_unexpected_values(self):
         admin=self.server(True)

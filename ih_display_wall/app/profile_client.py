@@ -40,8 +40,8 @@ class ProfileClient:
         if not frames.valid_url(self.url) or urlsplit(self.url).query or not self.token:
             return None
         try:
-            req=urllib.request.Request(self.url+'/v1/message-tasks',headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'})
-            with self.opener.open(req,timeout=5) as response:
+            req=urllib.request.Request(self.url+'/v1/tasks',headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'})
+            with self.opener.open(req,timeout=8) as response:
                 raw=response.read(MAX_SIZE+1)
                 if response.status!=200 or len(raw)>MAX_SIZE:raise ValueError()
             value=json.loads(raw)
