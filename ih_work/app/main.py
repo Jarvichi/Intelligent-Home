@@ -136,7 +136,7 @@ def make_handler(svc, token_of):
         if path == '/runs/start':
             return svc.run_start_now(d['pace_target'], d['max_items'], d.get('block_size'), d.get('review_batch_size'))
         if path == '/runs/stop':
-            return svc.run_stop()
+            return svc.run_stop(bool(d.get('graceful')))
 
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body, ct='application/json'):

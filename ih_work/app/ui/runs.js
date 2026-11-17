@@ -88,6 +88,10 @@
     } else st.textContent = 'No run active.';
     $('now-go').disabled = !!a;
     $('now-stop').disabled = !a;
+    $('now-finish').disabled = !a || !!a.finishing;
+    const why = $('now-why');
+    if (a) why.textContent = a.finishing ? 'Finishing: nothing new is started, the run ends when the current items are done. Stop run ends it at once.' : '';
+    else why.textContent = 'Stop buttons are greyed because no run is active' + (v.last ? ' (the last run ended ' + clockText(v.last.ended_at) + ': ' + v.last.reason + ')' : '') + '.';
   }
 
   async function load() {
@@ -103,6 +107,9 @@
   });
   $('now-stop').addEventListener('click', async () => {
     try { render(await call('POST', '/stop', {})); say(''); } catch (e) { say(e.message); load(); }
+  });
+  $('now-finish').addEventListener('click', async () => {
+    try { render(await call('POST', '/stop', { graceful: true })); say(''); } catch (e) { say(e.message); load(); }
   });
   load();
   setInterval(load, 10000);

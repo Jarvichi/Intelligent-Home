@@ -23,7 +23,7 @@ The page has a **Runs** card. A run is a spell in which the add-on queues the Cl
 - **Pace**: claims still follow the run's pace target. When the target is reached (or any other end), the run cancels the queued jobs it fed itself that have not started (tracked by id). Jobs that already started finish; jobs the run did not feed are never touched.
 - A run ends at: the item count, the pace target, the stop-by time, the session or week limit, the STOP switch, an empty backlog, or Stop. The page shows the last reason.
 - **Test mode** (`mode: dry`): a run only logs per phase (`[DRY] would queue the planning job`, `[DRY] would queue the review job`, `[DRY] would feed: <title>`, `[DRY] block N: n to-do(s) would be fed`), queues nothing, does not wait for jobs already in the queue, and counts each fed to-do as started, so count and block limits can be tried safely.
-- API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items, block_size?, review_batch_size?}` (`max_items` null = unlimited), `POST /runs/stop`. `409` when a run is already active (start) or none is (stop).
+- API (token): `GET /runs`, `POST /runs/settings {night?, day?}` (partial: only the fields sent change), `POST /runs/start {pace_target, max_items, block_size?, review_batch_size?}` (`max_items` null = unlimited), `POST /runs/stop {graceful?}` (`graceful: true` = finish the started items, then end). `409` when a run is already active (start) or none is (stop).
 
 ## Working now (0.4.0)
 
