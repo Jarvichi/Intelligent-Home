@@ -39,6 +39,15 @@ class Tests(unittest.TestCase):
         self.assertTrue(data['tasks_partial']);self.assertEqual(data['tasks'],[])
         self.assertIn(b'Some task sources are unavailable',render.svg({'state':'ready','width':1920,'height':1080},data))
         data=Sources(None,None).snapshot([],'todo.example','sensor.feed');self.assertIsNone(data['tasks'])
+    def test_shared_messages_partial_is_visible(self):
+        ha=render.HA('')
+        message={'title':'Example message','detail':'Example detail','priority':'high'}
+        result=ha.snapshot([],'','',lambda:{'configured':True,'complete':False,'items':[message]})
+        self.assertTrue(result['tasks_partial']);self.assertEqual(result['tasks'][0]['title'],'Example message')
+        picture=render.svg({'state':'ready','width':1920,'height':1080},result)
+        self.assertIn(b'Example message',picture);self.assertIn(b'Some task sources are unavailable',picture)
+        failed=ha.snapshot([],'','',lambda:None);self.assertIsNone(failed['tasks']);self.assertTrue(failed['tasks_partial'])
+
     def test_feed_validation_and_escaping(self):
         class Feed(render.HA):
             def __init__(self,items):self.items=items

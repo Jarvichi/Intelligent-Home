@@ -63,15 +63,19 @@ class HA:
                 result.append({'title':title,'detail':detail,'priority':priority})
             return result
         except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-    def snapshot(self,entities,todo,feed=''):
+    def snapshot(self,entities,todo,feed='',shared=None):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures=[pool.submit(self.state,e) for e in entities]
             tf=pool.submit(self.todos,todo) if todo else None
             ff=pool.submit(self.task_feed,feed) if feed else None
+            sf=pool.submit(shared) if shared else None
             sources=[f.result() for f in (ff,tf) if f is not None]
-            configured=bool(todo or feed);partial=any(x is None for x in sources)
+            shared_result=sf.result() if sf else None
+            shared_partial=bool(sf and (shared_result is None or not shared_result.get('complete',False)))
+            if sf:sources.insert(0,shared_result.get('items') if shared_result else None)
+            configured=bool(todo or feed or shared);partial=shared_partial or any(x is None for x in sources)
             if not configured or all(x is None for x in sources): tasks=None
             else:
                 tasks=[]

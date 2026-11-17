@@ -43,6 +43,28 @@ class Tests(unittest.TestCase):
                 self.assertEqual(ProfileClient(client.url,'wrong',profile['id']).read()['state'],'unavailable')
             finally:server.shutdown();server.server_close()
 
+    def test_messages_against_shared_api(self):
+        root=pathlib.Path(__file__).resolve().parents[2]/'ih_displays'/'app'
+        sys.path.insert(0,str(root));self.addCleanup(sys.path.remove,str(root))
+        spec=importlib.util.spec_from_file_location('shared_displays_messages_main',root/'main.py');shared=importlib.util.module_from_spec(spec);spec.loader.exec_module(shared)
+        class Feed:
+            def read(self):return {'configured':True,'complete':False,'items':[{'title':'Example','detail':'','priority':'high'}]}
+        with tempfile.TemporaryDirectory() as folder:
+            path=str(pathlib.Path(folder)/'profiles.sqlite');db=shared.profiles.connect(path);db.close()
+            server=HTTPServer(('127.0.0.1',0),shared.make_handler(path,'example-token',message_feed=Feed()));threading.Thread(target=server.serve_forever,daemon=True).start()
+            try:
+                client=ProfileClient('http://127.0.0.1:'+str(server.server_port),'example-token',IDENT)
+                feed=client.message_tasks();self.assertFalse(feed['complete']);self.assertEqual(feed['items'][0]['title'],'Example')
+                self.assertIsNone(ProfileClient(client.url,'wrong',IDENT).message_tasks())
+            finally:server.shutdown();server.server_close()
+
+    def test_read_shared_messages(self):
+        message={'title':'Example','detail':'Details','priority':'high'}
+        client=ProfileClient('http://profiles.example','token',IDENT,Opener({'configured':True,'complete':True,'items':[message]}))
+        self.assertEqual(client.message_tasks()['items'],[message])
+        for body in ({'configured':False,'complete':True,'items':[]},{'configured':True,'complete':True,'items':[{'title':'','detail':'','priority':'high'}]}):
+            self.assertIsNone(ProfileClient(client.url,'token',IDENT,Opener(body)).message_tasks())
+
     def test_wrong_type_or_identity_rejected(self):
         for profile in (dict(PROFILE,kind='eink'),dict(PROFILE,id='b'*32),dict(PROFILE,width=True)):
             self.assertEqual(ProfileClient('http://profiles.example','token',IDENT,Opener(profile)).read()['state'],'invalid')

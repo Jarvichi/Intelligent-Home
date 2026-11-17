@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.1.2"
+version: "0.2.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -9,6 +9,7 @@ arch:
 startup: application
 boot: manual
 init: false
+homeassistant_api: true
 ingress: true
 ingress_port: 8827
 panel_title: "IH · Displays"
@@ -21,5 +22,8 @@ ports_description:
 watchdog: "http://[HOST]:[PORT:8805]/healthz"
 options:
   api_token: ""
+  message_entities: []
 schema:
   api_token: password?
+  message_entities:
+    - str
