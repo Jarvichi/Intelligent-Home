@@ -40,6 +40,8 @@ class RecipeHTTP(unittest.TestCase):
         except urllib.error.HTTPError as e: response=e
         with response:return response.status,json.load(response)
     def test_snapshot_auth_and_actual_listing_shape(self):
+        self.assertEqual(self.request('GET','/capabilities',authed=False)[0],401)
+        self.assertIs(self.request('GET','/capabilities')[1]['meal_ledger_write_verified'],True)
         self.assertEqual(self.request('GET','/recipe-snapshot',authed=False)[0],401)
         self.assertIn('recipes',self.request('GET','/recipes')[1])
         snapshot=self.request('GET','/recipe-snapshot')[1]

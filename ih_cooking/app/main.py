@@ -1,13 +1,13 @@
 """Intelligent Home - Cooking (ih_cooking): recipes, meal plan, meal-vs-calendar clashes, the recipes page (ingress) and the cook engine.
 Two listeners: the bearer API on 8809 and the ingress page on 8810 (only the Supervisor may reach it)."""
-import json, logging, os, re, sys, threading
+import hashlib, json, logging, os, re, sys, threading
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import cooking, recipeadmin, staples
+import cooking, recipeadmin, staples, usual_week
 
 PORT = int(os.environ.get('IHC_PORT', '8809'))
 INGRESS_PORT = int(os.environ.get('IHC_INGRESS_PORT', '8810'))
@@ -15,11 +15,39 @@ SUPERVISOR_IPS = ('172.30.32.2',)
 EAT_RE = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 
 
+def plan_view(st):
+    plan, source = st.plan()
+    plan = {day: str(plan.get(day) or '') for day in recipeadmin.DAYS}
+    revision = hashlib.sha256(json.dumps({'plan': plan, 'source': source}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    return {'plan': plan, 'source': source, 'revision': revision, 'editable': st.opts.get('manage_plan') is True}
+
+
 def ingress_api(st, method, p, body):
     """The recipes page API (same paths and shapes as the old host page service, minus the /api prefix handled by the caller). -> (code, obj)."""
     m = re.fullmatch(r'/recipes/([a-z0-9-]+)', p)
     if method == 'GET' and p == '/publication':
         return 200, st.publication_status()
+    if method == 'GET' and p == '/plan':
+        return 200, plan_view(st)
+    if method == 'PUT' and p == '/plan':
+        if st.opts.get('manage_plan') is not True:
+            return 403, {'errors': ['Meal plan editing is not enabled.']}
+        if not isinstance(body, dict) or not isinstance(body.get('plan'), dict):
+            return 422, {'errors': ['Invalid meal plan.']}
+        with recipeadmin._WRITE_LOCK:
+            if body.get('revision') != plan_view(st)['revision']:
+                return 409, {'errors': ['The meal plan changed. Reload before saving.']}
+            ok, errors = recipeadmin.write_plan(st.data, body['plan'])
+        return (200, plan_view(st)) if ok else (422, {'errors': errors})
+    if method == 'GET' and p == '/usual-week':
+        try:
+            return 200, usual_week.read(st.data)
+        except (ValueError, OSError):
+            return 500, {'errors': ['The saved usual week could not be read.']}
+    if method == 'PUT' and p == '/usual-week':
+        if not isinstance(body, dict):
+            return 422, {'errors': ['Invalid usual week.']}
+        return usual_week.save(st.data, body.get('plan'), body.get('revision'))
     if method == 'GET' and p == '/recipes':
         return 200, recipeadmin.listing(st.data)
     if method == 'GET' and m:
@@ -96,13 +124,13 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             p = re.sub(r'/+', '/', urlparse(self.path).path)
             if method == 'GET' and p in ('/', '/index.html'):
                 return self._send(200, open(page, 'rb').read(), 'text/html')
-            assets = {'/ih-patterns.css': ('ui/ih-patterns.css', 'text/css'), '/ih-ui.css': ('ui/ih-ui.css', 'text/css'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript')}
+            assets = {'/ih-patterns.css': ('ui/ih-patterns.css', 'text/css'), '/ih-ui.css': ('ui/ih-ui.css', 'text/css'), '/ih-ui.js': ('ui/ih-ui.js', 'text/javascript'), '/meal-plan.js': ('ui/meal-plan.js', 'text/javascript')}
             if method == 'GET' and p in assets:
                 name, kind = assets[p]
                 return self._send(200, open(os.path.join(HERE, name), 'rb').read(), kind)
             if not p.startswith('/api/'):
                 return self._send(404, {'error': 'not found'})
-            self._logit = True
+            self._logit = p not in ('/api/plan', '/api/usual-week')  # Meal selections are private even with payload logging.
             try:
                 body = self._body() if method in ('PUT', 'POST') else {}
             except Exception as ex:
@@ -152,6 +180,8 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(500, {'ok': False, 'why': type(ex).__name__})
 
         def _get(self, p, q):
+            if p == '/capabilities':
+                return self._send(200, {'meal_ledger_write_verified': True})
             if p == '/status':
                 s = st.status(); s['cook'] = engine(st).status()
                 return self._send(200, s)

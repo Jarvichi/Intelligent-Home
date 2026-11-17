@@ -3,11 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
-## [0.7.1] - 2026-11-14
+## [0.9.0] - 2026-11-17
 
 ### Added
 - "Stop after current items" on the Runs card: `POST /runs/stop {graceful: true}` feeds nothing new, cancels jobs that have not started, and ends the run (reason "stopped by the user (after the current items)") once the started ones are done. Run state shows `finishing`. Plain Stop is unchanged.
 - The Runs card says why the Stop buttons are greyed (no run active, and how the last run ended).
+
+## [0.8.0] - 2026-11-17
+
+### Added
+- Priority on a job: `priority` (`high`, `normal` default, `low`) on `POST /enqueue`. A claim hands out high first, then normal, then low; first in, first out inside one priority. Handoffs still jump the line. Jobs without a priority count as normal. The status `next` and the Today view follow the same order.
 
 ## [0.7.0] - 2026-11-14
 

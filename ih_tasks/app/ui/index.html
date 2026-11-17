@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Tasks</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Tasks"></ih-nav>
+  <ih-app>
+    <main>
+      <div class="ih-page-heading">
+        <h1 id="page-title">Tasks</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p id="purpose" class="ih-metadata"></p>
+
+      <section id="board-view" aria-label="Task board">
+        <form id="add-form" class="t-add" autocomplete="off">
+          <label class="t-visually-hidden" for="add-title">New task title</label>
+          <input id="add-title" type="text" maxlength="200" placeholder="New task">
+          <button id="add-go" class="t-button" type="submit">Add</button>
+        </form>
+        <p id="add-msg" class="ih-metadata" role="status" aria-live="polite"></p>
+
+        <div class="t-filter" role="search">
+          <div class="t-search-row">
+            <label class="t-visually-hidden" for="f-search">Search tasks</label>
+            <input id="f-search" type="search" placeholder="Search by title or number">
+            <span id="f-count" class="ih-metadata" role="status" aria-live="polite"></span>
+          </div>
+          <div class="t-filter-grid">
+            <label for="f-stage">Stage</label>
+            <label for="f-waiting">Waiting for</label>
+            <span aria-hidden="true"></span>
+            <select id="f-stage"><option value="">All</option></select>
+            <select id="f-waiting">
+              <option value="">All</option>
+              <option value="input">Needs my input</option>
+              <option value="owner">Me</option>
+              <option value="worker">Worker</option>
+              <option value="check">Check</option>
+            </select>
+            <button id="f-clear" class="t-button" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="t-tools">
+          <button id="merge-toggle" class="t-button" type="button" aria-pressed="false">Merge</button>
+          <button id="dup-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="dup-view">Find duplicates</button>
+        </div>
+        <p id="tools-msg" class="t-msg" role="status" aria-live="polite"></p>
+        <section id="dup-view" class="t-dups" aria-label="Likely duplicates" hidden></section>
+
+        <div id="board" class="t-board"></div>
+        <details id="closed-box" class="t-closed">
+          <summary><span id="closed-title">Closed</span></summary>
+          <div id="closed-list" class="t-col-list"></div>
+        </details>
+        <p id="board-empty" class="ih-empty-inline" hidden>No tasks match.</p>
+      </section>
+
+      <section id="detail-view" aria-label="Task" hidden>
+        <button id="back" class="t-button" type="button">Back to the board</button>
+        <div id="detail"></div>
+      </section>
+
+      <p id="access" class="ih-metadata"></p>
+      <div id="merge-bar" class="t-mergebar" role="region" aria-label="Merge tasks" hidden></div>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

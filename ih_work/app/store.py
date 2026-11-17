@@ -1,4 +1,4 @@
-"""Work queue store: one JSON file per item under <dir>/items, FIFO by a monotonic seq, with leases.
+"""Work queue store: one JSON file per item under <dir>/items, FIFO by a monotonic seq inside each priority (high, normal, low), with leases.
 
 Item statuses: queued, claimed (handed to a consumer, lease running), running (consumer sent a heartbeat), done, failed, cancelled, waiting (worker stopped without finishing: waiting_kind needs_ok | needs_you | progress | cannot; a person or a requeue moves it on).
 A consumer holds an item only while its lease is valid. `heartbeat` renews it. A lease that runs out puts the item back in the queue
@@ -13,6 +13,7 @@ WAITING_KINDS = ('needs_ok', 'needs_you', 'progress', 'cannot')
 OPEN = ('queued', 'claimed', 'running')
 ACTIVE = ('claimed', 'running')
 MAX_ATTEMPTS = 3
+PRIORITIES = ('high', 'normal', 'low')   # claimed high first, then normal, then low; first in, first out inside one priority
 CONSUMER_RE = re.compile(r'^[A-Za-z0-9_.-]{1,40}$')
 LIMITS = {'ref': 200, 'title': 200, 'instruction': 4000, 'summary': 2000, 'error': 500}
 
@@ -22,6 +23,17 @@ class StoreError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+def rank(i):
+    """Sort key of an item in the line: priority first (a missing priority is normal), then seq."""
+    p = i.get('priority')
+    return (PRIORITIES.index(p) if p in PRIORITIES else 1, i.get('seq', 0))
+
+
+def queue_order(items):
+    """The queued items in the order they are handed out."""
+    return sorted((i for i in items if i['status'] == 'queued'), key=rank)
 
 
 def utcnow():
@@ -158,13 +170,15 @@ class Store:
         return self._load_all()
 
     # ---- writes ----
-    def enqueue(self, kind, ref, title, instruction, approved=False, by='claude'):
+    def enqueue(self, kind, ref, title, instruction, approved=False, by='claude', priority='normal'):
         if kind not in KINDS:
             raise StoreError('bad', 'kind must be one of ' + ', '.join(KINDS))
         if not isinstance(by, str) or not CONSUMER_RE.match(by):
             raise StoreError('bad', 'by must be 1-40 letters, digits, . _ -')
         if not isinstance(approved, bool):
             raise StoreError('bad', 'approved must be true or false')
+        if priority not in PRIORITIES:
+            raise StoreError('bad', 'priority must be one of ' + ', '.join(PRIORITIES))
         ref, title, instruction = clean(str(ref) if isinstance(ref, int) else ref, 'ref'), clean(title, 'title'), clean(instruction, 'instruction')
         if not ref or not title or not instruction:
             raise StoreError('bad', 'ref, title and instruction are needed')
@@ -175,7 +189,7 @@ class Store:
                     return i
             it = dict(id=uuid.uuid4().hex[:8], seq=self._next_seq(), kind=kind, ref=ref, title=title, instruction=instruction, approved=approved,
                       status='queued', queued_at=iso(now), claimed_by=None, lease_expires_at=None, heartbeat_at=None, started_at=None,
-                      finished_at=None, attempts=0, result_summary=None, error=None, by=by)
+                      finished_at=None, attempts=0, result_summary=None, error=None, by=by, priority=priority)
             self._save(it)
             return it
 
@@ -186,7 +200,7 @@ class Store:
         raise StoreError('missing', 'no such item')
 
     def claim(self, consumer, lease_s, iid=None):
-        """Give the lowest-seq queued item (or the queued item `iid`) to `consumer` with a lease. Returns the item, or None when the queue is empty.
+        """Give the first queued item (highest priority, then lowest seq) (or the queued item `iid`) to `consumer` with a lease. Returns the item, or None when the queue is empty.
         Raises conflict when another item is still held (one at a time)."""
         if not isinstance(consumer, str) or not CONSUMER_RE.match(consumer):
             raise StoreError('bad', 'consumer must be 1-40 letters, digits, . _ -')
@@ -195,7 +209,7 @@ class Store:
             held = next((i for i in items if i['status'] in ACTIVE), None)
             if held:
                 raise StoreError('conflict', 'an item is already held')
-            head = next((i for i in items if i['status'] == 'queued' and (iid is None or i['id'] == iid)), None)
+            head = next((i for i in queue_order(items) if iid is None or i['id'] == iid), None)
             if not head:
                 return None
             head.update(status='claimed', claimed_by=consumer, started_at=iso(now), heartbeat_at=iso(now), lease_expires_at=iso(now + timedelta(seconds=lease_s)))

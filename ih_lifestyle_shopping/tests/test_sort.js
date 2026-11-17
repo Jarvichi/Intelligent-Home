@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('assert');const s=require('../app/sort.js');
+const layout={stores:{default:'a',stores:[{id:'a',order:['Fruit','Other']},{id:'b',order:['Other','Fruit']}]},aisles:{order:['Fruit','Other'],match:[['Fruit','apple|pear']],rank:{}}};
+const items=[{uid:'1',summary:'Apples x2',due:'2026-11-20'},{uid:'2',summary:'2x Apples',due:'2026-11-21'},{uid:'3',summary:'Bread',due:'2026-11-19'}];
+const combined=s.rows(items);assert.strictEqual(combined.length,2);assert.deepStrictEqual(combined[0].uids,['1','2']);assert.strictEqual(combined[0].qty,4);
+assert.deepStrictEqual(s.orderedGroups(items,'shop',layout,'a').map(x=>x.label),['Fruit','Other']);
+assert.deepStrictEqual(s.orderedGroups(items,'shop',layout,'b').map(x=>x.label),['Other','Fruit']);
+assert.deepStrictEqual(s.orderedGroups(items,'day',layout,'a').map(x=>x.label),['2026-11-19','2026-11-20']);
+assert.deepStrictEqual(s.orderedGroups(items,'added',layout,'a')[0].rows.map(x=>x.label),['Apples','Bread']);
+assert.strictEqual(items[0].summary,'Apples x2');
+assert.deepStrictEqual(s.rows([{uid:'x',summary:'Batteries: 2 x AA'},{uid:'y',summary:'Batteries: 3 x AA'}])[0].uids,['x','y']);
+console.log('Shopping ordering and grouping checks passed.');

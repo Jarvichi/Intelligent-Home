@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord - Task channels"
-version: "0.1.12"
+version: "0.2.0"
 slug: ih_discord_taskchannels
 image: "ghcr.io/jarvichi/{arch}-ih_discord_taskchannels"
 description: "One private Discord channel per task, as a module of the ih_discord transport: commands new / done / reopen / list in a commands channel, goal as channel topic, Work in Progress and Done categories, daily cleanup of old done channels. It asks the transport (signed MQTT bus) to administer channels and never holds a Discord token. SHADOW mode by default: it creates nothing. No Home Assistant access. Maps no folders."
@@ -17,7 +17,7 @@ panel_admin: true
 ports:
   8797/tcp: 8797
 ports_description:
-  8797/tcp: "Health and status (/healthz, /status)"
+  8797/tcp: "Health and status (/healthz, /status); wake-up events (/events) when push_events is on"
 options:
   log_payloads: false
   module_name: "ih_discord_taskchannels"
@@ -28,6 +28,8 @@ options:
   done_category: "done"
   template: ""
   cleanup_days: 30
+  push_events: false
+  events_token: ""
   mqtt_host: "core-mosquitto"
   mqtt_port: 1883
   mqtt_user: "ih_discord_taskchannels"
@@ -44,6 +46,8 @@ schema:
   done_category: str
   template: str?
   cleanup_days: int(1,365)
+  push_events: bool?
+  events_token: password?
   mqtt_host: str
   mqtt_port: port
   mqtt_user: str

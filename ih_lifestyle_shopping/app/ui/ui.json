@@ -1,0 +1,1 @@
+{"title":"Shopping","purpose":"Manage the shopping list and review spending.","description":"Shop order, list actions, staples, meal shopping and receipt trends.","health_port":8804,"health_path":"/healthz","navigation":["Shopping list","Spend and trends","Shop settings"],"access":"Home Assistant authenticated admin ingress only"}

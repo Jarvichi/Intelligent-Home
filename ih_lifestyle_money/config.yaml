@@ -1,0 +1,36 @@
+name: "Intelligent Home - Lifestyle - Money"
+version: "0.4.0"
+slug: ih_lifestyle_money
+image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_money"
+description: "Private contracts, leases and loan records with calculated balances."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+ingress: true
+ingress_port: 8824
+panel_title: "IH · Money"
+panel_icon: mdi:cash-multiple
+panel_admin: true
+homeassistant_api: true
+ports:
+  8818/tcp: null
+ports_description:
+  8818/tcp: "Private API for other add-ons; not published on the network"
+watchdog: "http://[HOST]:[PORT:8818]/healthz"
+options:
+  api_token: ""
+  publish_sensor: false
+  reminders_enabled: false
+  assistant_url: ""
+  assistant_token: ""
+  recipient_personas: []
+schema:
+  api_token: password?
+  publish_sensor: bool
+  reminders_enabled: bool
+  assistant_url: str?
+  assistant_token: password?
+  recipient_personas: [str]

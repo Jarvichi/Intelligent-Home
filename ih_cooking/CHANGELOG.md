@@ -3,6 +3,30 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.1] - 2026-11-17
+
+### Added
+- Store a private usual-week preset and fill the planner without changing the active week until it is saved.
+
+## [0.9.0] - 2026-11-17
+
+### Added
+- Add a seven-day meal planner to the Cooking page; editing remains disabled until ownership is deliberately switched.
+- Recognise recipe IDs in meal-plan consumers as well as recipe titles.
+
+## [0.8.1] - 2026-11-16
+
+### Fixed
+- Report whether the meal-item ledger was actually saved, write it atomically, and preserve unreadable ledgers for review.
+
+## [0.8.0] - 2026-11-16
+
+### Added
+- Add a read-only ingress meal-plan endpoint and an opt-in, revision-checked write path for a future coordinated migration.
+
+### Fixed
+- When meal-plan ownership is enabled, keep an intentionally empty plan empty rather than falling back to legacy helpers.
+
 ## [0.7.0] - 2026-11-12
 
 ### Added

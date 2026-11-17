@@ -7,9 +7,9 @@ import feed
 import gate as G
 import runs as R
 from workers import Workers
-from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow
+from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow, queue_order
 
-VERSION = '0.6.1'
+VERSION = '0.9.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -17,7 +17,7 @@ RUN_FEED_CHECK_S = 30
 
 
 def brief(i):
-    return i and {k: i.get(k) for k in ('id', 'seq', 'kind', 'title', 'approved', 'queued_at', 'started_at', 'finished_at', 'status', 'claimed_by')}
+    return i and {k: i.get(k) for k in ('id', 'seq', 'kind', 'title', 'approved', 'queued_at', 'started_at', 'finished_at', 'status', 'claimed_by', 'priority')}
 
 
 class Service:
@@ -290,7 +290,7 @@ class Service:
                 return dict(claimed=False, reason=d.reason, gate=self.gate_line(d, r))
             key, recent = self._recent_claims(st, now)
             if self.opts.get('mode') != 'live':
-                head = next(i for i in items if i['status'] == 'queued')
+                head = queue_order(items)[0]
                 st[key] = recent + [iso(now)]
                 self.save_state(st)
                 self.log('[DRY] would hand out item %s: %s' % (head['id'], head['title']))
@@ -316,7 +316,7 @@ class Service:
             fin = [i for i in items if i.get('finished_at') and i['status'] in ('done', 'failed')]
             w = self.worker_view(items, d, r)
             return dict(version=VERSION, run_mode=self.opts.get('mode'), counts=counts,
-                        next=brief(next((i for i in items if i['status'] == 'queued'), None)),
+                        next=brief(next(iter(queue_order(items)), None)),
                         running=brief(next((i for i in items if i['status'] in ACTIVE), None)),
                         last_finished=brief(max(fin, key=lambda i: i['finished_at'])) if fin else None,
                         worker=dict(state=w['state'], reason=w['reason'], mode=w['mode'], band=w['band'], updated=iso(now)),

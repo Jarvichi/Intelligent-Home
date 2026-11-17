@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 import clashes, recipeadmin, brainpub, threading
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
-VERSION = '0.7.0'
+VERSION = '0.9.1'
 SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
 
@@ -39,6 +39,7 @@ def load_options(path):
         'ha_url': ha_url,
         'ha_token': ha_token,
         'plan_entity_prefix': str(o.get('plan_entity_prefix') or '').strip(),
+        'manage_plan': o.get('manage_plan') is True,
         'rate_per_min': int(o.get('rate_per_min') or 60),
         'clash_config': cc,
         'log_payloads': o.get('log_payloads') is True,
@@ -278,7 +279,7 @@ class Store:
         m = {}
         for r in self.recipes():
             full = self.recipe(r['slug']) or {}
-            for k in (full.get('title'), full.get('name')):
+            for k in (r['slug'], full.get('title'), full.get('name')):
                 if k:
                     m[k.lower()] = {'serves': full.get('serves'), 'meal_time': full.get('meal_time')}
         return m
@@ -288,7 +289,7 @@ class Store:
         """-> (plan dict, source). /data/mealplan.json first, else HA input_selects (read only), else empty."""
         try:
             p = json.load(open(os.path.join(self.data, 'mealplan.json')))
-            if isinstance(p, dict) and any(p.values()):
+            if isinstance(p, dict) and (any(p.values()) or self.opts.get('manage_plan') is True):
                 return {k: str(p.get(k) or '') for k in clashes.DAYS}, 'file'
         except (OSError, ValueError):
             pass

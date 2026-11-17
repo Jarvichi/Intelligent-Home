@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ih_work 0.6.1: the work queue, the pace gate and the task view. See DOCS.md.
 API (bearer api_token; an empty token refuses everything except /healthz):
-  POST /enqueue {kind, ref, title, instruction, approved?, by?}   GET /list?status=a,b   GET /item/<id>
+  POST /enqueue {kind, ref, title, instruction, approved?, by?, priority? (high|normal|low)}   GET /list?status=a,b   GET /item/<id>
   POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}   POST /wait {id, consumer, kind, summary?}   POST /requeue {id}
   POST /cancel {id}   POST /retry {id}   GET /status
   POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}   GET /workers
@@ -23,7 +23,7 @@ PORT = int(os.environ.get('IHW_PORT', '8802'))
 MAX_BODY = 16384
 HTTP = {'bad': 400, 'forbidden': 403, 'missing': 404, 'conflict': 409}
 FIELDS = {   # POST path -> (allowed fields, required fields)
-    '/enqueue': ({'kind', 'ref', 'title', 'instruction', 'approved', 'by'}, {'kind', 'ref', 'title', 'instruction'}),
+    '/enqueue': ({'kind', 'ref', 'title', 'instruction', 'approved', 'by', 'priority'}, {'kind', 'ref', 'title', 'instruction'}),
     '/claim': ({'consumer', 'lease_s'}, {'consumer'}),
     '/heartbeat': ({'id', 'consumer', 'lease_s'}, {'id', 'consumer'}),
     '/complete': ({'id', 'consumer', 'summary'}, {'id', 'consumer'}),
@@ -111,7 +111,7 @@ def make_handler(svc, token_of):
     def post(path, d):
         s = svc.store
         if path == '/enqueue':
-            return s.enqueue(d['kind'], d['ref'], d['title'], d['instruction'], d.get('approved', False), d.get('by', 'claude'))
+            return s.enqueue(d['kind'], d['ref'], d['title'], d['instruction'], d.get('approved', False), d.get('by', 'claude'), d.get('priority', 'normal'))
         if path == '/claim':
             return svc.claim(d['consumer'], lease_of(d))
         if path == '/heartbeat':

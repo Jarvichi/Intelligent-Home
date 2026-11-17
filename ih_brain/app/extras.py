@@ -1,6 +1,7 @@
 """ih_brain extras (stdlib only): Apple Notes staging and the pocket brain sync (Cloudflare KV).
 Both are DRY unless switched on in the options. No secret is ever logged or returned."""
 import base64, hashlib, json, os, re, time, urllib.request, urllib.error
+from collections import deque
 from datetime import datetime
 
 # ---------------------------------------------------------------- Apple Notes -> staging folder (outside the brain)
@@ -207,6 +208,9 @@ def _http(method, url, headers, body=None, timeout=60):
             return {'success': False, 'errors': [{'message': 'HTTP %s' % e.code}]}
 
 
+HISTORY_MAX, FAIL_RUN = 20, 3
+
+
 class Pocket:
     """Sync job. dry (live=False): select + scrub + count what WOULD be sent, send nothing, change nothing.
     http is injectable for tests: http(method, url, headers, body_bytes) -> dict."""
@@ -218,6 +222,30 @@ class Pocket:
         self.http = http or (lambda m, u, h, b=None: _http(m, u, h, b))
         self.log, self.now = log, now
         self.last = {}
+        self.history = deque(maxlen=HISTORY_MAX)
+
+    def _scrub(self, text):
+        """Error text for display: never the token, key or URL, no URLs at all, short."""
+        text = str(text or '')
+        for secret in (self._tok, self._key, self.url):
+            if secret:
+                text = text.replace(secret, '[hidden]')
+        return re.sub(r'https?://\S+', '[url]', text)[:120]
+
+    def _record(self, out):
+        pull, push = out.get('pull', {}), out.get('push', {})
+        errors = [self._scrub('%s: %s' % (k, d['error'])) for k, d in (('pull', pull), ('push', push)) if d.get('error')]
+        self.history.append({'at': out.get('at'), 'inbox': pull.get('inbox', 0), 'selected': push.get('selected', 0),
+                             'changed': push.get('changed', 0), 'removed': push.get('removed', 0),
+                             'refused': push.get('refused', 0), 'live': bool(push.get('live', self.live)),
+                             'ok': not errors, 'error': '; '.join(errors)})
+
+    def status(self):
+        """Read-only payload for GET /api/pocket: last 20 syncs (oldest first) and failing = last 3 all errors."""
+        hist = list(self.history)
+        return {'configured': True, 'live': self.live, 'history': hist,
+                'last': hist[-1] if hist else None,
+                'failing': len(hist) >= FAIL_RUN and all(not r['ok'] for r in hist[-FAIL_RUN:])}
 
     def _cf(self, method, path, body=None):
         h = {'Authorization': 'Bearer ' + self._tok}
@@ -311,5 +339,6 @@ class Pocket:
             out['push'] = {'error': type(e).__name__}
         out['at'] = self.now()
         self.last = out
+        self._record(out)
         self.log('pocket sync %s' % json.dumps(out))
         return out

@@ -21,8 +21,9 @@ Every house value comes from settings (JSON in plugins[].settings); defaults in 
   route_polyline           [[lat, lon], ...] rough route (first 2 points, then the stop, then the last point) and the closing point used with route_stops
   start_before_min [25], shadow_after_min [25], dm_when_eta_min [15] (only marks 'would_dm' in the log), avg_speed_kmh [35], road_factor [1.25], stale_min [5]
   sweep_start ['07:00'], sweep_end ['09:00'], sweep_km [1.5], sweep_stop (key), promise_stop (key of the promised journey; default sweep_stop)
-  deck_overrides          plugin state file deck_overrides.json (the old rob_bus/deck_overrides.json shape: {"63705": "single", "34470": "double"}, key = number after the last '-').
-                           Wins over every lookup and over a cached AI guess; read on each lookup so a new answer applies at once. Import it with the plugin files endpoint.
+  deck overrides          a person's answers (12346 = single, 12347 = double), kept in the add-on's own database /data/ih.db (table bus_deck_overrides, see jobsdb.py).
+                           Set with POST /plugin/bus_watch/overrides {"code": "OP-12346", "deck": "single|double|unknown"} (files_token), list with GET. Wins over every lookup and over a cached
+                           AI guess; read on each lookup so a new answer applies at once. An old plugin file deck_overrides.json ({"12346": "single"}) is imported once in live mode, then moved to /data/trash.
   vehicle_page_url        page per vehicle with an og:description type text; {veh} = vehicle ref lower case (bustimes style); looked up 1 per second, cached
   promise_webhook_url     host URL that receives {"rows": [all promise records]} after every change. Optional: leave it empty and the host pulls the log instead
                            (GET /plugin/bus_watch/file/promise_log.jsonl with the files_token option). Empty = not posted.
@@ -68,6 +69,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 
 import ihlib.log
+import jobsdb
 from plugins import spare_ai
 
 NAME = 'bus_watch'
@@ -421,11 +423,29 @@ def ai_type(ctx, box, s, veh):
     return '%s (AI, unverified)' % ans
 
 
+def jobs_db(folder, log=None):
+    """The add-on's own database (the folder above this plugin's state folder; in tests the folder itself). Holds the deck answers a person gave."""
+    here = os.path.basename(os.path.normpath(folder)) == NAME
+    return jobsdb.shared(os.path.dirname(os.path.normpath(folder)) if here else folder, log=log, legacy_dir=folder)
+
+
+def http_overrides(folder, method, body=None, log=None):
+    """GET/POST /plugin/bus_watch/overrides (files_token auth is done by main.py). GET -> the answers; POST {"code": "OP-12345", "deck": "single|double|unknown"} sets one.
+    -> (http status, JSON object)."""
+    db = jobs_db(folder, log)
+    if method == 'GET':
+        return 200, {'ok': True, 'overrides': db.overrides(), 'db': db.status()}
+    if not isinstance(body, dict):
+        return 400, {'ok': False, 'why': 'body must be {"code": "OP-12345", "deck": "single|double|unknown"}'}
+    ok, msg = db.set_override(body.get('code'), body.get('deck'), by=body.get('by') or 'api')
+    return (200 if ok else 400 if 'Choose' in msg else 503), {'ok': ok, 'msg': msg}
+
+
 def vehicle_type(ctx, box, s, veh):
     """Vehicle type text, cached by the number after the last '-'. Tiers (same as the old script): 1 the vehicle page, 2 the operator fleet list page, 3 an outside AI
     ('(AI, unverified)'). '?' when every lookup failed (not cached); None if the page has no text."""
     num = veh.split('-')[-1]
-    over = box.load('deck_overrides').get(num)   # a person's answer (the set-unknown UI) wins over every lookup and over a cached AI guess; never cached
+    over = jobs_db(ctx.state.folder, ctx.log).override(num, live=not ctx.dry)   # a person's answer (the set-unknown UI) wins over every lookup and over a cached AI guess; never cached
     if over in ('single', 'double'):
         return '%s deck (manual)' % over.capitalize()
     cache = box.load('vehicle_types')
@@ -731,7 +751,7 @@ def promise_payload(s, rows, now):
         for j in ('morning', 'return'):
             sel = sorted((r for r in rows if journey_of(r) == j), key=lambda r: (r['date'], r['scheduled']), reverse=True)[:n]
             for r in sel:
-                out.append({'date': r['date'], 'journey': j, 'scheduled': r['scheduled'], 'stop': r['stop'], 'stop_name': r.get('stop_name'), 'day_type': r.get('day_type', 'college'),
+                out.append({'id': '%s-%s-%s' % (r['date'], j, r['scheduled']), 'date': r['date'], 'journey': j, 'scheduled': r['scheduled'], 'stop': r['stop'], 'stop_name': r.get('stop_name'), 'day_type': r.get('day_type', 'college'),
                             'promise_journey': bool(r.get('promise_journey')), 'vehicle': r.get('vehicle'), 'vehicle_type': r.get('vehicle_type'), 'deck': r.get('deck'),
                             'verdict': r['verdict'], 'label': LABEL.get(r['verdict'], r['verdict']), 'text': row_text(r),
                             'bus': (r['vehicle'] + (' (%s)' % r['vehicle_type'] if r.get('vehicle_type') and r['vehicle_type'] != '?' else '')) if r.get('vehicle') else '-'})
@@ -846,6 +866,8 @@ def run(ctx):
         return False
     now = ctx.now
     box = Box(ctx)
+    if not ctx.dry:
+        jobs_db(ctx.state.folder, ctx.log).maintain()   # trash purge and a nightly snapshot of the add-on database; does nothing most passes
     day = now.date()
     sessions = box.load('sessions')
     sessions = {k: v for k, v in sessions.items() if k.startswith(day.isoformat() + '|')}

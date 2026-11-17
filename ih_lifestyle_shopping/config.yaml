@@ -1,0 +1,36 @@
+name: "Intelligent Home - Lifestyle - Shopping"
+version: "0.1.1"
+slug: ih_lifestyle_shopping
+image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_shopping"
+description: "Shopping list, store layouts, staples and spending."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+ingress: true
+ingress_port: 8826
+panel_title: "IH · Shopping"
+panel_icon: mdi:cart-variant
+panel_admin: true
+homeassistant_api: true
+ports:
+  8804/tcp: null
+ports_description:
+  8804/tcp: "Private authenticated API for add-ons"
+watchdog: "http://[HOST]:[PORT:8804]/healthz"
+options:
+  api_token: ""
+  shopping_list_entity: "todo.shopping_list"
+  list_writes_enabled: false
+  cooking_url: ""
+  cooking_api_token: ""
+  groceries_url: ""
+schema:
+  api_token: password?
+  shopping_list_entity: str
+  list_writes_enabled: bool
+  cooking_url: str?
+  cooking_api_token: password?
+  groceries_url: str?

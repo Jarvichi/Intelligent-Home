@@ -8,6 +8,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import ihlib.state
+import jobsdb
 from plugins import bus_watch as B
 
 UTC = dt.timezone.utc
@@ -121,6 +122,7 @@ class TestRules(unittest.TestCase):
 class TestStatus(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
+        self.addCleanup(jobsdb.close_all)
 
     def st(self, now, http, dry=False, **over):
         s = base_settings(**over)
@@ -184,6 +186,7 @@ class TestStatus(unittest.TestCase):
 class TestRun(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
+        self.addCleanup(jobsdb.close_all)
 
     def ctx(self, now, http, dry=False, ha=None, **over):
         return Ctx(self.dir, base_settings(**over), now, http, dry, ha)
@@ -279,7 +282,7 @@ class TestPageData(unittest.TestCase):
         self.assertEqual(sum(1 for r in a['rows'] if r['journey'] == 'return'), 1)
         self.assertIn('Promised journey, 6 day(s)', a['summary'])
         self.assertEqual(a['compare']['college']['double'], 5)
-        self.assertEqual(sorted(a['rows'][0]), sorted(['date', 'journey', 'scheduled', 'stop', 'stop_name', 'day_type', 'promise_journey', 'vehicle', 'vehicle_type', 'deck',
+        self.assertEqual(sorted(a['rows'][0]), sorted(['id', 'date', 'journey', 'scheduled', 'stop', 'stop_name', 'day_type', 'promise_journey', 'vehicle', 'vehicle_type', 'deck',
                                                       'verdict', 'label', 'text', 'bus']))
 
     def test_promise_payload_capped(self):
