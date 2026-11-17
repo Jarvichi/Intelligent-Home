@@ -13,7 +13,7 @@ ROOT=Path(__file__).parent/'ui'
 PEER='172.30.32.2'
 ASSETS={'/':('index.html','text/html'),'/ih-ui.css':('ih-ui.css','text/css'),'/ih-ui.js':('ih-ui.js','text/javascript'),'/ui.css':('ui.css','text/css'),'/ui.js':('ui.js','text/javascript')}
 
-def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None):
+def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False):
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()
@@ -32,7 +32,9 @@ def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None):
                 if not profile or not render_data:return self.reply(503,{'error':'Renderer unavailable.'})
                 p=profile.read()
                 if p.get('state')!='ready':return self.reply(503,{'error':'Display profile unavailable.'})
-                try:return self.reply(200,render.svg(p,render_data()),'image/svg+xml')
+                try:
+                    warnings=(profile.alerts() or {'configured':True,'complete':False,'alerts':[]}) if alert_preview else None
+                    return self.reply(200,render.svg(p,render_data(),warnings),'image/svg+xml')
                 except ValueError:return self.reply(503,{'error':'Display profile unavailable.'})
             if method=='POST' and path=='/api/refresh':return self.reply(200,store.refresh())
             if method=='GET' and path=='/api/frame':
@@ -53,7 +55,7 @@ def main():
     profile=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),opts.get('profile_id',''))
     ha=render.HA(os.environ.get('SUPERVISOR_TOKEN',''))
     def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''),profile.message_tasks if opts.get('render_shared_messages') is True else None)
-    ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot))
+    ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     HTTPServer(('0.0.0.0',8806),make_handler(store)).serve_forever()
 

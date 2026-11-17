@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Add an optional read-only urgent alert banner to the wall preview.
+
 ## 0.7.0
 
 - Highlight urgent items in the shared task preview without changing their source order.

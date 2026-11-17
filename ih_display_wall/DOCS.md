@@ -21,3 +21,5 @@ Set `render_shared_messages` to true to include the configured IH Displays share
 The picture labels tasks as selected sources. An empty configured subset does not mean the household has no other tasks.
 
 Shared tasks may carry an urgent flag, which highlights the task without changing its source order.
+
+Set `render_shared_alerts` to true to preview IH Displays urgent alerts. The preview marks unconfigured or incomplete alert sources explicitly and shows up to four warnings per rotating page. Energy dismissal state is read from the existing source; the preview does not provide dismissal controls. The existing TV feed remains the live display and should not be switched until warning and action parity are verified.

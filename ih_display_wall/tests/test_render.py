@@ -78,6 +78,20 @@ class Tests(unittest.TestCase):
         image=render.svg(p,{'tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
         self.assertIn(b'fill="#ffd88c"',image);self.assertIn(b'Example urgent',image)
 
+    def test_alerts_never_imply_safe_when_unavailable(self):
+        p={'state':'ready','width':1920,'height':1080}
+        self.assertIn(b'Alert preview not connected',render.svg(p,{}))
+        self.assertIn(b'Alert preview not configured',render.svg(p,{}, {'configured':False,'complete':False,'alerts':[]}))
+        image=render.svg(p,{}, {'configured':True,'complete':False,'alerts':[]});self.assertIn(b'Alert sources unavailable',image);self.assertNotIn(b'No active alerts',image)
+        alerts={'configured':True,'complete':False,'alerts':[{'kind':'smoke','title':'SMOKE <ALARM>','short':'SMOKE','dismissible':False}]}
+        image=render.svg(p,{},alerts);self.assertIn(b'INPUTS INCOMPLETE',image);self.assertIn(b'SMOKE &lt;ALARM&gt;',image)
+    def test_alert_paging_and_selected_source_label(self):
+        p={'state':'ready','width':1920,'height':1080}
+        alerts={'configured':True,'complete':True,'alerts':[{'title':'Warning '+str(i)} for i in range(5)]}
+        first=render.svg(p,{},alerts,now=0);second=render.svg(p,{},alerts,now=300)
+        self.assertIn(b'Warning 0',first);self.assertNotIn(b'Warning 4',first);self.assertIn(b'Warning 4',second)
+        self.assertIn(b'No active alerts from selected sources',render.svg(p,{}, {'configured':True,'complete':True,'alerts':[]}))
+
     def test_missing_or_wrong_profile_fails_closed(self):
         for profile in ({'state':'unavailable'},{'state':'ready','width':True,'height':100}):
             with self.assertRaises(ValueError):render.svg(profile,{})
