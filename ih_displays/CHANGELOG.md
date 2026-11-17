@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Add an optional read-only waste-collection task source.
+
 ## 0.3.0
 
 - Add an optional read-only dishwasher task with a four-hour cooling interval to the shared task feed.

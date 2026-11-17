@@ -13,3 +13,7 @@ Optionally list up to 12 Home Assistant `input_text` entity IDs in `message_enti
 ## Dishwasher task
 
 Set `dishwasher_pending_entity` to the Home Assistant unloading boolean and `dishwasher_finished_entity` to its finish-time helper. The optional shared `GET /v1/tasks` feed includes this task with existing display messages. While pending, it shows cooling for four hours after the finish time and then ready to unload. If the finish time is unavailable, it falls back to the pending helper's last-changed time and marks the feed incomplete. This does not control or acknowledge the dishwasher. Both settings are empty by default.
+
+## Collection tasks
+
+Configure `collection_sources` as a list of `{entity, label}` objects for waste-collection sensors, and optionally `collection_calendar` for today's fallback event. The feed groups the next dates, marks today and tomorrow, and moves a collection to collected-today after noon. It reads only configured entities and marks the shared feed incomplete when a source cannot be read. Settings default empty; no household-specific names or entity IDs are shipped. Collection items are preview data, not a control or confirmation that a collection happened.

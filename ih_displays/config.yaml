@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.3.0"
+version: "0.4.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -25,9 +25,15 @@ options:
   message_entities: []
   dishwasher_pending_entity: ""
   dishwasher_finished_entity: ""
+  collection_sources: []
+  collection_calendar: ""
 schema:
   api_token: password?
   message_entities:
     - str
   dishwasher_pending_entity: str?
   dishwasher_finished_entity: str?
+  collection_sources:
+    - entity: str
+      label: str
+  collection_calendar: str?
