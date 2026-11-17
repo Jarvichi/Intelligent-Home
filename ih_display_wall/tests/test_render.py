@@ -78,5 +78,5 @@ class Tests(unittest.TestCase):
             with self.assertRaises(ValueError):render.svg(profile,{})
     def test_empty_and_unavailable_tasks_are_distinct(self):
         p={'state':'ready','width':100,'height':100}
-        self.assertIn(b'No open tasks',render.svg(p,{'tasks':[]}))
+        picture=render.svg(p,{'tasks':[]});self.assertIn(b'No items from selected sources',picture);self.assertIn(b'Only selected sources are shown',picture);self.assertNotIn(b'No open tasks',picture)
         self.assertIn(b'Task list unavailable',render.svg(p,{'tasks':None,'tasks_configured':True}))
