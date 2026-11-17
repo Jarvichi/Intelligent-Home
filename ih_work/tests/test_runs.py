@@ -260,6 +260,30 @@ class Runs(Base):
             self.svc.run_stop()
         self.assertEqual(self.svc.runs_view()['last']['reason'], 'stopped by the user')
 
+    def test_graceful_stop_waits_for_started_items(self):
+        self.make(when=T0.replace(hour=12), mode='dry')
+        self.svc.run_start_now(-1, 3)
+        v = self.svc.run_stop(graceful=True)      # dry run: nothing started, so it ends at once
+        self.assertIsNone(v['active'])
+        self.assertEqual(v['last']['reason'], 'stopped by the user (after the current items)')
+
+    def test_graceful_stop_keeps_run_while_item_running(self):
+        self.make(when=T0.replace(hour=12), mode='dry')
+        self.svc.run_start_now(-1, 3)
+        st = self.svc.load_state()
+        a = self.svc.store.enqueue('todo', 'g1', 't', 'x', False, 'claude')
+        b = self.svc.store.enqueue('todo', 'g2', 't', 'x', False, 'claude')
+        self.svc.store.claim('w1', 600, a['id'])
+        st['run']['block_ids'] = [a['id'], b['id']]
+        self.svc.save_state(st)
+        v = self.svc.run_stop(graceful=True)
+        self.assertEqual(v['active']['state'], 'finishing')
+        self.svc.store.finish(a['id'], 'w1', True)
+        st = self.svc.load_state()
+        self.svc._finish_if_idle(st, self.svc.clock())
+        self.assertNotIn('run', st)
+        self.assertEqual(st['run_last']['reason'], 'stopped by the user (after the current items)')
+
     def test_run_now_unlimited_and_validation(self):
         self.make(when=T0.replace(hour=12))
         self.assertIsNone(self.svc.run_start_now(-1, None)['active']['max_items'])

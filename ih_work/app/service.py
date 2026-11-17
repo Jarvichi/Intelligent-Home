@@ -9,7 +9,7 @@ import runs as R
 from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow, queue_order
 
-VERSION = '0.8.0'
+VERSION = '0.9.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -155,14 +155,31 @@ class Service:
             self.save_state(st)
             return self.runs_view()
 
-    def run_stop(self):
+    def run_stop(self, graceful=False):
+        """Hard stop ends the run at once (queued jobs it fed are cancelled, started ones finish). graceful=True feeds nothing new, cancels what has not started and ends the run once the started items are done."""
         with self.lock:
             st = self.load_state()
-            if not st.get('run'):
+            run = st.get('run')
+            if not run:
                 raise StoreError('conflict', 'no run is active')
-            self._end_run(st, self.clock(), 'stopped by the user')
+            if graceful:
+                run['finishing'] = True
+                self.log('run: stop after the current items requested')
+                self._finish_if_idle(st, self.clock())
+            else:
+                self._end_run(st, self.clock(), 'stopped by the user')
             self.save_state(st)
             return self.runs_view()
+
+    def _finish_if_idle(self, st, now):
+        """A finishing run ends when none of the jobs it fed is claimed or running. Queued ones are cancelled by _end_run."""
+        run = st.get('run')
+        if not run or not run.get('finishing'):
+            return
+        mine = set(run.get('block_ids') or []) | {run.get(k) for k in ('plan_id', 'review_id') if run.get(k)}
+        if any(i['id'] in mine and i['status'] in ('claimed', 'running') for i in self.store.list()):
+            return
+        self._end_run(st, now, 'stopped by the user (after the current items)')
 
     def run_eval(self, st, now, r):
         """Keep the active run up to date (end it if it is over, or start a due scheduled one). -> the run dict or None. Caller saves st."""
@@ -172,6 +189,9 @@ class Service:
             if why:
                 self._end_run(st, now, why)
                 run = None
+            elif run.get('finishing'):
+                self._finish_if_idle(st, now)
+                run = st.get('run')
         if not run and not self.stopped():
             kind, wdate = R.due_kind(self.run_settings(), st.get('run_windows') or {}, self.local(now))
             if kind:
@@ -204,7 +224,7 @@ class Service:
                 done = run.get('block_total', 0) if run.get('dry') else sum(1 for x in bids if x in byid and byid[x]['status'] not in OPEN)
                 shown = dict(run, block_done=done)
                 view['active'] = dict(kind=run['kind'], started_at=run['started_at'], pace_target=run['pace_target'], max_items=run['max_items'], stop_by_at=run['stop_by_at'],
-                                      started=R.effective_started(run), dry=run.get('dry', False), state='running' if ok else 'waiting', reason=why,
+                                      started=R.effective_started(run), dry=run.get('dry', False), state='finishing' if run.get('finishing') else ('running' if ok else 'waiting'), finishing=bool(run.get('finishing')), reason=why,
                                       block_size=run.get('block_size', R.BLOCK_DEFAULT), review_batch_size=run.get('review_batch_size', 0), phase=run.get('phase', 'drain'), block_no=run.get('block_no', 0),
                                       block_total=run.get('block_total', 0), block_done=done, fed=run.get('fed', 0), phase_text=R.phase_text(shown))
             return view
@@ -397,7 +417,7 @@ class Service:
     def run_step(self, st, items, d, now):
         """Advance the active run's phase. Called by tick after run_eval (so the run is not over). Caller has the lock. Saves st when it changes."""
         run = st.get('run')
-        if not run or not self.ha or self.stopped():
+        if not run or not self.ha or self.stopped() or run.get('finishing'):
             return
         live = self.opts.get('mode') == 'live'
         byid = {i['id']: i for i in items}
