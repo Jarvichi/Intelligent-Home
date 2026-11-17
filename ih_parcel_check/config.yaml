@@ -1,5 +1,5 @@
 name: "Intelligent Home - Parcel check"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_parcel_check
 image: "ghcr.io/jarvichi/{arch}-ih_parcel_check"
 description: "Looks at saved doorstep pictures through the Intelligent Home AI layer (capability vision) and says whether a parcel was left. DRY by default: it only writes verdicts to its own log and posts nothing. The AI layer decides which provider sees the picture; if that is an outside one (Gemini), the picture leaves the house."
@@ -25,6 +25,7 @@ options:
   poll_seconds: 30
   recheck_after_seconds: 120
   timeout_seconds: 300
+  checks: []
 schema:
   dry: bool
   snapshot_dir: str
@@ -34,3 +35,8 @@ schema:
   poll_seconds: int(10,600)
   recheck_after_seconds: int(0,900)
   timeout_seconds: int(30,900)
+  checks:
+    - name: str
+      cameras: str
+      question: str
+      yes_means: str?

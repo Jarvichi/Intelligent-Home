@@ -1,4 +1,7 @@
 # Changelog
+## 0.3.0
+- New option `checks`: a list of yes/no questions, each with `name`, `cameras` (comma list of picture prefixes), `question` and optional `yes_means`. Every picture is asked every matching check; verdicts are logged per check (new `check` field) and /status shows the latest verdict per check under `checks`. Empty list = the old single parcel check on `cameras`, so nothing changes on update. Old log lines count as check `parcel`. Still DRY: nothing is posted. Invalid or duplicate checks are skipped.
+
 ## 0.2.0
 - Asks the Intelligent Home AI layer (capability `vision`) instead of the Ollama add-on; Ollama is no longer needed (it does not run on the Pi). Options `ollama_url` and `model` are replaced by `ai_layer_url` and `api_token`. Needs AI layer 0.6.0+ and a vision provider (Gemini). With an outside provider the picture leaves the house.
 
