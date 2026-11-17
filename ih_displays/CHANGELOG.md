@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- Add configurable read-only robot and mower status tasks to the shared display feed.
+
 ## 0.5.0
 
 - Add optional free-electricity events to the read-only display task feed.

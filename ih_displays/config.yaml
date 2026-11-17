@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.5.0"
+version: "0.6.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -28,6 +28,12 @@ options:
   collection_sources: []
   collection_calendar: ""
   free_power_event: ""
+  robots: []
+  robot_weather_entity: ""
+  robot_forecast_entity: ""
+  robot_forecast_fallback_entity: ""
+  robot_recent_rain_entity: ""
+  robot_mower_stored_entity: ""
 schema:
   api_token: password?
   message_entities:
@@ -39,3 +45,18 @@ schema:
       label: str
   collection_calendar: str?
   free_power_event: str?
+  robots:
+    - name: str
+      kind: list(vacuum|mower)
+      entity: str
+      last_completed: str
+      last_active: str?
+      error: str?
+      last_error: str?
+      battery: str?
+      blade: str?
+  robot_weather_entity: str?
+  robot_forecast_entity: str?
+  robot_forecast_fallback_entity: str?
+  robot_recent_rain_entity: str?
+  robot_mower_stored_entity: str?
