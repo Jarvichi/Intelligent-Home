@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.7.0] - 2026-11-17
+
+### Added
+- Provider cool-down: after `fail_threshold` failures in a row (default 5) a provider is skipped by the router for `cooldown_minutes` (default 30). After that it gets one trial request; a success closes the cool-down, a failure re-opens it at once. If every provider for a capability is cooling down, the skip is ignored so a request is still tried. Daily-limit refusals do not count as failures.
+- `/status` has `health` per provider (state, cool-down end, last error class, calls/ok/failed of the last 50 calls) and the status page shows it under each provider. Only the error class is kept, never error text.
+- Options `fail_threshold` and `cooldown_minutes`.
+
 ## [0.6.0] - 2026-11-13
 
 ### Added

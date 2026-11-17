@@ -2,7 +2,7 @@
 
 Only a fixed set of fields is copied out: nothing from /status is passed through, so no keys, tokens, URLs or request text can leak.
 """
-import json, os, time, urllib.request
+import json, os, re, time, urllib.request
 
 LABELS = {'groq': 'Groq', 'mistral': 'Mistral', 'gemini': 'Gemini', 'pollinations': 'Pollinations', 'openrouter': 'OpenRouter', 'openai': 'OpenAI',
           'serper': 'Serper (web search)', 'serpapi': 'SerpApi (showtimes and images)', 'publicapis': 'PublicAPIs (API directory)', 'steamstore': 'Steam Store (game art)', 'igdb': 'IGDB (game art)',
@@ -16,6 +16,10 @@ _cache = {'t': 0.0, 'v': None}
 
 def _int(v):
     return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
 def _label(p):
@@ -57,6 +61,12 @@ def build(status):
             row['state'] = 'test'
         else:
             row['state'] = 'live'
+        h = (status.get('health') or {}).get(p.get('name'))
+        if isinstance(h, dict):
+            row['health'] = {'state': 'cooling_down' if h.get('state') == 'cooling_down' else 'ok',
+                             'until': h.get('until') if _num(h.get('until')) else None,
+                             'last_error': re.sub(r'[^A-Za-z0-9_]', '_', str(h['last_error']))[:40] if h.get('last_error') else None,
+                             'calls': _int(h.get('calls')) or 0, 'ok': _int(h.get('ok')) or 0, 'failed': _int(h.get('failed')) or 0}
         rows.append(row)
     rows.sort(key=lambda r: (r.get('score') is None, -(r.get('score') or 0), r['name']))
     return {'title': TITLE, 'subtitle': SUBTITLE, 'rows': rows}

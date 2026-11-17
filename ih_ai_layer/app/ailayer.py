@@ -3,6 +3,7 @@
 Request text is never stored or put in /status. Logs hold metadata only (ids, caller, capability, agent, model, sizes, timings, result) unless option log_payloads is true:
 then each log line also carries the first 200 chars of the request and of the answer. Keys, tokens, signatures and headers are never logged."""
 import collections, json, os, re, threading, time, urllib.parse, urllib.request, uuid
+import health
 import jobs_link
 import providers as provmod
 
@@ -224,6 +225,7 @@ def load_options(path):
             'shadow': bool(o.get('shadow', True)), 'agent_timeout_s': num('agent_timeout_s', 20, 1, 60),
             'rate_per_min': num('rate_per_min', 30, 1, 600), 'max_tries': num('max_tries', 2, 1, 5),
             'log_payloads': str(o.get('log_payloads', False)).lower() in ('true', '1', 'yes'),
+            'fail_threshold': num('fail_threshold', 5, 1, 100), 'cooldown_minutes': num('cooldown_minutes', 30, 1, 1440),
             'providers': load_providers(o.get('providers')),
             'provider_keys': {n: str(o.get(opt) or '').strip() for n, opt in provmod.KEY_OPTIONS.items()}}
 
@@ -250,6 +252,7 @@ class Layer:
         # in-process providers (Phase 4), same agent names as the old add-ons ('ih_ai_layer_groq' ...) so scores carry over
         self.providers = provmod.build(opts.get('providers'), opts.get('provider_keys') or {}, data, self.log, provider_opener or urllib.request.urlopen, clock, today)
         merge_keywords(self.providers)
+        self.health = health.ProviderHealth(clock, opts.get('fail_threshold', 5), opts.get('cooldown_minutes', 30) * 60)
         self.scores = self._load()             # cap -> agent -> dict(n, ok, ms, up, down)
         self.recent = collections.OrderedDict()  # request_id -> (cap, agent), for feedback
         self.window = collections.deque()
@@ -423,7 +426,10 @@ class Layer:
         return 200, {'ok': True, 'capability': cap, 'agent': agent}
 
     def ranked(self, cap):
-        return sorted(self.live_agents(cap), key=lambda a: (-self.score(cap, a), a))
+        live = self.live_agents(cap)
+        # skip providers on a cool-down; if that would leave nothing, ignore the skip so the request is still tried
+        ok = [a for a in live if self.health.available(a)]
+        return sorted(ok or live, key=lambda a: (-self.score(cap, a), a))
 
     # ---- logging ----
     def _logline(self, event, rid, caller, agent, cap, model, text, ok, answer, ms, why, free):
@@ -670,6 +676,8 @@ class Layer:
             return None
         finally:
             ms = max(0, int((self.clock() - t0) * 1000))
+            if ok or why not in ('cap', 'spend_cap'):   # a daily-limit refusal is not a failure of the provider
+                self.health.record(name, ok, why)
             self._logline('try', rid, caller, name, cap, meta.get('model') or model, text, ok, ans, ms, why, meta.get('free'))
             if trace_spans is not None:
                 safe_name = name if NAME_RE.fullmatch(str(name or '')) else 'agent'
@@ -687,7 +695,7 @@ class Layer:
         now = self.clock()
         return {'name': 'ih_ai_layer', 'version': VERSION, 'mode': 'dry' if self.opts['shadow'] else 'live', 'kill_switch': self.stopped(),
                 'uptime_s': int(now - self.started), 'counts': dict(self.counts), 'link_enabled': bool(self.opts.get('register_key')),
-                'agents': self.agents_view(), 'providers': [p.status() for _, p in sorted(self.providers.items())], 'scores': {c: {a: self.score(c, a) for a in d} for c, d in self.scores.items()}}
+                'agents': self.agents_view(), 'providers': [p.status() for _, p in sorted(self.providers.items())], 'health': self.health.status(), 'scores': {c: {a: self.score(c, a) for a in d} for c, d in self.scores.items()}}
 
     def agents_view(self):
         now = self.clock()

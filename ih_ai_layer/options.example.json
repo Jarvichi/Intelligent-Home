@@ -6,6 +6,8 @@
   "agent_timeout_s": 20,
   "rate_per_min": 30,
   "max_tries": 2,
+  "fail_threshold": 5,
+  "cooldown_minutes": 30,
   "log_payloads": false,
   "providers": [
     {

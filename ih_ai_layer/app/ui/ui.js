@@ -82,6 +82,14 @@
       if (typeof r.state === 'string' && r.state) use.appendChild(el('span', 'today-tag', r.state));
       row.appendChild(use);
       if (used !== null && cap !== null && typeof r.note === 'string' && r.note) row.appendChild(el('div', 'today-note', r.note));
+      const h = r.health;
+      if (h && typeof h === 'object') {
+        const until = num(h.until);
+        const last = typeof h.last_error === 'string' && h.last_error ? ', last error ' + h.last_error : '';
+        const txt = (until !== null && h.state === 'cooling_down' ? 'Cooling down until ' + clock(new Date(until * 1000)) : 'Working') +
+          last + ' (last ' + (num(h.calls) || 0) + ' calls: ' + (num(h.ok) || 0) + ' ok, ' + (num(h.failed) || 0) + ' failed)';
+        row.appendChild(el('div', 'today-note', txt));
+      }
       todayRows.appendChild(row);
     }
     todayCard.hidden = false;
