@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- Highlight urgent items in the shared task preview without changing their source order.
+
 ## 0.6.0
 
 - Read the shared task feed, including the optional dishwasher task.

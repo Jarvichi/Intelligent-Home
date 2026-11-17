@@ -17,3 +17,7 @@ Set `dishwasher_pending_entity` to the Home Assistant unloading boolean and `dis
 ## Collection tasks
 
 Configure `collection_sources` as a list of `{entity, label}` objects for waste-collection sensors, and optionally `collection_calendar` for today's fallback event. The feed groups the next dates, marks today and tomorrow, and moves a collection to collected-today after noon. It reads only configured entities and marks the shared feed incomplete when a source cannot be read. Settings default empty; no household-specific names or entity IDs are shipped. Collection items are preview data, not a control or confirmation that a collection happened.
+
+## Free-electricity events
+
+Set `free_power_event` to an event entity with an `events` attribute containing start/end timestamps. Upcoming entries are shown within 48 hours; consecutive intervals are combined, and events underway or starting within two hours carry an urgent flag. Invalid or unreadable events mark the feed incomplete. This reads the event data only and never books, cancels or changes a session. The setting defaults empty.

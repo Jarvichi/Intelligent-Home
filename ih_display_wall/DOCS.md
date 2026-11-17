@@ -19,3 +19,5 @@ Optionally set `render_task_feed_entity` to a Home Assistant entity with an `ite
 Set `render_shared_messages` to true to include the configured IH Displays shared task feed (messages and the optional dishwasher task). When the feed or any configured source is unavailable, the preview warns that tasks may be incomplete. Message acknowledgment and clearing remain with the existing controls. This migrates message display only; the other household task rules still need their own producers.
 
 The picture labels tasks as selected sources. An empty configured subset does not mean the household has no other tasks.
+
+Shared tasks may carry an urgent flag, which highlights the task without changing its source order.

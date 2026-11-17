@@ -73,6 +73,11 @@ class Tests(unittest.TestCase):
             if child.tag.endswith('rect') and child.attrib.get('x'):
                 self.assertLessEqual(float(child.attrib['x'])+float(child.attrib['width']),1536)
                 self.assertLessEqual(float(child.attrib['y'])+float(child.attrib['height']),810)
+    def test_urgent_task_is_highlighted(self):
+        p={'state':'ready','width':1920,'height':1080}
+        image=render.svg(p,{'tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
+        self.assertIn(b'fill="#ffd88c"',image);self.assertIn(b'Example urgent',image)
+
     def test_missing_or_wrong_profile_fails_closed(self):
         for profile in ({'state':'unavailable'},{'state':'ready','width':True,'height':100}):
             with self.assertRaises(ValueError):render.svg(profile,{})

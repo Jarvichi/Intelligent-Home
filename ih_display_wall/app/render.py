@@ -112,7 +112,8 @@ def svg(profile,data):
         for i,task in enumerate(tasks[:5]):
             title=task.get('title','') if isinstance(task,dict) else task
             detail=task.get('detail','') if isinstance(task,dict) else ''
-            parts.append(f'<text x="930" y="{305+i*75}" fill="#f7faf7" font-family="sans-serif" font-size="24">• {clean(title,37)}</text>')
+            colour='#ffd88c' if isinstance(task,dict) and task.get('urgent') is True else '#f7faf7'
+            parts.append(f'<text x="930" y="{305+i*75}" fill="{colour}" font-family="sans-serif" font-size="24">• {clean(title,37)}</text>')
             if detail:parts.append(f'<text x="950" y="{331+i*75}" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(detail,43)}</text>')
         if data.get('tasks_partial'):parts.append('<text x="930" y="658" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
     parts.append('<text x="930" y="694" fill="#c4d5c9" font-family="sans-serif" font-size="18">Only selected sources are shown</text>')
