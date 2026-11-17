@@ -1,5 +1,5 @@
 name: "Intelligent Home - Cooking"
-version: "0.7.0"
+version: "0.8.1"
 slug: ih_cooking
 image: "ghcr.io/jarvichi/{arch}-ih_cooking"
 description: "Data owner for recipes and the meal plan, the recipes page (ingress), the weekly meal-vs-calendar check and the cook engine (oven steps, Discord, wall display row, HomePod). Cook control is DRY (logs only) until cook_mode is live and the other-controller guard passes. Maps no folders."
@@ -27,6 +27,7 @@ options:
   ha_url: "http://supervisor/core"
   ha_token: ""
   plan_entity_prefix: ""
+  manage_plan: false
   rate_per_min: 60
   clash_config: ""
   cook_mode: "dry"
@@ -60,6 +61,7 @@ schema:
   ha_url: str
   ha_token: password?
   plan_entity_prefix: str?
+  manage_plan: bool
   rate_per_min: int(1,600)
   clash_config: str?
   cook_mode: list(off|dry|live)
