@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.6.0] - 2026-11-17
+
+### Added
+- Shadow-mode local note sorting (off by default). Set `local_sort_model` to a text model that ih_ollama has and the sorter script can call `POST /local-sort/suggest` (note id + text): ih_ollama suggests a folder and title from the brain's folder list, and the answer is logged in `/data/local_sort.jsonl`. After Claude files the note, `POST /local-sort/filed` (id + path) records where it went. `GET /local-sort/summary` and a line on the Brain page show "agreed x of y". Nothing is moved or written to the brain; note text goes only to ih_ollama on this machine. If ih_ollama is down the call returns `ok: false` and the sorter carries on.
+- Options `local_sort_model` (empty = off) and `ollama_url`.
+
 ## [0.5.5] - 2026-11-17
 
 ### Added

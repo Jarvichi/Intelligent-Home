@@ -38,6 +38,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `pocket_key` | Yes | Setting `pocket_key`. |
 | `scrub_names` | No | Setting `scrub_names`. |
 | `cors_origins` | No | Setting `cors_origins`. |
+| `local_sort_model` | No | Shadow-mode local note sorting. Empty = off. Name of a text model ih_ollama has (add it to ih_ollama's `models`). Suggestions are only logged and compared with where Claude filed the note; nothing is moved. |
+| `ollama_url` | No | Where ih_ollama listens (default `http://32c8114c-ih-ollama:11434`, add-ons only). |
 | `ingest_url` | No | Orchestrator trace address (default `http://172.30.32.1:8790`). |
 | `ingest_token` | No | Orchestrator trace token; filled by the Orchestrator when empty. Empty = tracing off. Metadata only. |
 | `instructions_mode` | No | Instructions page: `off` (default), `view` (read-only) or `edit`. See "Instructions editor". |

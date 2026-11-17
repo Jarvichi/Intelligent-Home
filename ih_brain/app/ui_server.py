@@ -110,7 +110,7 @@ def _graph_summary(brain):
     return json.loads(brain.t_brain_graph({}))
 
 
-def make_handler(brain, editor=None, data_dir=None, pocket=None):
+def make_handler(brain, editor=None, data_dir=None, pocket=None, shadow=None):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body, content_type="application/json; charset=utf-8"):
             data = body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode()
@@ -145,6 +145,8 @@ def make_handler(brain, editor=None, data_dir=None, pocket=None):
                 return self._file("instructions.html")
             if path == "/names":
                 return self._file("names.html")
+            if path == "/local_sort.js":
+                return self._file("local_sort.js")
             if path == "/names.js":
                 return self._file("names.js")
             if path in INSTRUCTIONS_ASSETS:
@@ -223,6 +225,9 @@ def make_handler(brain, editor=None, data_dir=None, pocket=None):
                                             "ignore_builtin_count": len(extras.IGNORE_BUILTIN), "mapped": sorted(extras.NAMES)})
                 if path == "/api/pocket":
                     return self._send(200, pocket.status() if pocket else {"configured": False, "history": [], "last": None, "failing": False})
+                if path == "/api/local-sort":
+                    # Shadow-mode local sorting: 'agreed x of y' (suggestions from ih_ollama vs where Claude filed the note).
+                    return self._send(200, shadow.summary() if shadow else {"enabled": False, "text": "agreed 0 of 0", "compared": 0, "agreed": 0})
                 if path == "/api/graph":
                     return self._send(200, _graph_summary(brain))
                 return self._send(404, {"error": "Not found"})
@@ -274,7 +279,7 @@ def make_handler(brain, editor=None, data_dir=None, pocket=None):
     return Handler
 
 
-def serve(brain, editor=None, data_dir=None, pocket=None):
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor, data_dir, pocket))
+def serve(brain, editor=None, data_dir=None, pocket=None, shadow=None):
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor, data_dir, pocket, shadow))
     threading.Thread(target=server.serve_forever, name="ih-brain-ui", daemon=True).start()
     return server

@@ -4,11 +4,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import brainlib, mcp, extras, codex_todo
+import brainlib, mcp, extras, codex_todo, local_sort
 import ui_server
 import instructions_api
 
-VERSION = '0.5.2'
+VERSION = '0.6.0'
 MAX_BODY = 512 * 1024
 
 
@@ -44,7 +44,9 @@ def load_options(path):
             'instructions_mode': instructions_api.clean_mode(o.get('instructions_mode')),
             'instructions_files': instructions_api.clean_files(o.get('instructions_files')),
             'instructions_user_ids': instructions_api.clean_user_ids(o.get('instructions_user_ids')),
-            'ingest_url': str(o.get('ingest_url') or '').strip(), 'ingest_token': str(o.get('ingest_token') or '').strip()}
+            'local_sort_model': str(o.get('local_sort_model') or '').strip(),
+            'ollama_url': str(o.get('ollama_url') or 'http://32c8114c-ih-ollama:11434').strip(),
+            'ingest_url': str(o.get('ingest_url') or '').strip(),'ingest_token': str(o.get('ingest_token') or '').strip()}
 
 
 class State:
@@ -56,6 +58,8 @@ class State:
         self._hits, self._lock = [], threading.Lock()
         self.pocket = None
         self.todo = codex_todo.CodexTodo()
+        self.shadow = local_sort.Shadow(opts['brain_dir'], data_dir, opts.get('ollama_url', 'http://32c8114c-ih-ollama:11434'),
+                                        opts.get('local_sort_model', ''))
         extras.set_names(opts.get('scrub_names', ''))
         extras.load_choices(data_dir)   # names chosen on the Names page (UI)
         for k, v in (('apple_notes_dir', '/share/apple_notes_staging'), ('apple_notes_live', False), ('pocket_live', False),
@@ -157,13 +161,16 @@ def make_handler(st):
                 return
             if p == '/status':
                 return self._send(200, st.status())
+            if p == '/local-sort/summary':
+                return self._send(200, st.shadow.summary())
             if p in ('/mcp', '/codex-mcp', '/codex-todo-mcp'):
                 self.send_response(405); self.send_header('Allow', 'POST'); self.send_header('Content-Length', '0'); self.end_headers(); return
             self._send(404, {'ok': False})
 
         def do_POST(self):
             p = self.path.split('?')[0].rstrip('/') or '/'
-            if p not in ('/mcp', '/codex-mcp', '/codex-todo-mcp', '/', '/apple-notes', '/pocket-sync'):
+            if p not in ('/mcp', '/codex-mcp', '/codex-todo-mcp', '/', '/apple-notes', '/pocket-sync',
+                     '/local-sort/suggest', '/local-sort/filed'):
                 return self._send(404, {'ok': False})
             if not (self._codex_gate('codex_todo_token' if p == '/codex-todo-mcp' else 'codex_read_token') if p in ('/codex-mcp', '/codex-todo-mcp') else self._gate()):
                 return
@@ -179,6 +186,14 @@ def make_handler(st):
                     return self._send(200, st.apple_note(raw))
                 except Exception:
                     return self._send(400, {'ok': False, 'why': 'bad note payload'})
+            if p in ('/local-sort/suggest', '/local-sort/filed'):
+                try:
+                    body = json.loads(raw or b'{}')
+                    if p.endswith('suggest'):
+                        return self._send(200, st.shadow.suggest(body.get('id'), body.get('text')))
+                    return self._send(200, st.shadow.filed(body.get('id'), body.get('path')))
+                except (ValueError, AttributeError):
+                    return self._send(400, {'ok': False, 'why': 'bad payload'})
             if p == '/pocket-sync':
                 if st.pocket is None:
                     return self._send(409, {'ok': False, 'why': 'pocket brain not configured'})
@@ -220,7 +235,7 @@ def main():
     st = State(opts, os.environ.get('IHA_DATA', '/data'), lg.info)
     editor = instructions_api.InstructionsEditor(opts['instructions_mode'], opts['instructions_files'], opts['instructions_user_ids'],
                                                  os.path.join(st.data_dir, 'instructions'))
-    ui_server.serve(st.brain, editor, st.data_dir, st.pocket)
+    ui_server.serve(st.brain, editor, st.data_dir, st.pocket, st.shadow)
     lg.info('instructions editor: %s (%d file(s) listed)', editor.mode, len(editor.table) if editor.mode != 'off' else 0)
     lg.info('ih_brain %s starting: %d notes in %s; %s; token %s', VERSION, len(st.brain._notes()), opts['brain_dir'],
             'READ-ONLY' if opts['read_only'] else 'writes allowed', 'set' if opts['api_token'] else 'NOT set (all requests refused)')
