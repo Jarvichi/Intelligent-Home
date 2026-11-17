@@ -84,6 +84,26 @@ class MealPlanIngressTests(unittest.TestCase):
         self.assertEqual(json.loads(response.read())['plan']['mon'], 'Example meal')
         self.assertEqual(log, [])
 
+    def test_usual_week_is_separate_and_revision_checked(self):
+        code, preset = main.ingress_api(self.st, 'GET', '/usual-week', {})
+        self.assertEqual((code, preset['plan']), (200, None))
+        plan = {day: '' for day in recipeadmin.DAYS}
+        plan['mon'] = 'Example meal'
+        code, saved = main.ingress_api(self.st, 'PUT', '/usual-week', {'plan': plan, 'revision': preset['revision']})
+        self.assertEqual(code, 200)
+        self.assertEqual(saved['plan'], plan)
+        self.assertFalse((self.data / 'mealplan.json').exists())
+        self.assertEqual(main.ingress_api(self.st, 'PUT', '/usual-week', {'plan': plan, 'revision': preset['revision']})[0], 409)
+        self.assertEqual(main.ingress_api(self.st, 'PUT', '/usual-week', {'plan': {'mon': 'X'}, 'revision': saved['revision']})[0], 422)
+
+    def test_unreadable_usual_week_is_not_overwritten(self):
+        path = self.data / 'usual_week.json'
+        path.write_text('{broken')
+        self.assertEqual(main.ingress_api(self.st, 'GET', '/usual-week', {})[0], 500)
+        plan = {day: '' for day in recipeadmin.DAYS}
+        self.assertEqual(main.ingress_api(self.st, 'PUT', '/usual-week', {'plan': plan, 'revision': 'anything'})[0], 500)
+        self.assertEqual(path.read_text(), '{broken')
+
     def test_plan_consumers_resolve_recipe_ids_and_titles(self):
         fake = types.SimpleNamespace(recipes=lambda:[{'slug':'example-meal'}],
             recipe=lambda slug:{'title':'Example meal','shopping':['Example ingredient'],'serves':2})
