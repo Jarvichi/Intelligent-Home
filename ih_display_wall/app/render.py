@@ -48,13 +48,39 @@ class HA:
             if not isinstance(items,list):return None
             return [i['summary'] for i in items if isinstance(i,dict) and isinstance(i.get('summary'),str)][:5]
         except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-    def snapshot(self,entities,todo):
+    def task_feed(self,entity):
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity):return None
+        try:
+            value=self.request('states/'+entity)
+            if not isinstance(value,dict) or not isinstance(value.get('state'),str) or value.get('state') in ('unknown','unavailable'):return None
+            items=value['attributes']['items']
+            if not isinstance(items,list) or len(items)>500:return None
+            result=[]
+            for row in items:
+                if not isinstance(row,dict):return None
+                title,detail,priority=row.get('title'),row.get('detail',''),row.get('priority','normal')
+                if not isinstance(title,str) or not title.strip() or not isinstance(detail,str) or priority not in ('high','normal','low'):return None
+                result.append({'title':title,'detail':detail,'priority':priority})
+            return result
+        except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
+    def snapshot(self,entities,todo,feed=''):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
-        with ThreadPoolExecutor(max_workers=7) as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             futures=[pool.submit(self.state,e) for e in entities]
-            future=pool.submit(self.todos,todo) if todo else None
-            return {'items':[f.result() for f in futures], 'tasks':future.result() if future else None, 'tasks_configured':bool(todo)}
+            tf=pool.submit(self.todos,todo) if todo else None
+            ff=pool.submit(self.task_feed,feed) if feed else None
+            sources=[f.result() for f in (ff,tf) if f is not None]
+            configured=bool(todo or feed);partial=any(x is None for x in sources)
+            if not configured or all(x is None for x in sources): tasks=None
+            else:
+                tasks=[]
+                for source in sources:
+                    if source is not None:
+                        tasks.extend(item if isinstance(item,dict) else {'title':item,'detail':'','priority':'normal'} for item in source)
+                ranks={'high':0,'normal':1,'low':2}
+                tasks.sort(key=lambda item:ranks[item['priority']])
+            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial}
 
 def svg(profile,data):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')
@@ -77,8 +103,13 @@ def svg(profile,data):
     if tasks is None:
         label='Task list unavailable' if data.get('tasks_configured') else 'Choose a task list in the app configuration.'
         parts.append(f'<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">{clean(label)}</text>')
-    elif not tasks:parts.append('<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">No open tasks</text>')
+    elif not tasks and not data.get('tasks_partial'):parts.append('<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">No open tasks</text>')
     else:
-        for i,task in enumerate(tasks[:5]):parts.append(f'<text x="930" y="{305+i*75}" fill="#f7faf7" font-family="sans-serif" font-size="24">• {clean(task,37)}</text>')
+        for i,task in enumerate(tasks[:5]):
+            title=task.get('title','') if isinstance(task,dict) else task
+            detail=task.get('detail','') if isinstance(task,dict) else ''
+            parts.append(f'<text x="930" y="{305+i*75}" fill="#f7faf7" font-family="sans-serif" font-size="24">• {clean(title,37)}</text>')
+            if detail:parts.append(f'<text x="950" y="{331+i*75}" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(detail,43)}</text>')
+        if data.get('tasks_partial'):parts.append('<text x="930" y="690" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
     parts.append('</svg>')
     return ''.join(parts).encode('utf-8')

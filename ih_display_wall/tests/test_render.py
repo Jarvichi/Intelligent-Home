@@ -22,9 +22,33 @@ class Tests(unittest.TestCase):
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')
-        self.assertEqual(result['items'][0]['value'],'21 °C');self.assertEqual(result['items'][1]['value'],'Unavailable');self.assertEqual(result['tasks'],['Example task'])
+        self.assertEqual(result['items'][0]['value'],'21 °C');self.assertEqual(result['items'][1]['value'],'Unavailable');self.assertEqual(result['tasks'][0]['title'],'Example task')
         self.assertTrue(all(method=='GET' or '/services/todo/get_items?' in url for url,method in opener.requests))
         self.assertEqual(len(opener.requests),3)
+    def test_structured_feed_combines_and_reports_unavailable_sources(self):
+        class Sources(render.HA):
+            def __init__(self,feed,todo):self.feed_value=feed;self.todo_value=todo
+            def task_feed(self,entity):return self.feed_value
+            def todos(self,entity):return self.todo_value
+        feed=[{'title':'Routine','detail':'detail','priority':'normal'},{'title':'Urgent','detail':'','priority':'high'}]
+        data=Sources(feed,['Other']).snapshot([],'todo.example','sensor.feed')
+        self.assertEqual([i['title'] for i in data['tasks']],['Urgent','Routine','Other']);self.assertFalse(data['tasks_partial'])
+        data=Sources(None,['Other']).snapshot([],'todo.example','sensor.feed')
+        self.assertTrue(data['tasks_partial']);self.assertEqual(data['tasks'][0]['title'],'Other')
+        data=Sources([],None).snapshot([],'todo.example','sensor.feed')
+        self.assertTrue(data['tasks_partial']);self.assertEqual(data['tasks'],[])
+        self.assertIn(b'Some task sources are unavailable',render.svg({'state':'ready','width':1920,'height':1080},data))
+        data=Sources(None,None).snapshot([],'todo.example','sensor.feed');self.assertIsNone(data['tasks'])
+    def test_feed_validation_and_escaping(self):
+        class Feed(render.HA):
+            def __init__(self,items):self.items=items
+            def request(self,path,body=None):return {'state':'ok','attributes':{'items':self.items}}
+        row={'title':'Task <bad>','detail':'Detail & more','priority':'high'}
+        feed=Feed([row]).task_feed('sensor.example');self.assertEqual(feed,[row])
+        svg=render.svg({'state':'ready','width':1920,'height':1080},{'tasks':feed})
+        self.assertIn(b'Task &lt;bad&gt;',svg);self.assertIn(b'Detail &amp; more',svg)
+        for invalid in ([{'title':''}],[{'title':'X','priority':'urgent'}],[{'title':'X','detail':7}]):self.assertIsNone(Feed(invalid).task_feed('sensor.example'))
+
     def test_invalid_entity_does_not_make_request(self):
         opener=Opener();ha=render.HA('example',opener)
         self.assertEqual(ha.state('../invalid')['value'],'Unavailable');self.assertIsNone(ha.todos('sensor.other'));self.assertEqual(opener.requests,[])

@@ -11,3 +11,7 @@ This is a staged preview adapter: it does not render its own layout, configure a
 ## Own picture prototype
 
 Configure `render_entities` with up to six Home Assistant entity IDs and optionally `render_todo_entity` with a to-do list. The add-on reads their current states and open items through the Home Assistant API; it never writes them. The private side-by-side SVG preview uses the shared profile dimensions and reserves the bottom quarter and upper-right area for television overlays. The prototype shows unavailable data explicitly and uses a 60-second preview refresh. It is an initial layout, not full parity with the existing wall picture, and it is not a TV-compatible PNG feed or a cutover. No entity IDs or household data are shipped in the add-on.
+
+## Structured task feed
+
+Optionally set `render_task_feed_entity` to a Home Assistant entity with an `items` attribute containing an array of `{title, detail, priority}` objects. Titles are required; detail defaults to empty and priority to `normal` (`high`, `normal`, or `low`). The feed is read-only. It can be combined with `render_todo_entity`; high-priority feed items appear first, order is otherwise stable, and matching titles from different sources remain separate. If a configured source is unavailable, the picture says so; it does not claim an empty list. No existing computed task feed is migrated or configured by this change.
