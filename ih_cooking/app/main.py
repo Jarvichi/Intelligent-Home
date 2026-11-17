@@ -7,7 +7,7 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import cooking, recipeadmin, staples
+import cooking, recipeadmin, staples, usual_week
 
 PORT = int(os.environ.get('IHC_PORT', '8809'))
 INGRESS_PORT = int(os.environ.get('IHC_INGRESS_PORT', '8810'))
@@ -39,6 +39,15 @@ def ingress_api(st, method, p, body):
                 return 409, {'errors': ['The meal plan changed. Reload before saving.']}
             ok, errors = recipeadmin.write_plan(st.data, body['plan'])
         return (200, plan_view(st)) if ok else (422, {'errors': errors})
+    if method == 'GET' and p == '/usual-week':
+        try:
+            return 200, usual_week.read(st.data)
+        except (ValueError, OSError):
+            return 500, {'errors': ['The saved usual week could not be read.']}
+    if method == 'PUT' and p == '/usual-week':
+        if not isinstance(body, dict):
+            return 422, {'errors': ['Invalid usual week.']}
+        return usual_week.save(st.data, body.get('plan'), body.get('revision'))
     if method == 'GET' and p == '/recipes':
         return 200, recipeadmin.listing(st.data)
     if method == 'GET' and m:
@@ -121,7 +130,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(200, open(os.path.join(HERE, name), 'rb').read(), kind)
             if not p.startswith('/api/'):
                 return self._send(404, {'error': 'not found'})
-            self._logit = p != '/api/plan'  # Meal selections are private, even when payload logging is enabled.
+            self._logit = p not in ('/api/plan', '/api/usual-week')  # Meal selections are private even with payload logging.
             try:
                 body = self._body() if method in ('PUT', 'POST') else {}
             except Exception as ex:

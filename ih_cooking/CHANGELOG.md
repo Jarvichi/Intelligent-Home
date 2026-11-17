@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.1] - 2026-11-17
+
+### Added
+- Store a private usual-week preset and fill the planner without changing the active week until it is saved.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added
