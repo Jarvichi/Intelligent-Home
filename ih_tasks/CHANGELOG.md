@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.0
+- Priority: every task has a priority, `high`, `normal` (the default) or `low` (new column, schema 11; existing tasks become normal). Set it with `priority` on `POST /tasks` and `POST /tasks/<n>/edit`; it is in every task and list reply. The page shows it on the task and has a "Save priority" control. Merging keeps the most urgent priority of the merged tasks.
+
 ## 0.2.0
 - Merge: `POST /tasks/merge {keep, merge}` folds open tasks into one. The merged tasks' comments (marked "From #N:"), links and old ids move to the task that is kept, an open question set moves over when the kept task has none (otherwise it becomes a comment), the earliest due date wins, and each merged task is closed as a duplicate of the kept one. One database transaction; a line in both histories. Owner or worker, as for close.
 - An approval is never lost in a merge: a task that is Approved or further on cannot be merged into a task in an earlier stage. The default task to keep is the one in the most advanced stage.

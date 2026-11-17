@@ -110,6 +110,16 @@ class Life(Case):
         self.refused('bad', self.s.add_link, tid, 'worker', 'result')
         self.refused('bad', self.s.add_link, tid, 'worker', 'photo', '', 'x')
 
+    def test_priority(self):
+        tid = self.new()
+        self.assertEqual(self.s.get(tid)['priority'], 'normal')
+        t = self.s.edit(tid, 'owner', priority='HIGH')
+        self.assertEqual(t['priority'], 'high')
+        self.assertEqual(self.s.list()[0]['priority'], 'high')
+        self.refused('bad', self.s.edit, tid, 'owner', priority='urgent')
+        self.assertEqual(self.s.create('Low one', 'worker', priority='low')['task']['priority'], 'low')
+        self.refused('bad', self.s.create, 'Bad one', 'worker', priority='asap')
+
     def test_edit(self):
         tid = self.new()
         t = self.s.edit(tid, 'owner', due='2027-01-05', title='Fit two shelves')
