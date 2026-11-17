@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+
+- Add current forecast conditions and daily high/low predictions to the weather preview.
+
 ## 0.9.0
 
 - Add an optional read-only hourly forecast preview with a fallback source and unavailable state.
