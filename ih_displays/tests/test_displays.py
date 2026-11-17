@@ -11,7 +11,7 @@ sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'app'))
 import main
 import profiles
 
-PROFILE={'name':'Example display','kind':'kindle','width':600,'height':800,'colour':'grayscale','touch':True,'power':'battery','transport':'image','refresh_seconds':300}
+PROFILE={'name':'Example display','kind':'eink','width':600,'height':800,'colour':'grayscale','touch':True,'power':'battery','transport':'image','refresh_seconds':300}
 
 class Tests(unittest.TestCase):
     def setUp(self):

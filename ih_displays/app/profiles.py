@@ -4,7 +4,7 @@ import re
 import sqlite3
 import uuid
 
-KINDS = {'kindle', 'wall', 'other'}
+KINDS = {'eink', 'wall', 'other'}
 COLOURS = {'monochrome', 'grayscale', 'colour'}
 POWER = {'battery', 'mains', 'both'}
 TRANSPORTS = {'image', 'web', 'data'}
