@@ -3,7 +3,7 @@
 import json, os, time
 from datetime import datetime, timezone
 
-from store import ACTIVE, Store, parse
+from store import ACTIVE, Store, parse, queue_order
 
 TITLE = 'Today'
 SUBTITLE = 'What is running, what is waiting and why'
@@ -32,9 +32,9 @@ def build(items, snap, now, tz=timezone.utc):
     running = next((i for i in items if i.get('status') in ACTIVE), None)
     if running:
         rows.append({'name': _title(running), 'plain': True, 'state': 'running', 'note': 'Running now'})
-    queued = sorted((i for i in items if i.get('status') == 'queued'), key=lambda i: i.get('seq', 0))
+    queued = queue_order([i for i in items if i.get('status') == 'queued'])
     for n, i in enumerate(queued[:5]):
-        note = 'queued #%d / ' % i.get('seq', 0)
+        note = 'queued #%d / ' % i.get('seq', 0) + ('high priority / ' if i.get('priority') == 'high' else 'low priority / ' if i.get('priority') == 'low' else '')
         note += 'ready to run' if (ok and n == 0 and not running) else 'runs when the pace is low enough'
         rows.append({'name': _title(i), 'plain': True, 'state': 'queued', 'note': note})
     if len(queued) > 5:
