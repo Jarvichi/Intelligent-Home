@@ -1,0 +1,24 @@
+name: "Intelligent Home - Wall Display"
+version: "0.1.0"
+slug: ih_display_wall
+description: "Preview and manage a wall display."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+ingress: true
+ingress_port: 8828
+panel_title: "IH · Wall Display"
+panel_icon: mdi:television-ambient-light
+panel_admin: true
+ports:
+  8806/tcp: null
+ports_description:
+  8806/tcp: "Health endpoint, not published"
+watchdog: "http://[HOST]:[PORT:8806]/healthz"
+options:
+  source_url: ""
+schema:
+  source_url: str?
