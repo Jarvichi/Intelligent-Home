@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-11-17
+
+### Added
+- Priority on a job: `priority` (`high`, `normal` default, `low`) on `POST /enqueue`. A claim hands out high first, then normal, then low; first in, first out inside one priority. Handoffs still jump the line. Jobs without a priority count as normal. The status `next` and the Today view follow the same order.
+
 ## [0.7.0] - 2026-11-14
 
 ### Added

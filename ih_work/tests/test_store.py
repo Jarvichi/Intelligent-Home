@@ -40,6 +40,22 @@ class T(unittest.TestCase):
         s.heartbeat(a['id'], 'w1', 600); s.finish(a['id'], 'w1', True, 'ok')
         self.assertEqual(s.claim('w1', 600)['id'], b['id'])
 
+    def test_priority_goes_first_then_fifo(self):
+        a, b, c, d = self.add('1'), self.add('2', priority='low'), self.add('3', priority='high'), self.add('4', priority='high')
+        s = self.s
+        order = []
+        for _ in range(4):
+            x = s.claim('w1', 600); order.append(x['id']); s.finish(x['id'], 'w1', True, 'ok')
+        self.assertEqual(order, [c['id'], d['id'], a['id'], b['id']])
+
+    def test_item_without_priority_counts_as_normal(self):
+        a, b = self.add('1'), self.add('2', priority='low')
+        del a['priority']; self.s._save(a)
+        self.assertEqual(self.s.claim('w1', 600)['id'], a['id'])
+
+    def test_bad_priority(self):
+        self.assertEqual(self.code(self.add, '1', priority='urgent'), 'bad')
+
     def test_one_at_a_time(self):
         self.add('1'); self.add('2'); self.s.claim('w1', 600)
         self.assertEqual(self.code(self.s.claim, 'w2', 600), 'conflict')
