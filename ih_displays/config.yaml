@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -23,7 +23,11 @@ watchdog: "http://[HOST]:[PORT:8805]/healthz"
 options:
   api_token: ""
   message_entities: []
+  dishwasher_pending_entity: ""
+  dishwasher_finished_entity: ""
 schema:
   api_token: password?
   message_entities:
     - str
+  dishwasher_pending_entity: str?
+  dishwasher_finished_entity: str?

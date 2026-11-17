@@ -9,3 +9,7 @@ This foundation does not connect to an e-reader, TV or ESP32, render images, cha
 ## Display messages
 
 Optionally list up to 12 Home Assistant `input_text` entity IDs in `message_entities`. Each nonempty state is read as `title|detail`; a missing detail is allowed. The authenticated read-only `GET /v1/message-tasks` returns the messages in configured order and marks the feed incomplete if a source cannot be read. It does not clear, write or acknowledge messages. Missing or unavailable messages are never treated as a complete empty feed. The source list starts empty.
+
+## Dishwasher task
+
+Set `dishwasher_pending_entity` to the Home Assistant unloading boolean and `dishwasher_finished_entity` to its finish-time helper. The optional shared `GET /v1/tasks` feed includes this task with existing display messages. While pending, it shows cooling for four hours after the finish time and then ready to unload. If the finish time is unavailable, it falls back to the pending helper's last-changed time and marks the feed incomplete. This does not control or acknowledge the dishwasher. Both settings are empty by default.
