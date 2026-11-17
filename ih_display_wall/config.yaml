@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.8.0"
+version: "0.9.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -30,6 +30,8 @@ options:
   render_task_feed_entity: ""
   render_shared_messages: false
   render_shared_alerts: false
+  weather_forecast_entity: ""
+  weather_forecast_fallback_entity: ""
 schema:
   source_url: str?
   displays_url: str?
@@ -41,3 +43,5 @@ schema:
   render_task_feed_entity: str?
   render_shared_messages: bool
   render_shared_alerts: bool
+  weather_forecast_entity: str?
+  weather_forecast_fallback_entity: str?

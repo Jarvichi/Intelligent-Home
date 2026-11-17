@@ -23,3 +23,7 @@ The picture labels tasks as selected sources. An empty configured subset does no
 Shared tasks may carry an urgent flag, which highlights the task without changing its source order.
 
 Set `render_shared_alerts` to true to preview IH Displays urgent alerts. The preview marks unconfigured or incomplete alert sources explicitly and shows up to four warnings per rotating page. Energy dismissal state is read from the existing source; the preview does not provide dismissal controls. The existing TV feed remains the live display and should not be switched until warning and action parity are verified.
+
+## Hourly forecast preview
+
+Optionally set `weather_forecast_entity` and `weather_forecast_fallback_entity` to existing Home Assistant sensor entities with hourly forecast attributes. The preview reads the primary source first, then the fallback if it is unavailable or has no current data. It identifies fallback and unavailable states. Both settings default to empty; this does not change existing display feeds.
