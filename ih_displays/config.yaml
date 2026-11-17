@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.7.0"
+version: "0.8.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."
@@ -45,6 +45,13 @@ options:
   health_display_seen_entity: ""
   health_display_battery_entity: ""
   health_display_name: "Display"
+  battery_enabled: false
+  battery_forecast_entity: ""
+  battery_ignored_entity: ""
+  battery_exclude_tokens: []
+  battery_models: []
+  battery_device_overrides: []
+  maintenance_groups: []
 schema:
   api_token: password?
   message_entities:
@@ -82,3 +89,23 @@ schema:
   health_display_seen_entity: str?
   health_display_battery_entity: str?
   health_display_name: str
+  battery_enabled: bool
+  battery_forecast_entity: str?
+  battery_ignored_entity: str?
+  battery_exclude_tokens:
+    - str
+  battery_models:
+    - model: str
+      type: str
+  battery_device_overrides:
+    - device_id: str
+      name: str?
+      type: str?
+  maintenance_groups:
+    - name: str
+      kind: list(vacuum|mower)
+      stored_entity: str?
+      parts:
+        - entity: str
+          label: str
+          threshold: int

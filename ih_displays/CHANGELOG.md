@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Add optional read-only battery forecast, offline battery and robot maintenance tasks.
+
 ## 0.7.0
 
 - Add optional read-only home health, frost and display health tasks.

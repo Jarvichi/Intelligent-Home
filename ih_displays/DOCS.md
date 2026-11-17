@@ -29,3 +29,7 @@ Set `free_power_event` to an event entity with an `events` attribute containing 
 ## Home and display health tasks
 
 Optional `health_*_entity` settings provide DNS, smoke-device connectivity, backup age, frost, system capacity and display heartbeat/battery data. Each source is read only; unset sources produce no task. Unreadable configured inputs mark the shared task feed incomplete. Urgent states are flagged for display, not sent as notifications. `health_display_name` supplies the label for heartbeat and charge tasks. No household-specific entity IDs are shipped.
+
+## Battery and maintenance tasks
+
+Optional battery tasks read Home Assistant states, entity/device/area registries and the configured forecast and ignored-device helpers; they never change the source entities or shopping list. Configure battery-model types, exceptional device overrides and exclusion tokens privately. Forecasts below 20 days, low fallback levels, repeated drop-outs and offline battery devices produce tasks; urgent thresholds are retained. A missing ignored-device helper suppresses battery output and marks the feed incomplete. Optional maintenance groups supply part sensors and thresholds; a configured winter-storage switch suppresses that group. Data stays in memory and registry snapshots are cached for one minute. Both features start disabled or empty.
