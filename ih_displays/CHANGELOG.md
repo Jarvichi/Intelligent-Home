@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Add optional free-electricity events to the read-only display task feed.
+
 ## 0.4.0
 
 - Add an optional read-only waste-collection task source.
