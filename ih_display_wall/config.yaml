@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.4.0"
+version: "0.5.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -28,6 +28,7 @@ options:
   render_entities: []
   render_todo_entity: ""
   render_task_feed_entity: ""
+  render_shared_messages: false
 schema:
   source_url: str?
   displays_url: str?
@@ -37,3 +38,4 @@ schema:
     - str
   render_todo_entity: str?
   render_task_feed_entity: str?
+  render_shared_messages: bool

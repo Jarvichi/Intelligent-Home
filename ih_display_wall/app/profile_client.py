@@ -35,3 +35,19 @@ class ProfileClient:
             return {'state':'ready','name':name,'width':width,'height':height,'refresh_seconds':refresh,'touch':value.get('touch') is True}
         except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):
             return {'state':'unavailable'}
+
+    def message_tasks(self):
+        if not frames.valid_url(self.url) or urlsplit(self.url).query or not self.token:
+            return None
+        try:
+            req=urllib.request.Request(self.url+'/v1/message-tasks',headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'})
+            with self.opener.open(req,timeout=5) as response:
+                raw=response.read(MAX_SIZE+1)
+                if response.status!=200 or len(raw)>MAX_SIZE:raise ValueError()
+            value=json.loads(raw)
+            if not isinstance(value,dict) or type(value.get('configured')) is not bool or type(value.get('complete')) is not bool or not isinstance(value.get('items'),list):return None
+            for item in value['items']:
+                if not isinstance(item,dict) or not isinstance(item.get('title'),str) or not item['title'].strip() or not isinstance(item.get('detail'),str) or item.get('priority') not in ('high','normal','low'):return None
+            if not value['configured']:return None
+            return value
+        except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return None

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Optionally show configured shared display messages in the task preview.
+
 ## 0.4.0
 
 - Combine an optional structured task feed with a to-do list and show when a source is unavailable.

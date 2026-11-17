@@ -17,8 +17,8 @@ class Tests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.path=str(pathlib.Path(self.tmp.name)/'db.sqlite')
         db=profiles.connect(self.path);db.close()
-    def server(self,ingress=False,peer='127.0.0.1',token='example-token'):
-        s=HTTPServer(('127.0.0.1',0),main.make_handler(self.path,token,ingress,peer));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
+    def server(self,ingress=False,peer='127.0.0.1',token='example-token',feed=None):
+        s=HTTPServer(('127.0.0.1',0),main.make_handler(self.path,token,ingress,peer,message_feed=feed));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
     def req(self,port,method,path,body=None,auth=None):
         c=http.client.HTTPConnection('127.0.0.1',port,timeout=3);self.addCleanup(c.close);headers={}
         if body is not None: body=json.dumps(body);headers['Content-Type']='application/json'
@@ -42,6 +42,15 @@ class Tests(unittest.TestCase):
         denied=self.server(True,peer='192.0.2.1');api=self.server(token='')
         self.assertEqual(self.req(denied,'GET','/api/v1/profiles')[0],403)
         self.assertEqual(self.req(api,'GET','/v1/profiles',auth='example-token')[0],401)
+    def test_message_feed_requires_auth_and_is_read_only(self):
+        class Feed:
+            def read(self):return {'configured':True,'complete':True,'items':[{'title':'Example','detail':'','priority':'high'}]}
+        api=self.server(feed=Feed())
+        self.assertEqual(self.req(api,'GET','/v1/message-tasks')[0],401)
+        status,body=self.req(api,'GET','/v1/message-tasks',auth='example-token')
+        self.assertEqual(status,200);self.assertEqual(body['items'][0]['title'],'Example')
+        self.assertEqual(self.req(api,'POST','/v1/message-tasks',{},'example-token')[0],405)
+
     def test_rejects_invalid_or_unexpected_values(self):
         admin=self.server(True)
         for change in ({'width':True},{'refresh_seconds':0},{'kind':[]},{'address':'example'},{'touch':'yes'}):

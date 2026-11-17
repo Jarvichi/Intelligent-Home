@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+- Provide an optional read-only feed of configured display messages.
+
 ## 0.1.2
 
 - Show each profile ID for connecting display adapters.
