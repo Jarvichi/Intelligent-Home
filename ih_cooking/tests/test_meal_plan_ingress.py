@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'app'))
 import cooking
+import freshdates
 import main
 import recipeadmin
 
@@ -82,6 +83,16 @@ class MealPlanIngressTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(json.loads(response.read())['plan']['mon'], 'Example meal')
         self.assertEqual(log, [])
+
+    def test_plan_consumers_resolve_recipe_ids_and_titles(self):
+        fake = types.SimpleNamespace(recipes=lambda:[{'slug':'example-meal'}],
+            recipe=lambda slug:{'title':'Example meal','shopping':['Example ingredient'],'serves':2})
+        by_id = freshdates.Publisher(fake,None).shopping_by_meal()
+        self.assertEqual(by_id['example-meal'], ['Example ingredient'])
+        self.assertEqual(by_id['example meal'], ['Example ingredient'])
+        meta = cooking.Store.recipe_meta(fake)
+        self.assertEqual(meta['example-meal']['serves'],2)
+        self.assertEqual(meta['example meal']['serves'],2)
 
 
 if __name__ == '__main__':

@@ -51,7 +51,7 @@ class Publisher:
         m = {}
         for r in self.store.recipes():
             full = self.store.recipe(r['slug']) or {}
-            for k in (full.get('title'), full.get('name')):
+            for k in (r['slug'], full.get('title'), full.get('name')):
                 if k:
                     m[str(k).lower()] = [str(x) for x in full.get('shopping', [])]
         return m
