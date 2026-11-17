@@ -32,9 +32,12 @@
       <div class="nm-bar">
         <label>Show only words in at least <input id="min" type="number" min="1" value="1" style="width:4em"> notes</label>
         <label><input id="only" type="checkbox"> only ticked</label>
+        <label><input id="showign" type="checkbox"> Show ignored words (<span id="ignn">0</span> hidden)</label>
         <label>Find <input id="find" type="search" placeholder="type a word" style="width:9em"></label>
       </div>
       <div class="nm-bar"><label><input id="relaxed" type="checkbox"> Also scrub these in the <strong id="rn">0</strong> notes marked <em>relaxed</em> (otherwise those notes keep their names)</label></div>
+      <div class="nm-bar"><label>Add your own words to ignore (comma separated) <input id="ignbox" type="text" placeholder="e.g. Plex, Sonarr" style="width:14em" maxlength="400"></label>
+        <small>Ignored words are only hidden from this list. They are not scrubbed. Press Save to keep them.</small></div>
       <div id="list"><ih-empty>Loading…</ih-empty></div>
       <div class="nm-sticky"><button type="button" id="save" class="ih-button">Save choices</button> <span id="msg" class="nm-msg" role="status"></span></div>
     </ih-card>

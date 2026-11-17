@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.5] - 2026-11-17
+
+### Added
+- Names page: common brand and tech words (Apple, Bosch, Hue, Playwright ...) are hidden by a built-in ignore list; the switch **Show ignored words** brings them back. Each row now says clearly how many notes would change if the word is scrubbed.
+- Names page: a text box to add your own words to the ignore list, saved with the other choices in `name_choices.json` (mode 600). Ignoring only hides a word from the list; it never scrubs it. Detection and scrubbing rules are unchanged.
+
 ## [0.5.4] - 2026-11-17
 
 ### Added

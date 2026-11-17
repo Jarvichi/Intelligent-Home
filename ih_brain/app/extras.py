@@ -65,14 +65,47 @@ SKIP_DIRS = ('inbox/', 'private/')   # never sent; encrypted private notes live 
 CHOICES = {}          # name -> {'scrub': bool, 'repl': str}; chosen on the Names page (UI), saved in /data/name_choices.json
 RELAXED_TOO = False   # True: the chosen names are also scrubbed in notes marked `scrub: relaxed`
 CHOICES_FILE = 'name_choices.json'
+IGNORE_CUSTOM = []    # extra words the owner added on the Names page to hide from the list (not scrubbed, just not shown)
+
+# Common brand, product and tech words that are not people or places. Hidden on the Names page unless 'Show ignored words' is on.
+# Display only: detection and scrubbing rules are unchanged.
+IGNORE_BUILTIN = frozenset(w.lower() for w in '''
+Apple Google Microsoft Amazon Alexa Android Windows Linux Ubuntu Debian Docker Github Gitlab Cloudflare Discord Telegram Whatsapp
+Facebook Instagram Twitter Youtube Netflix Spotify Sonos Samsung Sony Philips Hue Ikea Tuya Shelly Sonoff Aqara Zigbee Zwave Matter
+Thread Bluetooth Wifi Ethernet Bosch Siemens Miele Dyson Roborock Roomba Ecovacs Tesla Nest Ring Yale Eufy Tado Hive Netatmo Ecobee
+Homekit Homepod Airplay Chromecast Kindle Raspberry Pihole Playwright Python Node Javascript Typescript Docker Sqlite Mqtt
+Esphome Homeassistant Hacs Lovelace Grafana Influxdb Nginx Caddy Tailscale Wireguard Openai Claude Anthropic Codex Gemini Chatgpt
+Ollama Fable Opus Sonnet Haiku Mac Macos Ios Ipad Iphone Chrome Firefox Safari Edge Github Paypal Monzo Revolut Tesco Asda Aldi Lidl
+Sainsburys Waitrose Ocado Argos Currys Screwfix Dpd Evri Hermes Fedex Ups Lego Nintendo Playstation Xbox Steam Zoom Slack
+Teams Outlook Gmail Dropbox Notion Todoist Trello Pushover Ntfy Whisper Piper Rhasspy Frigate Reolink Hikvision Wyze Blink
+'''.split())
+
+
+def ignore_reason(name):
+    """'builtin', 'custom' or '' for a word on the Names page."""
+    low = name.lower()
+    if low in {w.lower() for w in IGNORE_CUSTOM}:
+        return 'custom'
+    return 'builtin' if low in IGNORE_BUILTIN else ''
+
+
+def _clean_ignore(words):
+    """Own ignore words: single words, trimmed, no duplicates (any case), at most 500."""
+    out, seen = [], set()
+    for w in (words if isinstance(words, list) else []):
+        w = str(w).strip()
+        if w and len(w) <= 60 and w.lower() not in seen:
+            seen.add(w.lower()); out.append(w)
+    return out[:500]
 
 
 def load_choices(data_dir):
     """Load the names the owner chose on the Names page. Missing/bad file = no choices."""
     global RELAXED_TOO
-    CHOICES.clear(); RELAXED_TOO = False
+    CHOICES.clear(); RELAXED_TOO = False; IGNORE_CUSTOM[:] = []
     try:
         d = json.load(open(os.path.join(data_dir, CHOICES_FILE)))
+        IGNORE_CUSTOM[:] = _clean_ignore(d.get('ignore'))
         for k, v in (d.get('names') or {}).items():
             if isinstance(k, str) and k.strip() and isinstance(v, dict):
                 CHOICES[k.strip()] = {'scrub': v.get('scrub') is True, 'repl': str(v.get('repl') or '[name]')[:60]}
@@ -82,7 +115,7 @@ def load_choices(data_dir):
     return CHOICES
 
 
-def save_choices(data_dir, names, relaxed_too):
+def save_choices(data_dir, names, relaxed_too, ignore=None):
     """Validate and save the Names page choices (mode 600), then use them straight away."""
     clean = {}
     for k, v in (names or {}).items():
@@ -90,9 +123,10 @@ def save_choices(data_dir, names, relaxed_too):
         if k and len(k) <= 60 and isinstance(v, dict):
             clean[k] = {'scrub': v.get('scrub') is True, 'repl': (str(v.get('repl') or '[name]').strip() or '[name]')[:60]}
     path = os.path.join(data_dir, CHOICES_FILE)
+    ign = _clean_ignore(ignore) if ignore is not None else list(IGNORE_CUSTOM)   # None = keep the saved list
     fd = os.open(path + '.tmp', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, 'w') as f:
-        json.dump({'names': clean, 'relaxed_too': relaxed_too is True}, f, ensure_ascii=False)
+        json.dump({'names': clean, 'relaxed_too': relaxed_too is True, 'ignore': ign}, f, ensure_ascii=False)
     os.replace(path + '.tmp', path)
     return load_choices(data_dir)
 
@@ -128,7 +162,8 @@ _NOT_NAMES = set('January February March April May June July August September Oc
 def detect_names(brain_dir, limit=600):
     """Capitalised words that look like names or places, for the Names page: words that never appear in lower case
     anywhere in the shareable notes (so not ordinary words), outside code and links. Sorted by how many notes use them.
-    [{'name', 'notes', 'count', 'sample'}]. Words already scrubbed by the scrub_names option are left out."""
+    [{'name', 'notes', 'count', 'sample', 'ignored'}]; 'notes' is how many notes use the word (= how many notes change if it is scrubbed),
+    'ignored' is '', 'builtin' or 'custom' (the page hides those unless asked). Words already scrubbed by the scrub_names option are left out."""
     seen, lower, sample = {}, set(), {}
     for root, dirs, files in os.walk(brain_dir):
         dirs[:] = [x for x in dirs if not x.startswith('.')]
@@ -151,7 +186,7 @@ def detect_names(brain_dir, limit=600):
                 e = seen.setdefault(n, [set(), 0]); e[0].add(rel); e[1] += 1
                 if n not in sample:
                     sample[n] = re.sub(r'\s+', ' ', body[max(0, w.start() - 50):w.end() + 50]).strip()
-    out = [{'name': n, 'notes': len(v[0]), 'count': v[1], 'sample': sample[n]}
+    out = [{'name': n, 'notes': len(v[0]), 'count': v[1], 'sample': sample[n], 'ignored': ignore_reason(n)}
            for n, v in seen.items() if n.lower() not in lower and n not in NAMES]
     out.sort(key=lambda r: (-r['notes'], r['name']))
     return out[:limit]

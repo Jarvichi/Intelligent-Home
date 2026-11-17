@@ -11,7 +11,7 @@ def note(root, rel, text):
 class Names(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp(); self.data = tempfile.mkdtemp()
-        extras.NAMES.clear(); extras.CHOICES.clear(); extras.RELAXED_TOO = False
+        extras.NAMES.clear(); extras.CHOICES.clear(); extras.RELAXED_TOO = False; extras.IGNORE_CUSTOM[:] = []
 
     def test_detects_names_not_ordinary_words(self):
         note(self.d, 'a.md', 'We met Berk in Taunton. berk is not a word. Today the house is warm.\nBerk came again to Taunton.')
@@ -48,6 +48,21 @@ class Names(unittest.TestCase):
         open(os.path.join(self.data, extras.CHOICES_FILE), 'w').write('{not json')
         self.assertEqual(extras.load_choices(self.data), {})
 
+    def test_ignore_builtin_and_custom(self):
+        note(self.d, 'a.md', 'Bosch and Playwright and Zorblat here.')
+        r = {x['name']: x for x in extras.detect_names(self.d)}
+        self.assertEqual(r['Bosch']['ignored'], 'builtin'); self.assertEqual(r['Playwright']['ignored'], 'builtin')
+        self.assertEqual(r['Zorblat']['ignored'], '')                  # still detected: rules unchanged
+        extras.save_choices(self.data, {}, False, ['zorblat', ' Zorblat ', ''])
+        self.assertEqual(extras.IGNORE_CUSTOM, ['zorblat'])           # trimmed, no duplicates
+        self.assertEqual({x['name']: x for x in extras.detect_names(self.d)}['Zorblat']['ignored'], 'custom')
+        self.assertEqual(os.stat(os.path.join(self.data, extras.CHOICES_FILE)).st_mode & 0o777, 0o600)
+        extras.IGNORE_CUSTOM[:] = []; extras.load_choices(self.data)
+        self.assertEqual(extras.IGNORE_CUSTOM, ['zorblat'])           # survives a reload
+        extras.save_choices(self.data, {}, False)                      # ignore=None keeps the saved list
+        self.assertEqual(extras.IGNORE_CUSTOM, ['zorblat'])
+        self.assertEqual(extras.scrub('Bosch Zorblat'), 'Bosch Zorblat')   # ignoring never scrubs
+
     def test_relaxed_notes_listed(self):
         note(self.d, 'r.md', '---\nscrub: relaxed\n---\nText'); note(self.d, 'n.md', 'Text')
         self.assertEqual(extras.relaxed_notes(self.d), ['r.md'])
@@ -64,7 +79,7 @@ class NamesApi(unittest.TestCase):
         root = tempfile.mkdtemp(); self.data = os.path.join(root, 'data')
         self.brain = brainlib.Brain(Path(root) / 'notes', Path(self.data))
         note(str(self.brain.base), 'a.md', 'Met Zorblat in Quuxville.'); note(str(self.brain.base), 'b.md', 'Zorblat again.')
-        extras.NAMES.clear(); extras.CHOICES.clear(); extras.RELAXED_TOO = False
+        extras.NAMES.clear(); extras.CHOICES.clear(); extras.RELAXED_TOO = False; extras.IGNORE_CUSTOM[:] = []
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), ui_server.make_handler(self.brain, None, self.data))
         t = threading.Thread(target=self.server.serve_forever, daemon=True); t.start()
         self.addCleanup(lambda: (self.server.shutdown(), self.server.server_close(), t.join()))
@@ -85,6 +100,16 @@ class NamesApi(unittest.TestCase):
         self.assertTrue(again['Zorblat']['scrub']); self.assertEqual(again['Zorblat']['repl'], '[friend]')
         sel, _ = extras.select_notes(str(self.brain.base))
         self.assertIn('[friend]', sel['note:a.md']); self.assertNotIn('Zorblat', sel['note:a.md'])
+
+    def test_ignore_field_over_http(self):
+        note(str(self.brain.base), 'c.md', 'Bosch is a brand.')
+        d = self.call('api/names')
+        self.assertEqual({n['name']: n['ignored'] for n in d['names']}['Bosch'], 'builtin')
+        self.assertEqual(d['ignore_custom'], []); self.assertGreater(d['ignore_builtin_count'], 50)
+        out = self.call('api/names', {'names': {}, 'relaxed_too': False, 'ignore': ['Quuxville']})
+        self.assertEqual(out['ignore_custom'], ['Quuxville'])
+        d = self.call('api/names')
+        self.assertEqual({n['name']: n['ignored'] for n in d['names']}['Quuxville'], 'custom')
 
     def test_page_is_served(self):
         with self.urllib.urlopen('http://127.0.0.1:%d/names' % self.server.server_port) as r:
