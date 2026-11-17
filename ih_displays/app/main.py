@@ -11,6 +11,7 @@ import messages
 import dishwasher
 import collection_tasks
 import free_power
+import robot_tasks
 
 ROOT = Path(__file__).parent / 'ui'
 ASSETS = {'/': ('index.html','text/html'), '/ih-ui.css': ('ih-ui.css','text/css'), '/ih-ui.js': ('ih-ui.js','text/javascript'), '/ui.css': ('ui.css','text/css'), '/ui.js': ('ui.js','text/javascript'), '/ui.json': ('ui.json','application/json')}
@@ -79,7 +80,8 @@ def main():
     dish=dishwasher.Dishwasher(opts.get('dishwasher_pending_entity',''),opts.get('dishwasher_finished_entity',''),os.environ.get('SUPERVISOR_TOKEN',''))
     bins=collection_tasks.Collections(opts.get('collection_sources',[]),opts.get('collection_calendar',''),dish._get)
     power=free_power.FreePower(opts.get('free_power_event',''),dish._get)
-    tasks=dishwasher.Combined(feed,dish,power,bins)
+    robots=robot_tasks.Robots(opts.get('robots',[]),opts.get('robot_weather_entity',''),opts.get('robot_forecast_entity',''),opts.get('robot_recent_rain_entity',''),opts.get('robot_mower_stored_entity',''),dish._get,forecast_fallback=opts.get('robot_forecast_fallback_entity',''))
+    tasks=dishwasher.Combined(feed,dish,power,robots,bins)
     ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed,task_feed=tasks)).serve_forever()

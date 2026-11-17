@@ -21,3 +21,7 @@ Configure `collection_sources` as a list of `{entity, label}` objects for waste-
 ## Free-electricity events
 
 Set `free_power_event` to an event entity with an `events` attribute containing start/end timestamps. Upcoming entries are shown within 48 hours; consecutive intervals are combined, and events underway or starting within two hours carry an urgent flag. Invalid or unreadable events mark the feed incomplete. This reads the event data only and never books, cancels or changes a session. The setting defaults empty.
+
+## Robot status tasks
+
+`robots` optionally lists vacuum and mower entities with their names, last-completed sensors and optional last-active, error, last-error, battery and blade sensors. Mower weather, forecast, recent-rain and winter-storage entities are configured separately. The feed reports offline devices or missed runs using last activity as well as last completion; it considers the configured error, battery, blade and weather data for the reason. A configured winter-storage switch suppresses mower tasks. It never controls a robot or sends notifications. No devices are configured by default. When a required configured source cannot be read, the feed is marked incomplete.
