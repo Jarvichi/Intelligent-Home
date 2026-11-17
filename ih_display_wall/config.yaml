@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -9,6 +9,7 @@ arch:
 startup: application
 boot: manual
 init: false
+homeassistant_api: true
 ingress: true
 ingress_port: 8828
 panel_title: "IH · Wall Display"
@@ -24,8 +25,13 @@ options:
   displays_url: ""
   displays_token: ""
   profile_id: ""
+  render_entities: []
+  render_todo_entity: ""
 schema:
   source_url: str?
   displays_url: str?
   displays_token: password?
   profile_id: str?
+  render_entities:
+    - str
+  render_todo_entity: str?

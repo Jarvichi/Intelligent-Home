@@ -7,3 +7,7 @@ The source is a trusted administrator-supplied URL. The app follows no redirects
 Optionally set `displays_url`, `displays_token` and `profile_id` to read a wall profile from IH Displays. The shared API must be enabled with its own token. Profile settings are shown for review and do not yet control the picture or refresh schedule. If the shared service is unavailable, picture preview continues independently. The token is never included in responses or logs.
 
 This is a staged preview adapter: it does not render its own layout, configure a television, change the existing wallpaper URL, or implement touch controls. Preserve the existing TV layout, wallpaper provider, update schedule and access restrictions until a later verified cutover. An unavailable app does not interrupt the current display.
+
+## Own picture prototype
+
+Configure `render_entities` with up to six Home Assistant entity IDs and optionally `render_todo_entity` with a to-do list. The add-on reads their current states and open items through the Home Assistant API; it never writes them. The private side-by-side SVG preview uses the shared profile dimensions and reserves the bottom quarter and upper-right area for television overlays. The prototype shows unavailable data explicitly and uses a 60-second preview refresh. It is an initial layout, not full parity with the existing wall picture, and it is not a TV-compatible PNG feed or a cutover. No entity IDs or household data are shipped in the add-on.
