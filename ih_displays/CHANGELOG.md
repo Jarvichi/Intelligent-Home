@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Show each profile ID for connecting display adapters.
+
 ## 0.1.1
 
 - Use the published prebuilt image for installation and updates.
