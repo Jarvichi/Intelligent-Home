@@ -33,3 +33,7 @@ Optional `health_*_entity` settings provide DNS, smoke-device connectivity, back
 ## Battery and maintenance tasks
 
 Optional battery tasks read Home Assistant states, entity/device/area registries and the configured forecast and ignored-device helpers; they never change the source entities or shopping list. Configure battery-model types, exceptional device overrides and exclusion tokens privately. Forecasts below 20 days, low fallback levels, repeated drop-outs and offline battery devices produce tasks; urgent thresholds are retained. A missing ignored-device helper suppresses battery output and marks the feed incomplete. Optional maintenance groups supply part sensors and thresholds; a configured winter-storage switch suppresses that group. Data stays in memory and registry snapshots are cached for one minute. Both features start disabled or empty.
+
+## Household reminders
+
+Optional entity settings provide free-hour booking failures, wheel results, oven-cleaning reminders and the first event tomorrow. Set `energy_provider_name` to the provider name used in booking and wheel labels. The oven reminder can use the existing `free_power_event` to suggest a time. Event titles are returned only through the authenticated task API. These sources are read-only: the app does not book an event, spin a wheel, operate an oven or change a calendar. Sources default empty and unavailable configured inputs mark the feed incomplete.

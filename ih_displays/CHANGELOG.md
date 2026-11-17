@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- Add optional read-only booking, wheel, oven-cleaning and tomorrow-event reminders.
+
 ## 0.8.0
 
 - Add optional read-only battery forecast, offline battery and robot maintenance tasks.
