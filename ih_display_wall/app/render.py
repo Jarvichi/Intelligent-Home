@@ -102,18 +102,19 @@ def svg(profile,data):
         parts.append(f'<text x="{x+24}" y="{y+105}" fill="#f7faf7" font-family="sans-serif" font-size="38">{clean(item.get("value"),18)}</text>')
     if not items:parts.append('<text x="70" y="245" fill="#c4d5c9" font-family="sans-serif" font-size="25">Choose display entities in the app configuration.</text>')
     parts.append('<rect x="900" y="190" width="575" height="525" rx="20" fill="#26352f"/>')
-    parts.append('<text x="930" y="245" fill="#f7faf7" font-family="sans-serif" font-size="30" font-weight="bold">To do</text>')
+    parts.append('<text x="930" y="245" fill="#f7faf7" font-family="sans-serif" font-size="30" font-weight="bold">Selected tasks</text>')
     tasks=data.get('tasks')
     if tasks is None:
         label='Task list unavailable' if data.get('tasks_configured') else 'Choose a task list in the app configuration.'
         parts.append(f'<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">{clean(label)}</text>')
-    elif not tasks and not data.get('tasks_partial'):parts.append('<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">No open tasks</text>')
+    elif not tasks and not data.get('tasks_partial'):parts.append('<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">No items from selected sources</text>')
     else:
         for i,task in enumerate(tasks[:5]):
             title=task.get('title','') if isinstance(task,dict) else task
             detail=task.get('detail','') if isinstance(task,dict) else ''
             parts.append(f'<text x="930" y="{305+i*75}" fill="#f7faf7" font-family="sans-serif" font-size="24">• {clean(title,37)}</text>')
             if detail:parts.append(f'<text x="950" y="{331+i*75}" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(detail,43)}</text>')
-        if data.get('tasks_partial'):parts.append('<text x="930" y="690" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
+        if data.get('tasks_partial'):parts.append('<text x="930" y="658" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
+    parts.append('<text x="930" y="694" fill="#c4d5c9" font-family="sans-serif" font-size="18">Only selected sources are shown</text>')
     parts.append('</svg>')
     return ''.join(parts).encode('utf-8')

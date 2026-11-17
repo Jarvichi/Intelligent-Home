@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Label the task preview as selected sources so an empty partial migration is not presented as a complete task list.
+
 ## 0.5.0
 
 - Optionally show configured shared display messages in the task preview.
