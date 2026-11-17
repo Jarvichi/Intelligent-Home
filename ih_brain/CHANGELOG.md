@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.4] - 2026-11-17
+
+### Added
+- Brain page: a small line "Pocket brain: last sync 12:08, 0 changed, 1 note refused" from the new read-only `GET /api/pocket` (Home Assistant ingress only). It keeps the last 20 sync results in memory (time, inbox pulled, selected/changed/removed, refused, error text) and turns red when the last 3 syncs failed. Error text is scrubbed of the token, key and any URL.
+
 ## [0.5.3] - 2026-11-13
 
 ### Added

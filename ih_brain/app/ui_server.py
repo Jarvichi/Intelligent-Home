@@ -110,7 +110,7 @@ def _graph_summary(brain):
     return json.loads(brain.t_brain_graph({}))
 
 
-def make_handler(brain, editor=None, data_dir=None):
+def make_handler(brain, editor=None, data_dir=None, pocket=None):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body, content_type="application/json; charset=utf-8"):
             data = body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode()
@@ -220,6 +220,8 @@ def make_handler(brain, editor=None, data_dir=None):
                         n["scrub"], n["repl"] = c.get("scrub", False), c.get("repl", "[name]")
                     return self._send(200, {"names": names, "relaxed_too": extras.RELAXED_TOO,
                                             "relaxed_notes": extras.relaxed_notes(str(brain.base)), "mapped": sorted(extras.NAMES)})
+                if path == "/api/pocket":
+                    return self._send(200, pocket.status() if pocket else {"configured": False, "history": [], "last": None, "failing": False})
                 if path == "/api/graph":
                     return self._send(200, _graph_summary(brain))
                 return self._send(404, {"error": "Not found"})
@@ -271,7 +273,7 @@ def make_handler(brain, editor=None, data_dir=None):
     return Handler
 
 
-def serve(brain, editor=None, data_dir=None):
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor, data_dir))
+def serve(brain, editor=None, data_dir=None, pocket=None):
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), make_handler(brain, editor, data_dir, pocket))
     threading.Thread(target=server.serve_forever, name="ih-brain-ui", daemon=True).start()
     return server
