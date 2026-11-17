@@ -17,6 +17,8 @@
   "cors_origins": "",
   "ingest_url": "http://172.30.32.1:8790",
   "ingest_token": "",
+  "local_sort_model": "",
+  "ollama_url": "http://32c8114c-ih-ollama:11434",
   "instructions_mode": "off",
   "instructions_files": ["house"],
   "instructions_user_ids": []
