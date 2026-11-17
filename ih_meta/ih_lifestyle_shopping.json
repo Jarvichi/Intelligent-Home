@@ -1,0 +1,7 @@
+{
+  "requires": [],
+  "ui": {
+    "title": "Shopping",
+    "purpose": "Manages the shopping list, shop order and spending summaries."
+  }
+}

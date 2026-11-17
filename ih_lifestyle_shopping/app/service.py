@@ -1,0 +1,79 @@
+"""Shopping backend routes, with live list writes disabled by default."""
+import layouts
+import list_bridge
+import meal_merge
+
+
+class App:
+    def __init__(self, db, shopping, list_writes_enabled=False, meals=None, groceries=None):
+        self.db, self.shopping = db, shopping
+        self.list_writes_enabled = list_writes_enabled is True
+        self.meals = meals
+        self.groceries = groceries
+
+    def route(self, method, path, body=None):
+        if method == 'GET' and path == '/healthz':
+            return 200, {'ok': True}
+        try:
+            if method == 'GET' and path == '/configuration':
+                return 200, {'list_writes_enabled':self.list_writes_enabled}
+            if method == 'GET' and path == '/layouts':
+                doc, rev = layouts.read(self.db)
+                return 200, {'layouts': doc, 'revision': rev}
+            if method == 'POST' and path == '/layouts/import':
+                if not isinstance(body, dict) or set(body) != {'layouts'}:
+                    return 400, {'error': 'Store and aisle data required.'}
+                rev = layouts.save(self.db, body['layouts'])
+                return 200, {'ok': True, 'revision': rev}
+            if method == 'PUT' and path == '/layouts':
+                if not isinstance(body, dict) or set(body) != {'layouts', 'revision'} or not isinstance(body['revision'], str):
+                    return 400, {'error': 'Reload layouts before saving.'}
+                rev = layouts.save(self.db, body['layouts'], body['revision'])
+                return 200, {'ok': True, 'revision': rev}
+            if method == 'GET' and path == '/list':
+                return 200, self.shopping.items()
+            if method == 'GET' and path == '/staples':
+                if not self.meals:
+                    return 503, {'error':'Staples are not configured.'}
+                return 200, self.meals.cooking.staples()
+            if method == 'GET' and path == '/stats':
+                if not self.groceries:
+                    return 503, {'error':'Spending is not configured.'}
+                return 200, self.groceries.stats()
+            if method == 'POST' and path in ('/meal/preview','/meal/apply'):
+                if not self.meals:
+                    return 503, {'error':'Meal shopping is not configured.'}
+                if not isinstance(body,dict) or not isinstance(body.get('groups'),list) or not isinstance(body.get('include_completed'),bool):
+                    return 400, {'error':'Check the shopping choices.'}
+                if path == '/meal/preview':
+                    return 200, self.meals.preview(body['groups'],body['include_completed'])
+                if not self.list_writes_enabled:
+                    return 403, {'error':'Shopping list changes are not enabled.'}
+                result=self.meals.apply(body['groups'],body['include_completed'],body.get('revision'))
+                return (200 if result.get('ok') else 502), result
+            if method == 'POST' and path in ('/list/add', '/list/staple', '/list/state', '/list/group', '/list/quantity'):
+                if not self.list_writes_enabled:
+                    return 403, {'error': 'Shopping list changes are not enabled.'}
+                if not isinstance(body, dict):
+                    return 400, {'error': 'Invalid request.'}
+                if path == '/list/add':
+                    self.shopping.add(body.get('name'))
+                elif path == '/list/staple':
+                    self.shopping.add_staple(body.get('name'))
+                elif path == '/list/state':
+                    self.shopping.set_completed(body.get('uid'), body.get('completed'))
+                elif path == '/list/group':
+                    result=self.shopping.complete_group(body.get('uids'))
+                    return (200 if result['complete'] else 502), result
+                else:
+                    self.shopping.adjust_quantity(body.get('uids'), body.get('delta'))
+                return 200, {'ok': True}
+        except layouts.LayoutConflict:
+            return 409, {'error': 'Layouts changed. Reload before saving.'}
+        except meal_merge.MealError:
+            return 409, {'error': 'Plan, recipes or list need review. Reload before continuing.'}
+        except (layouts.LayoutError, list_bridge.ListError):
+            return 400, {'error': 'Check the details or reload the list.'}
+        except Exception:
+            return 502, {'error': 'Shopping service unavailable. Reload before retrying.'}
+        return 404, {'error': 'Not found.'}
