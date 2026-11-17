@@ -30,12 +30,28 @@ class ShoppingList:
         completed = self.ha.get_items(self.entity, status='completed')
         if not isinstance(opened, list) or not isinstance(completed, list):
             raise ListError('Shopping list unavailable')
+        if any(not isinstance(item,dict) or not isinstance(item.get('uid'),str) or not item['uid'] or not isinstance(item.get('summary'),str) for item in opened+completed):
+            raise ListError('Shopping list unavailable')
         return {'open': opened, 'completed': completed}
 
     def add(self, name):
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > 255 or any(ord(c) < 32 for c in name):
             raise ListError('Enter an item name')
         self.ha.call('todo', 'add_item', {'entity_id': self.entity, 'item': name.strip()})
+
+    def add_staple(self, value):
+        if not isinstance(value, str) or not value.strip() or len(value.strip()) > 255 or any(ord(c) < 32 for c in value):
+            raise ListError('Enter an item name')
+        name, count = quantity(value.strip())
+        opened = self.items()['open']
+        matches = [row for row in opened if isinstance(row.get('summary'),str) and row.get('uid')
+                   and quantity(row['summary'])[0].casefold() == name.casefold()]
+        if not matches:
+            return self.add(value)
+        row = matches[0]
+        existing_name, existing_count = quantity(row['summary'])
+        display = existing_name + ' x' + str(existing_count + count)
+        self.ha.call('todo', 'update_item', {'entity_id':self.entity,'item':row['uid'],'rename':display})
 
     def set_completed(self, uid, completed):
         if not isinstance(uid, str) or not uid or not isinstance(completed, bool):

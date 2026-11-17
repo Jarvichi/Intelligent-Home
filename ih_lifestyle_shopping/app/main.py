@@ -4,9 +4,11 @@ import json
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 import ha_client
 import cooking_client
+import groceries_client
 import layouts
 import list_bridge
 import meal_merge
@@ -14,6 +16,14 @@ import service
 
 PEER = '172.30.32.2'
 MAX_BODY = 512 * 1024
+UI = Path(__file__).parent / 'ui'
+ASSETS = {'/':('index.html','text/html; charset=utf-8'),
+          '/ih-ui.css':('ih-ui.css','text/css; charset=utf-8'),
+          '/ih-ui.js':('ih-ui.js','text/javascript; charset=utf-8'),
+          '/ui.css':('ui.css','text/css; charset=utf-8'),
+          '/ui.js':('ui.js','text/javascript; charset=utf-8'),
+          '/ui.json':('ui.json','application/json'),
+          '/sort.js':('../sort.js','text/javascript; charset=utf-8')}
 
 
 def make_handler(app, token, ingress=False, peer=PEER):
@@ -33,6 +43,19 @@ def make_handler(app, token, ingress=False, peer=PEER):
             if ingress:
                 if self.client_address[0] != peer:
                     return self.send_json(403, {'error':'Forbidden.'})
+                if method == 'GET' and path in ASSETS:
+                    name, content_type = ASSETS[path]
+                    try:
+                        raw = (UI / name).read_bytes()
+                    except OSError:
+                        return self.send_json(404, {'error':'Not found.'})
+                    self.send_response(200)
+                    self.send_header('Content-Type', content_type)
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Content-Length', str(len(raw)))
+                    self.end_headers()
+                    return self.wfile.write(raw)
                 if not path.startswith('/api/'):
                     return self.send_json(404, {'error':'Not found.'})
                 path = path[4:]
@@ -71,8 +94,9 @@ def main():
     entity = opts.get('shopping_list_entity') or 'todo.shopping_list'
     shopping = list_bridge.ShoppingList(ha_client.HA(os.environ.get('SUPERVISOR_TOKEN','')), entity)
     meals = meal_merge.MealShopping(cooking_client.Cooking(opts.get('cooking_url') or '', opts.get('cooking_api_token') or ''), shopping)
+    groceries = groceries_client.Groceries(opts.get('groceries_url') or '')
     def app():
-        return service.App(layouts.connect(os.path.join(data,'shopping.db')), shopping, opts.get('list_writes_enabled'), meals)
+        return service.App(layouts.connect(os.path.join(data,'shopping.db')), shopping, opts.get('list_writes_enabled'), meals, groceries)
     ingress = HTTPServer(('0.0.0.0',8826),make_handler(app(), token, ingress=True))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     HTTPServer(('0.0.0.0',8804),make_handler(app(), token)).serve_forever()

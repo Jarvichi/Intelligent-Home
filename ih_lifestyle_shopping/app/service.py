@@ -5,15 +5,18 @@ import meal_merge
 
 
 class App:
-    def __init__(self, db, shopping, list_writes_enabled=False, meals=None):
+    def __init__(self, db, shopping, list_writes_enabled=False, meals=None, groceries=None):
         self.db, self.shopping = db, shopping
         self.list_writes_enabled = list_writes_enabled is True
         self.meals = meals
+        self.groceries = groceries
 
     def route(self, method, path, body=None):
         if method == 'GET' and path == '/healthz':
             return 200, {'ok': True}
         try:
+            if method == 'GET' and path == '/configuration':
+                return 200, {'list_writes_enabled':self.list_writes_enabled}
             if method == 'GET' and path == '/layouts':
                 doc, rev = layouts.read(self.db)
                 return 200, {'layouts': doc, 'revision': rev}
@@ -29,6 +32,14 @@ class App:
                 return 200, {'ok': True, 'revision': rev}
             if method == 'GET' and path == '/list':
                 return 200, self.shopping.items()
+            if method == 'GET' and path == '/staples':
+                if not self.meals:
+                    return 503, {'error':'Staples are not configured.'}
+                return 200, self.meals.cooking.staples()
+            if method == 'GET' and path == '/stats':
+                if not self.groceries:
+                    return 503, {'error':'Spending is not configured.'}
+                return 200, self.groceries.stats()
             if method == 'POST' and path in ('/meal/preview','/meal/apply'):
                 if not self.meals:
                     return 503, {'error':'Meal shopping is not configured.'}
@@ -40,17 +51,20 @@ class App:
                     return 403, {'error':'Shopping list changes are not enabled.'}
                 result=self.meals.apply(body['groups'],body['include_completed'],body.get('revision'))
                 return (200 if result.get('ok') else 502), result
-            if method == 'POST' and path in ('/list/add', '/list/state', '/list/group', '/list/quantity'):
+            if method == 'POST' and path in ('/list/add', '/list/staple', '/list/state', '/list/group', '/list/quantity'):
                 if not self.list_writes_enabled:
                     return 403, {'error': 'Shopping list changes are not enabled.'}
                 if not isinstance(body, dict):
                     return 400, {'error': 'Invalid request.'}
                 if path == '/list/add':
                     self.shopping.add(body.get('name'))
+                elif path == '/list/staple':
+                    self.shopping.add_staple(body.get('name'))
                 elif path == '/list/state':
                     self.shopping.set_completed(body.get('uid'), body.get('completed'))
                 elif path == '/list/group':
-                    return 200, self.shopping.complete_group(body.get('uids'))
+                    result=self.shopping.complete_group(body.get('uids'))
+                    return (200 if result['complete'] else 502), result
                 else:
                     self.shopping.adjust_quantity(body.get('uids'), body.get('delta'))
                 return 200, {'ok': True}

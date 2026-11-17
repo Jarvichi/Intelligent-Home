@@ -50,6 +50,14 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(self.ha.calls[0][2]['rename'], 'Example x3')
         self.assertEqual(len(self.ha.calls), 1)
 
+    def test_quick_add_staple_increases_existing_or_adds_once(self):
+        self.ha.data['needs_action']=[{'uid':'a','summary':'Example x2'}]
+        self.bridge.add_staple('Example x3')
+        self.assertEqual(self.ha.calls[0],('todo','update_item',{'entity_id':'todo.fixture','item':'a','rename':'Example x5'}))
+        self.ha.calls.clear()
+        self.bridge.add_staple('Another item')
+        self.assertEqual(self.ha.calls[0][1],'add_item')
+
     def test_decrement_duplicates_removes_only_one_explicit_item(self):
         self.ha.data['needs_action'] = [{'uid':'a','summary':'Example'}, {'uid':'b','summary':'Example'}]
         self.bridge.adjust_quantity(['a','b'], -1)

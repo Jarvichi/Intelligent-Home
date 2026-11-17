@@ -27,7 +27,10 @@ def connect(path):
 
 
 def revision(doc):
-    encoded = json.dumps(doc, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+    try:
+        encoded = json.dumps(doc, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
+    except (TypeError, ValueError):
+        raise LayoutError('invalid layout data') from None
     if len(encoded) > MAX_BYTES:
         raise LayoutError('layout data too large')
     return hashlib.sha256(encoded).hexdigest()

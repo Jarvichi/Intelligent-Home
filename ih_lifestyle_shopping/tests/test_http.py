@@ -48,5 +48,16 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request(permitted,'POST','/api/list/add',body='{}',headers={'Content-Type':'text/plain'})[0],400)
         self.assertEqual(self.ha.calls,[])
 
+    def test_page_is_available_only_via_ingress_gateway(self):
+        denied=self.server(ingress=True,peer='192.0.2.1')
+        self.assertEqual(self.request(denied,'GET','/')[0],403)
+        permitted=self.server(ingress=True)
+        conn=http.client.HTTPConnection('127.0.0.1',permitted,timeout=2)
+        self.addCleanup(conn.close)
+        conn.request('GET','/')
+        response=conn.getresponse()
+        self.assertEqual(response.status,200)
+        self.assertIn(b'Shopping',response.read())
+
 
 if __name__ == '__main__': unittest.main()
