@@ -37,3 +37,7 @@ Optional battery tasks read Home Assistant states, entity/device/area registries
 ## Household reminders
 
 Optional entity settings provide free-hour booking failures, wheel results, oven-cleaning reminders and the first event tomorrow. Set `energy_provider_name` to the provider name used in booking and wheel labels. The oven reminder can use the existing `free_power_event` to suggest a time. Event titles are returned only through the authenticated task API. These sources are read-only: the app does not book an event, spin a wheel, operate an oven or change a calendar. Sources default empty and unavailable configured inputs mark the feed incomplete.
+
+## Urgent alert preview
+
+The optional `alerts_enabled` feed reads configured smoke, carbon-monoxide, robot, saving-session and free-power sources, and reports incomplete input explicitly. Existing robot and winter-storage settings are reused. The optional dismissal timestamp filters energy banners only; smoke, carbon-monoxide and robot warnings are never filtered by it. The API is read-only and does not dismiss alarms, operate devices or send notifications. No alert sources are enabled by default. This is a staged projection, not a safety alarm or a replacement for the current live display.

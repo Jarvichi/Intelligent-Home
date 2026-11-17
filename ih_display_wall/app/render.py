@@ -3,6 +3,7 @@ import html
 import http.client
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 import frames
@@ -86,7 +87,7 @@ class HA:
                 tasks.sort(key=lambda item:ranks[item['priority']])
             return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial}
 
-def svg(profile,data):
+def svg(profile,data,alerts=None,now=None):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')
     width,height=profile.get('width'),profile.get('height')
     if any(type(v) is not int or not 1<=v<=8192 for v in (width,height)):raise ValueError('Invalid dimensions')
@@ -117,5 +118,23 @@ def svg(profile,data):
             if detail:parts.append(f'<text x="950" y="{331+i*75}" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(detail,43)}</text>')
         if data.get('tasks_partial'):parts.append('<text x="930" y="658" fill="#ffd88c" font-family="sans-serif" font-size="20">Some task sources are unavailable</text>')
     parts.append('<text x="930" y="694" fill="#c4d5c9" font-family="sans-serif" font-size="18">Only selected sources are shown</text>')
+    if alerts is None:
+        parts.append('<text x="70" y="172" fill="#ffd88c" font-family="sans-serif" font-size="19">Alert preview not connected</text>')
+    elif not alerts.get('configured'):
+        parts.append('<text x="70" y="172" fill="#ffd88c" font-family="sans-serif" font-size="19">Alert preview not configured</text>')
+    else:
+        warnings=alerts.get('alerts') or []
+        complete=alerts.get('complete') is True
+        if warnings or not complete:
+            parts.append('<rect x="70" y="165" width="1405" height="170" rx="16" fill="#761e24"/>')
+            heading='URGENT · SELECTED SOURCES' if complete else 'URGENT · ALERT INPUTS INCOMPLETE'
+            parts.append(f'<text x="95" y="193" fill="#ffffff" font-family="sans-serif" font-size="19" font-weight="bold">{heading}</text>')
+            if warnings:
+                pages=(len(warnings)+3)//4;page=int((time.time() if now is None else now)//300)%pages
+                for i,item in enumerate(warnings[page*4:page*4+4]):
+                    parts.append(f'<text x="95" y="{220+i*29}" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="bold">{clean(item.get("title"),92)}</text>')
+                if pages>1:parts.append(f'<text x="1370" y="193" fill="#ffffff" font-family="sans-serif" font-size="18">{page+1}/{pages}</text>')
+            else:parts.append('<text x="95" y="230" fill="#ffffff" font-family="sans-serif" font-size="22">Alert sources unavailable</text>')
+        else:parts.append('<text x="70" y="172" fill="#c4d5c9" font-family="sans-serif" font-size="19">No active alerts from selected sources</text>')
     parts.append('</svg>')
     return ''.join(parts).encode('utf-8')

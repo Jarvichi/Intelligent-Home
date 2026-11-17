@@ -51,3 +51,18 @@ class ProfileClient:
             if not value['configured']:return None
             return value
         except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return None
+
+    def alerts(self):
+        if not frames.valid_url(self.url) or urlsplit(self.url).query or not self.token:return None
+        try:
+            req=urllib.request.Request(self.url+'/v1/alerts',headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'})
+            with self.opener.open(req,timeout=8) as response:
+                raw=response.read(MAX_SIZE+1)
+                if response.status!=200 or len(raw)>MAX_SIZE:raise ValueError()
+            value=json.loads(raw)
+            if not isinstance(value,dict) or type(value.get('configured')) is not bool or type(value.get('complete')) is not bool or not isinstance(value.get('alerts'),list) or len(value['alerts'])>100:return None
+            for item in value['alerts']:
+                if not isinstance(item,dict) or item.get('kind') not in ('smoke','co','robot','free','saving') or not isinstance(item.get('title'),str) or not item['title'].strip() or not isinstance(item.get('short'),str) or type(item.get('dismissible')) is not bool:return None
+                if item['dismissible'] != (item['kind'] in ('free','saving')):return None
+            return value
+        except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return None

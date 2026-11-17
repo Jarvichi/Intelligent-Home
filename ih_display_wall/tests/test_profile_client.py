@@ -65,6 +65,11 @@ class Tests(unittest.TestCase):
         for body in ({'configured':False,'complete':True,'items':[]},{'configured':True,'complete':True,'items':[{'title':'','detail':'','priority':'high'}]}):
             self.assertIsNone(ProfileClient(client.url,'token',IDENT,Opener(body)).message_tasks())
 
+    def test_alerts_reject_dismissible_safety_warning(self):
+        safe={'configured':True,'complete':True,'alerts':[{'kind':'smoke','title':'SMOKE ALARM','short':'SMOKE','dismissible':False}]}
+        self.assertEqual(ProfileClient('http://profiles.example','token',IDENT,Opener(safe)).alerts(),safe)
+        safe['alerts'][0]['dismissible']=True;self.assertIsNone(ProfileClient('http://profiles.example','token',IDENT,Opener(safe)).alerts())
+
     def test_wrong_type_or_identity_rejected(self):
         for profile in (dict(PROFILE,kind='eink'),dict(PROFILE,id='b'*32),dict(PROFILE,width=True)):
             self.assertEqual(ProfileClient('http://profiles.example','token',IDENT,Opener(profile)).read()['state'],'invalid')

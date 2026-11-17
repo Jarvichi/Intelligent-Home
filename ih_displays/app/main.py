@@ -16,12 +16,13 @@ import health_tasks
 import registry_snapshot
 import battery_tasks
 import household_tasks
+import alerts
 
 ROOT = Path(__file__).parent / 'ui'
 ASSETS = {'/': ('index.html','text/html'), '/ih-ui.css': ('ih-ui.css','text/css'), '/ih-ui.js': ('ih-ui.js','text/javascript'), '/ui.css': ('ui.css','text/css'), '/ui.js': ('ui.js','text/javascript'), '/ui.json': ('ui.json','application/json')}
 PEER = '172.30.32.2'
 
-def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None, task_feed=None):
+def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None, task_feed=None, alert_feed=None):
     class Handler(BaseHTTPRequestHandler):
         def reply(self, status, data, kind='application/json'):
             body = data if isinstance(data,bytes) else json.dumps(data,ensure_ascii=False).encode()
@@ -50,6 +51,7 @@ def make_handler(db_path, token, ingress=False, peer=PEER, message_feed=None, ta
                 except (ValueError,UnicodeError): return self.reply(400,{'error':'Invalid request.'})
             if path=='/v1/message-tasks' and method=='GET':return self.reply(200,message_feed.read() if message_feed else {'configured':False,'complete':True,'items':[]})
             if path=='/v1/tasks' and method=='GET':return self.reply(200,task_feed.read() if task_feed else {'configured':False,'complete':True,'items':[]})
+            if path=='/v1/alerts' and method=='GET':return self.reply(200,alert_feed.read() if alert_feed else {'configured':False,'complete':False,'alerts':[]})
             db=profiles.connect(db_path)
             try:
                 if path=='/v1/profiles' and method=='GET': return self.reply(200,{'profiles':profiles.listing(db)})
@@ -91,8 +93,9 @@ def main():
     energy=household_tasks.EnergyReminders(opts.get('booking_status_entity',''),opts.get('wheel_result_entity',''),opts.get('oven_clean_entity',''),opts.get('free_power_event',''),dish._get,provider=opts.get('energy_provider_name','Energy'))
     tomorrow=household_tasks.Tomorrow(opts.get('tomorrow_event_entity',''),dish._get)
     tasks=dishwasher.Combined(feed,dish,power,energy,robots,health,battery,tomorrow,bins)
-    ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks))
+    warning=alerts.Alerts(opts.get('alerts_enabled',False),opts.get('alert_smoke_entities',[]),opts.get('alert_co_entity',''),opts.get('robots',[]),opts.get('robot_mower_stored_entity',''),opts.get('alert_saving_calendar',''),opts.get('free_power_event',''),opts.get('alert_dismissed_entity',''),dish._get)
+    ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks,alert_feed=warning))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
-    ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed,task_feed=tasks)).serve_forever()
+    ThreadingHTTPServer(('0.0.0.0',8805),make_handler(db_path,opts.get('api_token') or '',message_feed=feed,task_feed=tasks,alert_feed=warning)).serve_forever()
 
 if __name__=='__main__': main()

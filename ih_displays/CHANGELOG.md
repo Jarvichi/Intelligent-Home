@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+
+- Add an optional read-only urgent alert feed for configured safety, robot and energy sources.
+
 ## 0.9.0
 
 - Add optional read-only booking, wheel, oven-cleaning and tomorrow-event reminders.
