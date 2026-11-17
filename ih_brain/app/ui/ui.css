@@ -143,3 +143,5 @@ body[data-reading="true"][data-view="map"] .page-head, body[data-reading="true"]
 .note-error button { margin:var(--ih-space-2) 0 0; }
 .note-markdown pre code { font-size:13px; line-height:1.6; }
 .note-pending { color:var(--ih-muted); font-size:13px; }
+
+#pocket[data-state=bad] { color: #b3261e; font-weight: 600; }

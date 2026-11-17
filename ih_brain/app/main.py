@@ -220,7 +220,7 @@ def main():
     st = State(opts, os.environ.get('IHA_DATA', '/data'), lg.info)
     editor = instructions_api.InstructionsEditor(opts['instructions_mode'], opts['instructions_files'], opts['instructions_user_ids'],
                                                  os.path.join(st.data_dir, 'instructions'))
-    ui_server.serve(st.brain, editor, st.data_dir)
+    ui_server.serve(st.brain, editor, st.data_dir, st.pocket)
     lg.info('instructions editor: %s (%d file(s) listed)', editor.mode, len(editor.table) if editor.mode != 'off' else 0)
     lg.info('ih_brain %s starting: %d notes in %s; %s; token %s', VERSION, len(st.brain._notes()), opts['brain_dir'],
             'READ-ONLY' if opts['read_only'] else 'writes allowed', 'set' if opts['api_token'] else 'NOT set (all requests refused)')

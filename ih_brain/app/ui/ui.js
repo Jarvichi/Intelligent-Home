@@ -414,6 +414,25 @@
     else graphInstance.zoom(Math.max(.1, Math.min(14, graphInstance.zoom() * (button.dataset.zoom === 'in' ? 1.5 : 1 / 1.5))), 250);
   }));
 
+  /* ---------- pocket brain sync card ---------- */
+  async function loadPocket() {
+    const box = $('#pocket'); if (!box) return;
+    try {
+      const d = await api('pocket');
+      if (!d.configured) { box.hidden = true; return; }
+      const l = d.last; box.hidden = false; box.dataset.state = d.failing ? 'bad' : 'ok';
+      if (!l) { box.textContent = 'Pocket brain: no sync yet'; return; }
+      const t = new Date(l.at * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+      let text = `Pocket brain: last sync ${t}, ${l.changed} changed`;
+      if (l.refused) text += `, ${plural(l.refused, 'note')} refused`;
+      if (!l.live) text += ' (dry run)';
+      if (!l.ok) text += `. Failed: ${l.error}`;
+      if (d.failing) text += '. The last 3 syncs failed.';
+      box.textContent = text;
+    } catch (e) { box.hidden = true; }
+  }
+
   /* ---------- start ---------- */
   (async () => {
     const health = $('#health'), healthText = $('#health-text');
@@ -424,7 +443,7 @@
       $('#count').textContent = `${d.count} notes · read-only through this page`;
       $('#query').placeholder = `Search ${d.count} notes`;
       for (const a of d.areas) if (a.path) { const o = h('option', '', `${a.title} (${a.count})`); o.value = a.path; area.append(o); }
-      renderCurrent();
+      renderCurrent(); loadPocket();
     } catch (e) {
       health.dataset.ok = 'false'; healthText.textContent = 'Not reachable'; $('#count').textContent = e.message;
       results.replaceChildren(errorBox(e.message, () => location.reload()));
