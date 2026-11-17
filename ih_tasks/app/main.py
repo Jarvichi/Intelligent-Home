@@ -6,10 +6,10 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   owner_token  -> the caller is the owner (approve, reject, answer, reopen, import).
   GET  /healthz (open)   GET /status   GET /board   GET /tasks?stage=a,b&needs_input=1&waiting=owner&q=text   GET /tasks/<n>   GET /tasks/<n>/history
   GET  /legacy?kind=todo_uid&value=...
-  POST /tasks {title, description?, due?, source?, legacy?, allow_duplicate?}
+  POST /tasks {title, description?, due?, priority? (high|normal|low), source?, legacy?, allow_duplicate?}
   POST /tasks/<n>/move {to, reason?, plan?, result?, verify_by?}     POST /tasks/<n>/plan {plan, verify_by?}
   POST /tasks/<n>/reject {comment}                                   POST /tasks/<n>/close {reason, detail?, duplicate_of?}
-  POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?}
+  POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?, priority?}
   POST /tasks/<n>/ask {questions, after}   POST /tasks/<n>/answer {answers, note?}   POST /tasks/<n>/withdraw {reason}
   POST /tasks/<n>/link {kind, url?, text?}   POST /tasks/<n>/legacy {legacy}   POST /import {item} (owner token)
   POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
@@ -33,7 +33,7 @@ import mirror as MIRROR
 import model as M
 from store import TaskStore
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -49,14 +49,14 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'reject': ({'comment'}, {'comment'}),
     'close': ({'reason', 'detail', 'duplicate_of'}, {'reason'}),
     'comment': ({'text'}, {'text'}),
-    'edit': ({'title', 'description', 'due'}, set()),
+    'edit': ({'title', 'description', 'due', 'priority'}, set()),
     'ask': ({'questions', 'after'}, {'questions', 'after'}),
     'answer': ({'answers', 'note'}, {'answers'}),
     'withdraw': ({'reason'}, {'reason'}),
     'link': ({'kind', 'url', 'text'}, {'kind'}),
     'legacy': ({'legacy'}, {'legacy'}),
 }
-CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate'}, {'title'})
+CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate', 'priority'}, {'title'})
 TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z]+))?')
 
 
@@ -144,7 +144,7 @@ def dispatch(store, status, method, path, query, body, role):
         check_fields(body, *CREATE_FIELDS)
         if not isinstance(body.get('allow_duplicate', False), bool):
             raise M.RuleError('bad', 'allow_duplicate must be true or false')
-        return store.create(body['title'], actor, body.get('description', ''), body.get('due', ''), body.get('source', ''), body.get('legacy'), body.get('allow_duplicate', False))
+        return store.create(body['title'], actor, body.get('description', ''), body.get('due', ''), body.get('source', ''), body.get('legacy'), body.get('allow_duplicate', False), body.get('priority', ''))
     if path == '/tasks/merge':
         actor = actor_of(role, body)
         check_fields(body, {'keep', 'merge'}, {'keep', 'merge'})
@@ -176,7 +176,7 @@ def dispatch(store, status, method, path, query, body, role):
     if action == 'comment':
         return store.comment(tid, actor, b('text'))
     if action == 'edit':
-        return store.edit(tid, actor, b('title'), b('description'), b('due'))
+        return store.edit(tid, actor, b('title'), b('description'), b('due'), b('priority'))
     if action == 'ask':
         return store.ask(tid, actor, b('questions'), b('after'))
     if action == 'answer':

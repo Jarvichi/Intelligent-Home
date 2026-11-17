@@ -48,6 +48,7 @@
     else if (t.waiting_on === 'owner') flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: t.stage === 'planning' ? 'Plan ready for you' : 'Waiting for you' }));
     if (t.stage === 'planning' && t.revise) flags.push(el('span', { 'class': 't-flag', text: 'Plan being revised' }));
     var sub = [];
+    if (t.priority && t.priority !== 'normal') sub.push(t.priority === 'high' ? 'High priority' : 'Low priority');
     if (t.due) sub.push('Due ' + t.due);
     if (t.stage === 'closed' && t.closed_reason) sub.push(closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : ''));
     var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null];
@@ -267,7 +268,7 @@
     var t = state.open, d = $('detail'); clear(d); if (!t) return;
     var msg = msgLine();
     var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
-      el('p', { 'class': 'ih-metadata', text: [t.stage_label, t.due ? 'Due ' + t.due : '', WAIT_TEXT[t.waiting_on] || '',
+      el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', WAIT_TEXT[t.waiting_on] || '',
         t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
     var root = el('div', { 'class': 't-detail' }, [el('div', {}, head)]);
     if (t.question) root.appendChild(questionForm(t, msg));
@@ -288,6 +289,11 @@
       if (!comment.value.trim()) { msg.setAttribute('data-tone', 'error'); msg.textContent = 'The comment is empty.'; return; }
       act(msg, api('POST', '/tasks/' + t.id + '/comment', { text: comment.value.trim() }));
     } } }));
+    if (isOpen(t)) {
+      var pri = el('select', {}, ['high', 'normal', 'low'].map(function (p) { return el('option', { value: p, text: p.charAt(0).toUpperCase() + p.slice(1), selected: p === (t.priority || 'normal') }); }));
+      actions.appendChild(field('Priority (workers take high first)', pri, 'd-priority'));
+      actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save priority', on: { click: function () { act(msg, api('POST', '/tasks/' + t.id + '/edit', { priority: pri.value })); } } }));
+    }
     var card = el('ih-card', {}, [el('h3', { text: t.stage === 'planning' && !t.question ? 'Your decision' : 'Comment' }),
       t.stage === 'planning' && t.question ? el('p', { 'class': 'ih-metadata', text: 'Approve and Reject appear when no questions are open.' }) : null,
       field('Comment (a note on this task; it never makes a new task)', comment, 'd-comment'), actions, msg]);

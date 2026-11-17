@@ -31,9 +31,10 @@ MIGRATIONS = [
     (9, "CREATE TABLE mirror(task_id INTEGER PRIMARY KEY REFERENCES tasks(id), uid TEXT NOT NULL DEFAULT '', sent TEXT NOT NULL DEFAULT '')"),
     # pairs of tasks the owner said are NOT duplicates (a < b), so "Find duplicates" stops offering them
     (10, 'CREATE TABLE not_duplicates(a INTEGER NOT NULL REFERENCES tasks(id), b INTEGER NOT NULL REFERENCES tasks(id), at TEXT NOT NULL, PRIMARY KEY(a, b))'),
+    (11, "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'"),
 ]
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
-             'duplicate_of', 'created_by', 'created_at', 'updated_at')
+             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority')
 LIST_LIMIT = 500
 IDENTITY_KINDS = ('todo_uid', 'queue_id')   # sending the same old item twice returns the task it already became; other old ids only label a task
 COMMENT_MAX = 4000
@@ -164,10 +165,10 @@ class TaskStore:
                 raise M.RuleError('conflict', 'old identifier %s already belongs to task %d' % (x['kind'], r[0]))
             con.execute('INSERT OR IGNORE INTO legacy(kind, value, task_id) VALUES(?,?,?)', (x['kind'], x['value'], task_id))
 
-    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor):
+    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor, priority='normal'):
         at = self.now()
-        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                          (title, description, plan, stage, due, verify_by, source, actor, at, at))
+        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at, priority) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                          (title, description, plan, stage, due, verify_by, source, actor, at, at, priority))
         return cur.lastrowid
 
     def _close(self, con, t, actor, c):
@@ -180,7 +181,7 @@ class TaskStore:
             con.execute("UPDATE questions SET status = 'withdrawn', answered_at = ? WHERE id = ?", (self.now(), open_q['id']))
         self._event(con, t['id'], actor, 'closed', t['stage'], 'closed', c['detail'], {'reason': c['reason_kind'], 'duplicate_of': c['duplicate_of']})
 
-    def create(self, title, actor, description='', due='', source='', legacy=None, allow_duplicate=False):
+    def create(self, title, actor, description='', due='', source='', legacy=None, allow_duplicate=False, priority=''):
         """New task in To do. If an OPEN task has nearly the same title, the new task is still stored (so nothing is lost) but closed at once as a
         duplicate of it, with a link in its history. -> {task, duplicate_of, similar, existing}. A task that already owns the same old to-do uid or queue id is returned as-is (existing True)."""
         M.check_actor(actor)
@@ -188,6 +189,7 @@ class TaskStore:
         description = M.clean_text(description, M.TEXT_MAX, 'description')
         source = M.clean_text(source, 200, 'source')
         due = M.check_due(due)
+        priority = M.check_priority(priority)
         legacy = M.check_legacy(legacy)
         with self.db.tx() as con:
             for x in legacy:
@@ -196,7 +198,7 @@ class TaskStore:
                     return {'task': self.get(r[0]), 'duplicate_of': None, 'similar': [], 'existing': True}
             hits = [] if allow_duplicate else M.find_duplicates(title, con.execute(
                 'SELECT id, title FROM tasks WHERE stage IN (%s)' % ', '.join('?' * len(M.OPEN_STAGES)), M.OPEN_STAGES).fetchall())
-            tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor)
+            tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor, priority)
             self._add_legacy(con, tid, legacy)
             self._event(con, tid, actor, 'created', '', 'todo', '', {'source': source} if source else None)
             dup = None
@@ -280,7 +282,7 @@ class TaskStore:
             self._event(con, task_id, actor, 'comment', text=text)
         return self.get(task_id)
 
-    def edit(self, task_id, actor, title=None, description=None, due=None):
+    def edit(self, task_id, actor, title=None, description=None, due=None, priority=None):
         M.check_actor(actor)
         if actor not in ('owner', 'worker'):
             raise M.RuleError('forbidden', 'only the owner or a worker edits a task')
@@ -291,6 +293,8 @@ class TaskStore:
             sets.append('description = ?'); args.append(M.clean_text(description, M.TEXT_MAX, 'description')); changed.append('description')
         if due is not None:
             sets.append('due = ?'); args.append(M.check_due(due)); changed.append('due')
+        if priority is not None:
+            sets.append('priority = ?'); args.append(M.check_priority(priority)); changed.append('priority')
         if not sets:
             raise M.RuleError('bad', 'nothing to change')
         with self.db.tx() as con:
@@ -387,7 +391,7 @@ class TaskStore:
         """Merge tasks `merge` INTO task `keep`, in ONE transaction (all of it or none of it). For each merged task:
         its comments are copied to the keeper as "From #N: ..."; its open question set moves to the keeper when the keeper has none
         (otherwise the question text becomes a comment); its links are copied; its old ids move, so they now find the keeper;
-        the keeper takes the earliest due date; then the task is closed as a duplicate of the keeper. Both histories get a line.
+        the keeper takes the earliest due date and the highest priority; then the task is closed as a duplicate of the keeper. Both histories get a line.
         The plan and description of a merged task stay on that (closed) task. -> {task: keeper, merged: [ids]}."""
         self._ids(merge, 'merge', 1)
         with self.db.tx() as con:
@@ -395,6 +399,7 @@ class TaskStore:
             others = [self._row(con, i) for i in merge]
             M.check_merge(k, others, actor)
             due = min([t['due'] for t in [k] + others if t['due']] or [''])
+            prio = min([t['priority'] for t in [k] + others], key=M.PRIORITIES.index)   # the most urgent one
             for t in [k] + others:      # pin each task to its own mirrored list item before old ids move (see mirror.py)
                 uid = con.execute("SELECT MIN(value) FROM legacy WHERE task_id = ? AND kind = 'todo_uid'", (t['id'],)).fetchone()[0]
                 if uid:
@@ -429,6 +434,9 @@ class TaskStore:
             if due != k['due']:
                 con.execute('UPDATE tasks SET due = ? WHERE id = ?', (due, keep))
                 self._event(con, keep, actor, 'edited', text='Changed: due (the earliest date of the merged tasks)')
+            if prio != k['priority']:
+                con.execute('UPDATE tasks SET priority = ? WHERE id = ?', (prio, keep))
+                self._event(con, keep, actor, 'edited', text='Changed: priority (the most urgent of the merged tasks)')
         return {'task': self.get(keep), 'merged': list(merge)}
 
     def duplicates(self):

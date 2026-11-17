@@ -22,6 +22,8 @@ QUESTION_TYPES = ('choice', 'multi', 'yesno', 'text')
 LEGACY_KINDS = ('todo_uid', 'queue_id', 'ok_number', 'wy_id')
 LINK_KINDS = ('pr', 'result', 'note', 'other')
 
+PRIORITIES = ('high', 'normal', 'low')   # workers take high before normal before low, whatever the stage
+PRIORITY_LABELS = {'high': 'High', 'normal': 'Normal', 'low': 'Low'}
 TITLE_MAX = 200
 TEXT_MAX = 20000
 REASON_MAX = 2000
@@ -206,6 +208,15 @@ def check_due(due):
     if not isinstance(due, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}([T ].*)?', due.strip()):
         raise RuleError('bad', 'due must be a date: YYYY-MM-DD')
     return due.strip()[:10]
+
+
+def check_priority(p):
+    """'' or None means normal; otherwise high | normal | low."""
+    if p in (None, ''):
+        return 'normal'
+    if not isinstance(p, str) or p.strip().lower() not in PRIORITIES:
+        raise RuleError('bad', 'priority must be one of: ' + ', '.join(PRIORITIES))
+    return p.strip().lower()
 
 
 def check_legacy(legacy):
