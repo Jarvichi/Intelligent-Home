@@ -171,6 +171,9 @@ def load_options(path):
             'min_gap_h': num(p.get('min_gap_h'), 0, 12, 3.0), 'calendars': ents(p.get('calendars')), 'calendar_read': ents(p.get('calendar_read')), 'dates': [str(x)[:120] for x in (p.get('dates') or []) if isinstance(x, str)][:300] if isinstance(p.get('dates'), list) else [], 'dates_leads': str(p.get('dates_leads') or '7,3')[:20], 'dates_at': hhmm(p.get('dates_at'), '18:00'), 'dates_latest': hhmm(p.get('dates_latest'), '21:30'), 'location_entities': ents(p.get('location_entities')), 'calendar_write': ents(p.get('calendar_write')),
             'meal_plan_entity': ent1(p.get('meal_plan_entity')), 'meal_fact': fact1(p.get('meal_fact')), 'presence_entity': ent1(p.get('presence_entity')),
             'presence_person': p.get('presence_person').strip().lower() if isinstance(p.get('presence_person'), str) and PERSON_RE.match(p['presence_person'].strip().lower()) else '',
+            'bedtime_nudge': p.get('bedtime_nudge') is True, 'bedtime_start': hhmm(p.get('bedtime_start'), '22:00'), 'bedtime_end': hhmm(p.get('bedtime_end'), '00:30'),
+            'bedtime_every_min': int(num(p.get('bedtime_every_min'), 5, 240, 30)), 'bedtime_firm_after': hhmm(p.get('bedtime_firm_after'), '23:00'),
+            'awake_entities': ents(p.get('awake_entities'))[:10], 'bedtime_texts': [x.strip()[:300] for x in (p.get('bedtime_texts') or []) if isinstance(x, str) and x.strip()][:10] if isinstance(p.get('bedtime_texts'), list) else [],
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
@@ -377,6 +380,50 @@ class Assistant:
         self.maybe_intro(key)
         st.append_event(self._stamp_home(key, {'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]}))
         self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
+        return True
+
+    def tick_bedtime(self, key):
+        """0.21.0: bedtime nudge. Inside bedtime_start..bedtime_end, one slot every bedtime_every_min minutes, only while the
+        person is home (presence switch on) and an awake entity is on/home. Queues a reminder_due event (source bedtime,
+        facts.tone gentle or firm after bedtime_firm_after) so the persona words it in its own voice. One send per slot,
+        capped by max_per_day, ignores the quiet window (it has its own window). Dry mode only logs. -> True if queued/logged."""
+        c, st, now = self.cfg[key], self.stores[key], self.now()
+        if not c.get('bedtime_nudge') or not c.get('awake_entities') or c['max_per_day'] <= 0:
+            return False
+        nm = now.hour * 60 + now.minute
+        start = to_min(c['bedtime_start'])
+        rel = (nm - start) % 1440
+        if rel > (to_min(c['bedtime_end']) - start) % 1440:
+            return False
+        every = max(1, c['bedtime_every_min'])
+        wdate = (now - datetime.timedelta(minutes=rel)).strftime('%Y-%m-%d')
+        slot = '%s:%d' % (wdate, rel // every)
+        s0 = st.state()
+        if s0.get('bedtime_slot') == slot:
+            return False
+        bt = s0.get('bedtime_n') or {}
+        sent = int(bt.get('n', 0)) if bt.get('date') == wdate else 0
+        if sent >= c['max_per_day']:
+            return False
+        own = self._own_entity(key)
+        if not own or self._read_present(own) != 'on':
+            return False
+        if not any(self._read_present(e) == 'on' for e in c['awake_entities']):
+            return False
+        def mark(s):
+            s['bedtime_slot'] = slot
+            s['bedtime_n'] = {'date': wdate, 'n': sent + 1}
+        st.update_state(mark)   # mark first: never twice, even if the hand-over below fails
+        tone = 'firm' if rel >= (to_min(c['bedtime_firm_after']) - start) % 1440 else 'gentle'
+        if not self.is_live(key):
+            self.log('persona %s: bedtime nudge (dry, %s, not sent)' % (key, tone))
+            return True
+        texts = c.get('bedtime_texts') or []
+        text = texts[sent % len(texts)] if texts else ('It is getting late. Time to wind down and head to bed.' if tone == 'gentle' else 'It is late now. Please switch off and go to bed.')
+        self.maybe_intro(key)
+        st.append_event(self._stamp_home(key, {'type': 'reminder_due', 'source': 'bedtime', 'facts': {'tone': tone, 'nudge_no': str(sent + 1)}, 'suggested_text': text}))
+        self._count_out(key, 'bedtime')
+        self.log('persona %s: bedtime nudge queued (%s)' % (key, tone))
         return True
 
     # ---- who is home (0.19.0) ----
@@ -1301,6 +1348,10 @@ class Assistant:
             self.tick_dates(key)
         except Exception as e:
             self.log('persona %s: dates failed (%s)' % (key, type(e).__name__))
+        try:
+            self.tick_bedtime(key)
+        except Exception as e:
+            self.log('persona %s: bedtime failed (%s)' % (key, type(e).__name__))
         try:
             self.tick_reminders(key)
         except Exception as e:
