@@ -63,14 +63,15 @@ def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,ale
                         'alerts':'not_configured' if not alert_preview else 'unavailable' if not warnings else 'not_configured' if not warnings.get('configured') else 'ready' if warnings.get('complete') else 'partial',
                         'panel_sources':len(data.get('panels') or []),'unavailable_panels':sum(not p.get('available') for p in data.get('panels') or [])})
                 except (OSError,ValueError,TypeError):return self.reply(503,{'error':'Diagnostics unavailable.'})
-            if method=='GET' and path=='/api/render.svg':
+            if method=='GET' and path in ('/api/render.svg','/api/render.png'):
                 if not profile or not render_data:return self.reply(503,{'error':'Renderer unavailable.'})
                 p=profile.read()
-                if p.get('state')!='ready':return self.reply(503,{'error':'Display profile unavailable.'})
+                if p.get('state')!='ready' or any(type(p.get(k)) is not int or not 1<=p[k]<=4096 for k in ('width','height')):return self.reply(503,{'error':'Display profile unavailable.'})
                 try:
                     warnings=(profile.alerts() or {'configured':True,'complete':False,'alerts':[]}) if alert_preview else None
-                    return self.reply(200,render.svg(p,render_data(),warnings),'image/svg+xml')
-                except ValueError:return self.reply(503,{'error':'Display profile unavailable.'})
+                    picture=render.svg(p,render_data(),warnings)
+                    return self.reply(200,png_encoder(picture) if path.endswith('.png') else picture,'image/png' if path.endswith('.png') else 'image/svg+xml')
+                except (OSError,ValueError,subprocess.SubprocessError):return self.reply(503,{'error':'Renderer unavailable.'})
             if method=='POST' and path=='/api/refresh':return self.reply(200,store.refresh())
             if method=='GET' and path=='/api/frame':
                 data,kind=store.frame()

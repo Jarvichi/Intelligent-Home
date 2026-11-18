@@ -20,6 +20,15 @@ class Opener:
         if isinstance(self.value,Exception):raise self.value
         return Response(self.value)
 class TestFrames(unittest.TestCase):
+    def test_admin_png_preview_uses_same_renderer(self):
+        class Profile:
+            def read(self):return {'state':'ready','width':1920,'height':1080}
+        seen=[]
+        def encoder(svg):seen.append(svg);return PNG
+        server=HTTPServer(('127.0.0.1',0),main.make_handler(frames.Frames(''),True,'127.0.0.1',Profile(),lambda:{},png_encoder=encoder))
+        threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);self.addCleanup(conn.close);conn.request('GET','/api/render.png');r=conn.getresponse()
+        self.assertEqual((r.status,r.getheader('Content-Type'),r.read()),(200,'image/png',PNG));self.assertIn(b'<svg',seen[0])
     def test_optional_url_capability_and_cache_busting(self):
         class Profile:
             def read(self):return {'state':'ready','width':1920,'height':1080}
