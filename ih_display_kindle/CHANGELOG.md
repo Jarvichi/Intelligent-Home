@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Bring preview weather, presence and task details closer to the existing picture.
+
 ## 0.2.0
 
 - Add a read-only portrait preview with imported display sources.

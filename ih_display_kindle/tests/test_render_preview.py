@@ -22,6 +22,13 @@ class Tests(unittest.TestCase):
             if item==b'Weather':continue
             self.assertIn(item,image)
         self.assertIn(b'10:00',image);self.assertIn(b'Off',image)
+    def test_photo_rain_and_task_detail_are_preserved(self):
+        weather={'current':{'temperature':10,'condition':'cloudy'},'facts':{'sky':'UV 2'},'daily':[{'label':'Tomorrow','low':3,'high':11,'precipitation':1.3}],'hours':[{'time':'10:00','temperature':10,'condition':'rainy','precipitation':0.8}]}
+        data={'weather':weather,'tasks':[{'title':'Example task','detail':'in 6 days'}], 'panels':[{'available':True,'active':True,'label':'Home','persons':[{'name':'Example','art':'data:image/png;base64,aGVsbG8='}]}]}
+        image=kindle_render.svg(data,{'complete':True,'alerts':[]},now=0);ET.fromstring(image)
+        for item in (b'data:image/png;base64,aGVsbG8=',b'1.3 mm rain',b'0.8 mm',b'in 6 days',b'UV INDEX'):
+            self.assertIn(item,image)
+
     def test_unavailable_state_is_visible(self):
         image=kindle_render.svg({'tasks':None,'tasks_configured':True,'tasks_partial':True},None,now=0)
         self.assertIn(b'Weather not configured',image);self.assertIn(b'Task sources unavailable',image);self.assertIn(b'Alert sources unavailable',image)
