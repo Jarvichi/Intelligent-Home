@@ -20,6 +20,151 @@ class Opener:
             return Response(json.dumps({'state':'21','attributes':{'friendly_name':'Example temperature','unit_of_measurement':'°C'}}).encode())
         return Response(json.dumps({'service_response':{'todo.example':{'items':[{'summary':'Example task'}]}}}).encode())
 class Tests(unittest.TestCase):
+    def test_festive_data_is_private_and_handles_missing_sources(self):
+        class Festive(render.HA):
+            def __init__(self,values):self.values=values
+            def request(self,path,body=None):return self.values[path.split('/')[-1]]
+        now=datetime.datetime(2026,11,18,12,tzinfo=datetime.timezone.utc).timestamp()
+        states={'sensor.birthdays':{'state':'Example|2'},'input_boolean.season':{'state':'off'}};ha=Festive(states)
+        item=ha.festive_panel('sensor.birthdays','input_boolean.season',now=now);self.assertTrue(item['available']);self.assertIn('Example',item['detail']);self.assertTrue(item['pinned'])
+        fixed=[{'name':'Fixed example','month':11,'day':18}];self.assertIn('Fixed example',ha.festive_panel('sensor.birthdays','input_boolean.season',fixed,now)['detail'])
+        states['input_boolean.season']['state']='on';self.assertEqual(ha.festive_panel('sensor.birthdays','input_boolean.season',now=now)['detail'],'Haunted house')
+        states['input_boolean.season']['state']='unavailable';self.assertFalse(ha.festive_panel('sensor.birthdays','input_boolean.season',now=now)['available'])
+    def test_media_artwork_stays_on_home_assistant_and_is_escaped(self):
+        png=b'\x89PNG\r\n\x1a\nexample'
+        class ArtOpener:
+            def __init__(self):self.urls=[]
+            def open(self,req,timeout):self.urls.append(req.full_url);return Response(png)
+        opener=ArtOpener();ha=render.HA('example-token',opener)
+        art=ha.artwork('/api/image/example?cache=1');self.assertTrue(art.startswith('data:image/png;base64,'));self.assertEqual(len(opener.urls),1)
+        for path in ('http://example.test/image','//example.test/image','/local/%2e%2e/api/test','/api/../test','/api/image#fragment'):
+            self.assertIsNone(ha.artwork(path))
+        self.assertEqual(len(opener.urls),1)
+        data={'panels':[{'available':True,'active':True,'label':'Media','detail':'Song','art':art}]}
+        picture=render.svg({'state':'ready','width':1920,'height':1080},data);self.assertIn(b'<image ',picture);self.assertNotIn(b'example-token',picture)
+    def test_sun_uses_next_setting_or_rising_without_claiming_missing_data(self):
+        class Sun(render.HA):
+            def __init__(self,state):self.state=state
+            def request(self,path,body=None):return {'state':self.state,'attributes':{'next_rising':'2026-11-18T07:00:00+00:00','next_setting':'2026-11-18T16:00:00+00:00'}}
+        ha=Sun('above_horizon');self.assertTrue(ha.sun('sun.example')['label'].startswith('Sunset '));self.assertFalse(ha.sun('sun.example')['dark'])
+        ha.state='below_horizon';self.assertTrue(ha.sun('sun.example')['label'].startswith('Sunrise '));self.assertTrue(ha.sun('sun.example')['dark'])
+        ha.state='unavailable';self.assertIsNone(ha.sun('sun.example'))
+    def test_preview_day_and_night_palettes_preserve_alert_contrast(self):
+        p={'state':'ready','width':1920,'height':1080};alerts={'configured':True,'complete':True,'alerts':[{'title':'Example alarm'}]}
+        light=render.svg(p,{'night_mode':'light'},alerts,now=0);deep=render.svg(p,{'night_mode':'deep'},alerts,now=0)
+        self.assertIn(b'fill="#eef2ee"',light);self.assertIn(b'fill="#000000"',deep)
+        for picture in (light,deep):self.assertIn(b'fill="#761e24"',picture);self.assertIn(b'Example alarm',picture)
+        self.assertIn(b'M1536 0h384v810h-384z M0 810h1920v270H0z',light)
+    def test_room_temperature_handles_climate_sensor_and_missing(self):
+        class Rooms(render.HA):
+            def __init__(self,value):self.value=value
+            def request(self,path,body=None):return self.value
+        ha=Rooms({'state':'heat','attributes':{'current_temperature':19.25}})
+        self.assertEqual(ha.room_panel({'name':'Room','entity':'climate.example'})['detail'],'19.3°')
+        ha.value={'state':'20.6'};self.assertEqual(ha.room_panel({'name':'Room','entity':'sensor.example'})['detail'],'20.6°')
+        ha.value={'state':'unavailable'};self.assertFalse(ha.room_panel({'name':'Room','entity':'sensor.example'})['available'])
+    def test_lights_groups_do_not_claim_all_off_if_input_missing(self):
+        class Lights(render.HA):
+            def __init__(self,values):self.values=values
+            def request(self,path,body=None):return self.values[path.split('/')[-1]]
+        groups=[{'name':'Upstairs','entities':['light.example','switch.example']}];values={'light.example':{'state':'on'},'switch.example':{'state':'off'}};ha=Lights(values)
+        self.assertIn('Upstairs',ha.lights_panel(groups)['detail'])
+        values['light.example']['state']='off';self.assertEqual(ha.lights_panel(groups)['detail'],'All off')
+        values['light.example']['state']='unavailable';self.assertFalse(ha.lights_panel(groups)['available']);self.assertEqual(ha.lights_panel(groups)['detail'],'Unavailable')
+        values['switch.example']['state']='on';result=ha.lights_panel(groups);self.assertFalse(result['available']);self.assertIn('Upstairs',result['detail'])
+        many=[{'name':'Room '+str(i),'entities':['switch.example']} for i in range(18)];self.assertTrue(ha.lights_panel(many)['available'])
+    def test_alarm_and_presence_require_available_data(self):
+        class House(render.HA):
+            def __init__(self,values):self.values=values
+            def request(self,path,body=None):return self.values[path.split('/')[-1]]
+        values={'alarm_control_panel.home':{'state':'triggered'},'switch.person':{'state':'on','attributes':{'friendly_name':'Someone'}}};ha=House(values)
+        person={'name':'Someone','entity':'switch.person'};other={'name':'Another','entity':'switch.other'}
+        self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel([person])['detail'],'Someone');self.assertTrue(ha.presence_panel([person])['pinned'])
+        values['switch.person']['state']='unavailable';self.assertFalse(ha.presence_panel([person])['available'])
+        values['switch.other']={'state':'on','attributes':{'friendly_name':'Different'}};result=ha.presence_panel([person,other]);self.assertFalse(result['available']);self.assertIn('Another',result['detail'])
+    def test_energy_price_cost_and_saving_session(self):
+        now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
+        def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
+        class Energy(render.HA):
+            def __init__(self,values):self.values=values
+            def request(self,path,body=None):return self.values[path.split('/')[-1]]
+        sources={'current':'sensor.rate','next':'sensor.next','electricity':'sensor.cost','calendar':'calendar.saving','sessions':'event.saving'}
+        values={'sensor.rate':{'state':'0.30'},'sensor.next':{'state':'0.12'},'sensor.cost':{'state':'2.30'},'calendar.saving':{'state':'off','attributes':{}},'event.saving':{'state':'ok','attributes':{'available_events':[]}}}
+        ha=Energy(values);result=ha.energy_panel(sources,now);self.assertTrue(result['available']);self.assertIn('30.0p now peak',result['detail']);self.assertIn('£2.30',result['detail'])
+        values['calendar.saving']={'state':'on','attributes':{'start_time':date(-60),'end_time':date(3600)}};values['event.saving']['attributes']['joined_events']=[{'start':date(-60),'octopoints_per_kwh':100}]
+        result=ha.energy_panel(sources,now);self.assertIn('Saving now',result['detail']);self.assertIn('100 pts/kWh',result['detail']);self.assertNotIn('£2.30',result['detail'])
+        values['sensor.rate']={'state':'unavailable'};self.assertFalse(ha.energy_panel(sources,now)['available'])
+    def test_doors_never_report_locked_when_a_source_is_unavailable(self):
+        class Doors(render.HA):
+            def __init__(self,states):self.states=states
+            def request(self,path,body=None):return {'state':self.states[path.split('/')[-1]]}
+        sources=[{'name':'Example','lock':'lock.example','contact':'binary_sensor.door'}];states={'lock.example':'locked','binary_sensor.door':'off'};ha=Doors(states)
+        self.assertEqual(ha.doors_panel(sources)['label'],'Doors locked')
+        states['binary_sensor.door']='on';item=ha.doors_panel(sources);self.assertEqual(item['label'],'Doors open');self.assertTrue(item['urgent'])
+        states['binary_sensor.door']='unavailable';self.assertFalse(ha.doors_panel(sources)['available'])
+        second={'name':'Other','lock':'lock.other','contact':'binary_sensor.other'};states.update({'lock.other':'locked','binary_sensor.other':'on'})
+        result=ha.doors_panel(sources+[second]);self.assertFalse(result['available']);self.assertEqual(result['label'],'Doors open');self.assertTrue(result['urgent'])
+    def test_task_paging_keeps_rows_beyond_five_visible(self):
+        profile={'state':'ready','width':1920,'height':1080};data={'tasks':[{'title':'Item '+str(i),'priority':'normal'} for i in range(6)]}
+        first=render.svg(profile,data,now=0);second=render.svg(profile,data,now=60)
+        self.assertIn(b'Item 0',first);self.assertNotIn(b'Item 5',first);self.assertIn(b'Item 5',second);self.assertIn(b'2/2',second)
+    def test_long_card_details_continue_on_later_pages(self):
+        p={'state':'ready','width':1920,'height':1080};detail=' '.join('Room'+str(i) for i in range(35))
+        data={'items':[{'label':'Lights','value':detail}]+[{'label':'Other','value':'x'} for _ in range(5)]}
+        pictures=b' '.join(render.svg(p,data,now=60*i) for i in range(3))
+        self.assertIn(b'Room0',pictures);self.assertIn(b'Room34',pictures)
+    def test_heat_panel_distinguishes_boiler_and_floor_heating(self):
+        class Heating(render.HA):
+            def __init__(self,states):self.states=states
+            def request(self,path,body=None):return self.states[path.split('/')[-1]]
+        states={'binary_sensor.heat':{'state':'off'},'climate.hall':{'state':'heat','attributes':{'current_temperature':19.3,'temperature':20}},'climate.floor':{'state':'heat','attributes':{'friendly_name':'Floor','hvac_action':'heating'}}}
+        ha=Heating(states);result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Floors');self.assertEqual(result['detail'],'Floor')
+        states['binary_sensor.heat']['state']='on';result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Heating');self.assertIn('19.3',result['detail'])
+        states['climate.floor']['state']='unavailable';self.assertFalse(ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor'])['available'])
+        result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Heating');self.assertTrue(result['active'])
+    def test_intrusion_requires_alert_log_and_presence(self):
+        class Intrusion(render.HA):
+            def __init__(self,states):self.states=states
+            def request(self,path,body=None):return {'state':self.states[path.split('/')[-1]]}
+        states={'input_boolean.alert':'on','input_text.log':'kitchen@11-18 10:30','switch.person':'on'}
+        ha=Intrusion(states);item=ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person'])
+        self.assertTrue(item['active']);self.assertIn('Kitchen',item['detail'])
+        states['switch.other']='unavailable';partial=ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person','switch.other']);self.assertTrue(partial['active']);self.assertFalse(partial['available'])
+        picture=render.svg({'state':'ready','width':1920,'height':1080},{'panels':[{'active':True,'available':True,'label':'Music','detail':'x'*200},item]})
+        self.assertIn(b'Motion while away',picture)
+        states['switch.person']='off';self.assertFalse(ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person'])['active'])
+        states['switch.person']='unavailable';self.assertFalse(ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person'])['available'])
+        self.assertFalse(ha.intrusion_panel('input_boolean.alert','input_text.log',[])['available'])
+    def test_cooking_panel_is_read_only_and_only_shows_active_plan(self):
+        class Cooking(render.HA):
+            def __init__(self,state):self.value=state
+            def request(self,path,body=None):self.assert_path=path;return self.value
+        ha=Cooking({'state':'on','attributes':{'title':'Dinner','eat':'18:30','oven':170,'target':180,'set':150}})
+        item=ha.active_panel('sensor.cooking','cooking');self.assertTrue(item['active']);self.assertIn('SET 150°!',item['detail']);self.assertIn('18:30',item['detail'])
+        ha.value={'state':'off','attributes':{'title':'Old'}};self.assertFalse(ha.active_panel('sensor.cooking','cooking')['active'])
+        owner=lambda:{'available':True,'active':True,'label':'Dinner','detail':'Eating at 18:30'}
+        ha.value={'state':'on','attributes':{'title':'Dinner','eat':'18:30','oven':170,'target':180}}
+        self.assertIn('Oven 170',ha.cooking_panel(owner,'sensor.cooking')['detail'])
+        ha.value['attributes']['eat']='19:00';self.assertIn('Oven unavailable',ha.cooking_panel(owner,'sensor.cooking')['detail'])
+    def test_selected_media_and_overlays_are_read_only(self):
+        class Panels(render.HA):
+            def __init__(self):self.calls=[]
+            def request(self,path,body=None):
+                self.calls.append((path,body))
+                if path.endswith('media_player.example'):return {'state':'playing','attributes':{'friendly_name':'Player','media_title':'Song <x>','media_artist':'Artist'}}
+                if path.endswith('binary_sensor.notice'):return {'state':'on','attributes':{'friendly_name':'Notice'}}
+                return {'state':'unavailable','attributes':{}}
+        ha=Panels();data=ha.snapshot([],'',media=['media_player.example'],overlays=['binary_sensor.notice','binary_sensor.missing'])
+        self.assertEqual(len(data['panels']),3);self.assertTrue(all(body is None for _,body in ha.calls))
+        image=render.svg({'state':'ready','width':1920,'height':1080},data)
+        self.assertIn(b'Song &lt;x&gt;',image);self.assertIn(b'Notice',image);self.assertIn(b'Some sources unavailable',image)
+        self.assertFalse(ha.active_panel('../invalid','overlay')['available'])
+    def test_game_title_can_be_shown_when_player_is_on_but_not_playing(self):
+        class Game(render.HA):
+            def __init__(self,state):self.state=state
+            def request(self,path,body=None):return {'state':self.state,'attributes':{'media_title':'Example game'}}
+        ha=Game('on');self.assertTrue(ha.active_panel('media_player.console','game')['active']);self.assertFalse(ha.active_panel('media_player.console','media')['active'])
+        ha.state='off';self.assertFalse(ha.active_panel('media_player.console','game')['active'])
     def test_forecast_primary_fallback_stale_and_escaping(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def row(offset,condition='cloudy'):
@@ -39,6 +184,8 @@ class Tests(unittest.TestCase):
         ha=Forecast({'sensor.primary':old,'sensor.fallback':old});self.assertIsNone(ha.forecast('sensor.primary','sensor.fallback',now))
         stale=dict(valid,last_updated=row(-10801)['datetime']);ha=Forecast({'sensor.primary':stale,'sensor.fallback':valid});self.assertEqual(ha.forecast('sensor.primary','sensor.fallback',now)['source'],'fallback')
         self.assertIn(b'Hourly forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':None}))
+        valid['attributes']['hourly']=[row(i*3600) for i in range(7)]
+        self.assertEqual(len(Forecast({'sensor.primary':valid}).forecast('sensor.primary','',now)['hours']),6)
     def test_daily_forecast_and_future_not_labelled_now(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
@@ -47,6 +194,10 @@ class Tests(unittest.TestCase):
             def __init__(self):pass
             def request(self,path,body=None):return value
         weather=Forecast().forecast('sensor.primary','',now);self.assertFalse(weather['current']['current']);self.assertEqual([d['label'] for d in weather['daily']],['Today','Tomorrow'])
+        class WithCurrent(render.HA):
+            def __init__(self):pass
+            def request(self,path,body=None):return {'state':'cloudy','attributes':{'temperature':6.2}} if path.endswith('weather.current') else value
+        current=WithCurrent().forecast('sensor.primary','',now,current_entity='weather.current')['current'];self.assertTrue(current['current']);self.assertEqual(current['temperature'],6)
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':weather})
         self.assertIn(b'Next 8',picture);self.assertNotIn(b'Now 8',picture);self.assertIn(b'Tomorrow 12',picture)
         value['attributes']['daily']=[{'datetime':date(0),'temperature':float('nan'),'templow':0,'condition':'rainy'}]
@@ -64,6 +215,11 @@ class Tests(unittest.TestCase):
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':result});self.assertIn(b'Wind 16 km/h',picture);self.assertIn(b'Cloud 80%',picture)
         value['attributes']['hourly'][0]['uv_index']=3.2;value['attributes']['hourly'][0]['precipitation']=0.2
         facts=Forecast().forecast('sensor.primary','',now)['facts'];self.assertEqual(facts['next_rain'],'Due now');self.assertEqual(facts['sky'],'UV 3')
+        value['attributes']['hourly']=[{'datetime':date(0),'temperature':8,'condition':'cloudy'}]
+        value['attributes']['daily']=[{'datetime':date(0),'precipitation':0},{'datetime':date(86400),'precipitation':1}]
+        self.assertEqual(Forecast().forecast('sensor.primary','',now)['facts']['next_rain'],'Tomorrow')
+        value['attributes']['hourly'].append({'datetime':date(3600),'condition':'rainy'})
+        self.assertNotEqual(Forecast().forecast('sensor.primary','',now)['facts']['next_rain'],'Tomorrow')
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')
@@ -120,7 +276,7 @@ class Tests(unittest.TestCase):
                 self.assertLessEqual(float(child.attrib['y'])+float(child.attrib['height']),810)
     def test_urgent_task_is_highlighted(self):
         p={'state':'ready','width':1920,'height':1080}
-        image=render.svg(p,{'tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
+        image=render.svg(p,{'night_mode':'dark','tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
         self.assertIn(b'fill="#ffd88c"',image);self.assertIn(b'Example urgent',image)
 
     def test_alerts_never_imply_safe_when_unavailable(self):
@@ -130,6 +286,9 @@ class Tests(unittest.TestCase):
         image=render.svg(p,{}, {'configured':True,'complete':False,'alerts':[]});self.assertIn(b'Alert sources unavailable',image);self.assertNotIn(b'No active alerts',image)
         alerts={'configured':True,'complete':False,'alerts':[{'kind':'smoke','title':'SMOKE <ALARM>','short':'SMOKE','dismissible':False}]}
         image=render.svg(p,{},alerts);self.assertIn(b'INPUTS INCOMPLETE',image);self.assertIn(b'SMOKE &lt;ALARM&gt;',image)
+        tree=ET.fromstring(render.svg(p,{'night_mode':'dark','items':[{'label':'Door','value':'Open'}]},alerts));rects=[x for x in tree if x.tag.endswith('rect')]
+        alert_rect=next(x for x in rects if x.get('fill')=='#761e24');card=next(x for x in rects if x.get('fill')=='#26352f' and x.get('x')=='70')
+        self.assertGreaterEqual(int(alert_rect.get('y')),int(card.get('y'))+int(card.get('height')))
     def test_alert_paging_and_selected_source_label(self):
         p={'state':'ready','width':1920,'height':1080}
         alerts={'configured':True,'complete':True,'alerts':[{'title':'Warning '+str(i)} for i in range(5)]}

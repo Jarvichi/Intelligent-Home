@@ -1,3 +1,3 @@
 # IH Wall Display
 
-Preview a configured wall-display picture through an administrator-only page. This initial adapter keeps the existing picture source and does not control or reconfigure the display.
+Compare the current wall picture with an independently rendered preview through an administrator-only page. Optional private PNG delivery is available for compatible clients; the add-on does not change the television configuration or switch its existing feed.

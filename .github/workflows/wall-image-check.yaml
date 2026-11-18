@@ -1,0 +1,27 @@
+name: wall-image-check
+on:
+  pull_request:
+    paths:
+      - 'ih_display_wall/**'
+      - '.github/workflows/wall-image-check.yaml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify the image converter
+        run: docker build --tag wall-display-check ih_display_wall
+      - name: Test the built image
+        run: docker run --rm -v "$PWD:/src:ro" --entrypoint python wall-display-check -m unittest discover -s /src/ih_display_wall/tests -q
+      - name: Generate synthetic preview
+        run: |
+          docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout > wall-preview.png
+          docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout --alert > wall-preview-alert.png
+          docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout --night > wall-preview-night.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wall-preview-synthetic
+          path: wall-preview*.png
+          retention-days: 1

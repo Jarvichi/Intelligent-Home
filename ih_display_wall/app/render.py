@@ -5,9 +5,13 @@ import json
 import re
 import time
 import datetime
+import decimal
+import base64
 import math
+import textwrap
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit,unquote
 import frames
 from concurrent.futures import ThreadPoolExecutor
 
@@ -43,6 +47,294 @@ class HA:
             if state!='Unavailable' and isinstance(unit,str) and unit:state+=' '+unit
             return {'label':str(name),'value':state}
         except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return {'label':entity,'value':'Unavailable'}
+    def optional_state(self,entity):
+        try:return self.request('states/'+entity)
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
+    def artwork(self,path):
+        if not self.token or not isinstance(path,str) or len(path)>2048 or any(ord(c)<32 for c in path):return None
+        try:
+            parsed=urlsplit(path)
+            decoded=unquote(parsed.path)
+            if parsed.scheme or parsed.netloc or parsed.fragment or not decoded.startswith(('/api/','/local/')) or '..' in decoded.split('/') or '\\' in decoded:return None
+            req=urllib.request.Request('http://supervisor/core'+path,headers={'Authorization':'Bearer '+self.token,'Accept':'image/png, image/jpeg'})
+            with self.opener.open(req,timeout=4) as response:
+                raw=response.read(512*1024+1)
+                if response.status!=200 or len(raw)>512*1024:return None
+            kind='png' if raw.startswith(b'\x89PNG\r\n\x1a\n') else 'jpeg' if raw.startswith(b'\xff\xd8\xff') and raw.endswith(b'\xff\xd9') else None
+            return 'data:image/'+kind+';base64,'+base64.b64encode(raw).decode('ascii') if kind else None
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
+    def active_panel(self,entity,kind):
+        prefix={'media':'media_player.','game':'media_player.','overlay':'binary_sensor.','cooking':'sensor.'}.get(kind,'')
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith(prefix):return {'available':False}
+        try:
+            value=self.request('states/'+entity)
+            if not isinstance(value,dict) or value.get('state') in ('unknown','unavailable') or not isinstance(value.get('state'),str):return {'available':False}
+            if kind=='overlay' and value['state'] not in ('on','off'):return {'available':False}
+            if kind=='cooking' and value['state'] not in ('on','off'):return {'available':False}
+            attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
+            active=(value['state']=='playing' and bool(attrs.get('media_title'))) if kind=='media' else (value['state']!='off' and bool(attrs.get('media_title'))) if kind=='game' else value['state']=='on'
+            label=str(attrs.get('friendly_name') or entity)
+            detail=''
+            if kind in ('media','game') and active:
+                title=attrs.get('media_title');artist=attrs.get('media_artist')
+                detail=' · '.join(x for x in (title,artist) if isinstance(x,str) and x.strip())
+            if kind=='cooking' and active:
+                label=str(attrs.get('title') or 'Cooking')
+                eat=attrs.get('eat');oven=attrs.get('oven');target=attrs.get('target');setting=attrs.get('set')
+                def finite(x):
+                    try:return math.isfinite(float(x))
+                    except (ValueError,TypeError):return False
+                details=[]
+                if isinstance(eat,str) and eat:details.append('Eating at '+eat)
+                if finite(setting) and finite(target) and float(setting)!=float(target):details.append('SET '+str(setting)+'°!')
+                elif oven=='off':details.append('Oven off')
+                elif finite(oven):details.append('Oven '+str(oven)+'°'+(' / '+str(target)+'°' if finite(target) else ''))
+                detail=' · '.join(details)
+            result={'available':True,'active':active,'label':label,'detail':detail}
+            if kind in ('media','game') and active and attrs.get('entity_picture'):
+                art=self.artwork(attrs['entity_picture'])
+                if art:result['art']=art
+            return result
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def cooking_panel(self,reader,legacy_entity):
+        current=reader()
+        if not isinstance(current,dict):return {'available':False}
+        if not current.get('available') or not current.get('active') or not legacy_entity:return current
+        legacy=self.active_panel(legacy_entity,'cooking')
+        marker=current.get('detail')
+        legacy_detail=legacy.get('detail','')
+        if legacy.get('available') and legacy.get('active') and legacy.get('label')==current.get('label') and marker and (legacy_detail==marker or legacy_detail.startswith(marker+' · ')):
+            current=dict(current,detail=legacy['detail'])
+        else:
+            current=dict(current,detail=(marker+' · ' if marker else '')+'Oven unavailable')
+        return current
+    def intrusion_panel(self,alert,log,presence):
+        if not isinstance(presence,list) or not presence:return {'available':False}
+        entities=[alert,log]+presence[:10]
+        if len(presence)>10 or any(not isinstance(e,str) or not ENTITY.fullmatch(e) for e in entities):return {'available':False}
+        if not alert.startswith('input_boolean.') or not log.startswith('input_text.') or any(not e.startswith('switch.') for e in presence):return {'available':False}
+        try:
+            with ThreadPoolExecutor(max_workers=12) as pool:values=list(pool.map(self.optional_state,entities))
+            states=[x.get('state') if isinstance(x,dict) else None for x in values]
+            if states[0] not in ('on','off') or not isinstance(states[1],str) or states[1] in ('unknown','unavailable'):return {'available':False}
+            incomplete=any(x not in ('on','off') for x in states[2:])
+            rooms={'living':'Living room','hall':'Hall','kitchen':'Kitchen','utility':'Utility','landing':'Landing','top':'Top floor'}
+            entries=[]
+            for item in states[1].split(',')[:30]:
+                fields=item.split('@')
+                if len(fields)==2 and fields[0] in rooms and re.fullmatch(r'\d{2}-\d{2} \d{2}:\d{2}',fields[1]):entries.append(rooms[fields[0]]+' '+fields[1])
+            return {'available':not incomplete,'active':states[0]=='on' and 'on' in states[2:] and bool(entries),'urgent':True,'label':'Motion while away','detail':' · '.join(entries[:6])}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def heat_panel(self,boiler,thermostat,floors):
+        if not isinstance(floors,list) or len(floors)>8:return {'available':False}
+        entities=[boiler,thermostat]+floors
+        if any(not isinstance(e,str) or not ENTITY.fullmatch(e) for e in entities):return {'available':False}
+        if not boiler.startswith('binary_sensor.') or any(not e.startswith('climate.') for e in [thermostat]+floors):return {'available':False}
+        try:
+            with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
+            incomplete=any(not isinstance(v,dict) or not isinstance(v.get('state'),str) or v.get('state') in ('unknown','unavailable') for v in values) or not isinstance(values[0],dict) or values[0].get('state') not in ('on','off')
+            floor_names=[]
+            for entity,value in zip(floors,values[2:]):
+                attrs=value.get('attributes') if isinstance(value,dict) and value.get('state') not in ('unknown','unavailable',None) and isinstance(value.get('attributes'),dict) else {}
+                if attrs.get('hvac_action')=='heating':floor_names.append(str(attrs.get('friendly_name') or entity))
+            heating=isinstance(values[0],dict) and values[0].get('state')=='on';label='Heating' if heating else 'Floors' if floor_names else 'Heat unavailable' if incomplete else 'Heat idle'
+            attrs=values[1].get('attributes') if isinstance(values[1],dict) and values[1].get('state') not in ('unknown','unavailable',None) and isinstance(values[1].get('attributes'),dict) else {}
+            current,target=attrs.get('current_temperature'),attrs.get('temperature')
+            if floor_names and not heating:detail=', '.join(floor_names)
+            elif all(isinstance(v,(int,float)) and not isinstance(v,bool) and math.isfinite(v) for v in (current,target)):detail=f'{current:.1f}° → {round(target)}°'
+            else:detail=''
+            return {'available':not incomplete,'active':True,'label':label,'detail':detail}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def doors_panel(self,doors):
+        if not isinstance(doors,list) or not doors or len(doors)>10:return {'available':False}
+        for door in doors:
+            if not isinstance(door,dict) or not isinstance(door.get('name'),str) or not door['name'].strip():return {'available':False}
+            if any(not isinstance(door.get(k),str) or not ENTITY.fullmatch(door[k]) or not door[k].startswith(prefix) for k,prefix in (('lock','lock.'),('contact','binary_sensor.'))):return {'available':False}
+        try:
+            entities=[door[k] for door in doors for k in ('lock','contact')]
+            with ThreadPoolExecutor(max_workers=12) as pool:values=list(pool.map(self.optional_state,entities))
+            states=[v.get('state') if isinstance(v,dict) else None for v in values]
+            incomplete=any(states[i] not in ('locked','unlocked') or states[i+1] not in ('on','off') for i in range(0,len(states),2))
+            bad=[(door,states[2*i+1]=='on') for i,door in enumerate(doors) if states[2*i]=='unlocked' or states[2*i+1]=='on']
+            label='Doors open' if any(opened for _,opened in bad) else 'Doors unlocked' if bad else 'Doors unavailable' if incomplete else 'Doors locked'
+            detail=', '.join(door['name']+(' open' if opened else '') for door,opened in bad)
+            return {'available':not incomplete,'active':True,'urgent':bool(bad),'label':label,'detail':detail}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def alarm_panel(self,entity):
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith('alarm_control_panel.'):return {'available':False}
+        try:
+            value=self.request('states/'+entity);state=value.get('state') if isinstance(value,dict) else None
+            if not isinstance(state,str) or state in ('unknown','unavailable',''):return {'available':False}
+            label='Off' if state=='disarmed' else 'Armed' if state.startswith('armed') else 'ALARM!' if state=='triggered' else state.replace('_',' ').capitalize()
+            return {'available':True,'active':True,'urgent':state=='triggered','label':'Alarm','detail':label}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def room_panel(self,room):
+        if not isinstance(room,dict) or not isinstance(room.get('name'),str) or not room['name'].strip():return {'available':False}
+        entity=room.get('entity')
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith(('sensor.','climate.')):return {'available':False}
+        value=self.optional_state(entity)
+        if not isinstance(value,dict) or value.get('state') in ('unknown','unavailable',None):return {'available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
+        attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
+        raw=attrs.get('current_temperature') if entity.startswith('climate.') else value.get('state')
+        try:
+            if isinstance(raw,bool):raise ValueError()
+            temperature=float(raw)
+            if not math.isfinite(temperature) or abs(temperature)>200:raise ValueError()
+            rounded=decimal.Decimal.from_float(temperature).quantize(decimal.Decimal('0.1'),rounding=decimal.ROUND_HALF_UP)
+            return {'available':True,'active':True,'label':room['name'],'detail':f'{rounded}°'}
+        except (TypeError,ValueError):return {'available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
+    def sun(self,entity):
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith('sun.'):return None
+        try:
+            value=self.request('states/'+entity)
+            if not isinstance(value,dict) or value.get('state') not in ('above_horizon','below_horizon'):return None
+            attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
+            above=value['state']=='above_horizon';raw=attrs.get('next_setting' if above else 'next_rising')
+            moment=datetime.datetime.fromisoformat(str(raw).replace('Z','+00:00'))
+            if moment.tzinfo is None:return None
+            return {'label':('Sunset ' if above else 'Sunrise ')+moment.astimezone().strftime('%H:%M'),'dark':not above}
+        except (OSError,ValueError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):return None
+    def festive_panel(self,birthdays,halloween,fixed=None,now=None):
+        if birthdays and (not isinstance(birthdays,str) or not ENTITY.fullmatch(birthdays) or not birthdays.startswith('sensor.')):return {'available':False}
+        if halloween and (not isinstance(halloween,str) or not ENTITY.fullmatch(halloween) or not halloween.startswith('input_boolean.')):return {'available':False}
+        today=datetime.datetime.fromtimestamp(time.time() if now is None else now).astimezone().date();year=today.year
+        if fixed is None:fixed=[]
+        if not isinstance(fixed,list) or len(fixed)>100:return {'available':False}
+        fixed_birth=[]
+        try:
+            for entry in fixed:
+                if not isinstance(entry,dict) or not isinstance(entry.get('name'),str) or not entry['name'].strip() or type(entry.get('month')) is not int or type(entry.get('day')) is not int:return {'available':False}
+                try:date=datetime.date(year,entry['month'],entry['day'])
+                except ValueError:
+                    if (entry['month'],entry['day'])==(2,29):date=datetime.date(year,3,1)
+                    else:return {'available':False}
+                fixed_birth.append(((date-today).days,entry['name'].strip()[:80]))
+        except (TypeError,OverflowError):return {'available':False}
+        def easter(y):
+            a=y%19;b=y//100;c=y%100;d=b//4;e=b%4;f=(b+8)//25;g=(b-f+1)//3;h=(19*a+b-d-g+15)%30;i=c//4;k=c%4;l=(32+2*e+2*i-h-k)%7;m=(a+11*h+22*l)//451
+            month=(h+l-7*m+114)//31;day=(h+l-7*m+114)%31+1
+            return datetime.date(y,month,day)
+        e=easter(year);june=datetime.date(year,6,1);fathers=june+datetime.timedelta(days=(6-june.weekday())%7+14)
+        days=[(datetime.date(year,12,25),'Merry Christmas!'),(datetime.date(year,12,26),'Happy Boxing Day'),(datetime.date(year,12,31),'New Year’s Eve'),(datetime.date(year,1,1),'Happy New Year!'),(datetime.date(year,10,31),'Happy Halloween!'),(datetime.date(year,11,5),'Bonfire Night'),(datetime.date(year,2,14),'Valentine’s Day'),(e-datetime.timedelta(days=47),'Pancake Day!'),(e-datetime.timedelta(days=21),'Mother’s Day'),(e-datetime.timedelta(days=2),'Good Friday'),(e,'Happy Easter!'),(e+datetime.timedelta(days=1),'Easter Monday'),(fathers,'Father’s Day')]
+        future=[(datetime.date(year,12,25),'Christmas',24),(datetime.date(year,10,31),'Halloween',14),(e,'Easter',14),(e-datetime.timedelta(days=47),'Pancake Day',1)]
+        complete=True;birth=list(fixed_birth)
+        if birthdays:
+            value=self.optional_state(birthdays);state=value.get('state') if isinstance(value,dict) else None
+            if not isinstance(state,str) or state in ('unknown','unavailable'):complete=False
+            else:
+                for part in state.split(';')[:200]:
+                    fields=part.split('|')
+                    if len(fields)>=2 and fields[0].strip():
+                        try:
+                            offset=int(fields[1]);name=fields[0].strip()[:80]
+                            if not any(existing_offset==offset and existing_name.casefold()==name.casefold() for existing_offset,existing_name in birth):birth.append((offset,name))
+                        except ValueError:continue
+        if halloween:
+            value=self.optional_state(halloween);state=value.get('state') if isinstance(value,dict) else None
+            if state not in ('on','off'):complete=False
+            elif state=='on' and (today.month,today.day)!=(10,31):return {'available':complete,'active':True,'pinned':True,'slot':'occasion','label':'Occasion','detail':'Haunted house'}
+        birthday_today=next((name for offset,name in birth if offset==0),None)
+        detail=(birthday_today+'’s birthday today!') if birthday_today else next((message for date,message in days if date==today),'')
+        if not detail:
+            candidates=[(offset,name+'’s birthday') for offset,name in birth if 0<offset<=14]
+            candidates.extend(((date-today).days,name) for date,name,limit in future if 0<(date-today).days<=limit)
+            if candidates:
+                offset,name=min(candidates,key=lambda row:row[0])
+                detail=name+' tomorrow!' if offset==1 else str(offset)+' sleeps till Christmas' if name=='Christmas' else name+' in '+str(offset)+' days'
+        return {'available':complete,'active':bool(detail),'pinned':True,'slot':'occasion','label':'Occasion','detail':detail}
+    def presence_panel(self,people):
+        if not isinstance(people,list) or not people or len(people)>10:return {'available':False}
+        for person in people:
+            if not isinstance(person,dict) or not isinstance(person.get('name'),str) or not person['name'].strip() or not isinstance(person.get('entity'),str) or not ENTITY.fullmatch(person['entity']) or not person['entity'].startswith('switch.'):return {'available':False}
+        entities=[person['entity'] for person in people]
+        try:
+            with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
+            incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values)
+            home=[person['name'] for person,value in zip(people,values) if isinstance(value,dict) and value.get('state')=='on']
+            return {'available':not incomplete,'active':True,'pinned':True,'label':'Home','detail':', '.join(home) if home else 'Presence unavailable' if incomplete else 'Nobody home'}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def lights_panel(self,groups):
+        if not isinstance(groups,list) or not groups or len(groups)>40:return {'available':False}
+        for group in groups:
+            if not isinstance(group,dict) or not isinstance(group.get('name'),str) or not group['name'].strip() or not isinstance(group.get('entities'),list) or not group['entities'] or len(group['entities'])>50:return {'available':False}
+            if any(not isinstance(e,str) or not ENTITY.fullmatch(e) or not e.startswith(('light.','switch.')) for e in group['entities']):return {'available':False}
+        entities=list(dict.fromkeys(e for group in groups for e in group['entities']))
+        if len(entities)>100:return {'available':False}
+        try:
+            def fetch(entity):
+                try:return self.request('states/'+entity)
+                except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
+            with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(entities,pool.map(fetch,entities)))
+            incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values.values())
+            active=[]
+            for group in groups:
+                if any(isinstance(values[entity],dict) and values[entity].get('state')=='on' for entity in group['entities']):active.append(group['name'])
+            detail=', '.join(active) if active else 'Unavailable' if incomplete else 'All off'
+            return {'available':not incomplete,'active':True,'label':'Lights on','detail':detail}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def energy_panel(self,sources,now=None):
+        now=time.time() if now is None else now
+        prefixes={'current':'sensor.','next':'sensor.','electricity':'sensor.','gas':'sensor.','calendar':'calendar.','sessions':'event.','rates_today':'event.','rates_tomorrow':'event.'}
+        if not isinstance(sources,dict) or not sources.get('current'):return {'available':False}
+        enabled={k:v for k,v in sources.items() if k in prefixes and v}
+        if any(not isinstance(v,str) or not ENTITY.fullmatch(v) or not v.startswith(prefixes[k]) for k,v in enabled.items()):return {'available':False}
+        def fetch(item):
+            key,entity=item
+            try:return key,self.request('states/'+entity)
+            except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return key,None
+        with ThreadPoolExecutor(max_workers=8) as pool:values=dict(pool.map(fetch,enabled.items()))
+        missing=any(not isinstance(v,dict) or not isinstance(v.get('state'),str) or v.get('state') in ('unknown','unavailable') for v in values.values())
+        def attrs(key):
+            value=values.get(key);return value.get('attributes',{}) if isinstance(value,dict) and isinstance(value.get('attributes'),dict) else {}
+        def number(x):
+            try:
+                n=float(x);return n if math.isfinite(n) else None
+            except (TypeError,ValueError):return None
+        def state(key):return number(values[key].get('state')) if isinstance(values.get(key),dict) else None
+        def epoch(x):
+            try:return datetime.datetime.fromisoformat(str(x).replace('Z','+00:00')).timestamp()
+            except (ValueError,TypeError,OverflowError,OSError):return None
+        start=epoch(attrs('calendar').get('start_time'));end=epoch(attrs('calendar').get('end_time'));session=None
+        if start is not None and end is not None and end>now and start-now<36*3600:
+            points=None;joined=attrs('sessions').get('joined_events',[])
+            if isinstance(joined,list):
+                for event in joined[:200]:
+                    if isinstance(event,dict):
+                        event_start=epoch(event.get('start'))
+                        if event_start is not None and abs(event_start-start)<60:points=event.get('octopoints_per_kwh');break
+            session=(start,end,True,points)
+        if not session:
+            events=attrs('sessions').get('available_events',[])
+            if isinstance(events,list):
+                for event in events[:200]:
+                    if not isinstance(event,dict):continue
+                    start=epoch(event.get('start'));end=epoch(event.get('end'))
+                    if start is not None and end is not None and end>now and start-now<36*3600:session=(start,end,False,event.get('octopoints_per_kwh'));break
+        if session:
+            start,end,joined,points=session;start_date=datetime.datetime.fromtimestamp(start).astimezone();current_date=datetime.datetime.fromtimestamp(now).astimezone()
+            offset=(start_date.date()-current_date.date()).days;day='today ' if offset<=0 else 'tomorrow ' if offset==1 else ''
+            start_label=start_date.strftime('%H:%M');end_label=datetime.datetime.fromtimestamp(end).astimezone().strftime('%H:%M')
+            detail=('Saving now until '+end_label) if start<=now else ('Saving '+day+start_label+'–'+end_label if joined else 'Saving '+day+start_label+' · join in app')
+            if (joined or start<=now) and points and isinstance(points,(str,int,float)) and not isinstance(points,bool):detail+=' · '+str(points)[:20]+' pts/kWh'
+        else:
+            current=state('current');upcoming=state('next')
+            if current is None:return {'available':False}
+            price=current*100;detail=f'{price:.1f}p now'+(' peak' if price>=28 else ' cheap' if price<15 else '')
+            if upcoming is not None:
+                detail+=f' · {upcoming*100:.1f}p next'
+                rates=[]
+                for key in ('rates_today','rates_tomorrow'):
+                    part=attrs(key).get('rates',[])
+                    if isinstance(part,list):rates.extend(part[:500])
+                for rate in rates:
+                    if not isinstance(rate,dict):continue
+                    finish=epoch(rate.get('end'));begins=epoch(rate.get('start'));rate_value=number(rate.get('value_inc_vat'))
+                    if finish is not None and begins is not None and finish>now and rate_value is not None and abs(rate_value*100-price)>0.01:
+                        detail+=' from '+datetime.datetime.fromtimestamp(begins).astimezone().strftime('%H:%M');break
+            for key in ('electricity','gas'):
+                cost=state(key)
+                if cost is not None:detail+=(' · Electricity £' if key=='electricity' else ' · Gas £')+f'{cost:.2f}'
+        return {'available':not missing,'active':True,'label':'Energy','detail':detail}
     def todos(self,entity):
         if not isinstance(entity,str) or not entity.startswith('todo.') or not ENTITY.fullmatch(entity):return None
         try:
@@ -66,7 +358,7 @@ class HA:
                 result.append({'title':title,'detail':detail,'priority':priority})
             return result
         except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-    def forecast(self,primary,fallback,now=None):
+    def forecast(self,primary,fallback,now=None,current_entity=''):
         now=time.time() if now is None else now
         for entity,source in ((primary,'primary'),(fallback,'fallback')):
             if not isinstance(entity,str) or not entity.startswith('sensor.') or not ENTITY.fullmatch(entity):continue
@@ -88,6 +380,13 @@ class HA:
                 hours.sort(key=lambda x:x[0])
                 if not hours or hours[0][0]>now+3600:continue
                 current=dict(hours[0][1],current=hours[0][0]<=now)
+                if not current['current'] and isinstance(current_entity,str) and current_entity.startswith('weather.') and ENTITY.fullmatch(current_entity):
+                    try:
+                        live=self.request('states/'+current_entity);live_attrs=live.get('attributes',{}) if isinstance(live,dict) else {}
+                        temp=live_attrs.get('temperature') if isinstance(live_attrs,dict) else None;condition=live.get('state') if isinstance(live,dict) else None
+                        if isinstance(condition,str) and condition not in ('unknown','unavailable','') and not isinstance(temp,bool) and isinstance(temp,(int,float)) and math.isfinite(temp):
+                            current={'time':datetime.datetime.fromtimestamp(now).astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' '),'current':True,'wind_speed':live_attrs.get('wind_speed'),'wind_bearing':live_attrs.get('wind_bearing'),'uv_index':live_attrs.get('uv_index'),'cloud_coverage':live_attrs.get('cloud_coverage')}
+                    except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):pass
                 today=datetime.datetime.fromtimestamp(now).astimezone().date();daily=[]
                 rows=attrs.get('daily',[])
                 if isinstance(rows,list) and len(rows)<=30:
@@ -104,15 +403,35 @@ class HA:
                 def numeric(x):return not isinstance(x,bool) and isinstance(x,(int,float)) and math.isfinite(x)
                 def wet(row):
                     p=row.get('precipitation');return (numeric(p) and p>=0.1) or row['condition'] in ('rainy','pouring','lightning-rainy','snowy-rainy')
-                rain=next(((stamp,row) for stamp,row in hours if wet(row)),None)
+                rain_candidates=[]
+                for row in hourly:
+                    try:
+                        if not isinstance(row,dict):continue
+                        moment=datetime.datetime.fromisoformat(str(row.get('datetime','')).replace('Z','+00:00'))
+                        if moment.tzinfo is None:continue
+                        stamp=moment.timestamp();condition=row.get('condition') if isinstance(row.get('condition'),str) else ''
+                        entry={'condition':condition.replace('_',' '),'precipitation':row.get('precipitation'),'time':moment.astimezone().strftime('%H:%M')}
+                        if stamp>now-3600 and wet(entry):rain_candidates.append((stamp,entry))
+                    except (ValueError,TypeError,OverflowError,OSError):continue
+                rain_candidates.sort(key=lambda x:x[0]);rain=rain_candidates[0] if rain_candidates else None
                 next_rain=('Due now' if rain[0]<=now else rain[1]['time']) if rain else 'None in hourly forecast'
                 if rain and rain[0]>now and datetime.datetime.fromtimestamp(rain[0]).astimezone().date()!=today:next_rain+=' next day'
+                if not rain and isinstance(rows,list):
+                    for row in rows[1:30]:
+                        try:
+                            if not isinstance(row,dict) or not numeric(row.get('precipitation')) or row['precipitation']<0.5:continue
+                            moment=datetime.datetime.fromisoformat(str(row.get('datetime','')).replace('Z','+00:00'))
+                            if moment.tzinfo is None:continue
+                            day=moment.astimezone().date();offset=(day-today).days
+                            if offset<1:continue
+                            next_rain='Tomorrow' if offset==1 else moment.astimezone().strftime('%a');break
+                        except (ValueError,TypeError,OverflowError):continue
                 wind=current.get('wind_speed');bearing=current.get('wind_bearing');uv=current.get('uv_index');cloud=current.get('cloud_coverage')
                 facts={'wind':str(round(wind))+' km/h' if numeric(wind) else 'Unavailable','bearing':round(bearing)%360 if numeric(bearing) else None,'next_rain':next_rain,'sky':('UV '+str(round(uv)) if numeric(uv) and uv>=0.5 else 'Cloud '+str(round(cloud))+'%' if numeric(cloud) else 'Unavailable')}
-                return {'source':source,'hours':[x[1] for x in hours[:5]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
+                return {'source':source,'hours':[x[1] for x in hours[:6]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
-    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback=''):
+    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None,games=None,weather_current='',cooking_reader=None,rooms=None,sun='',night_mode='auto',festive=None):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
         with ThreadPoolExecutor(max_workers=8) as pool:
@@ -120,7 +439,20 @@ class HA:
             tf=pool.submit(self.todos,todo) if todo else None
             ff=pool.submit(self.task_feed,feed) if feed else None
             sf=pool.submit(shared) if shared else None
-            wf=pool.submit(self.forecast,weather_primary,weather_fallback) if weather_primary or weather_fallback else None
+            wf=pool.submit(self.forecast,weather_primary,weather_fallback,current_entity=weather_current) if weather_primary or weather_fallback else None
+            sun_future=pool.submit(self.sun,sun) if sun else None
+            panels=[pool.submit(self.active_panel,e,kind) for kind,values in (('media',media),('game',games),('overlay',overlays)) for e in (values[:8] if isinstance(values,list) else [])]
+            if cooking_reader:panels.append(pool.submit(self.cooking_panel,cooking_reader,cooking))
+            elif cooking:panels.append(pool.submit(self.active_panel,cooking,'cooking'))
+            if isinstance(intrusion,dict) and any(intrusion.values()):panels.append(pool.submit(self.intrusion_panel,intrusion.get('alert',''),intrusion.get('log',''),intrusion.get('presence',[])))
+            if isinstance(heat,dict) and any(heat.values()):panels.append(pool.submit(self.heat_panel,heat.get('boiler',''),heat.get('thermostat',''),heat.get('floors',[])))
+            if doors:panels.append(pool.submit(self.doors_panel,doors))
+            if isinstance(energy,dict) and any(energy.values()):panels.append(pool.submit(self.energy_panel,energy))
+            if alarm:panels.append(pool.submit(self.alarm_panel,alarm))
+            if presence:panels.append(pool.submit(self.presence_panel,presence))
+            if lights:panels.append(pool.submit(self.lights_panel,lights))
+            if isinstance(rooms,list):panels.extend(pool.submit(self.room_panel,room) for room in rooms[:20])
+            if isinstance(festive,dict) and any(festive.values()):panels.append(pool.submit(self.festive_panel,festive.get('birthdays',''),festive.get('halloween',''),festive.get('fixed',[])))
             sources=[f.result() for f in (ff,tf) if f is not None]
             shared_result=sf.result() if sf else None
             shared_partial=bool(sf and (shared_result is None or not shared_result.get('complete',False)))
@@ -134,23 +466,53 @@ class HA:
                         tasks.extend(item if isinstance(item,dict) else {'title':item,'detail':'','priority':'normal'} for item in source)
                 ranks={'high':0,'normal':1,'low':2}
                 tasks.sort(key=lambda item:ranks[item['priority']])
-            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial,'weather':wf.result() if wf else None,'weather_configured':bool(wf)}
+            sun_data=sun_future.result() if sun_future else None
+            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial,'weather':wf.result() if wf else None,'weather_configured':bool(wf),'panels':[f.result() for f in panels],'sun':sun_data.get('label') if sun_data else None,'sun_dark':sun_data.get('dark') if sun_data else None,'sun_configured':bool(sun_future),'night_mode':night_mode}
 
 def svg(profile,data,alerts=None,now=None):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')
     width,height=profile.get('width'),profile.get('height')
     if any(type(v) is not int or not 1<=v<=8192 for v in (width,height)):raise ValueError('Invalid dimensions')
+    date=datetime.datetime.fromtimestamp(time.time() if now is None else now).astimezone().strftime('%a %d %b')
+    sun=data.get('sun') or ('Sun unavailable' if data.get('sun_configured') else 'Wall display preview')
     parts=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">',
            '<rect width="1920" height="1080" fill="#101619"/>',
-           '<text x="70" y="105" fill="#f4f7f4" font-family="sans-serif" font-size="44" font-weight="bold">HOME</text>',
-           '<text x="70" y="148" fill="#b6c6bd" font-family="sans-serif" font-size="24">Wall display preview</text>']
-    items=data.get('items') or []
-    for i,item in enumerate(items[:6]):
+           '<path d="M1536 0h384v810h-384z M0 810h1920v270H0z" fill="#000000"/>',
+           f'<text x="70" y="95" fill="#f4f7f4" font-family="sans-serif" font-size="38" font-weight="bold">{clean(date)}</text>',
+           f'<text x="70" y="148" fill="#b6c6bd" font-family="sans-serif" font-size="24">{clean(sun,24)}</text>']
+    panels=data.get('panels') or []
+    active=sorted((p for p in panels if p.get('active')),key=lambda p:not p.get('urgent'))
+    raw_items=list(data.get('items') or [])+[{'label':p.get('label',''),'value':p.get('detail') or 'Active','art':p.get('art')} for p in active if not p.get('urgent') and not p.get('pinned')]
+    items=[]
+    for item in raw_items:
+        value=str(item.get('value') or '')
+        if len(value)>1000:value=value[:999]+'…'
+        width=19 if item.get('art') else 25
+        lines=textwrap.wrap(value,width=width) or ['']
+        for offset in range(0,len(lines),3):
+            items.append({'label':str(item.get('label') or '')+(' (cont.)' if offset else ''),'value':' '.join(lines[offset:offset+3]),'art':item.get('art') if not offset else None})
+    item_pages=max(1,(len(items)+5)//6);item_page=int((time.time() if now is None else now)//60)%item_pages
+    for i,item in enumerate(items[item_page*6:item_page*6+6]):
         x=70+(i%2)*405;y=190+(i//2)*185
         parts.append(f'<rect x="{x}" y="{y}" width="375" height="155" rx="20" fill="#26352f"/>')
         parts.append(f'<text x="{x+24}" y="{y+45}" fill="#c4d5c9" font-family="sans-serif" font-size="22">{clean(item.get("label"),24)}</text>')
-        parts.append(f'<text x="{x+24}" y="{y+105}" fill="#f7faf7" font-family="sans-serif" font-size="38">{clean(item.get("value"),18)}</text>')
+        art=item.get('art');has_art=isinstance(art,str) and bool(re.fullmatch(r'data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}',art))
+        if has_art:parts.append(f'<image x="{x+24}" y="{y+60}" width="70" height="70" preserveAspectRatio="xMidYMid meet" href="{art}"/>')
+        column=x+(110 if has_art else 24);line_width=19 if has_art else 25
+        lines=textwrap.wrap(str(item.get('value') or ''),width=line_width,max_lines=3,placeholder='…') or ['']
+        for j,line in enumerate(lines):parts.append(f'<text x="{column}" y="{y+75+j*28}" fill="#f7faf7" font-family="sans-serif" font-size="22">{clean(line,line_width)}</text>')
     if not items:parts.append('<text x="70" y="245" fill="#c4d5c9" font-family="sans-serif" font-size="25">Choose display entities in the app configuration.</text>')
+    if item_pages>1:parts.append(f'<text x="800" y="172" fill="#c4d5c9" font-family="sans-serif" font-size="18">Cards {item_page+1}/{item_pages}</text>')
+    urgent=[p for p in active if p.get('urgent')]
+    if urgent or any(not p.get('available') for p in panels):
+        titles=[p.get('label','')+(': '+p['detail'] if p.get('detail') else '') for p in urgent]
+        if any(not p.get('available') for p in panels):titles.append('Some sources unavailable')
+        pages=max(1,(len(titles)+1)//2);page=int((time.time() if now is None else now)//300)%pages
+        for i,title in enumerate(titles[page*2:page*2+2]):parts.append(f'<text x="390" y="{105+i*25}" fill="#ffd88c" font-family="sans-serif" font-size="19">{clean(title,55)}</text>')
+        if pages>1:parts.append(f'<text x="1020" y="105" fill="#ffd88c" font-family="sans-serif" font-size="17">{page+1}/{pages}</text>')
+    for panel in active:
+        if panel.get('pinned') and panel.get('slot')=='occasion':parts.append(f'<text x="70" y="123" fill="#f7faf7" font-family="sans-serif" font-size="16">{clean(panel.get("detail"),30)}</text>')
+        elif panel.get('pinned'):parts.append(f'<text x="1100" y="105" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(panel.get("detail"),28)}</text>')
     parts.append('<rect x="900" y="190" width="575" height="525" rx="20" fill="#26352f"/>')
     parts.append('<text x="930" y="245" fill="#f7faf7" font-family="sans-serif" font-size="30" font-weight="bold">Selected tasks</text>')
     tasks=data.get('tasks')
@@ -159,7 +521,9 @@ def svg(profile,data,alerts=None,now=None):
         parts.append(f'<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">{clean(label)}</text>')
     elif not tasks and not data.get('tasks_partial'):parts.append('<text x="930" y="300" fill="#c4d5c9" font-family="sans-serif" font-size="22">No items from selected sources</text>')
     else:
-        for i,task in enumerate(tasks[:5]):
+        pages=max(1,(len(tasks)+4)//5);page=int((time.time() if now is None else now)//60)%pages
+        if pages>1:parts.append(f'<text x="1370" y="245" fill="#c4d5c9" font-family="sans-serif" font-size="20">{page+1}/{pages}</text>')
+        for i,task in enumerate(tasks[page*5:page*5+5]):
             title=task.get('title','') if isinstance(task,dict) else task
             detail=task.get('detail','') if isinstance(task,dict) else ''
             colour='#ffd88c' if isinstance(task,dict) and task.get('urgent') is True else '#f7faf7'
@@ -187,7 +551,7 @@ def svg(profile,data,alerts=None,now=None):
                 parts.append(f'<text x="{390+i*355}" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(desc,32)}</text>')
             for i,hour in enumerate(weather['hours']):
                 text=hour['time']+'  '+str(hour['temperature'])+'°  '+hour['condition']
-                parts.append(f'<text x="{90+i*270}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(text,26)}</text>')
+                parts.append(f'<text x="{90+i*225}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="17">{clean(text,22)}</text>')
     if alerts is None:
         parts.append('<text x="70" y="172" fill="#ffd88c" font-family="sans-serif" font-size="19">Alert preview not connected</text>')
     elif not alerts.get('configured'):
@@ -196,15 +560,24 @@ def svg(profile,data,alerts=None,now=None):
         warnings=alerts.get('alerts') or []
         complete=alerts.get('complete') is True
         if warnings or not complete:
-            parts.append('<rect x="70" y="165" width="1405" height="170" rx="16" fill="#761e24"/>')
+            parts.append('<rect x="70" y="730" width="1405" height="75" rx="16" fill="#761e24"/>')
             heading='URGENT · SELECTED SOURCES' if complete else 'URGENT · ALERT INPUTS INCOMPLETE'
-            parts.append(f'<text x="95" y="193" fill="#ffffff" font-family="sans-serif" font-size="19" font-weight="bold">{heading}</text>')
+            parts.append(f'<text x="95" y="750" fill="#ffffff" font-family="sans-serif" font-size="17" font-weight="bold">{heading}</text>')
             if warnings:
                 pages=(len(warnings)+3)//4;page=int((time.time() if now is None else now)//300)%pages
                 for i,item in enumerate(warnings[page*4:page*4+4]):
-                    parts.append(f'<text x="95" y="{220+i*29}" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="bold">{clean(item.get("title"),92)}</text>')
-                if pages>1:parts.append(f'<text x="1370" y="193" fill="#ffffff" font-family="sans-serif" font-size="18">{page+1}/{pages}</text>')
-            else:parts.append('<text x="95" y="230" fill="#ffffff" font-family="sans-serif" font-size="22">Alert sources unavailable</text>')
+                    parts.append(f'<text x="{95+(i%2)*680}" y="{773+(i//2)*24}" fill="#ffffff" font-family="sans-serif" font-size="18" font-weight="bold">{clean(item.get("title"),62)}</text>')
+                if pages>1:parts.append(f'<text x="1370" y="750" fill="#ffffff" font-family="sans-serif" font-size="17">{page+1}/{pages}</text>')
+            else:parts.append('<text x="95" y="780" fill="#ffffff" font-family="sans-serif" font-size="19">Alert sources unavailable</text>')
         else:parts.append('<text x="70" y="172" fill="#c4d5c9" font-family="sans-serif" font-size="19">No active alerts from selected sources</text>')
     parts.append('</svg>')
-    return ''.join(parts).encode('utf-8')
+    picture=''.join(parts)
+    mode=data.get('night_mode','auto');hour=datetime.datetime.fromtimestamp(time.time() if now is None else now).astimezone().hour
+    if mode=='deep' or (mode=='auto' and (hour>=23 or hour<6)):
+        picture=picture.replace('<image ','<image opacity="0.35" ')
+        palette={'#101619':'#000000','#26352f':'#07080a','#f7faf7':'#8d93a0','#c4d5c9':'#69717e','#f4f7f4':'#8d93a0','#b6c6bd':'#69717e','#ffd88c':'#d8ac62'}
+    elif mode=='light' or (mode=='auto' and data.get('sun_dark') is False):
+        palette={'#101619':'#eef2ee','#26352f':'#ffffff','#f7faf7':'#182b20','#c4d5c9':'#425a4a','#f4f7f4':'#182b20','#b6c6bd':'#425a4a','#ffd88c':'#784a00'}
+    else:palette={}
+    for source,target in palette.items():picture=picture.replace('fill="'+source+'"','fill="'+target+'"')
+    return picture.encode('utf-8')

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+
+- Add an optional authenticated PNG endpoint for the app-owned display preview.
+- Include optional read-only active media and binary overlay sources in the preview.
+- Import validated private source mappings through admin ingress without a restart.
+
 ## 0.11.0
 
 - Add an optional authenticated compatibility image endpoint and more weather details.
