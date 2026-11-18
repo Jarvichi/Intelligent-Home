@@ -45,7 +45,7 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
                 except (OSError,ValueError,TypeError,UnicodeError):return self.reply(400,{'error':'Invalid source mappings.'})
             if method=='GET' and path=='/api/render.png':
                 if not snapshot:return self.reply(503,{'error':'Preview unavailable.'})
-                try:return self.reply(200,png_encoder(kindle_render.svg(snapshot(),alerts() if alerts else None)),'image/png')
+                try:return self.reply(200,png_encoder(kindle_render.svg(snapshot(),alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})),'image/png')
                 except (OSError,ValueError,TypeError,subprocess.SubprocessError):return self.reply(503,{'error':'Preview unavailable.'})
             if method=='GET' and path=='/api/status':return self.reply(200,store.status())
             if method=='POST' and path=='/api/refresh':return self.reply(200,store.refresh())
