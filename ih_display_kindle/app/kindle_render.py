@@ -83,7 +83,8 @@ def svg(data,alerts=None,now=None):
     # emits at most one aggregate smoke alert and one CO alert.
     entries=[x for x in (alerts.get('alerts') or []) if isinstance(x,dict) and x.get('title')] if isinstance(alerts,dict) else []
     life=[str(x['title']) for x in entries if x.get('kind') in ('smoke','co')]
-    other=[str(x['title']) for x in entries if x.get('kind') not in ('smoke','co')]
+    motion=[str(x.get('label'))+(': '+str(x.get('detail')) if x.get('detail') else '') for x in active if x.get('label')=='Motion while away' and x.get('urgent') is True]
+    other=motion+[str(x['title']) for x in entries if x.get('kind') not in ('smoke','co')]
     status='Alert sources not configured' if isinstance(alerts,dict) and alerts.get('configured') is False else 'Alert sources unavailable' if alerts is None or (isinstance(alerts,dict) and not alerts.get('complete')) else ''
     slots=max(0,4-min(len(life),2)-(1 if status else 0));pages=max(1,(len(other)+slots-1)//slots) if slots else 1;page=int(timestamp//300)%pages
     warning=life[:2]+(other[page*slots:page*slots+slots] if slots else [])+([status] if status else [])

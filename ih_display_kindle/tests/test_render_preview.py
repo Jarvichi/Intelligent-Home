@@ -40,6 +40,11 @@ class Tests(unittest.TestCase):
         self.assertIn(b'Free power',kindle_render.svg({},alerts,now=0))
         self.assertIn(b'Saving session',kindle_render.svg({},alerts,now=300))
         self.assertIn(b'Robot stopped',kindle_render.svg({},alerts,now=600))
+    def test_motion_while_away_is_not_silently_dropped(self):
+        data={'panels':[{'available':True,'active':True,'urgent':True,'label':'Motion while away','detail':'Example room'}]}
+        image=kindle_render.svg(data,{'configured':True,'complete':True,'alerts':[]},now=0)
+        self.assertIn(b'Motion while away: Example room',image)
+
     def test_unconfigured_alerts_are_labelled(self):
         image=kindle_render.svg({}, {'configured':False,'complete':False,'alerts':[]},now=0)
         self.assertIn(b'Alert sources not configured',image)
