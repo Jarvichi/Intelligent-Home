@@ -146,3 +146,19 @@ def prompt_block(levels, key=None, fixed_rule=None):
     if rule:
         lines.append('- Fixed rule: ' + rule.strip())
     return '\n'.join(lines)
+
+
+# ---- check-in offer (0.20.0) ----
+OFFER_EVERY_S = 7 * 86400
+OFFER_TEXT = ('Check-in offer: once, in this chat or check-in, ask lightly: "Would you like me to check in more often?" '
+              'After you ask, call POST /persona/<key>/checkin_offer with {"answer": "asked"}. If they say no, call it with {"answer": "no"} and never ask again. '
+              'If they say yes, call it with {"answer": "yes"}, tell them you will ask the owner, and post a short request for the owner to approve a higher check-in level or an extra planned slot. '
+              'You cannot change the settings yourself.')
+
+
+def offer_due(level, state, now):
+    """True when the persona may offer more check-ins: level below 10, never refused, last asked at least a week ago, no 'yes' waiting for the owner."""
+    st = state if isinstance(state, dict) else {}
+    if clamp(level, 0) >= 10 or st.get('declined') or st.get('yes_at'):
+        return False
+    return now - float(st.get('last') or 0) >= OFFER_EVERY_S

@@ -647,8 +647,37 @@ class Assistant:
         """The levels, the prompt block for the persona prompt, and a fresh gif decision (random draw each call)."""
         lv = self.lv(key)
         roll = self.rng()
-        return {'ok': True, 'levels': dict(lv), 'prompt': levels.prompt_block(lv, key, self.cfg[key].get('fixed_rule')), 'gif_ok': levels.gif_allowed(lv['gif_level'], roll),
+        out = {'ok': True, 'levels': dict(lv), 'prompt': levels.prompt_block(lv, key, self.cfg[key].get('fixed_rule')), 'gif_ok': levels.gif_allowed(lv['gif_level'], roll),
                 'emoji_max': levels.emoji_cap(lv['emoji_level']), 'checkins_per_day_cap': self.checkin_cap(key)}
+        return self._with_offer(key, dict(out, **self._offer_part(key, lv)))
+
+    def _offer_part(self, key, lv):
+        """checkin_offer: true when the persona may ask 'would you like me to check in more often?'; then the prompt also carries the instruction."""
+        due = levels.offer_due(lv['checkin_level'], self.stores[key].state().get('checkin_offer'), self.clock())
+        return {'checkin_offer': due, 'offer_prompt': levels.OFFER_TEXT.replace('<key>', key) if due else ''}
+
+    def _with_offer(self, key, b):
+        """Put the offer text at the end of the prompt (the host prints 'prompt' as it is)."""
+        if b.get('offer_prompt'):
+            b['prompt'] = b['prompt'] + '\n- ' + b['offer_prompt']
+        return b
+
+    def checkin_offer(self, key, body):
+        """The persona reports: asked (starts the week), no (never again), yes (waits for the owner, who changes the options)."""
+        ans = body.get('answer') if isinstance(body, dict) else None
+        if ans not in ('asked', 'no', 'yes'):
+            return 400, {'ok': False, 'why': 'answer: asked, no or yes'}
+        now = self.clock()
+        def put(s):
+            o = s.setdefault('checkin_offer', {})
+            o['last'] = now
+            if ans == 'no':
+                o['declined'] = True
+            if ans == 'yes':
+                o['yes_at'] = now
+        self.stores[key].update_state(put)
+        self.log('persona %s: check-in offer %s' % (key, ans))
+        return 200, {'ok': True, 'answer': ans}
 
     def maybe_intro(self, key):
         """Not introduced yet: put ONE intro_due event first (no name; the host writes the text)."""
@@ -2115,6 +2144,8 @@ def make_handler(app):
                 return self._send(*app.remind_add(key, body))
             if act == 'remind' and len(parts) == 4 and parts[3] == 'cancel':
                 return self._send(*app.remind_cancel(key, body))
+            if act == 'checkin_offer' and len(parts) == 3:
+                return self._send(*app.checkin_offer(key, body))
             if act == 'agree' and len(parts) == 3:
                 return self._send(*app.agree(key, body))
             if act == 'agree' and len(parts) == 4 and parts[3] == 'remove':
