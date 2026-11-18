@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.23.0] - 2026-11-18
+
+### Added
+- Hearth, a shared household assistant (persona option `household: true`, optional `household_users`; no private chat or bot needed, so `user_id` and `bot_token` are now optional). Off unless the new `hearth` option has `enabled: true` and a household persona with the key `hearth.persona` (default `hearth`) exists. It decides what to say and asks the `ih_speaker` add-on to speak it (`speaker_url`, `speaker_token`). It never talks to a speaker itself. Dry by default: while the add-on or the persona is not live, it calls ih_speaker with `dry_run` and only logs the result.
+- Bedtime message, ported from the Home Assistant script. Trigger: the alarm panel goes armed (from arming or disarmed) or fails (arming to disarmed). Spoken only when a bedroom lamp is on or went off less than 5 minutes ago; a failed arming always speaks (as an alert). Lists unlocked locks, open doors, lights on downstairs or outside and a dishwasher that is not scheduled; adds a frost line when the forecast low is at or below `frost_at` (2 C); adds the tomorrow line (work day with the wake-up time, or a lie-in plus the first timed event before 12:00, ignoring events that match `off_pattern`). If a lock reads locked but its door sensor reads open (`lock_door_pairs`), it first says that the alarm is armed and it is checking, waits up to 12 s for the sensor, then reports what the check found.
+- Picard welcome, ported from the Home Assistant automation (`hearth.picard`): the door opens, the person's presence switch has been on for less than `home_minutes` (10), time is inside 07:00 to 22:00, no welcome in the last `min_gap_min` (60) minutes (kept in the Hearth datastore), the speaker is not playing (ih_speaker skips it), the speaker volume is left alone. Random line from `lines` (use `{name}`; short built-in defaults when empty).
+- `GET /hearth/preview?event=armed|failed` (bearer token): read-only, shows the text Hearth would say now. `/status` shows `household` per persona.
+- Why: speaking is a tool (ih_speaker); deciding what to say belongs to an assistant that everyone in the house can use. The Home Assistant script and both automations stay on until each cut-over is approved.
+
 ## [0.22.0] - 2026-11-18
 
 ### Added

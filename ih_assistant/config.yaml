@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.22.0"
+version: "0.23.0"
 slug: ih_assistant
 image: "ghcr.io/jarvichi/{arch}-ih_assistant"
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
@@ -36,6 +36,10 @@ options:
   gif_gap_minutes: 10
   discord_push: true
   usage_autoreply: true
+  speaker_url: ""
+  speaker_token: ""
+  hearth:
+    enabled: false
   personas: []
 schema:
   mode: list(dry|live)
@@ -60,11 +64,58 @@ schema:
   usage_sensor_week_reset: str?
   presence_entities:
     - str?
+  speaker_url: str?
+  speaker_token: password?
+  hearth:
+    enabled: bool?
+    persona: str?
+    speaker: str?
+    voice: str?
+    alarm_entity: str?
+    bedroom_lamps:
+      - str?
+    locks:
+      - str?
+    doors:
+      - str?
+    lock_door_pairs:
+      - str?
+    check_door_label: str?
+    lights_downstairs:
+      - str?
+    lights_outside:
+      - str?
+    dishwasher_state_entity: str?
+    dishwasher_unload_entity: str?
+    forecast_entity: str?
+    frost_at: float?
+    workday_calendar: str?
+    own_calendar: str?
+    event_calendars:
+      - str?
+    wake_up_entity: str?
+    off_pattern: str?
+    picard:
+      enabled: bool?
+      door_entity: str?
+      person_switch: str?
+      person_name: str?
+      speaker: str?
+      voice: str?
+      home_minutes: int(1,120)?
+      window_start: str?
+      window_end: str?
+      min_gap_min: int(1,1440)?
+      lines:
+        - str?
   personas:
     - key: str
       sender_label: str?
-      user_id: str
-      bot_token: password
+      user_id: str?
+      bot_token: password?
+      household: bool?
+      household_users:
+        - str?
       quiet_start: str?
       quiet_end: str?
       max_per_day: int?
