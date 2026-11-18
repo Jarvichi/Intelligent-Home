@@ -96,6 +96,18 @@ class HA:
                 if art:result['art']=art
             return result
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
+    def cooking_panel(self,reader,legacy_entity):
+        current=reader()
+        if not isinstance(current,dict):return {'available':False}
+        if not current.get('available') or not current.get('active') or not legacy_entity:return current
+        legacy=self.active_panel(legacy_entity,'cooking')
+        marker=current.get('detail')
+        legacy_detail=legacy.get('detail','')
+        if legacy.get('available') and legacy.get('active') and legacy.get('label')==current.get('label') and marker and (legacy_detail==marker or legacy_detail.startswith(marker+' · ')):
+            current=dict(current,detail=legacy['detail'])
+        else:
+            current=dict(current,detail=(marker+' · ' if marker else '')+'Oven unavailable')
+        return current
     def intrusion_panel(self,alert,log,presence):
         if not isinstance(presence,list) or not presence:return {'available':False}
         entities=[alert,log]+presence[:10]
@@ -372,7 +384,7 @@ class HA:
             wf=pool.submit(self.forecast,weather_primary,weather_fallback,current_entity=weather_current) if weather_primary or weather_fallback else None
             sun_future=pool.submit(self.sun,sun) if sun else None
             panels=[pool.submit(self.active_panel,e,kind) for kind,values in (('media',media),('game',games),('overlay',overlays)) for e in (values[:8] if isinstance(values,list) else [])]
-            if cooking_reader:panels.append(pool.submit(cooking_reader))
+            if cooking_reader:panels.append(pool.submit(self.cooking_panel,cooking_reader,cooking))
             elif cooking:panels.append(pool.submit(self.active_panel,cooking,'cooking'))
             if isinstance(intrusion,dict) and any(intrusion.values()):panels.append(pool.submit(self.intrusion_panel,intrusion.get('alert',''),intrusion.get('log',''),intrusion.get('presence',[])))
             if isinstance(heat,dict) and any(heat.values()):panels.append(pool.submit(self.heat_panel,heat.get('boiler',''),heat.get('thermostat',''),heat.get('floors',[])))
@@ -410,7 +422,15 @@ def svg(profile,data,alerts=None,now=None):
            f'<text x="70" y="148" fill="#b6c6bd" font-family="sans-serif" font-size="24">{clean(sun,24)}</text>']
     panels=data.get('panels') or []
     active=sorted((p for p in panels if p.get('active')),key=lambda p:not p.get('urgent'))
-    items=list(data.get('items') or [])+[{'label':p.get('label',''),'value':p.get('detail') or 'Active','art':p.get('art')} for p in active if not p.get('urgent') and not p.get('pinned')]
+    raw_items=list(data.get('items') or [])+[{'label':p.get('label',''),'value':p.get('detail') or 'Active','art':p.get('art')} for p in active if not p.get('urgent') and not p.get('pinned')]
+    items=[]
+    for item in raw_items:
+        value=str(item.get('value') or '')
+        if len(value)>1000:value=value[:999]+'…'
+        width=19 if item.get('art') else 25
+        lines=textwrap.wrap(value,width=width) or ['']
+        for offset in range(0,len(lines),3):
+            items.append({'label':str(item.get('label') or '')+(' (cont.)' if offset else ''),'value':' '.join(lines[offset:offset+3]),'art':item.get('art') if not offset else None})
     item_pages=max(1,(len(items)+5)//6);item_page=int((time.time() if now is None else now)//60)%item_pages
     for i,item in enumerate(items[item_page*6:item_page*6+6]):
         x=70+(i%2)*405;y=190+(i//2)*185

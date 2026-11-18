@@ -96,6 +96,11 @@ class Tests(unittest.TestCase):
         profile={'state':'ready','width':1920,'height':1080};data={'tasks':[{'title':'Item '+str(i),'priority':'normal'} for i in range(6)]}
         first=render.svg(profile,data,now=0);second=render.svg(profile,data,now=60)
         self.assertIn(b'Item 0',first);self.assertNotIn(b'Item 5',first);self.assertIn(b'Item 5',second);self.assertIn(b'2/2',second)
+    def test_long_card_details_continue_on_later_pages(self):
+        p={'state':'ready','width':1920,'height':1080};detail=' '.join('Room'+str(i) for i in range(35))
+        data={'items':[{'label':'Lights','value':detail}]+[{'label':'Other','value':'x'} for _ in range(5)]}
+        pictures=b' '.join(render.svg(p,data,now=60*i) for i in range(3))
+        self.assertIn(b'Room0',pictures);self.assertIn(b'Room34',pictures)
     def test_heat_panel_distinguishes_boiler_and_floor_heating(self):
         class Heating(render.HA):
             def __init__(self,states):self.states=states
@@ -125,6 +130,10 @@ class Tests(unittest.TestCase):
         ha=Cooking({'state':'on','attributes':{'title':'Dinner','eat':'18:30','oven':170,'target':180,'set':150}})
         item=ha.active_panel('sensor.cooking','cooking');self.assertTrue(item['active']);self.assertIn('SET 150°!',item['detail']);self.assertIn('18:30',item['detail'])
         ha.value={'state':'off','attributes':{'title':'Old'}};self.assertFalse(ha.active_panel('sensor.cooking','cooking')['active'])
+        owner=lambda:{'available':True,'active':True,'label':'Dinner','detail':'Eating at 18:30'}
+        ha.value={'state':'on','attributes':{'title':'Dinner','eat':'18:30','oven':170,'target':180}}
+        self.assertIn('Oven 170',ha.cooking_panel(owner,'sensor.cooking')['detail'])
+        ha.value['attributes']['eat']='19:00';self.assertIn('Oven unavailable',ha.cooking_panel(owner,'sensor.cooking')['detail'])
     def test_selected_media_and_overlays_are_read_only(self):
         class Panels(render.HA):
             def __init__(self):self.calls=[]

@@ -44,7 +44,7 @@ Optional `render_media_entities` and `render_overlay_entities` read media player
 
 Optional `render_cooking_entity` reads a cooking plan sensor and displays the active title, eating time and available oven/target information. This preview never starts or changes a cooking session.
 
-Alternatively, set `cooking_url` and `cooking_token` to the Cooking add-on's private read-only API access. The app then reads its `/cook` status directly and uses that source in preference to the legacy sensor. This reports active title and eating time; the Cooking status API does not supply oven readings. Failed or malformed responses are marked unavailable.
+Alternatively, set `cooking_url` and `cooking_token` to the Cooking add-on's private read-only API access. The app then reads its `/cook` status directly and uses that source in preference to the legacy sensor. If the legacy sensor is also configured, oven readings are shown only when its active title and eating time match the owner; otherwise the oven reading is marked unavailable. Failed or malformed owner responses are marked unavailable.
 
 The optional `render_intrusion_alert`, `render_intrusion_log` and `render_intrusion_presence` sources preview the existing motion-while-away log when its alert is on and a configured household presence switch is on. All sources are read only; missing or unavailable inputs are marked unavailable. No notifications or alarm actions are sent.
 
