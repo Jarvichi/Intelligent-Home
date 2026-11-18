@@ -36,7 +36,7 @@ class Tests(unittest.TestCase):
             proxy=self.start(legacy_proxy.make_handler(url,renderer,enabled));status,headers,body=self.request(proxy,'GET','/7?x=1')
             self.assertEqual((status,headers['X-IH-Image-Source'],body),(200,'legacy',b'/7?x=1'))
     def test_invalid_upstream_and_absolute_request_are_rejected(self):
-        for value in ('http://user:password@localhost','http://example.test/path','https://example.test','http://example.test:bad'):
+        for value in ('http://user:test@example.com','http://example.test/path','https://example.test','http://example.test:bad'):
             self.assertIsNone(legacy_proxy.upstream_origin(value))
         proxy=self.start(legacy_proxy.make_handler('',lambda:PNG,False));self.assertEqual(self.request(proxy,'GET','/7')[0],503)
         self.assertEqual(self.request(proxy,'GET','http://other.test/7')[0],400)
