@@ -10,6 +10,12 @@ PROFILE={'state':'ready','width':1920,'height':1080}
 CLEAR={'configured':True,'complete':True,'alerts':[]}
 
 class Tests(unittest.TestCase):
+    def test_coloured_task_icon_and_birthday_countdown(self):
+        data={'tasks':[{'title':'🔋 Charge <battery>'}], 'panels':[{'active':True,'available':True,'slot':'occasion','detail':'Example birthday in 3 days'}]}
+        picture=wall_tv.svg(PROFILE,data,CLEAR,now=0)
+        ET.fromstring(picture)
+        self.assertIn(b'#49b92d',picture);self.assertIn(b'Charge &lt;battery&gt;',picture)
+        self.assertIn(b'3 days:',picture);self.assertIn(b'Example birthday',picture);self.assertIn(b'#ed343f',picture)
     def test_picture_has_separate_weather_and_task_panels(self):
         weather={'source':'primary','current':{'current':True,'temperature':0,'condition':'partlycloudy'},
                  'daily':[{'label':'Today','low':0,'high':4,'condition':'cloudy'},{'label':'Tomorrow','low':-1,'high':3,'condition':'rainy','precipitation':1.3}],

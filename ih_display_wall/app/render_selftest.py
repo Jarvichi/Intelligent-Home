@@ -14,7 +14,7 @@ data={'items':[{'label':'Alarm','value':'Armed'},{'label':'Doors','value':'Locke
       'tasks_configured':True,'tasks_partial':False,
       'sun':'Sunset 19:00','sun_configured':True,'sun_dark':False,
       'panels':[{'available':True,'active':True,'pinned':True,'label':'Home','detail':'Example person'},
-                {'available':True,'active':True,'pinned':True,'slot':'occasion','label':'Occasion','detail':'🎁 Example in 3 days'}],
+                {'available':True,'active':True,'pinned':True,'slot':'occasion','label':'Occasion','detail':'Example birthday in 3 days'}],
       'weather_configured':True,'weather':{'source':'primary','current':{'current':True,'temperature':18,'condition':'cloudy'},
           'facts':{'wind':'12 km/h','bearing':180,'next_rain':'15:00','sky':'Cloud 60%'},
           'daily':[{'label':'Today','high':20,'low':12,'condition':'cloudy'},{'label':'Tomorrow','high':19,'low':11,'condition':'rainy'}],

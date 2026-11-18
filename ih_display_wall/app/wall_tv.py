@@ -26,6 +26,26 @@ def icon(condition,x,y,size):
 
 def number(value):return '–' if value is None else str(value)
 
+def task_icon(title,x,y):
+    value=str(title or '').replace('\ufe0f','');glyphs={'🔋':'battery','📴':'offline','⚡':'energy','🛡':'shield','💾':'backup','❄':'frost','🧹':'robot','✂':'robot','🍽':'dish','🎡':'wheel','🔥':'energy','📅':'calendar','✉':'message','🔌':'plug','⚠':'warning'}
+    kind=glyphs.get(value[:1])
+    if not kind:return '',value
+    value=value[1:].lstrip();p=[f'<g transform="translate({x} {y})">']
+    if kind=='battery':p.append('<rect x="7" y="5" width="26" height="38" rx="5" fill="#49b92d"/><rect x="14" y="2" width="12" height="5" rx="2" fill="#9adf80"/><path d="M15 19h10 M20 14v10 M15 32h10" stroke="#ffffff" stroke-width="3"/>')
+    elif kind=='offline':p.append('<rect x="4" y="4" width="36" height="40" rx="4" fill="#ff6815"/><text x="22" y="28" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="bold">OFF</text>')
+    elif kind=='energy':p.append('<path d="M25 2L8 27h12l-3 17 20-27H25z" fill="#ffca45"/>')
+    elif kind=='shield':p.append('<path d="M22 2L39 8v13c0 11-8 18-17 22C13 39 5 32 5 21V8z" fill="#4e9ee0"/><path d="M14 22l6 6 11-13" stroke="#ffffff" stroke-width="4" fill="none"/>')
+    elif kind=='backup':p.append('<rect x="5" y="4" width="34" height="38" rx="4" fill="#5a9dcc"/><rect x="11" y="8" width="20" height="12" fill="#eaf4ff"/><rect x="11" y="27" width="22" height="11" fill="#d1e8fa"/>')
+    elif kind=='frost':p.append('<path d="M22 3v38 M6 12l32 20 M6 32l32-20" stroke="#a8dff7" stroke-width="4"/>')
+    elif kind=='robot':p.append('<circle cx="22" cy="23" r="18" fill="#9fb4b7"/><circle cx="22" cy="23" r="8" fill="#dce9ea"/>')
+    elif kind=='dish':p.append('<circle cx="22" cy="23" r="18" fill="#e9ecee"/><circle cx="22" cy="23" r="11" fill="none" stroke="#aab8bb" stroke-width="3"/>')
+    elif kind=='calendar':p.append('<rect x="5" y="5" width="34" height="36" rx="4" fill="#f5f5f5"/><path d="M5 15h34" stroke="#ee5555" stroke-width="7"/>')
+    elif kind=='message':p.append('<rect x="4" y="8" width="36" height="28" rx="4" fill="#e5eef2"/><path d="M6 11l16 13 16-13" stroke="#6b8797" stroke-width="3" fill="none"/>')
+    elif kind=='plug':p.append('<path d="M15 4v12 M29 4v12 M9 16h26v6c0 10-6 16-13 16S9 32 9 22z" fill="#aeb9bd" stroke="#aeb9bd" stroke-width="4"/>')
+    elif kind=='wheel':p.append('<circle cx="22" cy="23" r="18" fill="#e8b22f"/><circle cx="22" cy="23" r="8" fill="#a53f45"/>')
+    else:p.append('<path d="M22 3L42 40H2z" fill="#f5bd47"/><path d="M22 15v13 M22 34v2" stroke="#222" stroke-width="4"/>')
+    return ''.join(p)+'</g>',value
+
 def svg(profile,data,alerts=None,now=None):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')
     width,height=profile.get('width'),profile.get('height')
@@ -45,10 +65,14 @@ def svg(profile,data,alerts=None,now=None):
     occasion=next((p for p in active if p.get('slot')=='occasion'),None)
     if occasion:
         detail=str(occasion.get('detail') or '');countdown=re.fullmatch(r'(.+?) in (\d+) days',detail);tomorrow=re.fullmatch(r'(.+?) tomorrow!',detail)
-        if countdown:detail=countdown.group(2)+' days: '+('🎁 ' if 'birthday' in countdown.group(1).lower() else '')+countdown.group(1)
-        elif tomorrow:detail='Tomorrow: '+('🎁 ' if 'birthday' in tomorrow.group(1).lower() else '')+tomorrow.group(1)
-        elif 'birthday today' in detail.lower():detail='🎂 '+detail
-        parts.append(f'<text x="138" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(detail,38)}</text>')
+        birthday='birthday' in detail.lower();prefix=''
+        if countdown:prefix=countdown.group(2)+' days: ';detail=countdown.group(1)
+        elif tomorrow:prefix='Tomorrow: ';detail=tomorrow.group(1)
+        if birthday:
+            prefix_width=min(190,len(prefix)*17);parts.append(f'<text x="138" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(prefix)}</text>')
+            x=138+prefix_width;parts.append(f'<g transform="translate({x} 240)"><rect x="1" y="8" width="30" height="22" rx="2" fill="#ed343f"/><rect x="-2" y="4" width="36" height="8" rx="2" fill="#fa5156"/><path d="M16 4v26 M1 17h30" stroke="#ffc34a" stroke-width="4"/><path d="M16 4C5 -8 1 3 16 5 M16 4C27 -8 31 3 16 5" fill="none" stroke="#ffc34a" stroke-width="3"/></g>')
+            parts.append(f'<text x="{x+42}" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(detail,28)}</text>')
+        else:parts.append(f'<text x="138" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(prefix+detail,38)}</text>')
     sun=data.get('sun') or ('Sun unavailable' if data.get('sun_configured') else '')
     if sun:parts.append(f'<text x="116" y="319" fill="#aaa9ab" font-family="sans-serif" font-size="25">{clean(sun,24)}</text>')
     presence=next((p for p in active if p.get('label')=='Home'),None)
@@ -131,9 +155,11 @@ def svg(profile,data,alerts=None,now=None):
         for i,task in enumerate(tasks[page*per_page:page*per_page+per_page]):
             top=y+28+i*112;title=task.get('title','') if isinstance(task,dict) else str(task);detail=task.get('detail','') if isinstance(task,dict) else ''
             if isinstance(task,dict) and task.get('urgent') is True:parts.append(f'<rect x="837" y="{top-6}" width="955" height="95" rx="12" fill="#4a0c10"/><rect x="837" y="{top-6}" width="9" height="95" rx="4" fill="#ff4d4d"/>')
+            graphic,title=task_icon(title,875,top-4);text_x=930 if graphic else 875
+            if graphic:parts.append(graphic)
             lines=textwrap.wrap(str(title),width=45,max_lines=2,placeholder='…') or ['']
-            for line_no,line in enumerate(lines):parts.append(f'<text x="875" y="{top+32+line_no*38}" fill="#ffffff" font-family="sans-serif" font-size="33" font-weight="bold">{clean(line,45)}</text>')
-            if detail and len(lines)==1:parts.append(f'<text x="875" y="{top+64}" fill="#aaaaaa" font-family="sans-serif" font-size="21">{clean(detail,70)}</text>')
+            for line_no,line in enumerate(lines):parts.append(f'<text x="{text_x}" y="{top+32+line_no*38}" fill="#ffffff" font-family="sans-serif" font-size="33" font-weight="bold">{clean(line,45)}</text>')
+            if detail and len(lines)==1:parts.append(f'<text x="{text_x}" y="{top+64}" fill="#aaaaaa" font-family="sans-serif" font-size="21">{clean(detail,70)}</text>')
     parts.append(f'<text x="1815" y="1035" text-anchor="end" fill="#aaaaaa" font-family="sans-serif" font-size="20">Updated {today.strftime("%H:%M")}</text>')
     parts.append('</g></svg>')
     return ''.join(parts).encode('utf-8')
