@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.21.0] - 2026-11-18
+
+### Added
+- Bedtime nudges, per persona, all off by default. Options: `bedtime_nudge` (on/off), `bedtime_start` (22:00), `bedtime_end` (00:30), `bedtime_every_min` (30), `bedtime_firm_after` (23:00), `awake_entities` (list; any `on`/`home` means the person is still up, for example a PC tracker or a console), optional `bedtime_texts`. Inside the window, one slot every N minutes, and only when the person's presence switch is on and an awake entity is active, the add-on queues a `reminder_due` event (`source: bedtime`, `facts.tone` gentle, or firm after `bedtime_firm_after`) so each persona words it in its own voice. One per slot, never twice, capped by `max_per_day`, ignores the quiet window. Dry mode only logs. Why: replaces a single-person Home Assistant automation with something every persona can use.
+
 ## [0.20.0] - 2026-11-17
 
 ### Added
