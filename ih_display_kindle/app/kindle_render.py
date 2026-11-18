@@ -60,46 +60,31 @@ def svg(data,alerts=None,now=None):
         sky=str(facts.get('sky','Unavailable'));sky_label='UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER';sky_value=sky.removeprefix('UV ').removeprefix('Cloud ')
         for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',facts.get('next_rain','Unavailable')),(sky_label,sky_value))):
             label(425,269+i*74,key,19);text(425,300+i*74,value,28,True)
-        game=next((x for x in active if x.get('kind')=='game'),None)
-        if game:
-            box(640,238,384,216);art=game.get('art')
-            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="653" y="251" width="140" height="190" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
-            text(806,278,'NOW PLAYING',18,True)
-            for i,line in enumerate(textwrap.wrap(str(game.get('detail') or game.get('label') or 'Game'),width=14,max_lines=3,placeholder='…')):text(806,316+i*32,line,24,True)
-        else:
-            future=[x for x in daily if x.get('label')!='Today'][:2]
-            for i,day in enumerate(future):
-                y=238+i*118;box(640,y,384,98);name=day.get('label','')
-                if name=='Next day':name=(today+datetime.timedelta(days=2)).strftime('%A')
-                icon(day.get('condition'),935,y+10,70);text(662,y+43,name,30,True);rain=day.get('precipitation');forecast=str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°'
-                if isinstance(rain,(int,float)) and not isinstance(rain,bool):forecast+=(' '+str(round(rain,1))+' mm rain') if rain>=0.1 else ' dry'
-                text(662,y+79,forecast,23)
-        media=next((x for x in active if x.get('kind')=='media'),None)
+        future=[x for x in daily if x.get('label')!='Today'][:2]
+        for i,day in enumerate(future):
+            y=238+i*118;box(640,y,384,98);name=day.get('label','')
+            if name=='Next day':name=(today+datetime.timedelta(days=2)).strftime('%A')
+            icon(day.get('condition'),935,y+10,70);text(662,y+43,name,30,True);rain=day.get('precipitation');forecast=str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°'
+            if isinstance(rain,(int,float)) and not isinstance(rain,bool):forecast+=(' '+str(round(rain,1))+' mm rain') if rain>=0.1 else ' dry'
+            text(662,y+79,forecast,23)
         box(48,478,976,190)
-        if media:
-            art=media.get('art')
-            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
-            media_parts=str(media.get('detail') or '').split(' · ',1);song=media_parts[0] or str(media.get('label') or 'Playing');artist=media_parts[1] if len(media_parts)>1 else ''
-            text(245,524,'NOW PLAYING',20,True);text(245,574,song[:42],30,True);text(245,620,artist[:55],23)
-        else:
-            for i,h in enumerate(hours[:6]):
-                x=130+i*163;text(x,520,h.get('time',''),25,True,'middle');icon(h.get('condition'),x-30,532,60);text(x,630,str(h.get('temperature','–'))+'°',36,True,'middle')
-                rain=h.get('precipitation')
-                if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,str(round(rain,1))+' mm',17,anchor='middle')
-                if i:p.append(f'<path d="M{x-80} 496v152" stroke="#aaa" stroke-width="2"/>')
-    else:
-        text(48,330,'Weather unavailable' if data.get('weather_configured') else 'Weather not configured',30)
-        game=next((x for x in active if x.get('kind')=='game'),None)
-        if game:
-            box(640,238,384,216);art=game.get('art')
-            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="653" y="251" width="140" height="190" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
-            text(806,278,'NOW PLAYING',18,True)
-            for i,line in enumerate(textwrap.wrap(str(game.get('detail') or game.get('label') or 'Game'),width=14,max_lines=3,placeholder='…')):text(806,316+i*32,line,24,True)
-        media=next((x for x in active if x.get('kind')=='media'),None)
-        if media:
-            box(48,478,976,190);art=media.get('art')
-            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
-            parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,(parts[0] or str(media.get('label') or 'Playing'))[:42],30,True);text(245,620,(parts[1] if len(parts)>1 else '')[:55],23)
+        for i,h in enumerate(hours[:6]):
+            x=130+i*163;text(x,520,h.get('time',''),25,True,'middle');icon(h.get('condition'),x-30,532,60);text(x,630,str(h.get('temperature','–'))+'°',36,True,'middle')
+            rain=h.get('precipitation')
+            if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,str(round(rain,1))+' mm',17,anchor='middle')
+            if i:p.append(f'<path d="M{x-80} 496v152" stroke="#aaa" stroke-width="2"/>')
+    else:text(48,330,'Weather unavailable' if data.get('weather_configured') else 'Weather not configured',30)
+    game=next((x for x in active if x.get('kind')=='game'),None)
+    if game:
+        box(640,238,384,216);art=game.get('art')
+        if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="653" y="251" width="140" height="190" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
+        text(806,278,'NOW PLAYING',18,True)
+        for i,line in enumerate(textwrap.wrap(str(game.get('detail') or game.get('label') or 'Game'),width=14,max_lines=3,placeholder='…')):text(806,316+i*32,line,24,True)
+    media=next((x for x in active if x.get('kind')=='media'),None)
+    if media:
+        box(48,478,976,190);art=media.get('art')
+        if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
+        parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,(parts[0] or str(media.get('label') or 'Playing'))[:42],30,True);text(245,620,(parts[1] if len(parts)>1 else '')[:55],23)
     label(48,707,'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):

@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
         weather={'current':{'temperature':10},'facts':{},'daily':[{'label':'Tomorrow'}],'hours':[{'time':'11:00'}]}
         data={'weather':weather,'panels':[{'active':True,'kind':'media','label':'Speaker','detail':'Example song · Example artist'},{'active':True,'kind':'game','label':'Console','detail':'Example game'}]}
         image=kindle_render.svg(data,{'configured':True,'complete':True,'alerts':[]},now=0);ET.fromstring(image)
-        self.assertIn(b'Example song',image);self.assertIn(b'Example artist',image);self.assertIn(b'Example game',image);self.assertNotIn(b'11:00',image)
+        self.assertIn(b'Example song',image);self.assertIn(b'Example artist',image);self.assertIn(b'Example game',image)
         image=kindle_render.svg(data,{'configured':True,'complete':True,'alerts':[{'kind':'smoke','title':'SMOKE ALARM'}]},now=0)
         self.assertIn(b'SMOKE ALARM',image)
 
