@@ -1,5 +1,6 @@
 """Administrator-only wall image preview and an independent health endpoint."""
 import json
+import hmac
 import os
 import threading
 from http.server import BaseHTTPRequestHandler,HTTPServer,ThreadingHTTPServer
@@ -13,7 +14,7 @@ ROOT=Path(__file__).parent/'ui'
 PEER='172.30.32.2'
 ASSETS={'/':('index.html','text/html'),'/ih-ui.css':('ih-ui.css','text/css'),'/ih-ui.js':('ih-ui.js','text/javascript'),'/ui.css':('ui.css','text/css'),'/ui.js':('ui.js','text/javascript')}
 
-def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False):
+def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False,image_token=''):
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()
@@ -22,6 +23,11 @@ def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,ale
             path=urlparse(self.path).path
             if not ingress:
                 if path=='/healthz' and method=='GET':return self.reply(200,{'ok':True})
+                if path=='/v1/frame' and method=='GET':
+                    if not image_token or not hmac.compare_digest(self.headers.get('Authorization',''),'Bearer '+image_token):return self.reply(401,{'error':'Unauthorised.'})
+                    status=store.refresh();data,kind=store.frame()
+                    if data is None:return self.reply(503,{'error':'Image unavailable.'})
+                    self.send_response(200);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store');self.send_header('X-IH-Frame-Stale','true' if status.get('stale') else 'false');self.end_headers();self.wfile.write(data);return
                 return self.reply(404,{'error':'Not found.'})
             if self.client_address[0]!=peer:return self.reply(403,{'error':'Forbidden.'})
             if method=='GET' and path in ASSETS:
@@ -57,6 +63,6 @@ def main():
     def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''),profile.message_tasks if opts.get('render_shared_messages') is True else None,opts.get('weather_forecast_entity',''),opts.get('weather_forecast_fallback_entity',''))
     ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
-    HTTPServer(('0.0.0.0',8806),make_handler(store)).serve_forever()
+    ThreadingHTTPServer(('0.0.0.0',8806),make_handler(store,image_token=opts.get('image_api_token',''))).serve_forever()
 
 if __name__=='__main__':main()

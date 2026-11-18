@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Add an optional authenticated compatibility image endpoint and more weather details.
+
 ## 0.10.0
 
 - Add current forecast conditions and daily high/low predictions to the weather preview.

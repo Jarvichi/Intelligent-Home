@@ -52,6 +52,18 @@ class Tests(unittest.TestCase):
         value['attributes']['daily']=[{'datetime':date(0),'temperature':float('nan'),'templow':0,'condition':'rainy'}]
         weather=Forecast().forecast('sensor.primary','',now);self.assertEqual(weather['daily'],[])
         self.assertIn(b'Daily forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':weather}))
+    def test_weather_details_and_rain_are_computed_from_forecast(self):
+        now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
+        def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
+        value={'state':'ok','last_updated':date(0),'attributes':{'hourly':[{'datetime':date(0),'temperature':8,'condition':'cloudy','wind_speed':15.5,'wind_bearing':180,'uv_index':0.2,'cloud_coverage':80},{'datetime':date(3600),'temperature':9,'condition':'rainy'}]}}
+        class Forecast(render.HA):
+            def __init__(self):pass
+            def request(self,path,body=None):return value
+        result=Forecast().forecast('sensor.primary','',now);facts=result['facts']
+        self.assertEqual(facts['wind'],'16 km/h');self.assertEqual(facts['bearing'],180);self.assertEqual(facts['sky'],'Cloud 80%');self.assertNotEqual(facts['next_rain'],'None in hourly forecast')
+        picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':result});self.assertIn(b'Wind 16 km/h',picture);self.assertIn(b'Cloud 80%',picture)
+        value['attributes']['hourly'][0]['uv_index']=3.2;value['attributes']['hourly'][0]['precipitation']=0.2
+        facts=Forecast().forecast('sensor.primary','',now)['facts'];self.assertEqual(facts['next_rain'],'Due now');self.assertEqual(facts['sky'],'UV 3')
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')

@@ -20,6 +20,19 @@ class Opener:
         if isinstance(self.value,Exception):raise self.value
         return Response(self.value)
 class TestFrames(unittest.TestCase):
+    def test_private_image_feed_auth_and_stale_frame(self):
+        opener=Opener();store=frames.Frames('http://display.example/image',opener)
+        server=HTTPServer(('127.0.0.1',0),main.make_handler(store,image_token='test-token'))
+        threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        def request(auth=None):
+            c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);self.addCleanup(c.close)
+            c.request('GET','/v1/frame',headers={'Authorization':auth} if auth else {});r=c.getresponse();return r.status,r.getheader('X-IH-Frame-Stale'),r.read()
+        self.assertEqual(request()[0],401);self.assertEqual(opener.calls,0)
+        self.assertEqual(request('Bearer incorrect')[0],401);self.assertEqual(opener.calls,0)
+        opener.value=OSError();self.assertEqual(request('Bearer test-token')[0],503)
+        opener.value=PNG
+        self.assertEqual(request('Bearer test-token'),(200,'false',PNG))
+        opener.value=OSError();self.assertEqual(request('Bearer test-token'),(200,'true',PNG))
     def test_frame_retained_and_marked_stale(self):
         opener=Opener();store=frames.Frames('http://display.example/image',opener,clock=lambda:123)
         self.assertEqual(store.refresh()['state'],'ready');self.assertEqual(store.frame(),(PNG,'image/png'))
