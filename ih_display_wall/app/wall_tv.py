@@ -43,7 +43,12 @@ def svg(profile,data,alerts=None,now=None):
     parts.append(f'<text x="116" y="201" fill="#aaa9ab" font-family="sans-serif" font-size="32">{clean(str(today.day)+" "+today.strftime("%B"),22)}</text>')
     panels=data.get('panels') or [];active=[p for p in panels if isinstance(p,dict) and p.get('active')]
     occasion=next((p for p in active if p.get('slot')=='occasion'),None)
-    if occasion:parts.append(f'<text x="138" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(occasion.get("detail"),38)}</text>')
+    if occasion:
+        detail=str(occasion.get('detail') or '');countdown=re.fullmatch(r'(.+?) in (\d+) days',detail);tomorrow=re.fullmatch(r'(.+?) tomorrow!',detail)
+        if countdown:detail=countdown.group(2)+' days: '+('🎁 ' if 'birthday' in countdown.group(1).lower() else '')+countdown.group(1)
+        elif tomorrow:detail='Tomorrow: '+('🎁 ' if 'birthday' in tomorrow.group(1).lower() else '')+tomorrow.group(1)
+        elif 'birthday today' in detail.lower():detail='🎂 '+detail
+        parts.append(f'<text x="138" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(detail,38)}</text>')
     sun=data.get('sun') or ('Sun unavailable' if data.get('sun_configured') else '')
     if sun:parts.append(f'<text x="116" y="319" fill="#aaa9ab" font-family="sans-serif" font-size="25">{clean(sun,24)}</text>')
     presence=next((p for p in active if p.get('label')=='Home'),None)
@@ -92,7 +97,7 @@ def svg(profile,data,alerts=None,now=None):
             x=130+i*315;label=day.get('label','')
             if label=='Next day':label=(today+datetime.timedelta(days=2)).strftime('%A')
             parts.append(f'<text x="{x}" y="840" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="bold">{clean(label,15)}</text>')
-            parts.append(icon(day.get('condition'),x+145,810,42))
+            parts.append(icon(day.get('condition'),x+180,810,42))
             rain=day.get('precipitation');detail=number(day.get('low'))+'° – '+number(day.get('high'))+'°'
             if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>=0.1:detail+='  '+str(round(rain,1))+' mm rain'
             parts.append(f'<text x="{x}" y="872" fill="#aaa9ab" font-family="sans-serif" font-size="20">{clean(detail,28)}</text>')
