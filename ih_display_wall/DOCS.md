@@ -31,3 +31,19 @@ Optionally set `weather_forecast_entity` and `weather_forecast_fallback_entity` 
 The first hourly entry is labelled “Now” only while it covers the current time; otherwise it is labelled “Next”. Daily high and low values are shown when present. Missing daily data is labelled unavailable without hiding valid hourly data.
 
 The optional `image_api_token` enables the bearer-protected `GET /v1/frame` on the private service port. Each request refreshes the configured existing image source. If refresh fails after a successful fetch, the last frame is returned with `X-IH-Frame-Stale: true`; without a frame the service returns 503. This is a compatibility feed of the existing image, not the new renderer or a cutover. It is disabled by default. Do not publish the port or credential without reviewing client access.
+
+The same token enables `GET /v1/render.png`, a PNG of the app-owned preview. It uses the shared profile and configured selected sources; it is not yet full legacy parity. Failure to render returns 503. Keep this private endpoint disabled until a compatible authorised client is available.
+
+For clients that cannot send an Authorization header, `image_url_access` optionally enables `/v1/render/<image_api_token>.png` for URL-safe tokens of at least 32 characters. URL credentials can be copied from client configuration, histories or intermediaries; only enable this after reviewing access on the display and its network. Query strings may be used for cache busting and do not affect authorisation. The setting defaults to false and does not change the existing TV feed.
+
+Optional `render_media_entities` and `render_overlay_entities` read media player and binary sensor states. Active media includes a title and artist when supplied; active binary sources are labelled. Unavailable configured sources are indicated. These are read-only selected sources, not a replacement for all legacy media or intrusion rules.
+
+Optional `render_cooking_entity` reads a cooking plan sensor and displays the active title, eating time and available oven/target information. This preview never starts or changes a cooking session.
+
+The optional `render_intrusion_alert`, `render_intrusion_log` and `render_intrusion_presence` sources preview the existing motion-while-away log when its alert is on and a configured household presence switch is on. All sources are read only; missing or unavailable inputs are marked unavailable. No notifications or alarm actions are sent.
+
+The optional `render_heat_boiler`, `render_heat_thermostat` and `render_heat_floors` sources show boiler and floor heating, with thermostat temperatures where available. Configure the full set together; unavailable configured inputs are marked unavailable.
+
+Optional `render_doors` entries pair a label with a lock and contact sensor; unavailable inputs are never presented as locked. Optional `render_energy` sources show current and next rates, daily costs and upcoming or active saving sessions, using configured existing sensors and events. Unavailable configured inputs are indicated.
+
+Optional `render_alarm` and `render_presence` read an alarm panel and household presence switches. Unavailable inputs are indicated rather than treated as disarmed or away.

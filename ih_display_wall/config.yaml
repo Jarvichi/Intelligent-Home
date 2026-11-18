@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.11.0"
+version: "0.12.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -23,10 +23,33 @@ watchdog: "http://[HOST]:[PORT:8806]/healthz"
 options:
   source_url: ""
   image_api_token: ""
+  image_url_access: false
   displays_url: ""
   displays_token: ""
   profile_id: ""
   render_entities: []
+  render_media_entities: []
+  render_overlay_entities: []
+  render_cooking_entity: ""
+  render_intrusion_alert: ""
+  render_intrusion_log: ""
+  render_intrusion_presence: []
+  render_heat_boiler: ""
+  render_heat_thermostat: ""
+  render_heat_floors: []
+  render_doors: []
+  render_alarm: ""
+  render_presence: []
+  render_lights: []
+  render_energy:
+    current: ""
+    next: ""
+    electricity: ""
+    gas: ""
+    calendar: ""
+    sessions: ""
+    rates_today: ""
+    rates_tomorrow: ""
   render_todo_entity: ""
   render_task_feed_entity: ""
   render_shared_messages: false
@@ -36,11 +59,45 @@ options:
 schema:
   source_url: str?
   image_api_token: password?
+  image_url_access: bool
   displays_url: str?
   displays_token: password?
   profile_id: str?
   render_entities:
     - str
+  render_media_entities:
+    - str
+  render_overlay_entities:
+    - str
+  render_cooking_entity: str?
+  render_intrusion_alert: str?
+  render_intrusion_log: str?
+  render_intrusion_presence:
+    - str
+  render_heat_boiler: str?
+  render_heat_thermostat: str?
+  render_heat_floors:
+    - str
+  render_doors:
+    - name: str
+      lock: str
+      contact: str
+  render_alarm: str?
+  render_presence:
+    - str
+  render_lights:
+    - name: str
+      entities:
+        - str
+  render_energy:
+    current: str?
+    next: str?
+    electricity: str?
+    gas: str?
+    calendar: str?
+    sessions: str?
+    rates_today: str?
+    rates_tomorrow: str?
   render_todo_entity: str?
   render_task_feed_entity: str?
   render_shared_messages: bool

@@ -20,6 +20,38 @@ class Opener:
         if isinstance(self.value,Exception):raise self.value
         return Response(self.value)
 class TestFrames(unittest.TestCase):
+    def test_optional_url_capability_and_cache_busting(self):
+        class Profile:
+            def read(self):return {'state':'ready','width':1920,'height':1080}
+        token='a'*32
+        server=HTTPServer(('127.0.0.1',0),main.make_handler(frames.Frames(''),profile=Profile(),render_data=lambda:{},image_token=token,png_encoder=lambda _:PNG,allow_url_token=True))
+        threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        def request(path):
+            c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);self.addCleanup(c.close);c.request('GET',path);r=c.getresponse();return r.status,r.read()
+        self.assertEqual(request('/v1/render/'+token+'.png?refresh=1'),(200,PNG))
+        self.assertEqual(request('/v1/render/'+'b'*32+'.png')[0],401)
+        self.assertEqual(request('/v1/render.png?token='+token)[0],401)
+    def test_source_diagnostics_is_private_and_reports_partial(self):
+        class Profile:
+            def alerts(self):return {'configured':True,'complete':False,'alerts':[]}
+        data=lambda:{'weather_configured':True,'weather':None,'tasks_configured':True,'tasks':[],'tasks_partial':True,'panels':[{'available':True},{'available':False}]}
+        server=HTTPServer(('127.0.0.1',0),main.make_handler(frames.Frames(''),True,'127.0.0.1',Profile(),data,True))
+        threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);self.addCleanup(conn.close);conn.request('GET','/api/diagnostics');response=conn.getresponse();result=__import__('json').loads(response.read())
+        self.assertEqual(response.status,200);self.assertEqual(result['weather'],'unavailable');self.assertEqual(result['tasks'],'partial');self.assertEqual(result['alerts'],'partial');self.assertEqual(result['unavailable_panels'],1)
+    def test_rendered_image_requires_auth_and_a_valid_profile(self):
+        store=frames.Frames('',Opener())
+        class Profile:
+            def read(self):return {'state':'ready','width':1920,'height':1080}
+        calls=[]
+        def encode(data):calls.append(data);return PNG
+        server=HTTPServer(('127.0.0.1',0),main.make_handler(store,profile=Profile(),render_data=lambda:{},image_token='test-token',png_encoder=encode))
+        threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        def request(auth=None):
+            conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);self.addCleanup(conn.close)
+            conn.request('GET','/v1/render.png',headers={'Authorization':auth} if auth else {});response=conn.getresponse();return response.status,response.getheader('Content-Type'),response.read()
+        self.assertEqual(request()[0],401);self.assertEqual(calls,[])
+        status,kind,data=request('Bearer test-token');self.assertEqual((status,kind,data),(200,'image/png',PNG));self.assertIn(b'<svg',calls[0])
     def test_private_image_feed_auth_and_stale_frame(self):
         opener=Opener();store=frames.Frames('http://display.example/image',opener)
         server=HTTPServer(('127.0.0.1',0),main.make_handler(store,image_token='test-token'))

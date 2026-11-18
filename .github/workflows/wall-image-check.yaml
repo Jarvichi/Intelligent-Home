@@ -1,0 +1,15 @@
+name: wall-image-check
+on:
+  pull_request:
+    paths:
+      - 'ih_display_wall/**'
+      - '.github/workflows/wall-image-check.yaml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify the image converter
+        run: docker build --tag wall-display-check ih_display_wall
