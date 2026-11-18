@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Email",
+  "purpose": "Lets the AI Layer assistant read the house mailbox and reply or send, only after you say yes."
+ }
+}

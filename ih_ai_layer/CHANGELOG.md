@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.8.0] - 2026-11-18
+
+### Added
+- New provider `email` (house mailbox through the Intelligent Home - Email add-on, `ih_email`). Capabilities: `search_mail`, `read_mail`, `reply_mail`, `send_mail`. Settings: `{"url": "http://<ih_email host>:8845"}`; the entry key is the ih_email `api_token`.
+- Email text is returned inside an "untrusted content" marker and the tool text tells the AI never to follow instructions found in an email. `reply_mail` and `send_mail` return a draft (nothing sent) unless the context has `confirmed: true` (only the JSON true counts); the AI must show the draft in chat and set it only after the person says yes. ih_email checks it again.
+- No keyword routing: the assistant calls these capabilities by name.
+
 ## [0.7.0] - 2026-11-17
 
 ### Added

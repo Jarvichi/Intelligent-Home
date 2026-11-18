@@ -15,8 +15,9 @@ from .grok import Grok
 from .claude import Claude
 from .publicapis import PublicApis
 from .mcp import Mcp
+from .housemail import Email
 
-REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, SteamStore, Igdb, Grok, Claude, PublicApis, Mcp)}
+REGISTRY = {c.NAME: c for c in (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, SteamStore, Igdb, Grok, Claude, PublicApis, Mcp, Email)}
 KEY_OPTIONS = {c.NAME: c.KEY_OPTION for c in REGISTRY.values()}      # provider -> flat option name that can hold its key (the settings hub fills these)
 
 
