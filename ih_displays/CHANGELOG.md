@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Include display grouping on shared tasks so clients can retain pinned messages and collections.
+
 ## 0.10.0
 
 - Add an optional read-only urgent alert feed for configured safety, robot and energy sources.

@@ -11,6 +11,7 @@ import render
 import kindle_render
 import source_settings
 import profile_client
+import device_state
 
 ROOT=Path(__file__).parent/'ui'
 PEER='172.30.32.2'
@@ -68,7 +69,9 @@ def main():
     shared=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),'')
     def snapshot():
         cfg=sources.read()
-        return ha.snapshot(cfg.get('render_entities',[]),'','',shared.message_tasks if opts.get('render_shared_messages') is True else None,cfg.get('weather_forecast_entity',''),cfg.get('weather_forecast_fallback_entity',''),cfg.get('render_media_entities',[]),cfg.get('render_overlay_entities',[]),cfg.get('render_cooking_entity',''),{'alert':cfg.get('render_intrusion_alert',''),'log':cfg.get('render_intrusion_log',''),'presence':cfg.get('render_intrusion_presence',[])},{'boiler':cfg.get('render_heat_boiler',''),'thermostat':cfg.get('render_heat_thermostat',''),'floors':cfg.get('render_heat_floors',[])},cfg.get('render_doors',[]),cfg.get('render_energy',{}),cfg.get('render_alarm',''),cfg.get('render_presence',[]),cfg.get('render_lights',[]),cfg.get('render_game_entities',[]),cfg.get('weather_current_entity',''),None,cfg.get('render_rooms',[]),cfg.get('render_sun_entity',''),'light',{'birthdays':cfg.get('render_birthdays_entity',''),'halloween':cfg.get('render_halloween_entity',''),'fixed':cfg.get('render_birthdays_fixed',[])})
+        result=ha.snapshot(cfg.get('render_entities',[]),'','',shared.message_tasks if opts.get('render_shared_messages') is True else None,cfg.get('weather_forecast_entity',''),cfg.get('weather_forecast_fallback_entity',''),cfg.get('render_media_entities',[]),cfg.get('render_overlay_entities',[]),cfg.get('render_cooking_entity',''),{'alert':cfg.get('render_intrusion_alert',''),'log':cfg.get('render_intrusion_log',''),'presence':cfg.get('render_intrusion_presence',[])},{'boiler':cfg.get('render_heat_boiler',''),'thermostat':cfg.get('render_heat_thermostat',''),'floors':cfg.get('render_heat_floors',[])},cfg.get('render_doors',[]),cfg.get('render_energy',{}),cfg.get('render_alarm',''),cfg.get('render_presence',[]),cfg.get('render_lights',[]),cfg.get('render_game_entities',[]),cfg.get('weather_current_entity',''),None,cfg.get('render_rooms',[]),cfg.get('render_sun_entity',''),'light',{'birthdays':cfg.get('render_birthdays_entity',''),'halloween':cfg.get('render_halloween_entity',''),'fixed':cfg.get('render_birthdays_fixed',[])})
+        result['device']=device_state.read(ha,cfg.get('kindle_battery_entity',''),cfg.get('kindle_last_seen_entity',''),cfg.get('kindle_page_entity',''))
+        return result
     alert_reader=shared.alerts if opts.get('render_shared_alerts') is True else None
     ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()

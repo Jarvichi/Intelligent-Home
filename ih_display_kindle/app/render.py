@@ -174,11 +174,11 @@ class HA:
             return {'available':True,'active':True,'urgent':state=='triggered','label':'Alarm','detail':label}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def room_panel(self,room):
-        if not isinstance(room,dict) or not isinstance(room.get('name'),str) or not room['name'].strip():return {'available':False}
+        if not isinstance(room,dict) or not isinstance(room.get('name'),str) or not room['name'].strip():return {'kind':'room','available':False}
         entity=room.get('entity')
-        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith(('sensor.','climate.')):return {'available':False}
+        if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith(('sensor.','climate.')):return {'kind':'room','available':False}
         value=self.optional_state(entity)
-        if not isinstance(value,dict) or value.get('state') in ('unknown','unavailable',None):return {'available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
+        if not isinstance(value,dict) or value.get('state') in ('unknown','unavailable',None):return {'kind':'room','available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
         attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
         raw=attrs.get('current_temperature') if entity.startswith('climate.') else value.get('state')
         try:
@@ -186,8 +186,8 @@ class HA:
             temperature=float(raw)
             if not math.isfinite(temperature) or abs(temperature)>200:raise ValueError()
             rounded=decimal.Decimal.from_float(temperature).quantize(decimal.Decimal('0.1'),rounding=decimal.ROUND_HALF_UP)
-            return {'available':True,'active':True,'label':room['name'],'detail':f'{rounded}°'}
-        except (TypeError,ValueError):return {'available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
+            return {'kind':'room','available':True,'active':True,'label':room['name'],'detail':f'{rounded}°'}
+        except (TypeError,ValueError):return {'kind':'room','available':False,'active':True,'label':room['name'],'detail':'Unavailable'}
     def sun(self,entity):
         if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith('sun.'):return None
         try:

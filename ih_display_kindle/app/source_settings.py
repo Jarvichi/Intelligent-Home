@@ -8,7 +8,8 @@ import threading
 from pathlib import Path
 
 ENTITY=re.compile(r'^[a-z][a-z0-9_]*\.[a-z0-9_]+$')
-SCALARS={'render_alarm':'alarm_control_panel.','render_cooking_entity':'sensor.',
+SCALARS={'kindle_battery_entity':'sensor.','kindle_last_seen_entity':'sensor.','kindle_page_entity':'input_text.',
+         'render_alarm':'alarm_control_panel.','render_cooking_entity':'sensor.',
          'render_intrusion_alert':'input_boolean.','render_intrusion_log':'input_text.',
          'render_heat_boiler':'binary_sensor.','render_heat_thermostat':'climate.',
          'weather_forecast_entity':'sensor.','weather_forecast_fallback_entity':'sensor.',

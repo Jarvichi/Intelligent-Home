@@ -60,9 +60,11 @@ class Dishwasher:
         return {'configured':True,'complete':complete,'items':[{'title':title,'detail':detail,'priority':'normal'}]}
 
 class Combined:
-    def __init__(self,*sources):self.sources=sources
+    def __init__(self,*sources,groups=None):
+        self.sources=sources;self.groups=groups if isinstance(groups,(tuple,list)) and len(groups)==len(sources) else [None]*len(sources)
     def read(self):
         with ThreadPoolExecutor(max_workers=max(1,len(self.sources))) as pool:
             feeds=list(pool.map(lambda source:source.read(),self.sources))
-        active=[f for f in feeds if f['configured']]
-        return {'configured':bool(active),'complete':all(f['complete'] for f in active),'items':[item for feed in active for item in feed['items']]}
+        active=[(f,g) for f,g in zip(feeds,self.groups) if f['configured']]
+        items=[dict(item,display_group=group) if group else item for feed,group in active for item in feed['items']]
+        return {'configured':bool(active),'complete':all(f['complete'] for f,_ in active),'items':items}
