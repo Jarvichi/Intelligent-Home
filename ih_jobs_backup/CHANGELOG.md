@@ -3,6 +3,17 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- The add-on has its own SQLite database `/data/ih.db` (shared `ihlib/db.py`, schema version 1). Each storage run now also stores one history row (table `backup_samples`: local and Drive used space, backups size and count) and a last-run marker. Rows older than 400 days are deleted.
+- A nightly snapshot (from 04:00 local time, newest 3 kept) goes to `/data/backup`, followed by a restore check that logs counts only. `/data/trash` is purged after 30 days.
+- `/status` has a new `db` block (schema version, rows, last snapshot, restore check, trash size, import errors) and `db_degraded`.
+
+### Safety
+- A database problem can never stop a backup-storage run. The job publishes its sensors first and records its row afterwards, never waits more than 8 seconds for the database and ignores any failure. If the database is damaged, newer than this add-on or cannot be opened, the add-on runs in degraded mode: rows go to a size-limited plain file in `/data/degraded/` and are imported after a restore. The database is never recreated by itself.
+- The add-on had no state files before this version, so nothing was migrated. Options, the kill-switch file, the log and the Home Assistant backups themselves stay where they were.
+
 ## [0.1.13] - 2026-11-11
 
 ### Changed
