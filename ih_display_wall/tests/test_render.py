@@ -33,7 +33,7 @@ class Tests(unittest.TestCase):
             def __init__(self,values):self.values=values
             def request(self,path,body=None):return self.values[path.split('/')[-1]]
         values={'alarm_control_panel.home':{'state':'triggered'},'switch.person':{'state':'on','attributes':{'friendly_name':'Someone'}}};ha=House(values)
-        self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel(['switch.person'])['detail'],'Someone')
+        self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel(['switch.person'])['detail'],'Someone');self.assertTrue(ha.presence_panel(['switch.person'])['pinned'])
         values['switch.person']['state']='unavailable';self.assertFalse(ha.presence_panel(['switch.person'])['available'])
     def test_energy_price_cost_and_saving_session(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()

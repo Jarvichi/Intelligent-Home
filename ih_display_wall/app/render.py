@@ -142,7 +142,7 @@ class HA:
                 if value['state']=='on':
                     attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
                     people.append(str(attrs.get('friendly_name') or entity))
-            return {'available':True,'active':True,'label':'Home','detail':', '.join(people) if people else 'Nobody home'}
+            return {'available':True,'active':True,'pinned':True,'label':'Home','detail':', '.join(people) if people else 'Nobody home'}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def lights_panel(self,groups):
         if not isinstance(groups,list) or not groups or len(groups)>8:return {'available':False}
@@ -330,7 +330,7 @@ def svg(profile,data,alerts=None,now=None):
            '<text x="70" y="148" fill="#b6c6bd" font-family="sans-serif" font-size="24">Wall display preview</text>']
     panels=data.get('panels') or []
     active=sorted((p for p in panels if p.get('active')),key=lambda p:not p.get('urgent'))
-    items=list(data.get('items') or [])+[{'label':p.get('label',''),'value':p.get('detail') or 'Active'} for p in active if not p.get('urgent')]
+    items=list(data.get('items') or [])+[{'label':p.get('label',''),'value':p.get('detail') or 'Active'} for p in active if not p.get('urgent') and not p.get('pinned')]
     item_pages=max(1,(len(items)+5)//6);item_page=int((time.time() if now is None else now)//60)%item_pages
     for i,item in enumerate(items[item_page*6:item_page*6+6]):
         x=70+(i%2)*405;y=190+(i//2)*185
@@ -345,8 +345,10 @@ def svg(profile,data,alerts=None,now=None):
         titles=[p.get('label','')+(': '+p['detail'] if p.get('detail') else '') for p in urgent]
         if any(not p.get('available') for p in panels):titles.append('Some sources unavailable')
         pages=max(1,(len(titles)+1)//2);page=int((time.time() if now is None else now)//300)%pages
-        for i,title in enumerate(titles[page*2:page*2+2]):parts.append(f'<text x="390" y="{105+i*25}" fill="#ffd88c" font-family="sans-serif" font-size="19">{clean(title,85)}</text>')
-        if pages>1:parts.append(f'<text x="1425" y="105" fill="#ffd88c" font-family="sans-serif" font-size="17">{page+1}/{pages}</text>')
+        for i,title in enumerate(titles[page*2:page*2+2]):parts.append(f'<text x="390" y="{105+i*25}" fill="#ffd88c" font-family="sans-serif" font-size="19">{clean(title,55)}</text>')
+        if pages>1:parts.append(f'<text x="1020" y="105" fill="#ffd88c" font-family="sans-serif" font-size="17">{page+1}/{pages}</text>')
+    for panel in active:
+        if panel.get('pinned'):parts.append(f'<text x="1100" y="105" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(panel.get("detail"),28)}</text>')
     parts.append('<rect x="900" y="190" width="575" height="525" rx="20" fill="#26352f"/>')
     parts.append('<text x="930" y="245" fill="#f7faf7" font-family="sans-serif" font-size="30" font-weight="bold">Selected tasks</text>')
     tasks=data.get('tasks')
