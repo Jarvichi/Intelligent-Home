@@ -12,6 +12,7 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?, priority?}
   POST /tasks/<n>/ask {questions, after}   POST /tasks/<n>/answer {answers, note?}   POST /tasks/<n>/withdraw {reason}
   POST /tasks/<n>/link {kind, url?, text?}   POST /tasks/<n>/legacy {legacy}   POST /import {item} (owner token)
+  POST /tasks/<n>/relate {kind: blocked_by|depends_on|relates_to, task: m}   POST /tasks/<n>/unrelate {kind, task}   (GET /tasks/<n> shows relations + blocked)
   POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
 The ingress page (IHT_UI_PORT, Home Assistant sign-in, admin only) uses the same routes under /api/ and always acts as the owner.
 Unknown fields are refused. Task text is never logged. stdlib only."""
@@ -33,7 +34,7 @@ import mirror as MIRROR
 import model as M
 from store import TaskStore
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -55,6 +56,8 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'withdraw': ({'reason'}, {'reason'}),
     'link': ({'kind', 'url', 'text'}, {'kind'}),
     'legacy': ({'legacy'}, {'legacy'}),
+    'relate': ({'kind', 'task'}, {'kind', 'task'}),
+    'unrelate': ({'kind', 'task'}, {'kind', 'task'}),
 }
 CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate', 'priority'}, {'title'})
 TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z]+))?')
@@ -185,6 +188,10 @@ def dispatch(store, status, method, path, query, body, role):
         return store.withdraw_question(tid, actor, b('reason'))
     if action == 'link':
         return store.add_link(tid, actor, b('kind'), b('url', ''), b('text', ''))
+    if action == 'relate':
+        return store.relate(tid, actor, b('kind'), b('task'))
+    if action == 'unrelate':
+        return store.unrelate(tid, actor, b('kind'), b('task'))
     return store.add_legacy(tid, actor, b('legacy'))
 
 
