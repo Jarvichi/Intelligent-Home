@@ -1,0 +1,25 @@
+name: "Intelligent Home - Kindle Display"
+version: "0.1.0"
+slug: ih_display_kindle
+image: "ghcr.io/jarvichi/{arch}-ih_display_kindle"
+description: "Preview an existing Kindle display picture."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+ingress: true
+ingress_port: 8840
+panel_title: "IH · Kindle Display"
+panel_icon: mdi:tablet-dashboard
+panel_admin: true
+ports:
+  8841/tcp: null
+ports_description:
+  8841/tcp: "Health endpoint, not published"
+watchdog: "http://[HOST]:[PORT:8841]/healthz"
+options:
+  source_url: ""
+schema:
+  source_url: str?

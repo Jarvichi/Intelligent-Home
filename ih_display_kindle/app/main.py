@@ -1,0 +1,47 @@
+"""Read-only administrator preview of the existing Kindle picture."""
+import json
+import os
+import threading
+from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlparse
+import frames
+
+ROOT=Path(__file__).parent/'ui'
+PEER='172.30.32.2'
+ASSETS={'/':('index.html','text/html'),'/ih-ui.css':('ih-ui.css','text/css'),'/ih-ui.js':('ih-ui.js','text/javascript'),'/ui.css':('ui.css','text/css'),'/ui.js':('ui.js','text/javascript')}
+
+def make_handler(store,ingress=False,peer=PEER):
+    class Handler(BaseHTTPRequestHandler):
+        def reply(self,code,body,kind='application/json'):
+            raw=body if isinstance(body,bytes) else json.dumps(body).encode()
+            self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(raw)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(raw)
+        def run(self,method):
+            path=urlparse(self.path).path
+            if not ingress:
+                if method=='GET' and path=='/healthz':return self.reply(200,{'ok':True})
+                return self.reply(404,{'error':'Not found.'})
+            if self.client_address[0]!=peer:return self.reply(403,{'error':'Forbidden.'})
+            if method=='GET' and path in ASSETS:
+                name,kind=ASSETS[path];return self.reply(200,(ROOT/name).read_bytes(),kind)
+            if method=='GET' and path=='/api/status':return self.reply(200,store.status())
+            if method=='POST' and path=='/api/refresh':return self.reply(200,store.refresh())
+            if method=='GET' and path=='/api/frame':
+                data,kind=store.frame()
+                if data is None:return self.reply(503,{'error':'Picture unavailable.'})
+                return self.reply(200,data,kind)
+            return self.reply(404,{'error':'Not found.'})
+        def do_GET(self):self.run('GET')
+        def do_POST(self):self.run('POST')
+        def log_message(self,*args):pass
+    return Handler
+
+def main():
+    try:opts=json.loads((Path(os.environ.get('IHA_DATA','/data'))/'options.json').read_text())
+    except (OSError,ValueError):opts={}
+    store=frames.Frames(opts.get('source_url',''))
+    ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True))
+    threading.Thread(target=ingress.serve_forever,daemon=True).start()
+    ThreadingHTTPServer(('0.0.0.0',8841),make_handler(store)).serve_forever()
+
+if __name__=='__main__':main()

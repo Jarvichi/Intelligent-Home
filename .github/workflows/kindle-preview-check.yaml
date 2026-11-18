@@ -1,0 +1,20 @@
+name: kindle-preview-check
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ih_display_kindle/**'
+      - '.github/workflows/kindle-preview-check.yaml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test preview and access controls
+        run: python3 -m unittest discover -s ih_display_kindle/tests -q
+      - name: Check page script
+        run: node --check ih_display_kindle/app/ui/ui.js
+      - name: Build add-on image
+        run: docker build -t ih-kindle-preview-test ih_display_kindle
