@@ -42,7 +42,7 @@ The top of the page has a **Working now** card: one row for each Claude worker t
 1. Add the Intelligent Home repository in the add-on store and install **Intelligent Home - Work**.
 2. Open the Configuration tab and set `api_token` (a long random text). With an empty token the API refuses everything.
 3. Leave `mode` on `dry`. Start the add-on and read the log. It says which levels are in force.
-4. Open the page (side bar: IH · Work). The Today card shows the line and why it waits.
+4. Open the page (side bar: IH · Tasks). The Today card shows the line and why it waits.
 5. When the log and the page look right, and the runner is ready, set `mode` to `live`.
 
 ## Why it needs Home Assistant API access (`homeassistant_api: true`)

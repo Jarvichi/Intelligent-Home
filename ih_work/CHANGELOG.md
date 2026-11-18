@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.1] - 2026-11-18
+
+### Changed
+- The side bar entry is now called "IH · Tasks" (was "IH · Work"); same page, same icon, still admin only.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added
