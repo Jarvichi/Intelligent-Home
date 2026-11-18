@@ -87,7 +87,19 @@ def svg(data,alerts=None,now=None):
                 rain=h.get('precipitation')
                 if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,str(round(rain,1))+' mm',17,anchor='middle')
                 if i:p.append(f'<path d="M{x-80} 496v152" stroke="#aaa" stroke-width="2"/>')
-    else:text(48,330,'Weather unavailable' if data.get('weather_configured') else 'Weather not configured',30)
+    else:
+        text(48,330,'Weather unavailable' if data.get('weather_configured') else 'Weather not configured',30)
+        game=next((x for x in active if x.get('kind')=='game'),None)
+        if game:
+            box(640,238,384,216);art=game.get('art')
+            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="653" y="251" width="140" height="190" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
+            text(806,278,'NOW PLAYING',18,True)
+            for i,line in enumerate(textwrap.wrap(str(game.get('detail') or game.get('label') or 'Game'),width=14,max_lines=3,placeholder='…')):text(806,316+i*32,line,24,True)
+        media=next((x for x in active if x.get('kind')=='media'),None)
+        if media:
+            box(48,478,976,190);art=media.get('art')
+            if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
+            parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,(parts[0] or str(media.get('label') or 'Playing'))[:42],30,True);text(245,620,(parts[1] if len(parts)>1 else '')[:55],23)
     label(48,707,'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):

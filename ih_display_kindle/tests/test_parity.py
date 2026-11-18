@@ -45,6 +45,11 @@ class Tests(unittest.TestCase):
         image=kindle_render.svg(data,{'configured':True,'complete':True,'alerts':[{'kind':'smoke','title':'SMOKE ALARM'}]},now=0)
         self.assertIn(b'SMOKE ALARM',image)
 
+    def test_media_and_game_remain_visible_when_weather_is_unavailable(self):
+        data={'weather':None,'weather_configured':True,'panels':[{'active':True,'kind':'media','detail':'Example song'},{'active':True,'kind':'game','detail':'Example game'}]}
+        image=kindle_render.svg(data,{'configured':True,'complete':True,'alerts':[]},now=0)
+        self.assertIn(b'Weather unavailable',image);self.assertIn(b'Example song',image);self.assertIn(b'Example game',image)
+
     def test_source_mapping_validates_device_sources(self):
         self.assertTrue(source_settings.validate({'kindle_battery_entity':'sensor.example','kindle_last_seen_entity':'sensor.heartbeat','kindle_page_entity':'input_text.page'}))
         self.assertFalse(source_settings.validate({'kindle_battery_entity':'input_text.invalid'}))
