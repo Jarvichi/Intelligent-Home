@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Speaker",
+  "purpose": "Speaks messages on the house speakers for other add-ons, with volume, queue and quiet-hour rules. No page of its own."
+ }
+}
