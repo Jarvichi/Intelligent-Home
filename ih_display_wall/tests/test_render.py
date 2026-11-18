@@ -118,6 +118,8 @@ class Tests(unittest.TestCase):
         ha=Forecast({'sensor.primary':old,'sensor.fallback':old});self.assertIsNone(ha.forecast('sensor.primary','sensor.fallback',now))
         stale=dict(valid,last_updated=row(-10801)['datetime']);ha=Forecast({'sensor.primary':stale,'sensor.fallback':valid});self.assertEqual(ha.forecast('sensor.primary','sensor.fallback',now)['source'],'fallback')
         self.assertIn(b'Hourly forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':None}))
+        valid['attributes']['hourly']=[row(i*3600) for i in range(7)]
+        self.assertEqual(len(Forecast({'sensor.primary':valid}).forecast('sensor.primary','',now)['hours']),6)
     def test_daily_forecast_and_future_not_labelled_now(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()

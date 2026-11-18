@@ -22,6 +22,7 @@ def png(svg):
     return result.stdout
 
 def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False,image_token='',png_encoder=png,allow_url_token=False):
+    image_token=image_token if isinstance(image_token,str) else ''
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()

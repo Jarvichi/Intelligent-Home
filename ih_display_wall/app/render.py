@@ -284,7 +284,7 @@ class HA:
                 if rain and rain[0]>now and datetime.datetime.fromtimestamp(rain[0]).astimezone().date()!=today:next_rain+=' next day'
                 wind=current.get('wind_speed');bearing=current.get('wind_bearing');uv=current.get('uv_index');cloud=current.get('cloud_coverage')
                 facts={'wind':str(round(wind))+' km/h' if numeric(wind) else 'Unavailable','bearing':round(bearing)%360 if numeric(bearing) else None,'next_rain':next_rain,'sky':('UV '+str(round(uv)) if numeric(uv) and uv>=0.5 else 'Cloud '+str(round(cloud))+'%' if numeric(cloud) else 'Unavailable')}
-                return {'source':source,'hours':[x[1] for x in hours[:5]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
+                return {'source':source,'hours':[x[1] for x in hours[:6]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
     def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None):
@@ -339,7 +339,7 @@ def svg(profile,data,alerts=None,now=None):
         lines=textwrap.wrap(str(item.get('value') or ''),width=25,max_lines=3,placeholder='…') or ['']
         for j,line in enumerate(lines):parts.append(f'<text x="{x+24}" y="{y+75+j*28}" fill="#f7faf7" font-family="sans-serif" font-size="22">{clean(line,25)}</text>')
     if not items:parts.append('<text x="70" y="245" fill="#c4d5c9" font-family="sans-serif" font-size="25">Choose display entities in the app configuration.</text>')
-    if item_pages>1:parts.append(f'<text x="770" y="148" fill="#c4d5c9" font-family="sans-serif" font-size="18">Cards {item_page+1}/{item_pages}</text>')
+    if item_pages>1:parts.append(f'<text x="800" y="172" fill="#c4d5c9" font-family="sans-serif" font-size="18">Cards {item_page+1}/{item_pages}</text>')
     urgent=[p for p in active if p.get('urgent')]
     if urgent or any(not p.get('available') for p in panels):
         titles=[p.get('label','')+(': '+p['detail'] if p.get('detail') else '') for p in urgent]
@@ -387,7 +387,7 @@ def svg(profile,data,alerts=None,now=None):
                 parts.append(f'<text x="{390+i*355}" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(desc,32)}</text>')
             for i,hour in enumerate(weather['hours']):
                 text=hour['time']+'  '+str(hour['temperature'])+'°  '+hour['condition']
-                parts.append(f'<text x="{90+i*270}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(text,26)}</text>')
+                parts.append(f'<text x="{90+i*225}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="17">{clean(text,22)}</text>')
     if alerts is None:
         parts.append('<text x="70" y="172" fill="#ffd88c" font-family="sans-serif" font-size="19">Alert preview not connected</text>')
     elif not alerts.get('configured'):
