@@ -27,3 +27,5 @@ Set `render_shared_alerts` to true to preview IH Displays urgent alerts. The pre
 ## Hourly forecast preview
 
 Optionally set `weather_forecast_entity` and `weather_forecast_fallback_entity` to existing Home Assistant sensor entities with hourly forecast attributes. The preview reads the primary source first, then the fallback if it is unavailable or has no current data. It identifies fallback and unavailable states. Both settings default to empty; this does not change existing display feeds.
+
+The first hourly entry is labelled “Now” only while it covers the current time; otherwise it is labelled “Next”. Daily high and low values are shown when present. Missing daily data is labelled unavailable without hiding valid hourly data.

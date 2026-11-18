@@ -87,7 +87,21 @@ class HA:
                     hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' ')}))
                 hours.sort(key=lambda x:x[0])
                 if not hours or hours[0][0]>now+3600:continue
-                return {'source':source,'hours':[x[1] for x in hours[:5]]}
+                current=dict(hours[0][1],current=hours[0][0]<=now)
+                today=datetime.datetime.fromtimestamp(now).astimezone().date();daily=[]
+                rows=attrs.get('daily',[])
+                if isinstance(rows,list) and len(rows)<=30:
+                    for row in rows:
+                        try:
+                            date=datetime.datetime.fromisoformat(str(row.get('datetime','')).replace('Z','+00:00'))
+                            if date.tzinfo is None:continue
+                            day=date.astimezone().date();offset=(day-today).days
+                            high,low,condition=row.get('temperature'),row.get('templow'),row.get('condition')
+                            if offset not in (0,1,2) or any(isinstance(x,bool) or not isinstance(x,(int,float)) or not math.isfinite(x) for x in (high,low)) or not isinstance(condition,str) or not condition:continue
+                            daily.append((offset,{'label':('Today','Tomorrow','Next day')[offset],'high':round(high),'low':round(low),'condition':condition.replace('_',' ')}))
+                        except (ValueError,AttributeError,TypeError,OverflowError):continue
+                daily.sort(key=lambda x:x[0])
+                return {'source':source,'hours':[x[1] for x in hours[:5]],'current':current,'daily':[x[1] for x in daily[:3]]}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
     def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback=''):
@@ -150,8 +164,15 @@ def svg(profile,data,alerts=None,now=None):
         parts.append('<rect x="70" y="730" width="1405" height="75" rx="16" fill="#26352f"/>')
         if not weather:parts.append('<text x="90" y="775" fill="#ffd88c" font-family="sans-serif" font-size="22">Hourly forecast unavailable</text>')
         else:
-            label='Hourly forecast' if weather['source']=='primary' else 'Hourly forecast · fallback'
-            parts.append(f'<text x="90" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{label}</text>')
+            current=weather.get('current');daily=weather.get('daily') or []
+            label=('Now' if current and current.get('current') else 'Next') if current else 'Forecast'
+            if current:label+=' '+str(current['temperature'])+'° '+current['condition']
+            if weather['source']=='fallback':label='fallback · '+label
+            parts.append(f'<text x="90" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(label,28)}</text>')
+            if not daily:parts.append('<text x="390" y="756" fill="#ffd88c" font-family="sans-serif" font-size="18">Daily forecast unavailable</text>')
+            for i,day in enumerate(daily):
+                desc=day['label']+' '+str(day['high'])+'°/'+str(day['low'])+'° '+day['condition']
+                parts.append(f'<text x="{390+i*355}" y="756" fill="#c4d5c9" font-family="sans-serif" font-size="18">{clean(desc,32)}</text>')
             for i,hour in enumerate(weather['hours']):
                 text=hour['time']+'  '+str(hour['temperature'])+'°  '+hour['condition']
                 parts.append(f'<text x="{90+i*270}" y="790" fill="#f7faf7" font-family="sans-serif" font-size="19">{clean(text,26)}</text>')

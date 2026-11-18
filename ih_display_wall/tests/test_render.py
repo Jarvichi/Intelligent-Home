@@ -31,6 +31,7 @@ class Tests(unittest.TestCase):
         old={'state':'ok','last_updated':row(0)['datetime'],'attributes':{'hourly':[row(-7200)]}}
         ha=Forecast({'sensor.primary':valid,'sensor.fallback':old})
         data=ha.forecast('sensor.primary','sensor.fallback',now);self.assertEqual(data['source'],'primary');self.assertEqual(len(ha.calls),1)
+        self.assertTrue(data['current']['current']);self.assertEqual(data['daily'],[])
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':data})
         self.assertIn(b'cloudy &lt;test&gt;',picture)
         ha=Forecast({'sensor.primary':old,'sensor.fallback':valid});data=ha.forecast('sensor.primary','sensor.fallback',now);self.assertEqual(data['source'],'fallback')
@@ -38,6 +39,19 @@ class Tests(unittest.TestCase):
         ha=Forecast({'sensor.primary':old,'sensor.fallback':old});self.assertIsNone(ha.forecast('sensor.primary','sensor.fallback',now))
         stale=dict(valid,last_updated=row(-10801)['datetime']);ha=Forecast({'sensor.primary':stale,'sensor.fallback':valid});self.assertEqual(ha.forecast('sensor.primary','sensor.fallback',now)['source'],'fallback')
         self.assertIn(b'Hourly forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':None}))
+    def test_daily_forecast_and_future_not_labelled_now(self):
+        now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
+        def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
+        value={'state':'ok','last_updated':date(0),'attributes':{'hourly':[{'datetime':date(1800),'temperature':8,'condition':'rainy'}],'daily':[{'datetime':date(86400),'temperature':12,'templow':3,'condition':'cloudy'},{'datetime':date(0),'temperature':10,'templow':2,'condition':'rainy'}]}}
+        class Forecast(render.HA):
+            def __init__(self):pass
+            def request(self,path,body=None):return value
+        weather=Forecast().forecast('sensor.primary','',now);self.assertFalse(weather['current']['current']);self.assertEqual([d['label'] for d in weather['daily']],['Today','Tomorrow'])
+        picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':weather})
+        self.assertIn(b'Next 8',picture);self.assertNotIn(b'Now 8',picture);self.assertIn(b'Tomorrow 12',picture)
+        value['attributes']['daily']=[{'datetime':date(0),'temperature':float('nan'),'templow':0,'condition':'rainy'}]
+        weather=Forecast().forecast('sensor.primary','',now);self.assertEqual(weather['daily'],[])
+        self.assertIn(b'Daily forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':weather}))
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')
