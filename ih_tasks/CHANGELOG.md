@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+- Task links: a task can be **blocked by** another task, **depend on** another task, or **relate to** another task (new table, schema 16-17). `POST /tasks/<n>/relate {kind, task}` and `POST /tasks/<n>/unrelate {kind, task}`; owner, worker or check. `GET /tasks/<n>` now has `relations` (each with the other task's number, title, stage, and `waiting`) and `blocked` (true while a blocked-by / depends-on task is still open). The other task sees the inverse (`blocks`, `needed_by`); `relates_to` is the same both ways.
+- Refused: linking a task to itself, a missing task, the same link twice, and a loop (A waits on B waits on A, also through other tasks). Both tasks get a history line.
+- Merge moves the links of a merged task to the kept task (links between the two merged tasks are dropped).
+- Links are information only: they do not stop a task from being moved or approved. The page does not show them yet (API only).
+
 ## 0.7.0
 - Reminders (schema 15, new `remind_at`). `POST /tasks/<n>/remind {date, note?}` (owner or worker; the date must be after today) sets a reminder and closes the task with the reason "Reminder set". On that date (from `reminder_hour`, default 08:00) the task returns to To do with high priority, its history says so, and one `task_reminder` event goes to the Claude inbox (`inbox_url`, `inbox_token`) so Claude messages the owner. If the inbox cannot be reached the task waits and is retried every pass, and is reopened anyway one day late. `GET /reminders` lists the waiting ones. A plain close can never use "Reminder set". Reopening the task cancels the reminder.
 - Page: a "Remind me later" card (date and note) on open tasks, and "Reminder on <date>" on a closed task and its card.

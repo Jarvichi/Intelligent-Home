@@ -39,7 +39,15 @@ MIGRATIONS = [
     (14, 'CREATE INDEX tasks_parent ON tasks(parent_id)'),
     # a task closed as 'Reminder set' comes back to To do on this date (YYYY-MM-DD)
     (15, "ALTER TABLE tasks ADD COLUMN remind_at TEXT NOT NULL DEFAULT ''"),
+    # task-to-task links (0.8.0): src is blocked by / depends on / relates to dst. relates_to is stored once, with src < dst.
+    (16, '''CREATE TABLE relations(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, src INTEGER NOT NULL REFERENCES tasks(id), dst INTEGER NOT NULL REFERENCES tasks(id),
+            kind TEXT NOT NULL, at TEXT NOT NULL, actor TEXT NOT NULL, UNIQUE(src, dst, kind))'''),
+    (17, 'CREATE INDEX relations_dst ON relations(dst)'),
 ]
+RELATION_KINDS = ('blocked_by', 'depends_on', 'relates_to')
+WAITS_ON = ('blocked_by', 'depends_on')      # both mean "src cannot finish before dst is done"
+INVERSE = {'blocked_by': 'blocks', 'depends_on': 'needed_by', 'relates_to': 'relates_to'}
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
              'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id', 'remind_at')
 LIST_LIMIT = 500
@@ -122,6 +130,8 @@ class TaskStore:
         t['links'] = [{'id': r[0], 'at': r[1], 'actor': r[2], 'kind': r[3], 'url': r[4], 'text': r[5]}
                       for r in con.execute('SELECT id, at, actor, kind, url, text FROM links WHERE task_id = ? ORDER BY id', (task_id,))]
         t['legacy'] = [{'kind': r[0], 'value': r[1]} for r in con.execute('SELECT kind, value FROM legacy WHERE task_id = ? ORDER BY kind, value', (task_id,))]
+        t['relations'] = self.relations(task_id)
+        t['blocked'] = any(r['waiting'] for r in t['relations'])
         t['history'] = self.history(task_id)
         t['comments'] = [e for e in t['history'] if e['kind'] == 'comment']
         t['children'] = [{'id': r[0], 'title': r[1], 'stage': r[2], 'stage_label': M.STAGE_LABELS[r[2]]}
@@ -500,6 +510,75 @@ class TaskStore:
             self._event(con, task_id, actor, 'link', text=text, data={'kind': kind, 'url': url})
         return self.get(task_id)
 
+    # ---- links between tasks ----
+    def relations(self, task_id):
+        """Links of one task seen from that task: [{kind, task, title, stage, open, waiting}]. kind is blocked_by, depends_on, relates_to,
+        or the inverse seen from the other end: blocks (that task is blocked by this one), needed_by (that task depends on this one).
+        `waiting` is true for a blocked_by / depends_on link whose other task is still open: this task cannot be finished yet."""
+        out = []
+        for src, dst, kind, mine in self.db.con.execute(
+                'SELECT r.src, r.dst, r.kind, CASE WHEN r.src = ? THEN 1 ELSE 0 END FROM relations r WHERE r.src = ? OR r.dst = ? ORDER BY r.id', (task_id,) * 3).fetchall():
+            other = dst if mine else src
+            title, stage = self.db.con.execute('SELECT title, stage FROM tasks WHERE id = ?', (other,)).fetchone()
+            is_open = stage in M.OPEN_STAGES
+            out.append({'kind': kind if (mine or kind == 'relates_to') else INVERSE[kind], 'task': other, 'title': title, 'stage': stage,
+                        'open': is_open, 'waiting': bool(mine and kind in WAITS_ON and is_open)})
+        return out
+
+    def _waits_on_path(self, con, start, goal):
+        """True when `start` already waits (directly or through other tasks) on `goal`."""
+        seen, todo = set(), [start]
+        while todo:
+            n = todo.pop()
+            if n == goal:
+                return True
+            if n in seen:
+                continue
+            seen.add(n)
+            todo += [r[0] for r in con.execute('SELECT dst FROM relations WHERE src = ? AND kind IN (?, ?)', (n,) + WAITS_ON)]
+        return False
+
+    def relate(self, task_id, actor, kind, other):
+        """Link task_id to another task: blocked_by, depends_on or relates_to (symmetric). Refused: itself, a missing task, a loop of
+        blocked_by / depends_on links (A waits on B waits on A), the same link twice. A history line goes on BOTH tasks."""
+        M.check_actor(actor)
+        if kind not in RELATION_KINDS:
+            raise M.RuleError('bad', 'kind must be one of: ' + ', '.join(RELATION_KINDS))
+        if isinstance(other, bool) or not isinstance(other, int):
+            raise M.RuleError('bad', 'the other task must be a task number')
+        if other == task_id:
+            raise M.RuleError('bad', 'a task cannot be linked to itself')
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            self._row(con, other)
+            src, dst = (min(task_id, other), max(task_id, other)) if kind == 'relates_to' else (task_id, other)
+            if con.execute('SELECT 1 FROM relations WHERE src = ? AND dst = ? AND kind = ?', (src, dst, kind)).fetchone():
+                raise M.RuleError('conflict', 'that link already exists')
+            if kind in WAITS_ON and self._waits_on_path(con, other, task_id):
+                raise M.RuleError('conflict', 'that would make a loop: task %d already waits on task %d' % (other, task_id))
+            con.execute('INSERT INTO relations(src, dst, kind, at, actor) VALUES(?,?,?,?,?)', (src, dst, kind, self.now(), actor))
+            self._event(con, task_id, actor, 'related', text='%s task %d' % (kind.replace('_', ' '), other), data={'kind': kind, 'task': other})
+            self._event(con, other, actor, 'related', text='task %d %s this task' % (task_id, INVERSE[kind].replace('_', ' ') if kind != 'relates_to' else 'relates to'),
+                        data={'kind': INVERSE[kind], 'task': task_id})
+        return self.get(task_id)
+
+    def unrelate(self, task_id, actor, kind, other):
+        """Remove a link made with relate (give the same kind and the same two tasks, either way round for relates_to)."""
+        M.check_actor(actor)
+        if kind not in RELATION_KINDS:
+            raise M.RuleError('bad', 'kind must be one of: ' + ', '.join(RELATION_KINDS))
+        if isinstance(other, bool) or not isinstance(other, int):
+            raise M.RuleError('bad', 'the other task must be a task number')
+        with self.db.tx() as con:
+            self._row(con, task_id)
+            self._row(con, other)
+            src, dst = (min(task_id, other), max(task_id, other)) if kind == 'relates_to' else (task_id, other)
+            if not con.execute('DELETE FROM relations WHERE src = ? AND dst = ? AND kind = ?', (src, dst, kind)).rowcount:
+                raise M.RuleError('missing', 'no such link')
+            self._event(con, task_id, actor, 'unrelated', text='removed: %s task %d' % (kind.replace('_', ' '), other), data={'kind': kind, 'task': other})
+            self._event(con, other, actor, 'unrelated', text='removed: link with task %d' % task_id, data={'kind': INVERSE[kind], 'task': task_id})
+        return self.get(task_id)
+
     def add_legacy(self, task_id, actor, legacy):
         M.check_actor(actor)
         legacy = M.check_legacy(legacy)
@@ -563,6 +642,13 @@ class TaskStore:
                         links += 1
                 old = [{'kind': r[0], 'value': r[1]} for r in con.execute('SELECT kind, value FROM legacy WHERE task_id = ? ORDER BY kind, value', (n,))]
                 con.execute('UPDATE legacy SET task_id = ? WHERE task_id = ?', (keep, n))
+                for rid, src, dst, kind, at, who in con.execute('SELECT id, src, dst, kind, at, actor FROM relations WHERE src = ? OR dst = ?', (n, n)).fetchall():
+                    src, dst = (keep if src == n else src), (keep if dst == n else dst)
+                    if kind == 'relates_to':
+                        src, dst = min(src, dst), max(src, dst)
+                    if src != dst:      # a link between the two merged tasks disappears; a link that the keeper already has is not doubled
+                        con.execute('INSERT OR IGNORE INTO relations(src, dst, kind, at, actor) VALUES(?,?,?,?,?)', (src, dst, kind, at, who))
+                    con.execute('DELETE FROM relations WHERE id = ?', (rid,))
                 moved = {'comments': len(comments), 'links': links, 'old_ids': old, 'question': 'moved' if moved_q else 'comment' if q else ''}
                 self._close(con, t, actor, M.check_close(t, actor, 'duplicate', 'Merged into task %d.' % keep, keep))
                 self._event(con, n, actor, 'merged_into', text='Merged into task %d. Its comments, links and old ids are on that task now.' % keep, data=dict(moved, task=keep))
