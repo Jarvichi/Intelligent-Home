@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0
+
+- Add an opt-in compatibility proxy for legacy display clients with fallback to the existing image.
+
 ## 0.13.0
 
 - Match the existing television layout with large date, weather, tasks and optional local background and profile pictures.

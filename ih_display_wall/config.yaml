@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.13.0"
+version: "0.14.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -17,10 +17,15 @@ panel_icon: mdi:television-ambient-light
 panel_admin: true
 ports:
   8806/tcp: null
+  8839/tcp: null
 ports_description:
   8806/tcp: "Health endpoint, not published"
+  8839/tcp: "Optional legacy screensaver compatibility proxy"
 watchdog: "http://[HOST]:[PORT:8806]/healthz"
 options:
+  legacy_proxy_enabled: false
+  legacy_proxy_wall: false
+  legacy_proxy_upstream: ""
   source_url: ""
   image_api_token: ""
   image_url_access: false
@@ -68,6 +73,9 @@ options:
   weather_forecast_fallback_entity: ""
   weather_current_entity: ""
 schema:
+  legacy_proxy_enabled: bool
+  legacy_proxy_wall: bool
+  legacy_proxy_upstream: str?
   source_url: str?
   image_api_token: password?
   image_url_access: bool
