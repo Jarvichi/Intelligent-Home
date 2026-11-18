@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.12.0"
+version: "0.13.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -33,6 +33,7 @@ options:
   render_overlay_entities: []
   render_cooking_entity: ""
   render_sun_entity: ""
+  render_background_path: ""
   render_birthdays_entity: ""
   render_birthdays_fixed: []
   render_halloween_entity: ""
@@ -83,6 +84,7 @@ schema:
     - str
   render_cooking_entity: str?
   render_sun_entity: str?
+  render_background_path: str?
   render_birthdays_entity: str?
   render_birthdays_fixed:
     - month: int
@@ -108,6 +110,7 @@ schema:
   render_presence:
     - name: str
       entity: str
+      picture: str?
   render_lights:
     - name: str
       entities:

@@ -20,6 +20,8 @@ class Opener:
             return Response(json.dumps({'state':'21','attributes':{'friendly_name':'Example temperature','unit_of_measurement':'°C'}}).encode())
         return Response(json.dumps({'service_response':{'todo.example':{'items':[{'summary':'Example task'}]}}}).encode())
 class Tests(unittest.TestCase):
+    def test_weather_rounding_matches_existing_display_at_half_values(self):
+        self.assertEqual(render.js_round(2.5),3);self.assertEqual(render.js_round(-1.5),-1)
     def test_festive_data_is_private_and_handles_missing_sources(self):
         class Festive(render.HA):
             def __init__(self,values):self.values=values
@@ -184,8 +186,10 @@ class Tests(unittest.TestCase):
         ha=Forecast({'sensor.primary':old,'sensor.fallback':old});self.assertIsNone(ha.forecast('sensor.primary','sensor.fallback',now))
         stale=dict(valid,last_updated=row(-10801)['datetime']);ha=Forecast({'sensor.primary':stale,'sensor.fallback':valid});self.assertEqual(ha.forecast('sensor.primary','sensor.fallback',now)['source'],'fallback')
         self.assertIn(b'Hourly forecast unavailable',render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':None}))
-        valid['attributes']['hourly']=[row(i*3600) for i in range(7)]
-        self.assertEqual(len(Forecast({'sensor.primary':valid}).forecast('sensor.primary','',now)['hours']),6)
+        valid['attributes']['hourly']=[row(i*3600) for i in range(12)]
+        selected=Forecast({'sensor.primary':valid}).forecast('sensor.primary','',now)['hours'];self.assertEqual(len(selected),6)
+        self.assertEqual(selected[0]['time'],datetime.datetime.fromtimestamp(now+3600).astimezone().strftime('%H:%M'))
+        self.assertEqual(selected[1]['time'],datetime.datetime.fromtimestamp(now+3*3600).astimezone().strftime('%H:%M'))
     def test_daily_forecast_and_future_not_labelled_now(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()

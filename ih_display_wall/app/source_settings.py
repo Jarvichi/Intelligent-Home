@@ -26,6 +26,9 @@ LIST_LIMITS={'render_intrusion_presence':10,'render_heat_floors':8,
 def entity(value,prefix,empty=False):
     return isinstance(value,str) and ((empty and not value) or (len(value)<=255 and bool(ENTITY.fullmatch(value)) and value.startswith(prefix)))
 
+def local_picture(value):
+    return isinstance(value,str) and len(value)<=255 and bool(re.fullmatch(r'/local/[A-Za-z0-9_./-]+',value)) and '..' not in value.split('/')
+
 def validate(value):
     if not isinstance(value,dict) or not value or len(value)>40:return False
     for key,item in value.items():
@@ -50,7 +53,9 @@ def validate(value):
         elif key=='render_presence':
             if not isinstance(item,list) or len(item)>10:return False
             for row in item:
-                if not isinstance(row,dict) or set(row)!={'name','entity'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not entity(row['entity'],'switch.'):return False
+                if not isinstance(row,dict) or not {'name','entity'}<=set(row) or set(row)-{'name','entity','picture'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not entity(row['entity'],'switch.') or ('picture' in row and not local_picture(row['picture'])):return False
+        elif key=='render_background_path':
+            if not isinstance(item,str) or (item and not local_picture(item)):return False
         elif key=='render_birthdays_fixed':
             if not isinstance(item,list) or len(item)>100:return False
             for row in item:

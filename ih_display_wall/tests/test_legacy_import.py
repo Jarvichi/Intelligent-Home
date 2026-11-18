@@ -21,9 +21,9 @@ class Tests(unittest.TestCase):
         rules.extend(item('k_lt'+str(i),'var R=[["Room",["light.example"]]]; var on=[];') for i in range(4))
         dashboard={'views':[{'cards':[{'config':{'rules':rules}}]}]}
         script="HE = ['binary_sensor.heat','climate.example']\nIE = ['input_boolean.alert','input_text.log','switch.example']\nW_ = 'weather.example'\nvar BF=hass.states['sensor.primary'];\nvar f=hass.states['sensor.primary']||hass.states['sensor.fallback'];"
-        template="var PEOPLE = [['Example','switch.example']];\nvar ROOMS = ['Room'];"
+        template="var PEOPLE = [['Example','switch.example']];\nvar ROOMS = ['Room'];\nbackground:#000 url(\"/local/wall.jpg\");\nvar picture='/local/profiles/' + key + '.png';"
         result=module.extract(dashboard,script,template)
-        self.assertEqual(result['render_alarm'],'alarm_control_panel.example');self.assertEqual(result['render_rooms'][0]['entity'],'climate.example');self.assertEqual(result['render_energy']['current'],'sensor.example_current_rate');self.assertEqual(result['render_birthdays_fixed'],[{'month':1,'day':2,'name':'Example'}])
+        self.assertEqual(result['render_alarm'],'alarm_control_panel.example');self.assertEqual(result['render_rooms'][0]['entity'],'climate.example');self.assertEqual(result['render_energy']['current'],'sensor.example_current_rate');self.assertEqual(result['render_birthdays_fixed'],[{'month':1,'day':2,'name':'Example'}]);self.assertEqual(result['render_background_path'],'/local/wall.jpg');self.assertEqual(result['render_presence'][0]['picture'],'/local/profiles/example.png')
         with self.assertRaises((ValueError,StopIteration)):module.extract({'views':[]},script,template)
 
 if __name__=='__main__':unittest.main()

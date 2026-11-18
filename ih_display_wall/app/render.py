@@ -18,6 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 ENTITY=re.compile(r'^[a-z][a-z0-9_]*\.[a-z0-9_]+$')
 MAX_RESPONSE=1024*1024
 
+def js_round(value):return math.floor(value+0.5)
+
 def clean(value,limit=80):
     text=' '.join(str(value or '').split())
     text=''.join(c for c in text if 32<=ord(c)<=0x10ffff and not 0x7f<=ord(c)<0xa0 and not 0xd800<=ord(c)<=0xdfff and ord(c) not in (0xfffe,0xffff))
@@ -56,7 +58,10 @@ class HA:
             parsed=urlsplit(path)
             decoded=unquote(parsed.path)
             if parsed.scheme or parsed.netloc or parsed.fragment or not decoded.startswith(('/api/','/local/')) or '..' in decoded.split('/') or '\\' in decoded:return None
-            req=urllib.request.Request('http://supervisor/core'+path,headers={'Authorization':'Bearer '+self.token,'Accept':'image/png, image/jpeg'})
+            local=decoded.startswith('/local/');base='http://homeassistant:8123' if local else 'http://supervisor/core'
+            headers={'Accept':'image/png, image/jpeg'}
+            if not local:headers['Authorization']='Bearer '+self.token
+            req=urllib.request.Request(base+path,headers=headers)
             with self.opener.open(req,timeout=4) as response:
                 raw=response.read(512*1024+1)
                 if response.status!=200 or len(raw)>512*1024:return None
@@ -90,7 +95,7 @@ class HA:
                 elif oven=='off':details.append('Oven off')
                 elif finite(oven):details.append('Oven '+str(oven)+'°'+(' / '+str(target)+'°' if finite(target) else ''))
                 detail=' · '.join(details)
-            result={'available':True,'active':active,'label':label,'detail':detail}
+            result={'available':True,'active':active,'label':label,'detail':detail,'kind':kind}
             if kind in ('media','game') and active and attrs.get('entity_picture'):
                 art=self.artwork(attrs['entity_picture'])
                 if art:result['art']=art
@@ -250,8 +255,15 @@ class HA:
         try:
             with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
             incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values)
-            home=[person['name'] for person,value in zip(people,values) if isinstance(value,dict) and value.get('state')=='on']
-            return {'available':not incomplete,'active':True,'pinned':True,'label':'Home','detail':', '.join(home) if home else 'Presence unavailable' if incomplete else 'Nobody home'}
+            home=[person for person,value in zip(people,values) if isinstance(value,dict) and value.get('state')=='on']
+            persons=[]
+            for person in home:
+                item={'name':person['name']}
+                if person.get('picture'):
+                    art=self.artwork(person['picture'])
+                    if art:item['art']=art
+                persons.append(item)
+            return {'available':not incomplete,'active':True,'pinned':True,'label':'Home','persons':persons,'detail':', '.join(p['name'] for p in home) if home else 'Presence unavailable' if incomplete else 'Nobody home'}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def lights_panel(self,groups):
         if not isinstance(groups,list) or not groups or len(groups)>40:return {'available':False}
@@ -376,7 +388,7 @@ class HA:
                     if date.tzinfo is None:continue
                     stamp=date.timestamp();temp=row.get('temperature');condition=row.get('condition')
                     if stamp<=now-3600 or stamp>now+86400 or isinstance(temp,bool) or not isinstance(temp,(int,float)) or not math.isfinite(temp) or not isinstance(condition,str) or not condition:continue
-                    hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' '),'wind_speed':row.get('wind_speed'),'wind_bearing':row.get('wind_bearing'),'uv_index':row.get('uv_index'),'cloud_coverage':row.get('cloud_coverage'),'precipitation':row.get('precipitation')}))
+                    hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':js_round(temp),'condition':condition.replace('_',' '),'wind_speed':row.get('wind_speed'),'wind_bearing':row.get('wind_bearing'),'uv_index':row.get('uv_index'),'cloud_coverage':row.get('cloud_coverage'),'precipitation':row.get('precipitation')}))
                 hours.sort(key=lambda x:x[0])
                 if not hours or hours[0][0]>now+3600:continue
                 current=dict(hours[0][1],current=hours[0][0]<=now)
@@ -385,7 +397,7 @@ class HA:
                         live=self.request('states/'+current_entity);live_attrs=live.get('attributes',{}) if isinstance(live,dict) else {}
                         temp=live_attrs.get('temperature') if isinstance(live_attrs,dict) else None;condition=live.get('state') if isinstance(live,dict) else None
                         if isinstance(condition,str) and condition not in ('unknown','unavailable','') and not isinstance(temp,bool) and isinstance(temp,(int,float)) and math.isfinite(temp):
-                            current={'time':datetime.datetime.fromtimestamp(now).astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' '),'current':True,'wind_speed':live_attrs.get('wind_speed'),'wind_bearing':live_attrs.get('wind_bearing'),'uv_index':live_attrs.get('uv_index'),'cloud_coverage':live_attrs.get('cloud_coverage')}
+                            current={'time':datetime.datetime.fromtimestamp(now).astimezone().strftime('%H:%M'),'temperature':js_round(temp),'condition':condition.replace('_',' '),'current':True,'wind_speed':live_attrs.get('wind_speed'),'wind_bearing':live_attrs.get('wind_bearing'),'uv_index':live_attrs.get('uv_index'),'cloud_coverage':live_attrs.get('cloud_coverage')}
                     except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):pass
                 today=datetime.datetime.fromtimestamp(now).astimezone().date();daily=[]
                 rows=attrs.get('daily',[])
@@ -397,7 +409,8 @@ class HA:
                             day=date.astimezone().date();offset=(day-today).days
                             high,low,condition=row.get('temperature'),row.get('templow'),row.get('condition')
                             if offset not in (0,1,2) or any(isinstance(x,bool) or not isinstance(x,(int,float)) or not math.isfinite(x) for x in (high,low)) or not isinstance(condition,str) or not condition:continue
-                            daily.append((offset,{'label':('Today','Tomorrow','Next day')[offset],'high':round(high),'low':round(low),'condition':condition.replace('_',' ')}))
+                            rain=row.get('precipitation');rain=rain if isinstance(rain,(int,float)) and not isinstance(rain,bool) and math.isfinite(rain) and rain>=0 else None
+                            daily.append((offset,{'label':('Today','Tomorrow','Next day')[offset],'high':js_round(high),'low':js_round(low),'condition':condition.replace('_',' '),'precipitation':rain}))
                         except (ValueError,AttributeError,TypeError,OverflowError):continue
                 daily.sort(key=lambda x:x[0])
                 def numeric(x):return not isinstance(x,bool) and isinstance(x,(int,float)) and math.isfinite(x)
@@ -427,11 +440,11 @@ class HA:
                             next_rain='Tomorrow' if offset==1 else moment.astimezone().strftime('%a');break
                         except (ValueError,TypeError,OverflowError):continue
                 wind=current.get('wind_speed');bearing=current.get('wind_bearing');uv=current.get('uv_index');cloud=current.get('cloud_coverage')
-                facts={'wind':str(round(wind))+' km/h' if numeric(wind) else 'Unavailable','bearing':round(bearing)%360 if numeric(bearing) else None,'next_rain':next_rain,'sky':('UV '+str(round(uv)) if numeric(uv) and uv>=0.5 else 'Cloud '+str(round(cloud))+'%' if numeric(cloud) else 'Unavailable')}
-                return {'source':source,'hours':[x[1] for x in hours[:6]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
+                facts={'wind':str(js_round(wind))+' km/h' if numeric(wind) else 'Unavailable','bearing':js_round(bearing)%360 if numeric(bearing) else None,'next_rain':next_rain,'sky':('UV '+str(js_round(uv)) if numeric(uv) and uv>=0.5 else 'Cloud '+str(js_round(cloud))+'%' if numeric(cloud) else 'Unavailable')}
+                return {'source':source,'hours':[x[1] for x in hours[1:12:2]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
-    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None,games=None,weather_current='',cooking_reader=None,rooms=None,sun='',night_mode='auto',festive=None):
+    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None,games=None,weather_current='',cooking_reader=None,rooms=None,sun='',night_mode='auto',festive=None,background=''):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
         with ThreadPoolExecutor(max_workers=8) as pool:
@@ -441,6 +454,7 @@ class HA:
             sf=pool.submit(shared) if shared else None
             wf=pool.submit(self.forecast,weather_primary,weather_fallback,current_entity=weather_current) if weather_primary or weather_fallback else None
             sun_future=pool.submit(self.sun,sun) if sun else None
+            background_future=pool.submit(self.artwork,background) if background else None
             panels=[pool.submit(self.active_panel,e,kind) for kind,values in (('media',media),('game',games),('overlay',overlays)) for e in (values[:8] if isinstance(values,list) else [])]
             if cooking_reader:panels.append(pool.submit(self.cooking_panel,cooking_reader,cooking))
             elif cooking:panels.append(pool.submit(self.active_panel,cooking,'cooking'))
@@ -467,7 +481,7 @@ class HA:
                 ranks={'high':0,'normal':1,'low':2}
                 tasks.sort(key=lambda item:ranks[item['priority']])
             sun_data=sun_future.result() if sun_future else None
-            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial,'weather':wf.result() if wf else None,'weather_configured':bool(wf),'panels':[f.result() for f in panels],'sun':sun_data.get('label') if sun_data else None,'sun_dark':sun_data.get('dark') if sun_data else None,'sun_configured':bool(sun_future),'night_mode':night_mode}
+            return {'items':[f.result() for f in futures], 'tasks':tasks, 'tasks_configured':configured,'tasks_partial':partial,'weather':wf.result() if wf else None,'weather_configured':bool(wf),'panels':[f.result() for f in panels],'sun':sun_data.get('label') if sun_data else None,'sun_dark':sun_data.get('dark') if sun_data else None,'sun_configured':bool(sun_future),'night_mode':night_mode,'background':background_future.result() if background_future else None,'background_configured':bool(background_future)}
 
 def svg(profile,data,alerts=None,now=None):
     if not isinstance(profile,dict) or profile.get('state')!='ready':raise ValueError('Profile unavailable')

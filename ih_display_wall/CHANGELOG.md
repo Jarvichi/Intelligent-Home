@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+
+- Match the existing television layout with large date, weather, tasks and optional local background and profile pictures.
+
 ## 0.12.0
 
 - Add an optional authenticated PNG endpoint for the app-owned display preview.

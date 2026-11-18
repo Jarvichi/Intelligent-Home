@@ -25,5 +25,5 @@ class CookingClient:
             if not data['running']:return {'available':True,'active':False}
             title=data.get('title');eat=data.get('eat')
             if not isinstance(title,str) or not title.strip() or (eat is not None and not isinstance(eat,str)):return {'available':False}
-            return {'available':True,'active':True,'label':title,'detail':'Eating at '+eat if eat else ''}
+            return {'available':True,'active':True,'kind':'cooking','label':title,'detail':'Eating at '+eat if eat else ''}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
