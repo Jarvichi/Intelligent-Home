@@ -18,3 +18,9 @@ jobs:
         run: node --check ih_display_kindle/app/ui/ui.js
       - name: Build add-on image
         run: docker build -t ih-kindle-preview-test ih_display_kindle
+      - name: Generate synthetic preview
+        run: docker run --rm --entrypoint python ih-kindle-preview-test /app/render_selftest.py --stdout > kindle-preview.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kindle-preview-synthetic
+          path: kindle-preview.png
