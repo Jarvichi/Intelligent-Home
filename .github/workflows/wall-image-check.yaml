@@ -19,6 +19,7 @@ jobs:
         run: |
           docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout > wall-preview.png
           docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout --alert > wall-preview-alert.png
+          docker run --rm --entrypoint python wall-display-check /app/render_selftest.py --stdout --night > wall-preview-night.png
       - uses: actions/upload-artifact@v4
         with:
           name: wall-preview-synthetic

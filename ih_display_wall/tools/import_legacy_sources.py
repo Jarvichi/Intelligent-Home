@@ -34,6 +34,7 @@ def extract(dashboard,script,template):
     heat=literal(r'^HE\s*=\s*(\[[^\n]+\])',script)
     intrusion=literal(r'^IE\s*=\s*(\[[^\n]+\])',script)
     people=literal(r'var PEOPLE\s*=\s*(\[[^\n]+\]);',template)
+    rooms=literal(r'var ROOMS\s*=\s*(\[[^\n]+\]);',template)
     doors=literal(r'var DS=(\[.*?\]);\s*var bad',rule('k_doors_v')[1])
     lights=[]
     for name in ('k_lt0','k_lt1','k_lt2','k_lt3'):
@@ -49,10 +50,10 @@ def extract(dashboard,script,template):
     fallback_forecast=re.search(r"var f=hass\.states\['[^']+'\]\|\|hass\.states\['([^']+)'\]",script)
     if not all((match,calendar,sessions,current_weather,current_forecast,fallback_forecast)) or len(costs)<2 or len(heat)<2 or len(intrusion)<3:raise ValueError('Source mapping is incomplete')
     base=match.group(1)
-    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_presence':[p[1] for p in people],
+    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_sun_entity':entity(rule('k_sun')[0]),'render_presence':[p[1] for p in people],
             'render_doors':[{'name':d[0],'lock':d[1],'contact':d[2]} for d in doors],
             'render_heat_boiler':heat[0],'render_heat_thermostat':heat[1],'render_heat_floors':heat[2:],
-            'render_lights':lights,'render_media_entities':[entity(rule('k_np_title')[0])],
+            'render_lights':lights,'render_rooms':[{'name':name,'entity':entity(rule('k_rt'+str(i))[0])} for i,name in enumerate(rooms)],'render_media_entities':[entity(rule('k_np_title')[0])],
             'render_game_entities':[entity(rule('k_ps_t1')[0])],'render_cooking_entity':entity(rule('k_ck_title')[0]),
             'render_intrusion_alert':intrusion[0],'render_intrusion_log':intrusion[1],'render_intrusion_presence':intrusion[2:],
             'weather_current_entity':current_weather.group(1),'weather_forecast_entity':current_forecast.group(1),

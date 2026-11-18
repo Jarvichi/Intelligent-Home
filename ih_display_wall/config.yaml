@@ -32,6 +32,8 @@ options:
   render_game_entities: []
   render_overlay_entities: []
   render_cooking_entity: ""
+  render_sun_entity: ""
+  render_night_mode: auto
   cooking_url: ""
   cooking_token: ""
   render_intrusion_alert: ""
@@ -44,6 +46,7 @@ options:
   render_alarm: ""
   render_presence: []
   render_lights: []
+  render_rooms: []
   render_energy:
     current: ""
     next: ""
@@ -76,6 +79,8 @@ schema:
   render_overlay_entities:
     - str
   render_cooking_entity: str?
+  render_sun_entity: str?
+  render_night_mode: list(auto|light|dark|deep)
   cooking_url: str?
   cooking_token: password?
   render_intrusion_alert: str?
@@ -97,6 +102,9 @@ schema:
     - name: str
       entities:
         - str
+  render_rooms:
+    - name: str
+      entity: str
   render_energy:
     current: str?
     next: str?

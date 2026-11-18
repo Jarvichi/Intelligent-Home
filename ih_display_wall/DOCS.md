@@ -54,6 +54,10 @@ Optional `render_doors` entries pair a label with a lock and contact sensor; una
 
 Optional `render_alarm` and `render_presence` read an alarm panel and household presence switches. Unavailable inputs are indicated rather than treated as disarmed or away.
 
+Optional `render_rooms` maps room labels to temperature sensors or climate entities. Rooms appear among the paged cards; missing readings are marked unavailable.
+
+`render_sun_entity` supplies the next sunrise or sunset and helps `render_night_mode: auto` select the daylight or dark palette. Auto uses a dimmer palette from 23:00 to 06:00. Explicit `light`, `dark` and `deep` modes are also available; urgent warning contrast is retained.
+
 An administrator may import a JSON source mapping from the ingress page. Imported source fields are validated and stored in the add-on's private data directory, applied on the next preview without a restart, and override the corresponding configured source fields. Fields omitted from the import retain their existing values. This importer accepts source mappings only; it cannot change URLs, credentials, listener settings or action permissions.
 
 For installations using the legacy generated dashboard, `tools/import_legacy_sources.py` can prepare the mapping from the existing dashboard JSON, rule script and wall template. Supply those three paths with `--dashboard`, `--rule-script` and `--wall-template`, plus a new private output path with `--output`. The script validates the extracted mapping and refuses to overwrite an existing file. Review the file, then import it through admin ingress. It contains household entity IDs and must not be committed or published. Configure any Cooking API credential separately; credentials are never imported.

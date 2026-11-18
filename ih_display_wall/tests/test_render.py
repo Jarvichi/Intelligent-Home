@@ -20,6 +20,38 @@ class Opener:
             return Response(json.dumps({'state':'21','attributes':{'friendly_name':'Example temperature','unit_of_measurement':'°C'}}).encode())
         return Response(json.dumps({'service_response':{'todo.example':{'items':[{'summary':'Example task'}]}}}).encode())
 class Tests(unittest.TestCase):
+    def test_media_artwork_stays_on_home_assistant_and_is_escaped(self):
+        png=b'\x89PNG\r\n\x1a\nexample'
+        class ArtOpener:
+            def __init__(self):self.urls=[]
+            def open(self,req,timeout):self.urls.append(req.full_url);return Response(png)
+        opener=ArtOpener();ha=render.HA('example-token',opener)
+        art=ha.artwork('/api/image/example?cache=1');self.assertTrue(art.startswith('data:image/png;base64,'));self.assertEqual(len(opener.urls),1)
+        for path in ('http://example.test/image','//example.test/image','/local/%2e%2e/api/test','/api/../test','/api/image#fragment'):
+            self.assertIsNone(ha.artwork(path))
+        self.assertEqual(len(opener.urls),1)
+        data={'panels':[{'available':True,'active':True,'label':'Media','detail':'Song','art':art}]}
+        picture=render.svg({'state':'ready','width':1920,'height':1080},data);self.assertIn(b'<image ',picture);self.assertNotIn(b'example-token',picture)
+    def test_sun_uses_next_setting_or_rising_without_claiming_missing_data(self):
+        class Sun(render.HA):
+            def __init__(self,state):self.state=state
+            def request(self,path,body=None):return {'state':self.state,'attributes':{'next_rising':'2026-11-18T07:00:00+00:00','next_setting':'2026-11-18T16:00:00+00:00'}}
+        ha=Sun('above_horizon');self.assertTrue(ha.sun('sun.example')['label'].startswith('Sunset '));self.assertFalse(ha.sun('sun.example')['dark'])
+        ha.state='below_horizon';self.assertTrue(ha.sun('sun.example')['label'].startswith('Sunrise '));self.assertTrue(ha.sun('sun.example')['dark'])
+        ha.state='unavailable';self.assertIsNone(ha.sun('sun.example'))
+    def test_preview_day_and_night_palettes_preserve_alert_contrast(self):
+        p={'state':'ready','width':1920,'height':1080};alerts={'configured':True,'complete':True,'alerts':[{'title':'Example alarm'}]}
+        light=render.svg(p,{'night_mode':'light'},alerts,now=0);deep=render.svg(p,{'night_mode':'deep'},alerts,now=0)
+        self.assertIn(b'fill="#eef2ee"',light);self.assertIn(b'fill="#000000"',deep)
+        for picture in (light,deep):self.assertIn(b'fill="#761e24"',picture);self.assertIn(b'Example alarm',picture)
+    def test_room_temperature_handles_climate_sensor_and_missing(self):
+        class Rooms(render.HA):
+            def __init__(self,value):self.value=value
+            def request(self,path,body=None):return self.value
+        ha=Rooms({'state':'heat','attributes':{'current_temperature':19.25}})
+        self.assertEqual(ha.room_panel({'name':'Room','entity':'climate.example'})['detail'],'19.3°')
+        ha.value={'state':'20.6'};self.assertEqual(ha.room_panel({'name':'Room','entity':'sensor.example'})['detail'],'20.6°')
+        ha.value={'state':'unavailable'};self.assertFalse(ha.room_panel({'name':'Room','entity':'sensor.example'})['available'])
     def test_lights_groups_do_not_claim_all_off_if_input_missing(self):
         class Lights(render.HA):
             def __init__(self,values):self.values=values
@@ -37,6 +69,7 @@ class Tests(unittest.TestCase):
         values={'alarm_control_panel.home':{'state':'triggered'},'switch.person':{'state':'on','attributes':{'friendly_name':'Someone'}}};ha=House(values)
         self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel(['switch.person'])['detail'],'Someone');self.assertTrue(ha.presence_panel(['switch.person'])['pinned'])
         values['switch.person']['state']='unavailable';self.assertFalse(ha.presence_panel(['switch.person'])['available'])
+        values['switch.other']={'state':'on','attributes':{'friendly_name':'Another'}};result=ha.presence_panel(['switch.person','switch.other']);self.assertFalse(result['available']);self.assertIn('Another',result['detail'])
     def test_energy_price_cost_and_saving_session(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
@@ -57,6 +90,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(ha.doors_panel(sources)['label'],'Doors locked')
         states['binary_sensor.door']='on';item=ha.doors_panel(sources);self.assertEqual(item['label'],'Doors open');self.assertTrue(item['urgent'])
         states['binary_sensor.door']='unavailable';self.assertFalse(ha.doors_panel(sources)['available'])
+        second={'name':'Other','lock':'lock.other','contact':'binary_sensor.other'};states.update({'lock.other':'locked','binary_sensor.other':'on'})
+        result=ha.doors_panel(sources+[second]);self.assertFalse(result['available']);self.assertEqual(result['label'],'Doors open');self.assertTrue(result['urgent'])
     def test_task_paging_keeps_rows_beyond_five_visible(self):
         profile={'state':'ready','width':1920,'height':1080};data={'tasks':[{'title':'Item '+str(i),'priority':'normal'} for i in range(6)]}
         first=render.svg(profile,data,now=0);second=render.svg(profile,data,now=60)
@@ -69,6 +104,7 @@ class Tests(unittest.TestCase):
         ha=Heating(states);result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Floors');self.assertEqual(result['detail'],'Floor')
         states['binary_sensor.heat']['state']='on';result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Heating');self.assertIn('19.3',result['detail'])
         states['climate.floor']['state']='unavailable';self.assertFalse(ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor'])['available'])
+        result=ha.heat_panel('binary_sensor.heat','climate.hall',['climate.floor']);self.assertEqual(result['label'],'Heating');self.assertTrue(result['active'])
     def test_intrusion_requires_alert_log_and_presence(self):
         class Intrusion(render.HA):
             def __init__(self,states):self.states=states
@@ -76,6 +112,7 @@ class Tests(unittest.TestCase):
         states={'input_boolean.alert':'on','input_text.log':'kitchen@11-18 10:30','switch.person':'on'}
         ha=Intrusion(states);item=ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person'])
         self.assertTrue(item['active']);self.assertIn('Kitchen',item['detail'])
+        states['switch.other']='unavailable';partial=ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person','switch.other']);self.assertTrue(partial['active']);self.assertFalse(partial['available'])
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'panels':[{'active':True,'available':True,'label':'Music','detail':'x'*200},item]})
         self.assertIn(b'Motion while away',picture)
         states['switch.person']='off';self.assertFalse(ha.intrusion_panel('input_boolean.alert','input_text.log',['switch.person'])['active'])
@@ -157,6 +194,11 @@ class Tests(unittest.TestCase):
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':result});self.assertIn(b'Wind 16 km/h',picture);self.assertIn(b'Cloud 80%',picture)
         value['attributes']['hourly'][0]['uv_index']=3.2;value['attributes']['hourly'][0]['precipitation']=0.2
         facts=Forecast().forecast('sensor.primary','',now)['facts'];self.assertEqual(facts['next_rain'],'Due now');self.assertEqual(facts['sky'],'UV 3')
+        value['attributes']['hourly']=[{'datetime':date(0),'temperature':8,'condition':'cloudy'}]
+        value['attributes']['daily']=[{'datetime':date(0),'precipitation':0},{'datetime':date(86400),'precipitation':1}]
+        self.assertEqual(Forecast().forecast('sensor.primary','',now)['facts']['next_rain'],'Tomorrow')
+        value['attributes']['hourly'].append({'datetime':date(3600),'condition':'rainy'})
+        self.assertNotEqual(Forecast().forecast('sensor.primary','',now)['facts']['next_rain'],'Tomorrow')
     def test_snapshot_is_read_only_and_handles_unavailable(self):
         opener=Opener();ha=render.HA('example-token',opener)
         result=ha.snapshot(['sensor.temperature','sensor.offline'],'todo.example')
@@ -213,7 +255,7 @@ class Tests(unittest.TestCase):
                 self.assertLessEqual(float(child.attrib['y'])+float(child.attrib['height']),810)
     def test_urgent_task_is_highlighted(self):
         p={'state':'ready','width':1920,'height':1080}
-        image=render.svg(p,{'tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
+        image=render.svg(p,{'night_mode':'dark','tasks':[{'title':'Example urgent','detail':'','priority':'normal','urgent':True}]})
         self.assertIn(b'fill="#ffd88c"',image);self.assertIn(b'Example urgent',image)
 
     def test_alerts_never_imply_safe_when_unavailable(self):
@@ -223,7 +265,7 @@ class Tests(unittest.TestCase):
         image=render.svg(p,{}, {'configured':True,'complete':False,'alerts':[]});self.assertIn(b'Alert sources unavailable',image);self.assertNotIn(b'No active alerts',image)
         alerts={'configured':True,'complete':False,'alerts':[{'kind':'smoke','title':'SMOKE <ALARM>','short':'SMOKE','dismissible':False}]}
         image=render.svg(p,{},alerts);self.assertIn(b'INPUTS INCOMPLETE',image);self.assertIn(b'SMOKE &lt;ALARM&gt;',image)
-        tree=ET.fromstring(render.svg(p,{'items':[{'label':'Door','value':'Open'}]},alerts));rects=[x for x in tree if x.tag.endswith('rect')]
+        tree=ET.fromstring(render.svg(p,{'night_mode':'dark','items':[{'label':'Door','value':'Open'}]},alerts));rects=[x for x in tree if x.tag.endswith('rect')]
         alert_rect=next(x for x in rects if x.get('fill')=='#761e24');card=next(x for x in rects if x.get('fill')=='#26352f' and x.get('x')=='70')
         self.assertGreaterEqual(int(alert_rect.get('y')),int(card.get('y'))+int(card.get('height')))
     def test_alert_paging_and_selected_source_label(self):
