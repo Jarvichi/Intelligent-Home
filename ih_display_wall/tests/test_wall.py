@@ -9,6 +9,7 @@ from http.server import HTTPServer
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'app'))
 import frames
 import main
+import source_settings
 
 PNG=b'\x89PNG\r\n\x1a\nexample'
 class Response(io.BytesIO):
@@ -20,6 +21,18 @@ class Opener:
         if isinstance(self.value,Exception):raise self.value
         return Response(self.value)
 class TestFrames(unittest.TestCase):
+    def test_admin_only_import_validates_before_saving(self):
+        import json,tempfile
+        directory=tempfile.TemporaryDirectory();self.addCleanup(directory.cleanup);sources=source_settings.SourceSettings(pathlib.Path(directory.name)/'sources.json')
+        def server(peer):
+            s=HTTPServer(('127.0.0.1',0),main.make_handler(frames.Frames(''),True,peer,sources=sources));threading.Thread(target=s.serve_forever,daemon=True).start();self.addCleanup(s.server_close);self.addCleanup(s.shutdown);return s.server_port
+        def post(port,body,kind='application/json'):
+            c=http.client.HTTPConnection('127.0.0.1',port,timeout=3);self.addCleanup(c.close);c.request('POST','/api/sources/import',body=json.dumps(body),headers={'Content-Type':kind});r=c.getresponse();return r.status,r.read()
+        denied=server('192.0.2.1');allowed=server('127.0.0.1')
+        self.assertEqual(post(denied,{'render_alarm':'alarm_control_panel.example'})[0],403);self.assertFalse(sources.path.exists())
+        self.assertEqual(post(allowed,{'cooking_token':'secret'})[0],400);self.assertFalse(sources.path.exists())
+        self.assertEqual(post(allowed,{'render_alarm':'alarm_control_panel.example'},'text/plain')[0],400)
+        self.assertEqual(post(allowed,{'render_alarm':'alarm_control_panel.example'})[0],200);self.assertEqual(sources.read()['render_alarm'],'alarm_control_panel.example')
     def test_admin_png_preview_uses_same_renderer(self):
         class Profile:
             def read(self):return {'state':'ready','width':1920,'height':1080}

@@ -9,8 +9,10 @@ from http.server import BaseHTTPRequestHandler,HTTPServer,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 import frames
+import cooking_client
 import profile_client
 import render
+import source_settings
 
 ROOT=Path(__file__).parent/'ui'
 PEER='172.30.32.2'
@@ -21,7 +23,7 @@ def png(svg):
     if len(result.stdout)>8*1024*1024 or not result.stdout.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid image')
     return result.stdout
 
-def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False,image_token='',png_encoder=png,allow_url_token=False):
+def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,alert_preview=False,image_token='',png_encoder=png,allow_url_token=False,sources=None):
     image_token=image_token if isinstance(image_token,str) else ''
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
@@ -53,6 +55,15 @@ def make_handler(store,ingress=False,peer=PEER,profile=None,render_data=None,ale
             if method=='GET' and path in ASSETS:
                 name,kind=ASSETS[path];return self.reply(200,(ROOT/name).read_bytes(),kind)
             if method=='GET' and path=='/api/status':return self.reply(200,store.status())
+            if method=='POST' and path=='/api/sources/import':
+                if not sources:return self.reply(503,{'error':'Source import unavailable.'})
+                try:
+                    if self.headers.get('Content-Type','').split(';',1)[0].strip().lower()!='application/json':raise ValueError()
+                    size=int(self.headers.get('Content-Length','0'))
+                    if not 0<size<=65536:raise ValueError()
+                    values=json.loads(self.rfile.read(size));sources.save(values)
+                    return self.reply(200,{'ok':True,'updated':len(values)})
+                except (OSError,ValueError,TypeError,UnicodeError):return self.reply(400,{'error':'Invalid source mappings.'})
             if method=='GET' and path=='/api/profile':return self.reply(200,profile.read() if profile else {'state':'not_configured'})
             if method=='GET' and path=='/api/diagnostics':
                 if not profile or not render_data:return self.reply(503,{'error':'Renderer unavailable.'})
@@ -90,8 +101,12 @@ def main():
     store=frames.Frames(opts.get('source_url',''))
     profile=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),opts.get('profile_id',''))
     ha=render.HA(os.environ.get('SUPERVISOR_TOKEN',''))
-    def snapshot():return ha.snapshot(opts.get('render_entities',[]),opts.get('render_todo_entity',''),opts.get('render_task_feed_entity',''),profile.message_tasks if opts.get('render_shared_messages') is True else None,opts.get('weather_forecast_entity',''),opts.get('weather_forecast_fallback_entity',''),opts.get('render_media_entities',[]),opts.get('render_overlay_entities',[]),opts.get('render_cooking_entity',''),{'alert':opts.get('render_intrusion_alert',''),'log':opts.get('render_intrusion_log',''),'presence':opts.get('render_intrusion_presence',[])},{'boiler':opts.get('render_heat_boiler',''),'thermostat':opts.get('render_heat_thermostat',''),'floors':opts.get('render_heat_floors',[])},opts.get('render_doors',[]),opts.get('render_energy',{}),opts.get('render_alarm',''),opts.get('render_presence',[]),opts.get('render_lights',[]))
-    ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True))
+    cooking=cooking_client.CookingClient(opts.get('cooking_url',''),opts.get('cooking_token',''))
+    sources=source_settings.SourceSettings(data/'wall-source-overrides.json')
+    def snapshot():
+        cfg=dict(opts);updates=sources.read();energy=dict(cfg.get('render_energy') or {});energy.update(updates.get('render_energy') or {});cfg.update(updates);cfg['render_energy']=energy
+        return ha.snapshot(cfg.get('render_entities',[]),cfg.get('render_todo_entity',''),cfg.get('render_task_feed_entity',''),profile.message_tasks if cfg.get('render_shared_messages') is True else None,cfg.get('weather_forecast_entity',''),cfg.get('weather_forecast_fallback_entity',''),cfg.get('render_media_entities',[]),cfg.get('render_overlay_entities',[]),cfg.get('render_cooking_entity',''),{'alert':cfg.get('render_intrusion_alert',''),'log':cfg.get('render_intrusion_log',''),'presence':cfg.get('render_intrusion_presence',[])},{'boiler':cfg.get('render_heat_boiler',''),'thermostat':cfg.get('render_heat_thermostat',''),'floors':cfg.get('render_heat_floors',[])},cfg.get('render_doors',[]),cfg.get('render_energy',{}),cfg.get('render_alarm',''),cfg.get('render_presence',[]),cfg.get('render_lights',[]),cfg.get('render_game_entities',[]),cfg.get('weather_current_entity',''),cooking.read if cfg.get('cooking_url') or cfg.get('cooking_token') else None)
+    ingress=ThreadingHTTPServer(('0.0.0.0',8828),make_handler(store,True,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True,sources=sources))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0',8806),make_handler(store,profile=profile,render_data=snapshot,alert_preview=opts.get('render_shared_alerts') is True,image_token=opts.get('image_api_token',''),allow_url_token=opts.get('image_url_access') is True)).serve_forever()
 

@@ -29,8 +29,11 @@ options:
   profile_id: ""
   render_entities: []
   render_media_entities: []
+  render_game_entities: []
   render_overlay_entities: []
   render_cooking_entity: ""
+  cooking_url: ""
+  cooking_token: ""
   render_intrusion_alert: ""
   render_intrusion_log: ""
   render_intrusion_presence: []
@@ -56,6 +59,7 @@ options:
   render_shared_alerts: false
   weather_forecast_entity: ""
   weather_forecast_fallback_entity: ""
+  weather_current_entity: ""
 schema:
   source_url: str?
   image_api_token: password?
@@ -67,9 +71,13 @@ schema:
     - str
   render_media_entities:
     - str
+  render_game_entities:
+    - str
   render_overlay_entities:
     - str
   render_cooking_entity: str?
+  cooking_url: str?
+  cooking_token: password?
   render_intrusion_alert: str?
   render_intrusion_log: str?
   render_intrusion_presence:
@@ -104,3 +112,4 @@ schema:
   render_shared_alerts: bool
   weather_forecast_entity: str?
   weather_forecast_fallback_entity: str?
+  weather_current_entity: str?

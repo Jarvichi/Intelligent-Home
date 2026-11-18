@@ -24,10 +24,12 @@ class Tests(unittest.TestCase):
         class Lights(render.HA):
             def __init__(self,values):self.values=values
             def request(self,path,body=None):return self.values[path.split('/')[-1]]
-        groups=[{'name':'Upstairs','entities':['light.example']}];values={'light.example':{'state':'on','attributes':{'friendly_name':'Lamp'}}};ha=Lights(values)
-        self.assertIn('Lamp',ha.lights_panel(groups)['detail'])
+        groups=[{'name':'Upstairs','entities':['light.example','switch.example']}];values={'light.example':{'state':'on'},'switch.example':{'state':'off'}};ha=Lights(values)
+        self.assertIn('Upstairs',ha.lights_panel(groups)['detail'])
         values['light.example']['state']='off';self.assertEqual(ha.lights_panel(groups)['detail'],'All off')
-        values['light.example']['state']='unavailable';self.assertFalse(ha.lights_panel(groups)['available'])
+        values['light.example']['state']='unavailable';self.assertFalse(ha.lights_panel(groups)['available']);self.assertEqual(ha.lights_panel(groups)['detail'],'Unavailable')
+        values['switch.example']['state']='on';result=ha.lights_panel(groups);self.assertFalse(result['available']);self.assertIn('Upstairs',result['detail'])
+        many=[{'name':'Room '+str(i),'entities':['switch.example']} for i in range(18)];self.assertTrue(ha.lights_panel(many)['available'])
     def test_alarm_and_presence_require_available_data(self):
         class House(render.HA):
             def __init__(self,values):self.values=values
@@ -99,6 +101,12 @@ class Tests(unittest.TestCase):
         image=render.svg({'state':'ready','width':1920,'height':1080},data)
         self.assertIn(b'Song &lt;x&gt;',image);self.assertIn(b'Notice',image);self.assertIn(b'Some sources unavailable',image)
         self.assertFalse(ha.active_panel('../invalid','overlay')['available'])
+    def test_game_title_can_be_shown_when_player_is_on_but_not_playing(self):
+        class Game(render.HA):
+            def __init__(self,state):self.state=state
+            def request(self,path,body=None):return {'state':self.state,'attributes':{'media_title':'Example game'}}
+        ha=Game('on');self.assertTrue(ha.active_panel('media_player.console','game')['active']);self.assertFalse(ha.active_panel('media_player.console','media')['active'])
+        ha.state='off';self.assertFalse(ha.active_panel('media_player.console','game')['active'])
     def test_forecast_primary_fallback_stale_and_escaping(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def row(offset,condition='cloudy'):
@@ -128,6 +136,10 @@ class Tests(unittest.TestCase):
             def __init__(self):pass
             def request(self,path,body=None):return value
         weather=Forecast().forecast('sensor.primary','',now);self.assertFalse(weather['current']['current']);self.assertEqual([d['label'] for d in weather['daily']],['Today','Tomorrow'])
+        class WithCurrent(render.HA):
+            def __init__(self):pass
+            def request(self,path,body=None):return {'state':'cloudy','attributes':{'temperature':6.2}} if path.endswith('weather.current') else value
+        current=WithCurrent().forecast('sensor.primary','',now,current_entity='weather.current')['current'];self.assertTrue(current['current']);self.assertEqual(current['temperature'],6)
         picture=render.svg({'state':'ready','width':1920,'height':1080},{'weather_configured':True,'weather':weather})
         self.assertIn(b'Next 8',picture);self.assertNotIn(b'Now 8',picture);self.assertIn(b'Tomorrow 12',picture)
         value['attributes']['daily']=[{'datetime':date(0),'temperature':float('nan'),'templow':0,'condition':'rainy'}]

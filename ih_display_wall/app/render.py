@@ -45,7 +45,7 @@ class HA:
             return {'label':str(name),'value':state}
         except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return {'label':entity,'value':'Unavailable'}
     def active_panel(self,entity,kind):
-        prefix={'media':'media_player.','overlay':'binary_sensor.','cooking':'sensor.'}.get(kind,'')
+        prefix={'media':'media_player.','game':'media_player.','overlay':'binary_sensor.','cooking':'sensor.'}.get(kind,'')
         if not isinstance(entity,str) or not ENTITY.fullmatch(entity) or not entity.startswith(prefix):return {'available':False}
         try:
             value=self.request('states/'+entity)
@@ -53,10 +53,10 @@ class HA:
             if kind=='overlay' and value['state'] not in ('on','off'):return {'available':False}
             if kind=='cooking' and value['state'] not in ('on','off'):return {'available':False}
             attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
-            active=value['state']=='playing' if kind=='media' else value['state']=='on'
+            active=(value['state']=='playing' and bool(attrs.get('media_title'))) if kind=='media' else (value['state']!='off' and bool(attrs.get('media_title'))) if kind=='game' else value['state']=='on'
             label=str(attrs.get('friendly_name') or entity)
             detail=''
-            if kind=='media' and active:
+            if kind in ('media','game') and active:
                 title=attrs.get('media_title');artist=attrs.get('media_artist')
                 detail=' · '.join(x for x in (title,artist) if isinstance(x,str) and x.strip())
             if kind=='cooking' and active:
@@ -145,25 +145,23 @@ class HA:
             return {'available':True,'active':True,'pinned':True,'label':'Home','detail':', '.join(people) if people else 'Nobody home'}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def lights_panel(self,groups):
-        if not isinstance(groups,list) or not groups or len(groups)>8:return {'available':False}
+        if not isinstance(groups,list) or not groups or len(groups)>40:return {'available':False}
         for group in groups:
             if not isinstance(group,dict) or not isinstance(group.get('name'),str) or not group['name'].strip() or not isinstance(group.get('entities'),list) or not group['entities'] or len(group['entities'])>50:return {'available':False}
-            if any(not isinstance(e,str) or not ENTITY.fullmatch(e) or not e.startswith('light.') for e in group['entities']):return {'available':False}
+            if any(not isinstance(e,str) or not ENTITY.fullmatch(e) or not e.startswith(('light.','switch.')) for e in group['entities']):return {'available':False}
         entities=list(dict.fromkeys(e for group in groups for e in group['entities']))
         if len(entities)>100:return {'available':False}
         try:
-            with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(entities,pool.map(lambda e:self.request('states/'+e),entities)))
-            if any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values.values()):return {'available':False}
+            def fetch(entity):
+                try:return self.request('states/'+entity)
+                except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
+            with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(entities,pool.map(fetch,entities)))
+            incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values.values())
             active=[]
             for group in groups:
-                names=[]
-                for entity in group['entities']:
-                    value=values[entity]
-                    if value['state']=='on':
-                        attrs=value.get('attributes') if isinstance(value.get('attributes'),dict) else {}
-                        names.append(str(attrs.get('friendly_name') or entity))
-                if names:active.append(group['name']+': '+', '.join(names))
-            return {'available':True,'active':True,'label':'Lights on','detail':' · '.join(active) if active else 'All off'}
+                if any(isinstance(values[entity],dict) and values[entity].get('state')=='on' for entity in group['entities']):active.append(group['name'])
+            detail=', '.join(active) if active else 'Unavailable' if incomplete else 'All off'
+            return {'available':not incomplete,'active':True,'label':'Lights on','detail':detail}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def energy_panel(self,sources,now=None):
         now=time.time() if now is None else now
@@ -241,7 +239,7 @@ class HA:
                 result.append({'title':title,'detail':detail,'priority':priority})
             return result
         except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-    def forecast(self,primary,fallback,now=None):
+    def forecast(self,primary,fallback,now=None,current_entity=''):
         now=time.time() if now is None else now
         for entity,source in ((primary,'primary'),(fallback,'fallback')):
             if not isinstance(entity,str) or not entity.startswith('sensor.') or not ENTITY.fullmatch(entity):continue
@@ -263,6 +261,13 @@ class HA:
                 hours.sort(key=lambda x:x[0])
                 if not hours or hours[0][0]>now+3600:continue
                 current=dict(hours[0][1],current=hours[0][0]<=now)
+                if not current['current'] and isinstance(current_entity,str) and current_entity.startswith('weather.') and ENTITY.fullmatch(current_entity):
+                    try:
+                        live=self.request('states/'+current_entity);live_attrs=live.get('attributes',{}) if isinstance(live,dict) else {}
+                        temp=live_attrs.get('temperature') if isinstance(live_attrs,dict) else None;condition=live.get('state') if isinstance(live,dict) else None
+                        if isinstance(condition,str) and condition not in ('unknown','unavailable','') and not isinstance(temp,bool) and isinstance(temp,(int,float)) and math.isfinite(temp):
+                            current={'time':datetime.datetime.fromtimestamp(now).astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' '),'current':True,'wind_speed':live_attrs.get('wind_speed'),'wind_bearing':live_attrs.get('wind_bearing'),'uv_index':live_attrs.get('uv_index'),'cloud_coverage':live_attrs.get('cloud_coverage')}
+                    except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):pass
                 today=datetime.datetime.fromtimestamp(now).astimezone().date();daily=[]
                 rows=attrs.get('daily',[])
                 if isinstance(rows,list) and len(rows)<=30:
@@ -287,7 +292,7 @@ class HA:
                 return {'source':source,'hours':[x[1] for x in hours[:6]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
-    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None):
+    def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback='',media=None,overlays=None,cooking='',intrusion=None,heat=None,doors=None,energy=None,alarm='',presence=None,lights=None,games=None,weather_current='',cooking_reader=None):
         entities=entities if isinstance(entities,list) else []
         entities=[x for x in entities[:6] if isinstance(x,str)]
         with ThreadPoolExecutor(max_workers=8) as pool:
@@ -295,9 +300,10 @@ class HA:
             tf=pool.submit(self.todos,todo) if todo else None
             ff=pool.submit(self.task_feed,feed) if feed else None
             sf=pool.submit(shared) if shared else None
-            wf=pool.submit(self.forecast,weather_primary,weather_fallback) if weather_primary or weather_fallback else None
-            panels=[pool.submit(self.active_panel,e,kind) for kind,values in (('media',media),('overlay',overlays)) for e in (values[:8] if isinstance(values,list) else [])]
-            if cooking:panels.append(pool.submit(self.active_panel,cooking,'cooking'))
+            wf=pool.submit(self.forecast,weather_primary,weather_fallback,current_entity=weather_current) if weather_primary or weather_fallback else None
+            panels=[pool.submit(self.active_panel,e,kind) for kind,values in (('media',media),('game',games),('overlay',overlays)) for e in (values[:8] if isinstance(values,list) else [])]
+            if cooking_reader:panels.append(pool.submit(cooking_reader))
+            elif cooking:panels.append(pool.submit(self.active_panel,cooking,'cooking'))
             if isinstance(intrusion,dict) and any(intrusion.values()):panels.append(pool.submit(self.intrusion_panel,intrusion.get('alert',''),intrusion.get('log',''),intrusion.get('presence',[])))
             if isinstance(heat,dict) and any(heat.values()):panels.append(pool.submit(self.heat_panel,heat.get('boiler',''),heat.get('thermostat',''),heat.get('floors',[])))
             if doors:panels.append(pool.submit(self.doors_panel,doors))
