@@ -32,6 +32,18 @@ class Tests(unittest.TestCase):
     def test_unavailable_state_is_visible(self):
         image=kindle_render.svg({'tasks':None,'tasks_configured':True,'tasks_partial':True},None,now=0)
         self.assertIn(b'Weather not configured',image);self.assertIn(b'Task sources unavailable',image);self.assertIn(b'Alert sources unavailable',image)
+    def test_life_safety_alerts_survive_multiple_other_alerts(self):
+        alerts={'configured':True,'complete':False,'alerts':[{'kind':'free','title':'Free power'},{'kind':'saving','title':'Saving session'},{'kind':'smoke','title':'SMOKE ALARM'},{'kind':'co','title':'CO ALARM'},{'kind':'robot','title':'Robot stopped'}]}
+        for now in (0,300,600):
+            image=kindle_render.svg({},alerts,now=now);ET.fromstring(image)
+            self.assertIn(b'SMOKE ALARM',image);self.assertIn(b'CO ALARM',image);self.assertIn(b'Alert sources unavailable',image)
+        self.assertIn(b'Free power',kindle_render.svg({},alerts,now=0))
+        self.assertIn(b'Saving session',kindle_render.svg({},alerts,now=300))
+        self.assertIn(b'Robot stopped',kindle_render.svg({},alerts,now=600))
+    def test_unconfigured_alerts_are_labelled(self):
+        image=kindle_render.svg({}, {'configured':False,'complete':False,'alerts':[]},now=0)
+        self.assertIn(b'Alert sources not configured',image)
+
     def test_import_and_png_require_admin(self):
         directory=tempfile.TemporaryDirectory();self.addCleanup(directory.cleanup);sources=source_settings.SourceSettings(pathlib.Path(directory.name)/'sources.json')
         def server(peer):

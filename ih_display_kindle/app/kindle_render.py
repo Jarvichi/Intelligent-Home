@@ -79,11 +79,18 @@ def svg(data,alerts=None,now=None):
     if str(energy_detail).startswith('Saving'):
         box(48,1040,976,48,'black');label(65,1073,energy_detail,22,'white')
     else:text(48,1065,energy_detail,25,True)
-    warning=[]
-    if isinstance(alerts,dict):warning=[str(x.get('title','')) for x in (alerts.get('alerts') or []) if isinstance(x,dict)]
-    if alerts is None or (isinstance(alerts,dict) and not alerts.get('complete')):warning.append('Alert sources unavailable')
+    # Keep life-safety alerts visible while cycling other alerts. The source
+    # emits at most one aggregate smoke alert and one CO alert.
+    entries=[x for x in (alerts.get('alerts') or []) if isinstance(x,dict) and x.get('title')] if isinstance(alerts,dict) else []
+    life=[str(x['title']) for x in entries if x.get('kind') in ('smoke','co')]
+    other=[str(x['title']) for x in entries if x.get('kind') not in ('smoke','co')]
+    status='Alert sources not configured' if isinstance(alerts,dict) and alerts.get('configured') is False else 'Alert sources unavailable' if alerts is None or (isinstance(alerts,dict) and not alerts.get('complete')) else ''
+    slots=max(0,4-min(len(life),2)-(1 if status else 0));pages=max(1,(len(other)+slots-1)//slots) if slots else 1;page=int(timestamp//300)%pages
+    warning=life[:2]+(other[page*slots:page*slots+slots] if slots else [])+([status] if status else [])
     if warning:
-        box(48,486,976,90,'black');label(65,540,' · '.join(warning[:2]),27,'white')
+        box(48,478,976,190,'black')
+        for i,item in enumerate(warning):label(70,517+i*37,item[:52],25,'white')
+        if pages>1:label(995,650,f'{page+1}/{pages}',18,'white','end')
     tasks=data.get('tasks');partial=data.get('tasks_partial') is True
     label(48,1136,'TO DO',25)
     if tasks is None:text(48,1180,'Task sources unavailable' if data.get('tasks_configured') else 'Task sources not configured',25)

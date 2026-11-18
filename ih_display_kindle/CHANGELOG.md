@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Keep smoke and CO warnings visible when multiple alerts are active.
+
 ## 0.2.1
 
 - Bring preview weather, presence and task details closer to the existing picture.
