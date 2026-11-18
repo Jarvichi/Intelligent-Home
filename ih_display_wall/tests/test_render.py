@@ -223,6 +223,9 @@ class Tests(unittest.TestCase):
         image=render.svg(p,{}, {'configured':True,'complete':False,'alerts':[]});self.assertIn(b'Alert sources unavailable',image);self.assertNotIn(b'No active alerts',image)
         alerts={'configured':True,'complete':False,'alerts':[{'kind':'smoke','title':'SMOKE <ALARM>','short':'SMOKE','dismissible':False}]}
         image=render.svg(p,{},alerts);self.assertIn(b'INPUTS INCOMPLETE',image);self.assertIn(b'SMOKE &lt;ALARM&gt;',image)
+        tree=ET.fromstring(render.svg(p,{'items':[{'label':'Door','value':'Open'}]},alerts));rects=[x for x in tree if x.tag.endswith('rect')]
+        alert_rect=next(x for x in rects if x.get('fill')=='#761e24');card=next(x for x in rects if x.get('fill')=='#26352f' and x.get('x')=='70')
+        self.assertGreaterEqual(int(alert_rect.get('y')),int(card.get('y'))+int(card.get('height')))
     def test_alert_paging_and_selected_source_label(self):
         p={'state':'ready','width':1920,'height':1080}
         alerts={'configured':True,'complete':True,'alerts':[{'title':'Warning '+str(i)} for i in range(5)]}

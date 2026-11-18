@@ -402,15 +402,15 @@ def svg(profile,data,alerts=None,now=None):
         warnings=alerts.get('alerts') or []
         complete=alerts.get('complete') is True
         if warnings or not complete:
-            parts.append('<rect x="70" y="165" width="1405" height="170" rx="16" fill="#761e24"/>')
+            parts.append('<rect x="70" y="730" width="1405" height="75" rx="16" fill="#761e24"/>')
             heading='URGENT · SELECTED SOURCES' if complete else 'URGENT · ALERT INPUTS INCOMPLETE'
-            parts.append(f'<text x="95" y="193" fill="#ffffff" font-family="sans-serif" font-size="19" font-weight="bold">{heading}</text>')
+            parts.append(f'<text x="95" y="750" fill="#ffffff" font-family="sans-serif" font-size="17" font-weight="bold">{heading}</text>')
             if warnings:
                 pages=(len(warnings)+3)//4;page=int((time.time() if now is None else now)//300)%pages
                 for i,item in enumerate(warnings[page*4:page*4+4]):
-                    parts.append(f'<text x="95" y="{220+i*29}" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="bold">{clean(item.get("title"),92)}</text>')
-                if pages>1:parts.append(f'<text x="1370" y="193" fill="#ffffff" font-family="sans-serif" font-size="18">{page+1}/{pages}</text>')
-            else:parts.append('<text x="95" y="230" fill="#ffffff" font-family="sans-serif" font-size="22">Alert sources unavailable</text>')
+                    parts.append(f'<text x="{95+(i%2)*680}" y="{773+(i//2)*24}" fill="#ffffff" font-family="sans-serif" font-size="18" font-weight="bold">{clean(item.get("title"),62)}</text>')
+                if pages>1:parts.append(f'<text x="1370" y="750" fill="#ffffff" font-family="sans-serif" font-size="17">{page+1}/{pages}</text>')
+            else:parts.append('<text x="95" y="780" fill="#ffffff" font-family="sans-serif" font-size="19">Alert sources unavailable</text>')
         else:parts.append('<text x="70" y="172" fill="#c4d5c9" font-family="sans-serif" font-size="19">No active alerts from selected sources</text>')
     parts.append('</svg>')
     return ''.join(parts).encode('utf-8')
