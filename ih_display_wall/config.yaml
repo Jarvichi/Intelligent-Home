@@ -1,5 +1,5 @@
 name: "Intelligent Home - Wall Display"
-version: "0.10.0"
+version: "0.11.0"
 slug: ih_display_wall
 image: "ghcr.io/jarvichi/{arch}-ih_display_wall"
 description: "Preview and manage a wall display."
@@ -22,6 +22,7 @@ ports_description:
 watchdog: "http://[HOST]:[PORT:8806]/healthz"
 options:
   source_url: ""
+  image_api_token: ""
   displays_url: ""
   displays_token: ""
   profile_id: ""
@@ -34,6 +35,7 @@ options:
   weather_forecast_fallback_entity: ""
 schema:
   source_url: str?
+  image_api_token: password?
   displays_url: str?
   displays_token: password?
   profile_id: str?

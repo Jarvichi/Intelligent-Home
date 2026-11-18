@@ -84,7 +84,7 @@ class HA:
                     if date.tzinfo is None:continue
                     stamp=date.timestamp();temp=row.get('temperature');condition=row.get('condition')
                     if stamp<=now-3600 or stamp>now+86400 or isinstance(temp,bool) or not isinstance(temp,(int,float)) or not math.isfinite(temp) or not isinstance(condition,str) or not condition:continue
-                    hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' ')}))
+                    hours.append((stamp,{'time':date.astimezone().strftime('%H:%M'),'temperature':round(temp),'condition':condition.replace('_',' '),'wind_speed':row.get('wind_speed'),'wind_bearing':row.get('wind_bearing'),'uv_index':row.get('uv_index'),'cloud_coverage':row.get('cloud_coverage'),'precipitation':row.get('precipitation')}))
                 hours.sort(key=lambda x:x[0])
                 if not hours or hours[0][0]>now+3600:continue
                 current=dict(hours[0][1],current=hours[0][0]<=now)
@@ -101,7 +101,15 @@ class HA:
                             daily.append((offset,{'label':('Today','Tomorrow','Next day')[offset],'high':round(high),'low':round(low),'condition':condition.replace('_',' ')}))
                         except (ValueError,AttributeError,TypeError,OverflowError):continue
                 daily.sort(key=lambda x:x[0])
-                return {'source':source,'hours':[x[1] for x in hours[:5]],'current':current,'daily':[x[1] for x in daily[:3]]}
+                def numeric(x):return not isinstance(x,bool) and isinstance(x,(int,float)) and math.isfinite(x)
+                def wet(row):
+                    p=row.get('precipitation');return (numeric(p) and p>=0.1) or row['condition'] in ('rainy','pouring','lightning-rainy','snowy-rainy')
+                rain=next(((stamp,row) for stamp,row in hours if wet(row)),None)
+                next_rain=('Due now' if rain[0]<=now else rain[1]['time']) if rain else 'None in hourly forecast'
+                if rain and rain[0]>now and datetime.datetime.fromtimestamp(rain[0]).astimezone().date()!=today:next_rain+=' next day'
+                wind=current.get('wind_speed');bearing=current.get('wind_bearing');uv=current.get('uv_index');cloud=current.get('cloud_coverage')
+                facts={'wind':str(round(wind))+' km/h' if numeric(wind) else 'Unavailable','bearing':round(bearing)%360 if numeric(bearing) else None,'next_rain':next_rain,'sky':('UV '+str(round(uv)) if numeric(uv) and uv>=0.5 else 'Cloud '+str(round(cloud))+'%' if numeric(cloud) else 'Unavailable')}
+                return {'source':source,'hours':[x[1] for x in hours[:5]],'current':current,'daily':[x[1] for x in daily[:3]],'facts':facts}
             except (OSError,ValueError,KeyError,TypeError,OverflowError,urllib.error.URLError,http.client.HTTPException):continue
         return None
     def snapshot(self,entities,todo,feed='',shared=None,weather_primary='',weather_fallback=''):
@@ -161,6 +169,10 @@ def svg(profile,data,alerts=None,now=None):
     parts.append('<text x="930" y="694" fill="#c4d5c9" font-family="sans-serif" font-size="18">Only selected sources are shown</text>')
     if data.get('weather_configured'):
         weather=data.get('weather')
+        if weather and weather.get('facts'):
+            facts=weather['facts'];wind=facts['wind']+((' · '+str(facts['bearing'])+'°') if facts.get('bearing') is not None else '')
+            for x,label in ((390,'Wind '+wind),(700,'Rain '+facts['next_rain']),(1110,facts['sky'])):
+                parts.append(f'<text x="{x}" y="148" fill="#c4d5c9" font-family="sans-serif" font-size="19">{clean(label,35)}</text>')
         parts.append('<rect x="70" y="730" width="1405" height="75" rx="16" fill="#26352f"/>')
         if not weather:parts.append('<text x="90" y="775" fill="#ffd88c" font-family="sans-serif" font-size="22">Hourly forecast unavailable</text>')
         else:
