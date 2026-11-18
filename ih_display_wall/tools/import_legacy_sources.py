@@ -48,9 +48,12 @@ def extract(dashboard,script,template):
     current_weather=re.search(r"^W_\s*=\s*'([^']+)'",script,re.M)
     current_forecast=re.search(r"var BF=hass\.states\['([^']+)'\]",script)
     fallback_forecast=re.search(r"var f=hass\.states\['[^']+'\]\|\|hass\.states\['([^']+)'\]",script)
-    if not all((match,calendar,sessions,current_weather,current_forecast,fallback_forecast)) or len(costs)<2 or len(heat)<2 or len(intrusion)<3:raise ValueError('Source mapping is incomplete')
+    festive=rule('k_fest')[1];birthdays=re.search(r'sensor\.[a-z0-9_]+',festive);halloween=re.search(r'input_boolean\.[a-z0-9_]+',festive)
+    fixed=[{'month':int(month),'day':int(day),'name':name} for month,day,name in re.findall(r"\[D\((\d{1,2}),(\d{1,2})\),'[^']*Happy Birthday ([^!']+)!'\]",festive)]
+    if 'Happy Birthday' in festive and not fixed:raise ValueError('Expected fixed birthdays not found')
+    if not all((match,calendar,sessions,current_weather,current_forecast,fallback_forecast,birthdays,halloween)) or len(costs)<2 or len(heat)<2 or len(intrusion)<3:raise ValueError('Source mapping is incomplete')
     base=match.group(1)
-    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_sun_entity':entity(rule('k_sun')[0]),'render_presence':[p[1] for p in people],
+    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_sun_entity':entity(rule('k_sun')[0]),'render_birthdays_entity':birthdays.group(),'render_birthdays_fixed':fixed,'render_halloween_entity':halloween.group(),'render_presence':[{'name':p[0],'entity':p[1]} for p in people],
             'render_doors':[{'name':d[0],'lock':d[1],'contact':d[2]} for d in doors],
             'render_heat_boiler':heat[0],'render_heat_thermostat':heat[1],'render_heat_floors':heat[2:],
             'render_lights':lights,'render_rooms':[{'name':name,'entity':entity(rule('k_rt'+str(i))[0])} for i,name in enumerate(rooms)],'render_media_entities':[entity(rule('k_np_title')[0])],

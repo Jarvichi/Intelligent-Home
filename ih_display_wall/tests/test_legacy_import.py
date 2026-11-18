@@ -16,7 +16,7 @@ class Tests(unittest.TestCase):
                item('k_doors_v',"var DS=[['Entry','lock.entry','binary_sensor.door']];var bad=[];"),
                item('k_elec',"calendar.example event.example var E='example';"),
                item('k_cost','sensor.electric_current_accumulative_cost sensor.gas_current_accumulative_cost'),
-               item('k_np_title','', 'media_player.example'),item('k_ps_t1','', 'media_player.game'),
+               item('k_np_title','', 'media_player.example'),item('k_ps_t1','', 'media_player.game'),item('k_fest','input_boolean.example sensor.example'),
                item('k_ck_title','', 'sensor.cooking'),item('k_rt0','', 'climate.example')]
         rules.extend(item('k_lt'+str(i),'var R=[["Room",["light.example"]]]; var on=[];') for i in range(4))
         dashboard={'views':[{'cards':[{'config':{'rules':rules}}]}]}

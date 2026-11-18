@@ -38,6 +38,8 @@ The same token enables `GET /v1/render.png`, a PNG of the app-owned preview. It 
 
 For clients that cannot send an Authorization header, `image_url_access` optionally enables `/v1/render/<image_api_token>.png` for URL-safe tokens of at least 32 characters. URL credentials can be copied from client configuration, histories or intermediaries; only enable this after reviewing access on the display and its network. Query strings may be used for cache busting and do not affect authorisation. The setting defaults to false and does not change the existing TV feed.
 
+A client with an existing hard-coded image address needs an independently planned provider update or compatible route before it can use the new endpoint. Keep its current feed until its network access, refresh behaviour and rollback have been verified on the real display.
+
 Optional `render_media_entities` and `render_overlay_entities` read media player and binary sensor states. Active media includes a title and artist when supplied; active binary sources are labelled. Unavailable configured sources are indicated. These are read-only selected sources, not a replacement for all legacy media or intrusion rules.
 
 `render_game_entities` accepts media players representing games consoles; a title is shown whenever the player is available and not off, even if its state is not `playing`.
@@ -57,6 +59,8 @@ Optional `render_alarm` and `render_presence` read an alarm panel and household 
 Optional `render_rooms` maps room labels to temperature sensors or climate entities. Rooms appear among the paged cards; missing readings are marked unavailable.
 
 `render_sun_entity` supplies the next sunrise or sunset and helps `render_night_mode: auto` select the daylight or dark palette. Auto uses a dimmer palette from 23:00 to 06:00. Explicit `light`, `dark` and `deep` modes are also available; urgent warning contrast is retained.
+
+Optional `render_birthdays_entity` and `render_halloween_entity` provide household-specific occasion data and seasonal mode. Birthday names remain in the existing private sensor; they are not shipped in the add-on. The preview can show selected public holidays and upcoming birthdays without changing any entity.
 
 An administrator may import a JSON source mapping from the ingress page. Imported source fields are validated and stored in the add-on's private data directory, applied on the next preview without a restart, and override the corresponding configured source fields. Fields omitted from the import retain their existing values. This importer accepts source mappings only; it cannot change URLs, credentials, listener settings or action permissions.
 

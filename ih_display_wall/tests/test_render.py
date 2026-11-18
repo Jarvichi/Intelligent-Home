@@ -20,6 +20,16 @@ class Opener:
             return Response(json.dumps({'state':'21','attributes':{'friendly_name':'Example temperature','unit_of_measurement':'°C'}}).encode())
         return Response(json.dumps({'service_response':{'todo.example':{'items':[{'summary':'Example task'}]}}}).encode())
 class Tests(unittest.TestCase):
+    def test_festive_data_is_private_and_handles_missing_sources(self):
+        class Festive(render.HA):
+            def __init__(self,values):self.values=values
+            def request(self,path,body=None):return self.values[path.split('/')[-1]]
+        now=datetime.datetime(2026,11,18,12,tzinfo=datetime.timezone.utc).timestamp()
+        states={'sensor.birthdays':{'state':'Example|2'},'input_boolean.season':{'state':'off'}};ha=Festive(states)
+        item=ha.festive_panel('sensor.birthdays','input_boolean.season',now=now);self.assertTrue(item['available']);self.assertIn('Example',item['detail']);self.assertTrue(item['pinned'])
+        fixed=[{'name':'Fixed example','month':11,'day':18}];self.assertIn('Fixed example',ha.festive_panel('sensor.birthdays','input_boolean.season',fixed,now)['detail'])
+        states['input_boolean.season']['state']='on';self.assertEqual(ha.festive_panel('sensor.birthdays','input_boolean.season',now=now)['detail'],'Haunted house')
+        states['input_boolean.season']['state']='unavailable';self.assertFalse(ha.festive_panel('sensor.birthdays','input_boolean.season',now=now)['available'])
     def test_media_artwork_stays_on_home_assistant_and_is_escaped(self):
         png=b'\x89PNG\r\n\x1a\nexample'
         class ArtOpener:
@@ -44,6 +54,7 @@ class Tests(unittest.TestCase):
         light=render.svg(p,{'night_mode':'light'},alerts,now=0);deep=render.svg(p,{'night_mode':'deep'},alerts,now=0)
         self.assertIn(b'fill="#eef2ee"',light);self.assertIn(b'fill="#000000"',deep)
         for picture in (light,deep):self.assertIn(b'fill="#761e24"',picture);self.assertIn(b'Example alarm',picture)
+        self.assertIn(b'M1536 0h384v810h-384z M0 810h1920v270H0z',light)
     def test_room_temperature_handles_climate_sensor_and_missing(self):
         class Rooms(render.HA):
             def __init__(self,value):self.value=value
@@ -67,9 +78,10 @@ class Tests(unittest.TestCase):
             def __init__(self,values):self.values=values
             def request(self,path,body=None):return self.values[path.split('/')[-1]]
         values={'alarm_control_panel.home':{'state':'triggered'},'switch.person':{'state':'on','attributes':{'friendly_name':'Someone'}}};ha=House(values)
-        self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel(['switch.person'])['detail'],'Someone');self.assertTrue(ha.presence_panel(['switch.person'])['pinned'])
-        values['switch.person']['state']='unavailable';self.assertFalse(ha.presence_panel(['switch.person'])['available'])
-        values['switch.other']={'state':'on','attributes':{'friendly_name':'Another'}};result=ha.presence_panel(['switch.person','switch.other']);self.assertFalse(result['available']);self.assertIn('Another',result['detail'])
+        person={'name':'Someone','entity':'switch.person'};other={'name':'Another','entity':'switch.other'}
+        self.assertTrue(ha.alarm_panel('alarm_control_panel.home')['urgent']);self.assertEqual(ha.presence_panel([person])['detail'],'Someone');self.assertTrue(ha.presence_panel([person])['pinned'])
+        values['switch.person']['state']='unavailable';self.assertFalse(ha.presence_panel([person])['available'])
+        values['switch.other']={'state':'on','attributes':{'friendly_name':'Different'}};result=ha.presence_panel([person,other]);self.assertFalse(result['available']);self.assertIn('Another',result['detail'])
     def test_energy_price_cost_and_saving_session(self):
         now=datetime.datetime(2026,11,17,12,tzinfo=datetime.timezone.utc).timestamp()
         def date(offset):return datetime.datetime.fromtimestamp(now+offset,datetime.timezone.utc).isoformat()
@@ -79,8 +91,8 @@ class Tests(unittest.TestCase):
         sources={'current':'sensor.rate','next':'sensor.next','electricity':'sensor.cost','calendar':'calendar.saving','sessions':'event.saving'}
         values={'sensor.rate':{'state':'0.30'},'sensor.next':{'state':'0.12'},'sensor.cost':{'state':'2.30'},'calendar.saving':{'state':'off','attributes':{}},'event.saving':{'state':'ok','attributes':{'available_events':[]}}}
         ha=Energy(values);result=ha.energy_panel(sources,now);self.assertTrue(result['available']);self.assertIn('30.0p now peak',result['detail']);self.assertIn('£2.30',result['detail'])
-        values['calendar.saving']={'state':'on','attributes':{'start_time':date(-60),'end_time':date(3600)}}
-        result=ha.energy_panel(sources,now);self.assertIn('Saving now',result['detail']);self.assertNotIn('£2.30',result['detail'])
+        values['calendar.saving']={'state':'on','attributes':{'start_time':date(-60),'end_time':date(3600)}};values['event.saving']['attributes']['joined_events']=[{'start':date(-60),'octopoints_per_kwh':100}]
+        result=ha.energy_panel(sources,now);self.assertIn('Saving now',result['detail']);self.assertIn('100 pts/kWh',result['detail']);self.assertNotIn('£2.30',result['detail'])
         values['sensor.rate']={'state':'unavailable'};self.assertFalse(ha.energy_panel(sources,now)['available'])
     def test_doors_never_report_locked_when_a_source_is_unavailable(self):
         class Doors(render.HA):

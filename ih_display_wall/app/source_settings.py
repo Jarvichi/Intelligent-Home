@@ -1,5 +1,6 @@
 """Validate and atomically save admin-imported, non-secret display source mappings."""
 import json
+import datetime
 import os
 import re
 import tempfile
@@ -11,14 +12,15 @@ SCALARS={'render_alarm':'alarm_control_panel.','render_cooking_entity':'sensor.'
          'render_intrusion_alert':'input_boolean.','render_intrusion_log':'input_text.',
          'render_heat_boiler':'binary_sensor.','render_heat_thermostat':'climate.',
          'weather_forecast_entity':'sensor.','weather_forecast_fallback_entity':'sensor.',
-         'weather_current_entity':'weather.','render_sun_entity':'sun.'}
-LISTS={'render_presence':'switch.','render_intrusion_presence':'switch.',
+         'weather_current_entity':'weather.','render_sun_entity':'sun.',
+         'render_birthdays_entity':'sensor.','render_halloween_entity':'input_boolean.'}
+LISTS={'render_intrusion_presence':'switch.',
        'render_heat_floors':'climate.','render_media_entities':'media_player.',
        'render_game_entities':'media_player.','render_overlay_entities':'binary_sensor.',
        'render_entities':''}
 ENERGY={'current':'sensor.','next':'sensor.','electricity':'sensor.','gas':'sensor.',
         'calendar':'calendar.','sessions':'event.','rates_today':'event.','rates_tomorrow':'event.'}
-LIST_LIMITS={'render_presence':10,'render_intrusion_presence':10,'render_heat_floors':8,
+LIST_LIMITS={'render_intrusion_presence':10,'render_heat_floors':8,
              'render_media_entities':8,'render_game_entities':8,'render_overlay_entities':8,'render_entities':6}
 
 def entity(value,prefix,empty=False):
@@ -45,6 +47,16 @@ def validate(value):
             if not isinstance(item,list) or len(item)>20:return False
             for row in item:
                 if not isinstance(row,dict) or set(row)!={'name','entity'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not (entity(row['entity'],'sensor.') or entity(row['entity'],'climate.')):return False
+        elif key=='render_presence':
+            if not isinstance(item,list) or len(item)>10:return False
+            for row in item:
+                if not isinstance(row,dict) or set(row)!={'name','entity'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not entity(row['entity'],'switch.'):return False
+        elif key=='render_birthdays_fixed':
+            if not isinstance(item,list) or len(item)>100:return False
+            for row in item:
+                if not isinstance(row,dict) or set(row)!={'name','month','day'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or type(row['month']) is not int or type(row['day']) is not int:return False
+                try:datetime.date(2000,row['month'],row['day'])
+                except ValueError:return False
         elif key=='render_energy':
             if not isinstance(item,dict) or any(k not in ENERGY or not entity(v,ENERGY[k],True) for k,v in item.items()):return False
         else:return False
