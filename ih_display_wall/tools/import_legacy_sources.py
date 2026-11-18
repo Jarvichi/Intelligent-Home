@@ -53,7 +53,13 @@ def extract(dashboard,script,template):
     if 'Happy Birthday' in festive and not fixed:raise ValueError('Expected fixed birthdays not found')
     if not all((match,calendar,sessions,current_weather,current_forecast,fallback_forecast,birthdays,halloween)) or len(costs)<2 or len(heat)<2 or len(intrusion)<3:raise ValueError('Source mapping is incomplete')
     base=match.group(1)
-    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_sun_entity':entity(rule('k_sun')[0]),'render_birthdays_entity':birthdays.group(),'render_birthdays_fixed':fixed,'render_halloween_entity':halloween.group(),'render_presence':[{'name':p[0],'entity':p[1]} for p in people],
+    photo=re.search(r"(/local/[A-Za-z0-9_./-]+/)'\s*\+\s*key\s*\+\s*'(\.[A-Za-z0-9]+)",template)
+    presence=[]
+    for person in people:
+        row={'name':person[0],'entity':person[1]}
+        if photo and re.fullmatch(r'[A-Za-z0-9_-]+',person[0]):row['picture']=photo.group(1)+person[0].lower()+photo.group(2)
+        presence.append(row)
+    result={'render_alarm':entity(rule('k_alarm_v')[0]),'render_sun_entity':entity(rule('k_sun')[0]),'render_birthdays_entity':birthdays.group(),'render_birthdays_fixed':fixed,'render_halloween_entity':halloween.group(),'render_presence':presence,
             'render_doors':[{'name':d[0],'lock':d[1],'contact':d[2]} for d in doors],
             'render_heat_boiler':heat[0],'render_heat_thermostat':heat[1],'render_heat_floors':heat[2:],
             'render_lights':lights,'render_rooms':[{'name':name,'entity':entity(rule('k_rt'+str(i))[0])} for i,name in enumerate(rooms)],'render_media_entities':[entity(rule('k_np_title')[0])],
@@ -64,6 +70,8 @@ def extract(dashboard,script,template):
             'render_energy':{'current':'sensor.'+base+'_current_rate','next':'sensor.'+base+'_next_rate',
                 'electricity':costs[0],'gas':costs[1],'calendar':calendar.group(), 'sessions':sessions.group(),
                 'rates_today':'event.'+base+'_current_day_rates','rates_tomorrow':'event.'+base+'_next_day_rates'}}
+    background=re.search(r'background[^\n]*?url\("(/local/[^"?]+)"\)',template)
+    if background:result['render_background_path']=background.group(1)
     if not source_settings.validate(result):raise ValueError('Extracted source mapping failed validation')
     return result
 
