@@ -686,16 +686,114 @@ class Assistant:
     def lv(self, key):
         return self.cfg[key]['levels']
 
-    def checkin_cap(self, key):
-        """Check-ins allowed per day = max_per_day scaled by checkin_level (0 = none)."""
-        return levels.checkin_cap(self.cfg[key]['max_per_day'], self.lv(key)['checkin_level'])
+    # ---- chat-set check-in caps (0.22.0): kept in the persona's own state, never above the option max_per_day ----
+    RULE_FIELDS = ('weekday', 'weekend', 'holiday')
+    EXTRA_CLOSED_MAX = 50
+
+    def checkin_rules(self, key):
+        """{'weekday','weekend','holiday': int|None, 'extra_closed': [date or range]} as stored (defensive about bad data)."""
+        r = self.stores[key].state().get('checkin_rules')
+        r = r if isinstance(r, dict) else {}
+        out = {}
+        for f in self.RULE_FIELDS:
+            v = r.get(f)
+            out[f] = v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+        ec = r.get('extra_closed')
+        out['extra_closed'] = [d for d in ec if isinstance(d, str) and DATE_RE.match(d)][:self.EXTRA_CLOSED_MAX] if isinstance(ec, list) else []
+        return out
+
+    @staticmethod
+    def _in_ranges(ranges, d):
+        for r in ranges:
+            a, _, b = r.partition('..')
+            if a <= d <= (b or a):
+                return True
+        return False
+
+    def day_type(self, key, now=None):
+        """'holiday' on a closed date (option or chat-added), 'weekend' on Sat/Sun, else 'weekday'."""
+        now = now or self.now()
+        if self._in_ranges(list(self.cfg[key]['closed_dates']) + self.checkin_rules(key)['extra_closed'], now.date().isoformat()):
+            return 'holiday'
+        return 'weekend' if now.weekday() >= 5 else 'weekday'
+
+    def checkin_cap(self, key, now=None):
+        """Check-ins allowed today = max_per_day scaled by checkin_level (0 = none), unless a chat-set cap exists for today's day type
+        (then that number, never above max_per_day and 0 when check-ins are off at level 0)."""
+        mpd = self.cfg[key]['max_per_day']
+        base = levels.checkin_cap(mpd, self.lv(key)['checkin_level'])
+        ov = self.checkin_rules(key)[self.day_type(key, now)]
+        if ov is None:
+            return base
+        if self.lv(key)['checkin_level'] <= 0:
+            return 0
+        return min(ov, max(0, mpd))
+
+    def checkin_rules_view(self, key):
+        r = self.checkin_rules(key)
+        return 200, {'ok': True, 'weekday': r['weekday'], 'weekend': r['weekend'], 'holiday': r['holiday'], 'extra_closed': r['extra_closed'],
+                     'max_per_day': self.cfg[key]['max_per_day'], 'today_type': self.day_type(key), 'today_cap': self.checkin_cap(key)}
+
+    def checkin_rules_set(self, key, body):
+        """The persona changes its own caps {weekday, weekend, holiday: 0..max_per_day or null, add_closed, remove_closed: [date or range]}.
+        Nothing is stored unless everything is valid. Returns the changes so the persona can repeat them back."""
+        if key not in self.stores:
+            return 404, {'ok': False, 'why': 'unknown persona'}
+        mpd = max(0, self.cfg[key]['max_per_day'])
+        new = {}
+        for f in self.RULE_FIELDS:
+            if f in body:
+                v = body[f]
+                if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > mpd):
+                    return 400, {'ok': False, 'why': '%s: a whole number 0..%d, or null for the normal setting' % (f, mpd)}
+                new[f] = v
+        lists = {}
+        for f in ('add_closed', 'remove_closed'):
+            v = body.get(f, [])
+            if isinstance(v, str):
+                v = [v]
+            if not isinstance(v, list) or any(not isinstance(d, str) or not DATE_RE.match(d.strip()) for d in v):
+                return 400, {'ok': False, 'why': '%s: dates as YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD' % f}
+            lists[f] = [d.strip() for d in v]
+        for d in lists['add_closed']:
+            a, _, b = d.partition('..')
+            if b and b < a:
+                return 400, {'ok': False, 'why': 'range end is before its start: %s' % d}
+        changes = []
+        def put(s):
+            cur = s.get('checkin_rules')
+            cur = cur if isinstance(cur, dict) else {}
+            old = self.checkin_rules(key)
+            ec = list(old['extra_closed'])
+            for d in lists['remove_closed']:
+                if d in ec:
+                    ec.remove(d); changes.append({'field': 'extra_closed', 'old': d, 'new': None})
+            for d in lists['add_closed']:
+                if d not in ec:
+                    if len(ec) >= self.EXTRA_CLOSED_MAX:
+                        return False
+                    ec.append(d); changes.append({'field': 'extra_closed', 'old': None, 'new': d})
+            for f, v in new.items():
+                if v != old[f]:
+                    changes.append({'field': f, 'old': old[f], 'new': v})
+                cur[f] = v
+            cur['extra_closed'] = ec
+            s['checkin_rules'] = cur
+            return True
+        if not self.stores[key].update_state(put):
+            return 400, {'ok': False, 'why': 'at most %d extra closed dates' % self.EXTRA_CLOSED_MAX}
+        for ch in changes:
+            self.log('persona %s: check-in rule %s %s -> %s' % (key, ch['field'], ch['old'], ch['new']))
+        code, view = self.checkin_rules_view(key)
+        view['changes'] = changes
+        return code, view
 
     def behaviour(self, key):
         """The levels, the prompt block for the persona prompt, and a fresh gif decision (random draw each call)."""
         lv = self.lv(key)
         roll = self.rng()
         out = {'ok': True, 'levels': dict(lv), 'prompt': levels.prompt_block(lv, key, self.cfg[key].get('fixed_rule')), 'gif_ok': levels.gif_allowed(lv['gif_level'], roll),
-                'emoji_max': levels.emoji_cap(lv['emoji_level']), 'checkins_per_day_cap': self.checkin_cap(key)}
+                'emoji_max': levels.emoji_cap(lv['emoji_level']), 'checkins_per_day_cap': self.checkin_cap(key), 'checkin_rules': self.checkin_rules_view(key)[1]}
         return self._with_offer(key, dict(out, **self._offer_part(key, lv)))
 
     def _offer_part(self, key, lv):
@@ -741,11 +839,9 @@ class Assistant:
         c, now = self.cfg[key], now or self.now()
         if c['checkin_days'] and DAYS[now.weekday()] not in c['checkin_days']:
             return False
-        d = now.date().isoformat()
-        for r in c['closed_dates']:
-            a, _, b = r.partition('..')
-            if a <= d <= (b or a):
-                return False
+        if self.day_type(key, now) == 'holiday':
+            h = self.checkin_rules(key)['holiday']   # a chat-set holiday cap above 0 opens closed dates; otherwise they stay closed
+            return bool(h)
         return True
 
     def pick_text(self, key, now=None):
@@ -2103,7 +2199,7 @@ class Assistant:
             s = self.stores[k]
             out[k] = {'live': self.is_live(k), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
-                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF}
+                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF, 'checkin_rules': self.checkin_rules(k)}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
 
 
@@ -2157,6 +2253,8 @@ def make_handler(app):
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method == 'GET' and act == 'usage_texts' and len(parts) == 3:
                 return self._send(*app.usage_texts_view(key))
+            if method == 'GET' and act == 'checkin_rules' and len(parts) == 3:
+                return self._send(*app.checkin_rules_view(key))
             if method != 'POST':
                 return self._send(404, {'ok': False})
             try:
@@ -2183,6 +2281,8 @@ def make_handler(app):
                 return self._send(*app.calendar_delete(key, body))
             if act == 'usage_texts' and len(parts) == 3:
                 return self._send(*app.usage_texts_set(key, body))
+            if act == 'checkin_rules' and len(parts) == 3:
+                return self._send(*app.checkin_rules_set(key, body))
             if act == 'typing' and len(parts) == 3:
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:
