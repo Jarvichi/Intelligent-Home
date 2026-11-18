@@ -30,7 +30,7 @@ def svg(data,alerts=None,now=None):
     weather=data.get('weather')
     if weather:
         current=weather.get('current') or {};facts=weather.get('facts') or {};daily=weather.get('daily') or [];hours=weather.get('hours') or []
-        icon(current.get('condition'),48,248,125);text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable').replace('-',' ').replace('_',' ').capitalize();text(48,397,condition,37,True)
+        icon(current.get('condition'),48,248,125);text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable');condition={'partlycloudy':'Partly cloudy','clear-night':'Clear night','snowy-rainy':'Sleet','lightning-rainy':'Thunder and rain'}.get(condition,condition.replace('-',' ').replace('_',' ').capitalize());text(48,397,condition,37,True)
         day=next((d for d in daily if d.get('label')=='Today'),{})
         if day:text(48,438,'Today '+str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°',28)
         for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',facts.get('next_rain','Unavailable')),('SKY',facts.get('sky','Unavailable')))):
@@ -48,7 +48,7 @@ def svg(data,alerts=None,now=None):
     label(48,707,'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):
-        x=48+i*248;box(x,726,232,140);label(x+20,761,title,21);text(x+20,809,value or 'Unavailable',27,True)
+        x=48+i*248;box(x,726,232,140);label(x+20,761,title,21);text(x+20,809,(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable',23,True)
     lights=next((x for x in panels if x.get('label')=='Lights on'),{})
     label(48,911,'LIGHTS ON',25);text(48,958,lights.get('detail') or 'Unavailable',26)
     p.append('<path d="M48 1031H1024" stroke="black" stroke-width="3"/>')
