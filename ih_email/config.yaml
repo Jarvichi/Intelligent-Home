@@ -1,0 +1,33 @@
+name: "Intelligent Home - Email"
+version: "0.1.0"
+slug: ih_email
+image: "ghcr.io/jarvichi/{arch}-ih_email"
+description: "Lets the AI Layer assistant look through the house mailbox, pull facts out of an email, and reply or send. Read-only reading (nothing is marked read, attachments are never returned). Sending needs a confirmed flag, at most 3 recipients and at most 5 emails a day. Own database, token-protected local API, status page."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+init: false
+watchdog: "http://[HOST]:[PORT:8845]/healthz"
+ingress: true
+ingress_port: 8846
+panel_title: "IH · Email"
+panel_icon: mdi:email-outline
+panel_admin: true
+ports:
+  8845/tcp: 8845
+ports_description:
+  8845/tcp: "Mail API (bearer api_token); /healthz is open"
+options:
+  gmail_address: ""
+  app_password: ""
+  api_token: ""
+  max_recipients: 3
+  max_per_day: 5
+schema:
+  gmail_address: str?
+  app_password: password?
+  api_token: password
+  max_recipients: int(1,10)
+  max_per_day: int(0,50)

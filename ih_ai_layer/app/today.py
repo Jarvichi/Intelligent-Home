@@ -5,7 +5,7 @@ Only a fixed set of fields is copied out: nothing from /status is passed through
 import json, os, re, time, urllib.request
 
 LABELS = {'groq': 'Groq', 'mistral': 'Mistral', 'gemini': 'Gemini', 'pollinations': 'Pollinations', 'openrouter': 'OpenRouter', 'openai': 'OpenAI',
-          'serper': 'Serper (web search)', 'serpapi': 'SerpApi (showtimes and images)', 'publicapis': 'PublicAPIs (API directory)', 'steamstore': 'Steam Store (game art)', 'igdb': 'IGDB (game art)',
+          'serper': 'Serper (web search)', 'serpapi': 'SerpApi (showtimes and images)', 'publicapis': 'PublicAPIs (API directory)', 'email': 'Email (house mailbox)', 'steamstore': 'Steam Store (game art)', 'igdb': 'IGDB (game art)',
           'grok': 'Grok', 'claude': 'Claude', 'mcp': 'MCP'}
 SEARCH = ('serper', 'serpapi')
 TITLE = 'Today'
