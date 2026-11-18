@@ -92,7 +92,7 @@ def main():
     battery=battery_tasks.BatteryMaintenance(opts,snapshots.read)
     energy=household_tasks.EnergyReminders(opts.get('booking_status_entity',''),opts.get('wheel_result_entity',''),opts.get('oven_clean_entity',''),opts.get('free_power_event',''),dish._get,provider=opts.get('energy_provider_name','Energy'))
     tomorrow=household_tasks.Tomorrow(opts.get('tomorrow_event_entity',''),dish._get)
-    tasks=dishwasher.Combined(feed,dish,power,energy,robots,health,battery,tomorrow,bins)
+    tasks=dishwasher.Combined(feed,dish,power,energy,robots,health,battery,tomorrow,bins,groups=('message','task','task','task','task','task','task','task','collection'))
     warning=alerts.Alerts(opts.get('alerts_enabled',False),opts.get('alert_smoke_entities',[]),opts.get('alert_co_entity',''),opts.get('robots',[]),opts.get('robot_mower_stored_entity',''),opts.get('alert_saving_calendar',''),opts.get('free_power_event',''),opts.get('alert_dismissed_entity',''),dish._get)
     ingress=ThreadingHTTPServer(('0.0.0.0',8827),make_handler(db_path,opts.get('api_token') or '',True,message_feed=feed,task_feed=tasks,alert_feed=warning))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()

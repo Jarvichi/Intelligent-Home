@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Match pinned task paging, power-aware preview controls and adaptive task layouts.
+- Show selected music and game activity in the existing weather areas.
+
 ## 0.2.2
 
 - Keep smoke and CO warnings visible when multiple alerts are active.

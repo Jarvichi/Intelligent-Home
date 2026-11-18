@@ -34,6 +34,14 @@ class Tests(unittest.TestCase):
         changed=datetime.datetime.fromtimestamp(NOW-100,datetime.timezone.utc).isoformat();service,_=self.service({'state':'on','last_changed':changed},OSError())
         result=service.read();self.assertFalse(result['complete']);self.assertEqual(result['items'][0]['title'],'Dishwasher finished · cooling')
         service,_=self.service({'state':'on','last_changed':'invalid'},OSError());self.assertEqual(service.read()['items'],[]);self.assertFalse(service.read()['complete'])
+    def test_source_groups_are_added_without_mutating_source_items(self):
+        class Feed:
+            def __init__(self,item):self.item=item
+            def read(self):return {'configured':True,'complete':True,'items':[self.item]}
+        original={'title':'Example','priority':'normal'}
+        result=dishwasher.Combined(Feed(original),Feed({'title':'Bin','priority':'normal'}),groups=('message','collection')).read()
+        self.assertEqual([x['display_group'] for x in result['items']],['message','collection']);self.assertNotIn('display_group',original)
+
     def test_shared_feed_preserves_order_and_partial_failure(self):
         class Feed:
             def __init__(self,data):self.data=data
