@@ -9,6 +9,7 @@ import datetime
 import json
 import re
 import threading
+import time
 import urllib.error
 import http.client
 import device_state
@@ -44,7 +45,7 @@ class KindleActions:
             if not isinstance(values,list) or not 0<len(values)<=12 or type(index) is not int or not 0<=index<len(values):return None
             entity=values[index];prefix='input_text.'
         else:
-            key,prefix={'dishwasher':('kindle_dishwasher_entity','input_boolean.'),'wheel':('kindle_wheel_entity','input_text.'),'alert':('kindle_warning_dismissed_entity','input_text.'),'page':('kindle_page_entity','input_text.')}.get(kind,('',''))
+            key,prefix={'dishwasher':('kindle_dishwasher_entity','input_boolean.'),'wheel':('kindle_wheel_entity','input_text.'),'alert':('kindle_warning_dismissed_entity','input_text.'),'page':('kindle_page_entity','input_text.'),'halloween':('render_halloween_entity','input_boolean.')}.get(kind,('',''))
             entity=cfg.get(key,'')
         return entity if prefix and valid(entity,prefix) else None
 
@@ -94,6 +95,9 @@ class KindleActions:
             try:int(expected['state'])
             except ValueError:return None
             descriptor['delta']=delta
+        elif kind=='halloween':
+            today=datetime.datetime.fromtimestamp(self.clock() if self.clock else time.time()).astimezone().date()
+            if (today.month,today.day)!=(10,31) or not self._charging(cfg) or expected['state'] not in ('on','off'):return None
         elif kind=='alert':
             if not isinstance(alert,dict) or alert.get('kind') not in ('free','saving') or alert.get('dismissible') is not True:return None
             descriptor['alert']={key:alert.get(key) for key in ('kind','title','short','dismissible')}
@@ -136,6 +140,10 @@ class KindleActions:
                 elif kind=='page' and descriptor.get('delta') in (-1,1):value=str((int(expected['state'])+descriptor['delta'])%2520)
                 elif kind=='dishwasher' and expected['state']=='on':
                     self.ha.request('services/input_boolean/turn_off',{'entity_id':target});return {'ok':True}
+                elif kind=='halloween':
+                    today=datetime.datetime.fromtimestamp(self.clock() if self.clock else time.time()).astimezone().date()
+                    if (today.month,today.day)!=(10,31) or not self._charging(cfg) or expected['state'] not in ('on','off'):return {'ok':False,'why':'unavailable'}
+                    self.ha.request('services/input_boolean/'+('turn_off' if expected['state']=='on' else 'turn_on'),{'entity_id':target});return {'ok':True}
                 elif kind=='alert':
                     alert=descriptor.get('alert');current=self.alerts() if callable(self.alerts) else None
                     if not isinstance(alert,dict) or alert.get('kind') not in ('free','saving') or alert.get('dismissible') is not True or not isinstance(current,dict) or not current.get('configured') or alert not in current.get('alerts',[]):return {'ok':False,'why':'stale display'}
