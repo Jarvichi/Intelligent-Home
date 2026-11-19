@@ -16,4 +16,6 @@ For kindle-dash v2, `device/integrate_legacy.py CURRENT COPY` generates a separa
 
 While charging, the client can prefetch dinner, home and birthday pictures. Navigation shows a cached picture immediately, then loads the live screen. If the service is unavailable, the cached picture remains read-only and offers a local Back action. Cached pictures cannot show new alerts while offline.
 
+Each `render_lights` group may carry an optional `floor` (for example `Ground`, `1st floor`, `2nd floor`, `Outside`). When every group has one, the Kindle lists the rooms that are on floor by floor, in two columns, like the original picture. Without floors it shows one flat list.
+
 For the lights-off action, source mappings may provide `kindle_lights_off_floors` as Home Assistant floor IDs and `kindle_lights_off_exclude` as entity-ID substrings. The add-on resolves currently on lights from those floors when the picture is created and again when the button is pressed. A changed selection is rejected. Alternatively, `kindle_lights_off_entities` provides a fixed light list; floor mappings take precedence if supplied.

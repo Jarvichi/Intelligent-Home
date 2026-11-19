@@ -44,7 +44,7 @@ def validate(value):
         elif key=='render_lights':
             if not isinstance(item,list) or len(item)>40:return False
             for row in item:
-                if not isinstance(row,dict) or set(row)!={'name','entities'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not isinstance(row['entities'],list) or not 0<len(row['entities'])<=50:return False
+                if not isinstance(row,dict) or set(row) not in ({'name','entities'},{'name','entities','floor'}) or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not isinstance(row['entities'],list) or not 0<len(row['entities'])<=50 or ('floor' in row and (not isinstance(row['floor'],str) or not 0<len(row['floor'].strip())<=40)):return False
                 if any(not entity(e,'light.') and not entity(e,'switch.') for e in row['entities']):return False
             if len({e for row in item for e in row['entities']})>100:return False
         elif key in ('kindle_lights_off_floors','kindle_lights_off_exclude'):

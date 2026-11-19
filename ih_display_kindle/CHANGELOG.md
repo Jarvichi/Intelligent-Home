@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Draw every Home Assistant weather condition as a clear greyscale vector icon (no font needed). Fog, lightning, hail, wind and warnings were blank or wrong before; clear nights show a moon.
+- Use the original Kindle wording: condition names (Showers, Heavy rain, Thunder, Snow, Clear ...), `2–8° 1 mm rain` forecast text, `⚡ Plugged in` / `🔋 Kindle 87%`, `Locked` / `Idle` with `all locked`, `22:00 tmrw`, `Dry 3 days`, `in 5 days`.
+- Split the energy row like the original: price and next rate on the left (`⚡ 31.9p now (peak) · 13.3p from 00:30`), `Today ⚡ £7.68 🔥 £5.92` on the right; saving sessions read `⚡ Saving session ...`.
+- Optional `floor` on each `render_lights` group lists the lights floor by floor (Ground, 1st floor, 2nd floor, Outside). Without it the flat list is kept.
+- Put an envelope in front of message rows.
+- Not yet ported: the ✕ buttons that clear a message or status row (zones `clear_0` to `clear_4`).
+
 ## 0.5.1
 
 - Restore the original Roboto typeface and weather and seasonal symbols.

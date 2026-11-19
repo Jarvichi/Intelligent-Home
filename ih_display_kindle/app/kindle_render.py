@@ -11,6 +11,22 @@ import cooking_render
 import festive_header
 import weather_icons
 
+CONDITION_NAMES={'partlycloudy':'Partly cloudy','clear-night':'Clear','lightning-rainy':'Thunder & rain','snowy-rainy':'Sleet','windy-variant':'Windy','sunny':'Sunny','cloudy':'Cloudy','rainy':'Showers','pouring':'Heavy rain','fog':'Fog','snowy':'Snow','hail':'Hail','lightning':'Thunder','windy':'Windy','exceptional':'Warning'}
+ENVELOPE='\u2709\ufe0e '   # text-style envelope in front of a message row, as on the original Kindle
+
+def cap(value):
+    value=str(value or '');return value[:1].upper()+value[1:]
+
+def num(value):
+    return f'{round(value,1):g}'
+
+def next_rain_text(value):
+    value=str(value)
+    return 'Dry 3 days' if value=='None in hourly forecast' else value.replace(' next day',' tmrw')
+
+def detail_text(value):
+    return re.sub(r'^In (\d+ days?)$',r'in \1',str(value))
+
 ART=re.compile(r'^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}$')
 
 def text_units(value):
@@ -78,7 +94,7 @@ def svg(data,alerts=None,now=None):
         p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
     device=data.get('device') if isinstance(data.get('device'),dict) else {};charging=device.get('charging') is True;info='Updated '+today.strftime('%H:%M')
-    if device.get('fresh') and device.get('battery') is not None:info+=' · '+('Plugged in' if charging else 'Kindle '+str(device['battery'])+'%')
+    if device.get('fresh') and device.get('battery') is not None:info+=' · '+('⚡ Plugged in' if charging else '🔋 Kindle '+str(device['battery'])+'%')
     text(970 if charging else 1024,64,info,25,anchor='end')
     if charging:p.append(f'<circle cx="1005" cy="55" r="19" fill="{header_color}"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="{"black" if inverted else "white"}" stroke-width="3"/>')
     for i,line in enumerate(festive_header.lines(event)):
@@ -89,11 +105,11 @@ def svg(data,alerts=None,now=None):
     weather=data.get('weather')
     if weather:
         current=weather.get('current') or {};facts=weather.get('facts') or {};daily=weather.get('daily') or [];hours=weather.get('hours') or []
-        icon(current.get('condition'),48,248,125);text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable');condition={'partlycloudy':'Partly cloudy','clear-night':'Clear night','snowy-rainy':'Sleet','lightning-rainy':'Thunder and rain'}.get(condition,condition.replace('-',' ').replace('_',' ').capitalize());text(48,397,condition,37,True)
+        icon(current.get('condition'),48,248,125);text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable');condition=CONDITION_NAMES.get(condition,condition.replace('-',' ').replace('_',' ').capitalize());text(48,397,condition,37,True)
         day=next((d for d in daily if d.get('label')=='Today'),{})
         if day:text(48,438,'Today '+str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°',28)
         sky=str(facts.get('sky','Unavailable'));sky_label='UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER';sky_value=sky.removeprefix('UV ').removeprefix('Cloud ')
-        for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',facts.get('next_rain','Unavailable')),(sky_label,sky_value))):
+        for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',next_rain_text(facts.get('next_rain','Unavailable'))),(sky_label,sky_value))):
             label(425,269+i*74,key,19);text(425,300+i*74,value,28,True)
         bearing=facts.get('bearing')
         if isinstance(bearing,(int,float)) and not isinstance(bearing,bool) and math.isfinite(bearing):
@@ -102,14 +118,14 @@ def svg(data,alerts=None,now=None):
         for i,day in enumerate(future):
             y=238+i*118;box(640,y,384,98);name=day.get('label','')
             if name=='Next day':name=(today+datetime.timedelta(days=2)).strftime('%A')
-            icon(day.get('condition'),935,y+10,70);text(662,y+43,name,30,True);rain=day.get('precipitation');forecast=str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°'
-            if isinstance(rain,(int,float)) and not isinstance(rain,bool):forecast+=(' '+str(round(rain,1))+' mm rain') if rain>=0.1 else ' dry'
+            icon(day.get('condition'),935,y+10,70);text(662,y+43,name,30,True);rain=day.get('precipitation');forecast=str(day.get('low','–'))+'–'+str(day.get('high','–'))+'°'
+            forecast+=(' '+num(rain)+' mm rain') if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>=0.1 else ' dry'
             text(662,y+79,forecast,23)
         box(48,478,976,190)
         for i,h in enumerate(hours[:6]):
             x=130+i*163;text(x,520,h.get('time',''),25,True,'middle');icon(h.get('condition'),x-30,532,60);text(x,630,str(h.get('temperature','–'))+'°',36,True,'middle')
             rain=h.get('precipitation')
-            if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,str(round(rain,1))+' mm',17,anchor='middle')
+            if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,num(rain)+' mm',17,anchor='middle')
             if i:p.append(f'<path d="M{x-80} 496v152" stroke="#aaa" stroke-width="2"/>')
     else:text(48,330,'Weather unavailable' if data.get('weather_configured') else 'Weather not configured',30)
     game=next((x for x in active if x.get('kind')=='game'),None)
@@ -127,7 +143,7 @@ def svg(data,alerts=None,now=None):
         parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,parts[0] or str(media.get('label') or 'Playing'),30,True,max_width=755);text(245,620,parts[1] if len(parts)>1 else '',23,max_width=755)
     label(48,707,'HAUNTED HOUSE' if halloween else 'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
-    for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):
+    for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',cap(doors.get('label','').removeprefix('Doors '))),('HEAT',cap(heat.get('label','').removeprefix('Heat '))))):
         x=48+i*248;inverted=title=='DOORS' and doors.get('urgent') is True
         box(x,726,232,140,'black' if inverted else 'white');label(x+20,761,title,21,'white' if inverted else 'black')
         persons=home.get('persons') or [] if title=='HOME' else []
@@ -145,10 +161,17 @@ def svg(data,alerts=None,now=None):
         if title=='DOORS' and doors.get('detail'):
             if inverted:label(x+20,843,doors['detail'],18,'white',max_width=192)
             else:text(x+20,843,doors['detail'],18,max_width=192)
+        elif title=='DOORS' and doors.get('label')=='Doors locked':text(x+20,843,'all locked',18,max_width=192)
     if charging and isinstance(data.get('cooking'),dict) and 16<=today.hour<19:
         box(48,726,232,140,'black');label(164,786,'COOK',30,'white','middle');label(164,827,'DINNER',30,'white','middle')
     lights=next((x for x in panels if x.get('label')=='Lights on'),{})
-    label(48,911,'LIGHTS ON',25);text(48,958,lights.get('detail') or 'Unavailable',26,max_width=950)
+    label(48,911,'LIGHTS ON',25)
+    floors=lights.get('floors')
+    if isinstance(floors,list) and floors:
+        for i,floor in enumerate(floors[:4]):   # two columns of floor rows, as on the original Kindle
+            x=48+(i%2)*488;y=956+(i//2)*44;rooms=', '.join(floor.get('rooms') or []) or '–'
+            label(x,y,str(floor.get('floor','')),26);text(x+140,y,rooms if len(rooms)<=26 else rooms[:25]+'…',26,max_width=340)
+    else:text(48,958,lights.get('detail') or 'Unavailable',26,max_width=950)
     if charging:
         p.append('<rect x="270" y="884" width="140" height="36" rx="18" fill="black"/><rect x="880" y="884" width="144" height="36" rx="18" fill="black"/>');label(340,909,'ALL OFF',18,'white','middle');label(952,909,'MENU',18,'white','middle')
         if (today.month,today.day)==(10,31) and data.get('allow_halloween_toggle',True) and data.get('halloween_mode') in ('on','off'):
@@ -156,9 +179,12 @@ def svg(data,alerts=None,now=None):
     p.append('<path d="M48 1031H1024" stroke="black" stroke-width="3"/>')
     energy=next((x for x in panels if x.get('label')=='Energy'),{})
     energy_detail=energy.get('detail') or 'Energy unavailable'
+    energy_left=energy.get('kindle_left') or energy_detail;energy_cost=energy.get('kindle_cost') or ''
     if str(energy_detail).startswith('Saving'):
-        box(48,1040,976,48,'black');label(65,1073,energy_detail,22,'white')
-    else:text(48,1065,energy_detail,25,True)
+        box(48,1040,976,48,'black');label(65,1073,energy_left,22,'white')
+    else:
+        text(48,1065,energy_left,25,True,max_width=560 if energy_cost else 976)
+        if energy_cost:text(1024,1065,energy_cost,25,True,'end',max_width=400)
     if data.get('cooking_unavailable') is True:text(1024,1090,'Cooking unavailable · controls paused',18,True,'end')
     # Keep life-safety alerts visible while cycling other alerts. The source
     # emits at most one aggregate smoke alert and one CO alert.
@@ -197,10 +223,10 @@ def svg(data,alerts=None,now=None):
         if not rows:text(70,1201,'No tasks',23,True)
         for i,task in enumerate(rows):
             x=48+i*494;urgent=task.get('urgent') is True;fill='white' if urgent else 'black';box(x,1150,482,144,'black' if urgent else 'white')
-            lines=textwrap.wrap(str(task.get('title','')),width=25)
+            lines=textwrap.wrap((ENVELOPE if task.get('display_group')=='message' else '')+str(task.get('title','')),width=25)
             if len(lines)>2:lines=lines[:1]+[' '.join(lines[1:])]
             for j,line in enumerate(lines):label(x+24,1201+j*32,line,23,fill,max_width=434)
-            if task.get('detail'):label(x+24,1277,task['detail'],19,fill,max_width=434)
+            if task.get('detail'):label(x+24,1277,detail_text(task['detail']),19,fill,max_width=434)
         rooms=[x for x in panels if x.get('kind')=='room'][:10]
         if rooms:
             label(48,1334,'ROOMS',25)
@@ -210,7 +236,7 @@ def svg(data,alerts=None,now=None):
         h,pitch,font={3:(87,99,29),4:(61,75,27),5:(50,59,24)}[min(len(rows),5)]
         for i,task in enumerate(rows[:5]):
             y=1150+i*pitch;urgent=task.get('urgent') is True;fill='white' if urgent else 'black';box(48,y,976,h,'black' if urgent else 'white')
-            title=str(task.get('title',''));detail=str(task.get('detail') or '')
+            title=(ENVELOPE if task.get('display_group')=='message' else '')+str(task.get('title',''));detail=detail_text(task.get('detail') or '')
             label(70,y+h//2+font//3,title,font,fill,max_width=600 if detail else 930)
             if detail:label(1000,y+h//2+7,detail,18,fill,'end',max_width=300)
     weather=data.get('weather') or {}
