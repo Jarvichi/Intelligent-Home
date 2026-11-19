@@ -22,7 +22,22 @@ CLIP_RE = re.compile(r'^/api/clips/(\d{1,9})(?:/(audio|play|delete|pin))?$')
 
 def public(row):
     """A cache row for the page: everything but the file path."""
-    return {k: row[k] for k in ('id', 'engine', 'voice', 'text', 'label', 'ext', 'size', 'created', 'last_used', 'hits', 'pinned')}
+    return {k: row[k] for k in ('id', 'engine', 'voice', 'text', 'label', 'ext', 'size', 'created', 'last_used', 'hits', 'pinned')} | {
+        'auto_pinned': bool(row.get('auto_pinned')), 'uses_30d': int(row.get('uses_30d') or 0)}
+
+
+def parse_range(header, size):
+    """Range header -> (start, end) inclusive, None when there is no usable Range (send it all), or 'bad' (416). Single ranges only."""
+    m = re.match(r'^\s*bytes\s*=\s*(\d*)\s*-\s*(\d*)\s*$', header or '')
+    if not m or (not m.group(1) and not m.group(2)):
+        return None
+    a, b = m.group(1), m.group(2)
+    if not a:   # suffix: the last N bytes
+        n = int(b)
+        return 'bad' if n == 0 or size == 0 else (max(0, size - n), size - 1)
+    start = int(a)
+    end = min(int(b), size - 1) if b else size - 1
+    return 'bad' if start >= size or end < start else (start, end)
 
 
 def info(spk):
@@ -33,11 +48,13 @@ def info(spk):
 
 def make_server(spk, port=8832, peer=INGRESS_PEER, host='0.0.0.0', ui_root=UI_ROOT):
     class Handler(BaseHTTPRequestHandler):
-        def output(self, status, data, content_type='application/json'):
+        def output(self, status, data, content_type='application/json', extra=()):
             if not isinstance(data, bytes):
                 data = json.dumps(data).encode()
             self.send_response(status)
             self.send_header('Content-Type', content_type)
+            for k, v in extra:
+                self.send_header(k, v)
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Content-Length', str(len(data)))
@@ -61,6 +78,17 @@ def make_server(spk, port=8832, peer=INGRESS_PEER, host='0.0.0.0', ui_root=UI_RO
                 raise ValueError('JSON object required')
             return d
 
+        def audio(self, data, ext):
+            """The clip for the page's own player, through the ingress (no signed link). Range support (206) is needed by Safari and iOS and for seeking."""
+            ct, size = cachelib.MIME.get(ext, 'audio/mpeg'), len(data)
+            rng = parse_range(self.headers.get('Range'), size)
+            head = [('Accept-Ranges', 'bytes')]
+            if rng == 'bad':
+                return self.output(416, b'', ct, head + [('Content-Range', 'bytes */%d' % size)])
+            if rng:
+                return self.output(206, data[rng[0]:rng[1] + 1], ct, head + [('Content-Range', 'bytes %d-%d/%d' % (rng[0], rng[1], size))])
+            return self.output(200, data, ct, head)
+
         def do_GET(self):
             if not self.allowed():
                 return
@@ -74,7 +102,8 @@ def make_server(spk, port=8832, peer=INGRESS_PEER, host='0.0.0.0', ui_root=UI_RO
                 one = lambda k: (q.get(k) or [''])[0]   # noqa: E731
                 v = one('voice') if 'voice' in q else '*'
                 voice = None if v == '*' else spk.cfg['voices'].get(v.lower(), v)   # a voice name from the options, or '' for the engine default
-                rows = spk.cache.list(engine=one('engine'), voice=voice, q=one('q'))
+                pin = {'1': True, '0': False}.get(one('pinned'))   # '' = all clips
+                rows = spk.cache.list(engine=one('engine'), voice=voice, q=one('q'), pinned=pin)
                 return self.output(200, {'clips': [public(r) for r in rows[:500]], 'total': len(rows), 'stats': spk.cache.stats()})
             m = CLIP_RE.match(u.path)
             if m and m.group(2) == 'audio' and spk.cache:
@@ -82,9 +111,10 @@ def make_server(spk, port=8832, peer=INGRESS_PEER, host='0.0.0.0', ui_root=UI_RO
                 if not row:
                     return self.output(404, {'error': 'not found'})
                 try:
-                    return self.output(200, spk.cache.read(row), cachelib.MIME.get(row['ext'], 'audio/mpeg'))
+                    data = spk.cache.read(row)
                 except OSError:
                     return self.output(404, {'error': 'file missing'})
+                return self.audio(data, row['ext'])
             if u.path in ASSETS:
                 name, ct = ASSETS[u.path]
                 try:

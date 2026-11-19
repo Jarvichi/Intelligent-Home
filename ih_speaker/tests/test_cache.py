@@ -484,6 +484,95 @@ class AdminPage(unittest.TestCase):
         self.assertTrue(self.call('api/clips/%d/delete' % cid, {})[1]['ok'])
         self.assertEqual(self.call('api/clips/%d/audio' % cid, raw=True)[0], 404)
 
+    def raw(self, path, headers=None, method='GET'):
+        rq = urllib.request.Request(self.base + path, headers=headers or {}, method=method)
+        try:
+            with urllib.request.urlopen(rq) as r:
+                return r.status, dict(r.headers), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), e.read()
+
+    def test_audio_streams_through_the_ingress_with_ranges(self):
+        data = b'ID3' + bytes(range(97))
+        row = self.c.put('tts.piper', 'v', 'range me', data)
+        path = 'api/clips/%d/audio' % row['id']
+        st, h, b = self.raw(path)
+        self.assertEqual((st, b, h['Content-Type'], h['Accept-Ranges']), (200, data, 'audio/mpeg', 'bytes'))
+        st, h, b = self.raw(path, {'Range': 'bytes=0-1'})   # what Safari and iOS ask first
+        self.assertEqual((st, b, h['Content-Range']), (206, data[:2], 'bytes 0-1/100'))
+        st, h, b = self.raw(path, {'Range': 'bytes=10-'})
+        self.assertEqual((st, b, h['Content-Range']), (206, data[10:], 'bytes 10-99/100'))
+        st, h, b = self.raw(path, {'Range': 'bytes=-5'})
+        self.assertEqual((st, b), (206, data[-5:]))
+        st, h, b = self.raw(path, {'Range': 'bytes=50-9999'})
+        self.assertEqual((st, b, h['Content-Range']), (206, data[50:], 'bytes 50-99/100'))
+        st, h, _ = self.raw(path, {'Range': 'bytes=100-'})
+        self.assertEqual((st, h['Content-Range']), (416, 'bytes */100'))
+        self.assertEqual(self.raw(path, {'Range': 'items=1-2'})[2], data)   # unusable Range: whole file
+        self.assertEqual(self.raw(path, {'Range': 'bytes=0-1,5-6'})[2], data)
+
+    def test_audio_content_type_follows_the_sniffed_format(self):
+        for i, (blob, ct) in enumerate([(b'RIFF....WAVE', 'audio/wav'), (b'OggS....', 'audio/ogg'), (b'fLaC....', 'audio/flac'),
+                                        (b'\x00\x00\x00\x18ftypM4A ', 'audio/mp4'), (b'\xff\xf1....', 'audio/aac'), (b'ID3....', 'audio/mpeg'), (b'\xff\xfb....', 'audio/mpeg')]):
+            row = self.c.put('tts.piper', 'v', 'clip %d' % i, blob + b'x' * 20)
+            self.assertEqual(self.raw('api/clips/%d/audio' % row['id'])[1]['Content-Type'], ct)
+
+    def test_page_player_uses_a_relative_ingress_url_not_the_signed_link(self):
+        js = open(os.path.join(os.path.dirname(ui_server.__file__), 'ui', 'ui.js')).read()
+        self.assertIn("'api/clips/' + c.id + '/audio'", js)
+        self.assertNotIn('/clip/', js)
+        self.assertNotIn('sig=', js)
+        self.assertNotIn("'/api/", js)   # no absolute path: it would escape the ingress prefix
+
+    def test_pinned_filter_and_use_counts_in_the_list(self):
+        a = self.call('api/generate', {'text': 'Keep me', 'pin': True})[1]['clip']['id']
+        self.call('api/generate', {'text': 'Not me'})
+        self.assertEqual([c['text'] for c in self.call('api/clips?pinned=1')[1]['clips']], ['Keep me'])
+        self.assertEqual([c['text'] for c in self.call('api/clips?pinned=0')[1]['clips']], ['Not me'])
+        self.assertEqual(self.call('api/clips?pinned=')[1]['total'], 2)
+        self.s.speak(req(text='Keep me', voice=''))   # a hit
+        c = [x for x in self.call('api/clips')[1]['clips'] if x['id'] == a][0]
+        self.assertEqual((c['hits'], c['uses_30d'], c['auto_pinned']), (0, 0, False))   # dry mode (the page build is dry): not a use
+
+    def test_stats_progress_after_generate_pin_delete(self):
+        st = self.call('api/clips')[1]['stats']
+        self.assertEqual((st['bytes'], st['percent']), (0, 0.0))
+        cid = self.call('api/generate', {'text': 'Hello'})[1]['clip']['id']
+        st = self.call('api/clips')[1]['stats']
+        self.assertEqual(st['bytes'], 100)
+        self.assertEqual(st['percent'], round(100 * 100 / (1024 * 1024), 1))
+        self.assertEqual(self.call('api/info')[1]['stats']['bytes'], 100)
+        self.call('api/clips/%d/pin' % cid, {'pinned': True})
+        self.assertEqual(self.call('api/clips')[1]['stats']['pinned'], 1)
+        self.call('api/clips/%d/pin' % cid, {'pinned': False})
+        self.assertEqual(self.call('api/clips/%d/pin' % cid, {'pinned': False})[1]['clip']['auto_pinned'], False)
+        self.call('api/clips/%d/delete' % cid, {})
+        self.assertEqual(self.call('api/clips')[1]['stats']['bytes'], 0)
+
+    def test_status_api_carries_cache_percent(self):
+        s, *_ = build(self.tmp.name + '-x')
+        s.cache.put('tts.piper', 'v', 'a', b'ID3' + b'a' * 97)
+        srv = appmain.ThreadingHTTPServer(('127.0.0.1', 0), appmain.make_handler(s))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        rq = urllib.request.Request('http://127.0.0.1:%d/status' % srv.server_address[1], headers={'Authorization': 'Bearer tok-1234'})
+        with urllib.request.urlopen(rq) as r:
+            cache = json.loads(r.read())['cache']
+        self.assertEqual((cache['bytes'], cache['max_bytes'], cache['auto_pin_uses'], cache['auto_pin_days']), (100, 1048576, 5, 30))
+        self.assertIn('percent', cache)
+
+    def test_user_unpin_through_the_page_sticks(self):
+        cid = self.call('api/generate', {'text': 'Often'})[1]['clip']['id']
+        self.c.auto_pin_uses = 2
+        self.c.get('tts.piper', '', 'Often')
+        self.c.get('tts.piper', '', 'Often')
+        self.assertEqual(self.call('api/clips')[1]['clips'][0]['auto_pinned'], True)
+        self.call('api/clips/%d/pin' % cid, {'pinned': False})
+        self.c.get('tts.piper', '', 'Often')
+        self.c.get('tts.piper', '', 'Often')
+        c = self.call('api/clips')[1]['clips'][0]
+        self.assertEqual((c['pinned'], c['auto_pinned']), (False, False))
+
     def test_generate_errors(self):
         self.assertEqual(self.call('api/generate', {'text': ''})[0], 400)
         self.assertEqual(self.call('api/generate', {'text': 'x', 'voice': 'nobody'})[0], 400)
@@ -515,6 +604,179 @@ class AdminPage(unittest.TestCase):
         self.s.cfg['base_url'] = ''
         cid = self.call('api/generate', {'text': 'Hello'})[1]['clip']['id']
         self.assertEqual(self.call('api/clips/%d/play' % cid, {'speaker': 'bedroom'})[1]['status'], 'error')
+
+
+class UsageAutoPin(unittest.TestCase):
+    """Use log, auto-pin after N uses in D days (fake clock), a user unpin sticks, dry runs and the page are not uses."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(self.tmp.cleanup)
+
+    def mk(self, **k):
+        d = dict(max_bytes=10**6, days=3650, clock=Clock(), auto_pin_uses=3, auto_pin_days=10)
+        d.update(k)
+        c = cachelib.Cache(os.path.join(self.tmp.name, 'c'), os.path.join(self.tmp.name, 'ih.db'), **d)
+        _OPEN.append(c)
+        return c
+
+    def use(self, c, n=1, text='hi'):
+        for _ in range(n):
+            c.get('tts.piper', 'v', text)
+
+    def test_each_hit_is_a_use_with_a_timestamp(self):
+        c = self.mk(auto_pin_uses=0)
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c, 2)
+        c.clock.t += 5 * cachelib.DAY
+        self.use(c)
+        row = c.by_id(1)
+        self.assertEqual((row['hits'], row['uses_30d']), (3, 3))
+        self.assertEqual(c.uses_since(1, 2), 1)
+        self.assertEqual(c.uses_since(1, 6), 3)
+
+    def test_miss_is_not_a_use(self):
+        c = self.mk()
+        self.assertIsNone(c.get('tts.piper', 'v', 'nothing'))
+        self.assertEqual(c.db.query('SELECT COUNT(*) FROM uses')[0][0], 0)
+
+    def test_auto_pin_at_threshold_and_badge_data(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c, 2)
+        self.assertFalse(c.by_id(1)['pinned'])
+        self.use(c)
+        row = c.by_id(1)
+        self.assertEqual((row['pinned'], row['auto_pinned']), (True, True))
+        self.assertEqual(ui_server.public(row)['auto_pinned'], True)
+        self.assertEqual(c.stats()['auto_pinned'], 1)
+
+    def test_uses_outside_the_window_do_not_count(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c, 2)
+        c.clock.t += 11 * cachelib.DAY
+        self.use(c, 2)
+        self.assertFalse(c.by_id(1)['pinned'])
+        self.use(c)
+        self.assertTrue(c.by_id(1)['pinned'])
+
+    def test_user_unpin_sticks(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c, 3)
+        self.assertTrue(c.by_id(1)['auto_pinned'])
+        c.set_pinned(1, False)
+        row = c.by_id(1)
+        self.assertEqual((row['pinned'], row['auto_pinned'], row['user_unpinned']), (False, False, True))
+        self.use(c, 10)
+        self.assertFalse(c.by_id(1)['pinned'])
+        c.set_pinned(1, True)   # a person pinning again clears the flag and the 'auto' mark
+        row = c.by_id(1)
+        self.assertEqual((row['pinned'], row['auto_pinned'], row['user_unpinned']), (True, False, False))
+
+    def test_manual_pin_is_not_marked_auto(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'hi', b'ID3a', pinned=True)
+        self.use(c, 5)
+        self.assertEqual((c.by_id(1)['pinned'], c.by_id(1)['auto_pinned']), (True, False))
+
+    def test_auto_pinned_survives_eviction_and_expiry(self):
+        c = self.mk(max_bytes=300, days=5)
+        c.put('tts.piper', 'v', 'hi', b'ID3' + b'a' * 97)
+        self.use(c, 3)
+        c.clock.t += 6 * cachelib.DAY
+        c.put('tts.piper', 'v', 'b', b'ID3' + b'b' * 97)
+        c.put('tts.piper', 'v', 'c', b'ID3' + b'c' * 97)
+        c.put('tts.piper', 'v', 'd', b'ID3' + b'd' * 97)
+        self.assertIsNotNone(c.find('tts.piper', 'v', 'hi'))
+
+    def test_off_when_uses_is_zero(self):
+        c = self.mk(auto_pin_uses=0)
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c, 20)
+        self.assertFalse(c.by_id(1)['pinned'])
+
+    def test_delete_drops_the_use_log(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'hi', b'ID3a')
+        self.use(c)
+        c.delete(1)
+        self.assertEqual(c.db.query('SELECT COUNT(*) FROM uses')[0][0], 0)
+
+    def test_list_pinned_filter_and_counts(self):
+        c = self.mk()
+        c.put('tts.piper', 'v', 'a', b'ID3a', pinned=True)
+        c.put('tts.piper', 'v', 'b', b'ID3b')
+        self.use(c, 2, 'b')
+        self.assertEqual([r['text'] for r in c.list(pinned=True)], ['a'])
+        self.assertEqual([(r['text'], r['uses_30d']) for r in c.list(pinned=False)], [('b', 2)])
+        self.assertEqual(len(c.list()), 2)
+
+    def test_stats_percent(self):
+        c = self.mk(max_bytes=1000)
+        c.put('tts.piper', 'v', 'a', b'ID3' + b'a' * 247)
+        st = c.stats()
+        self.assertEqual((st['bytes'], st['max_bytes'], st['percent']), (250, 1000, 25.0))
+
+    def test_migration_from_version_1_keeps_clips(self):
+        import ihlib.db as ihdb
+        path = os.path.join(self.tmp.name, 'old.db')
+        d = ihdb.open_db(path, cachelib.MIGRATIONS[:1])
+        d.execute('INSERT INTO clips(engine, voice, key, text, ext, size, created, last_used, hits, pinned) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                  ('tts.piper', 'v', cachelib.text_key('old'), 'old', 'mp3', 4, 1.0, 1.0, 7, 1))
+        d.close()
+        c = cachelib.Cache(os.path.join(self.tmp.name, 'c2'), path)
+        _OPEN.append(c)
+        row = c.by_id(1)
+        self.assertEqual((row['hits'], row['pinned'], row['auto_pinned'], row['user_unpinned']), (7, True, False, False))
+
+
+class UsageThroughSpeaker(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_options_parse(self):
+        c = sp.parse_options({})
+        self.assertEqual((c['auto_pin_uses'], c['auto_pin_days']), (5, 30))
+        c = sp.parse_options({'auto_pin_uses': 2, 'auto_pin_days': 7})
+        self.assertEqual((c['auto_pin_uses'], c['auto_pin_days']), (2, 7))
+        self.assertEqual(sp.parse_options({'auto_pin_uses': 'x'})['auto_pin_uses'], 5)
+
+    def test_real_use_counts_and_auto_pins(self):
+        s, ha, tts, c, clock = build(self.tmp.name, mode='live')
+        c.auto_pin_uses, c.auto_pin_days = 3, 30
+        for _ in range(4):   # the first is a miss (rendered and stored: not a use), then 3 hits
+            self.assertEqual(s.speak(req(text='Dinner is ready'))['status'], 'spoken')
+        row = c.find('tts.piper', 'voice-h', 'Dinner is ready')
+        self.assertEqual((row['hits'], row['pinned'], row['auto_pinned']), (3, True, True))
+
+    def test_dry_runs_do_not_count(self):
+        s, ha, tts, c, clock = build(self.tmp.name, mode='live', discord_token='t', discord_users=['alex=123456789012345678'],
+                                     discord_permissions=['hearth=alex'])
+        c.put('tts.piper', 'voice-h', 'Hello there', b'ID3x')
+        s._encode = lambda data: (b'ogg', 1.0, 'AAAA')
+        for _ in range(8):
+            self.assertEqual(s.speak(req(dry_run=True))['status'], 'dry')
+            self.assertEqual(s.speak(req(to='discord', discord_user='alex', dry_run=True))['status'], 'dry')
+        row = c.find('tts.piper', 'voice-h', 'Hello there')
+        self.assertEqual((row['hits'], row['pinned']), (0, False))
+        self.assertEqual(c.db.query('SELECT COUNT(*) FROM uses')[0][0], 0)
+
+    def test_admin_generate_and_seeding_are_not_uses(self):
+        s, ha, tts, c, clock = build(self.tmp.name)
+        for _ in range(3):
+            s.generate('Hello', '')
+        s.seed('')
+        s.seed('')
+        self.assertEqual(c.db.query('SELECT COUNT(*) FROM uses')[0][0], 0)
+
+    def test_filler_is_a_use(self):
+        s, ha, tts, c, clock = build(self.tmp.name, mode='live')
+        s.seed('voice-h')
+        row = c.by_label('tts.piper', 'voice-h', 'one moment')
+        s.speak(req(filler='one moment'))
+        self.assertEqual(c.by_id(row['id'])['hits'], 1)
 
 
 class Options(unittest.TestCase):

@@ -92,6 +92,8 @@ def parse_options(o):
         'cache_days': int(num('cache_days', 30, 1, 3650)),
         'base_url': str(o.get('base_url') or '').strip().rstrip('/'),
         'seed_fillers': o.get('seed_fillers', True) is not False,
+        'auto_pin_uses': int(num('auto_pin_uses', 5, 0, 1000)),   # 0 = never auto-pin
+        'auto_pin_days': int(num('auto_pin_days', 30, 1, 3650)),
     }
 
 
@@ -179,13 +181,13 @@ class Speaker:
     # ---- clip cache: every rendered message is kept; same phrase + same engine + same voice = one entry ----
     def _audio(self, engine, text, voice_id, store=True):
         """The audio bytes of a message: from the cache, else rendered, stored (not in a dry run) and returned."""
-        return self._obtain(engine, text, voice_id, store=store)[1]
+        return self._obtain(engine, text, voice_id, store=store, count=store)[1]   # a dry run (store=False) is not a use
 
-    def _obtain(self, engine, text, voice_id, label='', pinned=None, store=True):
+    def _obtain(self, engine, text, voice_id, label='', pinned=None, store=True, count=True):
         """-> (row or None, audio bytes, hit). Raises what the renderer raises. A cache that cannot store never stops the speech."""
         vid = voice_id if engine == 'tts.piper' else ''
         if self.cache:
-            row = self.cache.get(engine, vid, text)
+            row = self.cache.get(engine, vid, text, count=count)
             if row:
                 try:
                     return row, self.cache.read(row), True
@@ -220,7 +222,7 @@ class Speaker:
             if row and row['pinned'] and row['label']:
                 continue
             try:
-                self._obtain(engine, ph, voice_id, label=ph.lower(), pinned=True)
+                self._obtain(engine, ph, voice_id, label=ph.lower(), pinned=True, count=False)
                 made += 1
             except Exception as e:
                 self.log('seed failed', error=type(e).__name__)
@@ -435,7 +437,7 @@ class Speaker:
         url = self.clip_url(row)
         if not url:
             return 'skipped: base_url or api_token not set'
-        self.cache.db.execute('UPDATE clips SET last_used=?, hits=hits+1 WHERE id=?', (self.clock(), row['id']))
+        self.cache.record_use(row['id'])
         self.ha.call_service('media_player', 'play_media', {'entity_id': entity, 'media_content_id': url, 'media_content_type': 'music'})
         if not self._wait_for(entity, 'playing', FILLER_START_S):
             return 'skipped: speaker did not start it'
@@ -459,7 +461,7 @@ class Speaker:
         if not eng:
             return None, 'engine not available'
         try:
-            row, _, _ = self._obtain(eng, text, vid, label=str(label or '').strip()[:60], pinned=True if pin else None)
+            row, _, _ = self._obtain(eng, text, vid, label=str(label or '').strip()[:60], pinned=True if pin else None, count=False)
         except Exception as e:
             return None, 'audio failed: %s' % (e if isinstance(e, voice.VoiceError) else type(e).__name__)
         if row is None:

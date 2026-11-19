@@ -17,7 +17,7 @@ import speaker as sp              # noqa: E402
 import ui_server                  # noqa: E402
 from ihlib import db as ihdb     # noqa: E402
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 MAX_BODY = 8192
 DATA = os.environ.get('IHS_DATA', '/data')
 
@@ -122,7 +122,8 @@ def main():
     log = loglib.Logger.from_options(opts, prefix='ih_speaker')
     cfg = sp.parse_options(opts)
     database = ihdb.open_db(os.path.join(DATA, 'ih.db'), cachelib.MIGRATIONS)
-    cache = cachelib.Cache(os.path.join(DATA, 'cache'), database, max_bytes=cfg['cache_mb'] * 1024 * 1024, days=cfg['cache_days'])
+    cache = cachelib.Cache(os.path.join(DATA, 'cache'), database, max_bytes=cfg['cache_mb'] * 1024 * 1024, days=cfg['cache_days'],
+                             auto_pin_uses=cfg['auto_pin_uses'], auto_pin_days=cfg['auto_pin_days'])
     spk = sp.Speaker(HA(), opts, log=log, cache=cache)
     cache.expire()
     cache.evict()

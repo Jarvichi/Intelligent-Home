@@ -1,5 +1,5 @@
 name: "Intelligent Home - Speaker"
-version: "0.3.0"
+version: "0.4.0"
 slug: ih_speaker
 image: "ghcr.io/jarvichi/{arch}-ih_speaker"
 description: "Text-to-speech tool for the house speakers with a clip cache and an admin page (can also send the clip as a Discord voice message). Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."
@@ -49,6 +49,8 @@ options:
   cache_days: 30
   base_url: ""
   seed_fillers: true
+  auto_pin_uses: 5
+  auto_pin_days: 30
 schema:
   mode: list(dry|live)
   api_token: password
@@ -82,3 +84,5 @@ schema:
   cache_days: int(1,3650)
   base_url: str?
   seed_fillers: bool
+  auto_pin_uses: int(0,1000)
+  auto_pin_days: int(1,3650)
