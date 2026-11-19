@@ -22,6 +22,13 @@ def lines(event):
     if not isinstance(event,dict) or not event.get('active'):return []
     days=event.get('countdown_days');name=event.get('countdown_name')
     if type(days) is int and days>0 and isinstance(name,str) and name:
-        if name=='Christmas' and days>1:return [str(days)+' sleeps:',name]
-        return [('Tomorrow:' if days==1 else str(days)+' days:'),name]
-    return [str(event.get('detail') or '')]
+        icon={'Christmas':'🎄','Halloween':'🎃','Easter':'🐣','Pancake Day':'🥞'}.get(name,'🎁')
+        if name=='Christmas' and days>1:return [str(days)+' sleeps:',icon+' '+name]
+        return [('Tomorrow:' if days==1 else str(days)+' days:'),icon+' '+name]
+    detail=str(event.get('detail') or '')
+    icon=next((symbol for phrase,symbol in (
+        ('Haunted house','👻'),('Christmas','🎄'),('Boxing Day','🎁'),('New Year’s Eve','🥂'),
+        ('New Year','🎆'),('Halloween','🎃'),('Bonfire','🎆'),('Valentine','❤'),
+        ('Pancake','🥞'),('Mother','💐'),('Good Friday','🐣'),('Easter Monday','🐰'),
+        ('Easter','🐣'),('Father','👔'),('birthday','🎂')) if phrase in detail),'')
+    return [(icon+' ' if icon else '')+detail]

@@ -9,6 +9,7 @@ import textwrap
 from render import clean
 import cooking_render
 import festive_header
+import weather_icons
 
 ART=re.compile(r'^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}$')
 
@@ -53,14 +54,7 @@ def svg(data,alerts=None,now=None):
     def label(x,y,value,size=28,fill='black',anchor='start'):
         p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="Roboto, sans-serif" font-size="{size}" font-weight="bold" text-anchor="{anchor}">{clean(value,70)}</text>')
     def icon(condition,x,y,size):
-        condition=str(condition or '').lower();p.append(f'<g transform="translate({x} {y}) scale({size/100})">')
-        if 'sun' in condition or 'clear' in condition or 'partly' in condition:
-            p.append('<circle cx="35" cy="30" r="22" fill="#777"/>')
-        if any(key in condition for key in ('cloud','rain','snow','pour')) or not condition:
-            p.append('<path d="M18 70 C3 70 4 48 20 47 C24 27 50 27 58 42 C74 32 91 43 88 56 C99 60 96 72 82 72 Z" fill="#bbb" stroke="#777" stroke-width="2"/>')
-        if 'rain' in condition or 'pour' in condition:p.append('<path d="M30 79l-5 11 M52 79l-5 11 M74 79l-5 11" stroke="#555" stroke-width="5"/>')
-        if 'snow' in condition:p.append('<path d="M30 82l5 5m0-5l-5 5 M62 82l5 5m0-5l-5 5" stroke="#555" stroke-width="4"/>')
-        p.append('</g>')
+        p.append(weather_icons.svg(condition,x,y,size))
     panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
     event=next((x for x in active if x.get('slot')=='occasion'),None)
     inverted,header_font=festive_header.style(event)
