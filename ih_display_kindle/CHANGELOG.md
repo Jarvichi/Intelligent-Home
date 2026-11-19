@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Preview Cooking, dinner, home and birthday screens using owner-provided data.
+- Add an opt-in authenticated picture and touch interface with source and generation checks.
+
 ## 0.3.0
 
 - Match pinned task paging, power-aware preview controls and adaptive task layouts.

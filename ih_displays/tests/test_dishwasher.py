@@ -21,7 +21,9 @@ class Tests(unittest.TestCase):
         opener=Opener({FLAG:flag,FINISH:finish});return dishwasher.Dishwasher(FLAG,FINISH,'token',opener,clock=lambda:now,format_time=lambda t:str(int(t))),opener
     def test_cooling_before_four_hours_and_ready_at_boundary(self):
         finish={'state':'2033-05-18 01:00:00','attributes':{'timestamp':NOW-14399}}
-        service,opener=self.service({'state':'on'},finish);result=service.read()
+        service,opener=self.service({'state':'on','last_changed':'2033-05-18T00:00:00+00:00'},finish);result=service.read()
+        self.assertEqual(result['items'][0]['action_kind'],'dishwasher');self.assertEqual(result['items'][0]['action_source'],FLAG)
+        self.assertEqual(result['items'][0]['action_identity'],{'state':'on','last_changed':'2033-05-18T00:00:00+00:00'})
         self.assertEqual(result['items'][0]['title'],'Dishwasher finished · cooling');self.assertEqual(result['items'][0]['detail'],'Ready to unload at '+str(NOW+1));self.assertTrue(result['complete'])
         finish['attributes']['timestamp']=NOW-14400
         self.assertEqual(service.read()['items'][0]['title'],'Dishwasher ready to unload');self.assertTrue(all(m=='GET' for m in opener.calls))

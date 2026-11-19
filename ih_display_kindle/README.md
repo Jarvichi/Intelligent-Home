@@ -1,3 +1,3 @@
 # IH Kindle Display
 
-Compare the current Kindle picture with a read-only replacement preview. The add-on does not change the Kindle picture feed or touch controls.
+Compare the current Kindle pictures with replacement previews. An optional authenticated device interface is disabled by default; installing the add-on does not switch the existing device feed.

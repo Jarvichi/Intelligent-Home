@@ -1,13 +1,13 @@
 """Intelligent Home - Cooking (ih_cooking): recipes, meal plan, meal-vs-calendar clashes, the recipes page (ingress) and the cook engine.
 Two listeners: the bearer API on 8809 and the ingress page on 8810 (only the Supervisor may reach it)."""
-import hashlib, json, logging, os, re, sys, threading
+import hashlib, hmac, json, logging, os, re, sys, threading
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import cooking, recipeadmin, staples, usual_week
+import cooking, recipeadmin, staples, usual_week, display_menu
 
 PORT = int(os.environ.get('IHC_PORT', '8809'))
 INGRESS_PORT = int(os.environ.get('IHC_INGRESS_PORT', '8810'))
@@ -148,7 +148,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             self._logit = False
             if p == '/healthz' and method == 'GET':
                 return self._send(200, 'ok', 'text/plain')
-            self._logit = True
+            self._logit = p not in ('/cook/display','/cook/display-action','/cook/menu','/cook/menu-start')  # private display contents and actions stay out of invocation logs
             if not st.authed(self.headers.get('Authorization')):
                 self._why = 'unauthorized'
                 return self._send(401, {'ok': False, 'why': 'bearer token required'})
@@ -172,6 +172,9 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                     finally:
                         if self._code:
                             sp.set(http_status=self._code)
+            except TimeoutError:
+                self._why = 'controller_busy'
+                return self._send(503, {'ok': False, 'why': 'controller busy'})
             except ValueError:
                 self._why = 'bad_parameter'
                 return self._send(400, {'ok': False, 'why': 'bad parameter'})
@@ -204,6 +207,10 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 days = max(1, min(31, int((q.get('days') or ['7'])[0])))
                 today = date.fromisoformat((q.get('today') or [date.today().isoformat()])[0])
                 return self._send(200, st.clashes(days, today))
+            if p == '/cook/menu':
+                return self._send(200, display_menu.read(st,page=int((q.get('page') or ['0'])[0])))
+            if p == '/cook/display':
+                return self._send(200, engine(st).display_snapshot())
             if p == '/cook':
                 return self._send(200, engine(st).status())
             self._why = 'not_found'
@@ -240,12 +247,30 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             if method == 'POST' and p == '/import':
                 return self._send(200, recipeadmin.do_import(st.data, body))
             en = engine(st)
+            if method == 'POST' and p == '/cook/menu-start':
+                name=body.get('slug');revision=body.get('recipe_revision');eat=body.get('eat');request_id=body.get('request_id')
+                if not isinstance(name,str) or not re.fullmatch(r'[a-z0-9-]+',name) or not isinstance(revision,str) or not re.fullmatch(r'[a-f0-9]{64}',revision) or not isinstance(eat,str) or not EAT_RE.fullmatch(eat):return self._send(400,{'ok':False,'why':'invalid selection'})
+                with recipeadmin._WRITE_LOCK:
+                    selected=st.recipe(name)
+                    if not isinstance(selected,dict) or not hmac.compare_digest(str(selected.get('_revision','')),revision):return self._send(409,{'ok':False,'why':'recipe changed'})
+                    selected.pop('_revision',None);selected.pop('slug',None)
+                    steps=selected.get('steps') or []
+                    leads=[x.get('before',0) for x in steps if isinstance(x,dict)] if isinstance(steps,list) else []
+                    if any(type(v) is not int or not 0<=v<=600 for v in leads):return self._send(409,{'ok':False,'why':'invalid recipe'})
+                    earliest=display_menu.ready_minutes(en.now(),max(leads,default=0))
+                    if earliest>=1440:return self._send(409,{'ok':False,'why':'recipe would finish tomorrow'})
+                    chosen=int(eat[:2])*60+int(eat[3:]);chosen=max(chosen,earliest);eat='%02d:%02d'%(chosen//60,chosen%60)
+                result=en.start_from_display(selected,name,eat,request_id)
+                return self._send(200 if result.get('ok') else 409,result)
             if method == 'POST' and p == '/cook':
                 code, obj = start_cook(st, body.get('recipe') or body.get('name'), str(body.get('eat', '')))
                 self._why = 'rejected' if code >= 400 else '-'
                 return self._send(code, obj)
             if method == 'POST' and p == '/cook/stop':
                 return self._send(200, en.stop_cook())
+            if method == 'POST' and p == '/cook/display-action':
+                result=en.display_action(body.get('revision'),body.get('action'),body.get('item_id'))
+                return self._send(200 if result.get('ok') else 409,result)
             row = int(body.get('row', 0))
             if method == 'POST' and p == '/cook/done': return self._send(200, en.done(row, body.get('did') is True))
             if method == 'POST' and p == '/cook/ack': return self._send(200, en.ack(row))

@@ -256,14 +256,16 @@ class HA:
             with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
             incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values)
             home=[person for person,value in zip(people,values) if isinstance(value,dict) and value.get('state')=='on']
-            persons=[]
-            for person in home:
-                item={'name':person['name']}
+            members=[]
+            for person,value in zip(people,values):
+                state=value.get('state') if isinstance(value,dict) else None
+                item={'name':person['name'],'home':True if state=='on' else False if state=='off' else None,'presence_key':person.get('presence_key',''),'last_changed':value.get('last_changed') if isinstance(value,dict) else None}
                 if person.get('picture'):
                     art=self.artwork(person['picture'])
                     if art:item['art']=art
-                persons.append(item)
-            return {'available':not incomplete,'active':True,'pinned':True,'label':'Home','persons':persons,'detail':', '.join(p['name'] for p in home) if home else 'Presence unavailable' if incomplete else 'Nobody home'}
+                members.append(item)
+            persons=[item for item in members if item['home'] is True]
+            return {'available':not incomplete,'active':True,'pinned':True,'label':'Home','persons':persons,'members':members,'detail':', '.join(p['name'] for p in home) if home else 'Presence unavailable' if incomplete else 'Nobody home'}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def lights_panel(self,groups):
         if not isinstance(groups,list) or not groups or len(groups)>40:return {'available':False}

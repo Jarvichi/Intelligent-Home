@@ -5,6 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import battery_tasks
 import free_power
+import messages
 import robot_tasks
 
 PREFIX={'booking':'input_text.','wheel':'input_text.','oven':'input_boolean.','event':'event.','tomorrow':'sensor.'}
@@ -44,7 +45,11 @@ class EnergyReminders:
             if changed is None:complete=False
             elif same_day(self.localtime(changed),self.localtime(now)):
                 match=re.match(r'^\s*([+-]?\d+)',wheel['state'][5:]);count=int(match.group(1)) if match else 0
-                if count>0:items.append(row('🎡 Spun the '+self.provider.strip()+' wheel ×'+str(count),'Prizes in the '+self.provider.strip()+' app'))
+                if count>0:
+                    item=row('🎡 Spun the '+self.provider.strip()+' wheel ×'+str(count),'Prizes in the '+self.provider.strip()+' app')
+                    identity=messages.action_identity(wheel)
+                    if identity:item.update(action_kind='wheel',action_source=active['wheel'],action_identity=identity)
+                    items.append(item)
         oven=get_state('oven')
         if oven and oven['state'] not in ('on','off'):complete=False
         if oven and oven['state']=='on':

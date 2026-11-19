@@ -5,13 +5,19 @@ import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs,urlsplit,urlunsplit
 import frames
 import render
 import kindle_render
 import source_settings
 import profile_client
 import device_state
+import cooking_client
+import popup_render
+import device_frames
+import device_http
+import device_surface
+import kindle_actions
 
 ROOT=Path(__file__).parent/'ui'
 PEER='172.30.32.2'
@@ -22,13 +28,13 @@ def png(data):
     if len(result.stdout)>8*1024*1024 or not result.stdout.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid image')
     return result.stdout
 
-def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts=None,png_encoder=png):
+def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts=None,png_encoder=png,variants=None,menu=None):
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()
             self.send_response(code);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(raw)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(raw)
         def run(self,method):
-            path=urlparse(self.path).path
+            parsed=urlparse(self.path);path=parsed.path;query=parse_qs(parsed.query);screen=(query.get('screen') or ['main'])[0]
             if not ingress:
                 if method=='GET' and path=='/healthz':return self.reply(200,{'ok':True})
                 return self.reply(404,{'error':'Not found.'})
@@ -46,12 +52,23 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
                 except (OSError,ValueError,TypeError,UnicodeError):return self.reply(400,{'error':'Invalid source mappings.'})
             if method=='GET' and path=='/api/render.png':
                 if not snapshot:return self.reply(503,{'error':'Preview unavailable.'})
-                try:return self.reply(200,png_encoder(kindle_render.svg(snapshot(),alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})),'image/png')
+                if screen not in ('main','dinner','home','birthdays'):return self.reply(400,{'error':'Invalid preview screen.'})
+                try:
+                    if screen=='dinner':
+                        page=int((query.get('page') or ['0'])[0]);picture=popup_render.svg('dinner',menu(page) if menu else None)
+                    else:
+                        data=snapshot()
+                        if screen=='home':picture=popup_render.svg('home',next((x for x in data.get('panels',[]) if x.get('label')=='Home'),None))
+                        elif screen=='birthdays':picture=popup_render.svg('birthdays',data.get('birthdays'))
+                        else:picture=kindle_render.svg(data,alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})
+                    return self.reply(200,png_encoder(picture),'image/png')
                 except (OSError,ValueError,TypeError,subprocess.SubprocessError):return self.reply(503,{'error':'Preview unavailable.'})
-            if method=='GET' and path=='/api/status':return self.reply(200,store.status())
-            if method=='POST' and path=='/api/refresh':return self.reply(200,store.refresh())
+            selected=store if screen=='main' else (variants or {}).get(screen)
+            if method=='GET' and path=='/api/status':return self.reply(200,selected.status() if selected else {'state':'not_configured','has_frame':False})
+            if method=='POST' and path=='/api/refresh':return self.reply(200,selected.refresh() if selected else {'state':'not_configured','has_frame':False})
             if method=='GET' and path=='/api/frame':
-                data,kind=store.frame()
+                if not selected:return self.reply(503,{'error':'Picture unavailable.'})
+                data,kind=selected.frame()
                 if data is None:return self.reply(503,{'error':'Picture unavailable.'})
                 return self.reply(200,data,kind)
             return self.reply(404,{'error':'Not found.'})
@@ -63,18 +80,43 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
 def main():
     try:opts=json.loads((Path(os.environ.get('IHA_DATA','/data'))/'options.json').read_text())
     except (OSError,ValueError):opts={}
-    store=frames.Frames(opts.get('source_url',''))
+    source=opts.get('source_url','');store=frames.Frames(source);variants={}
+    if frames.valid_url(source):
+        parts=urlsplit(source)
+        if parts.path in ('','/','/1') and not parts.query:
+            for name,path in (('dinner','/3'),('home','/4'),('birthdays','/5')):
+                variants[name]=frames.Frames(urlunsplit((parts.scheme,parts.netloc,path,'','')))
     data=Path(os.environ.get('IHA_DATA','/data'));sources=source_settings.SourceSettings(data/'kindle-source-overrides.json')
     ha=render.HA(os.environ.get('SUPERVISOR_TOKEN',''))
+    cooking=cooking_client.CookingClient(opts.get('cooking_url',''),opts.get('cooking_token',''))
     shared=profile_client.ProfileClient(opts.get('displays_url',''),opts.get('displays_token',''),'')
     def snapshot():
         cfg=sources.read()
         result=ha.snapshot(cfg.get('render_entities',[]),'','',shared.message_tasks if opts.get('render_shared_messages') is True else None,cfg.get('weather_forecast_entity',''),cfg.get('weather_forecast_fallback_entity',''),cfg.get('render_media_entities',[]),cfg.get('render_overlay_entities',[]),cfg.get('render_cooking_entity',''),{'alert':cfg.get('render_intrusion_alert',''),'log':cfg.get('render_intrusion_log',''),'presence':cfg.get('render_intrusion_presence',[])},{'boiler':cfg.get('render_heat_boiler',''),'thermostat':cfg.get('render_heat_thermostat',''),'floors':cfg.get('render_heat_floors',[])},cfg.get('render_doors',[]),cfg.get('render_energy',{}),cfg.get('render_alarm',''),cfg.get('render_presence',[]),cfg.get('render_lights',[]),cfg.get('render_game_entities',[]),cfg.get('weather_current_entity',''),None,cfg.get('render_rooms',[]),cfg.get('render_sun_entity',''),'light',{'birthdays':cfg.get('render_birthdays_entity',''),'halloween':cfg.get('render_halloween_entity',''),'fixed':cfg.get('render_birthdays_fixed',[])})
         result['device']=device_state.read(ha,cfg.get('kindle_battery_entity',''),cfg.get('kindle_last_seen_entity',''),cfg.get('kindle_page_entity',''))
+        result['cooking']=cooking.read()
+        result['birthdays']=device_state.birthdays(ha,cfg.get('kindle_birthdays_entity',''))
+        presence=next((p for p in result.get('panels',[]) if p.get('label')=='Home'),None)
+        times=ha.optional_state(cfg.get('kindle_presence_times_entity','')) if cfg.get('kindle_presence_times_entity') else None
+        attrs=times.get('attributes',{}) if isinstance(times,dict) and isinstance(times.get('attributes'),dict) else {}
+        if presence:
+            for person in presence.get('members',[]):
+                key=person.get('presence_key','');person['transition']=attrs.get(key+('_arrived' if person.get('home') is True else '_left')) if key else None
         return result
     alert_reader=shared.alerts if opts.get('render_shared_alerts') is True else None
-    ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader))
+    ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader,variants=variants,menu=cooking.menu))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
-    ThreadingHTTPServer(('0.0.0.0',8841),make_handler(store)).serve_forever()
+    if opts.get('device_enabled') is True:
+        # The device client obtains a new owner snapshot after this action.
+        actions=kindle_actions.KindleActions(ha,sources.read,alerts=alert_reader,refresh=lambda:None)
+        surface=device_surface.DeviceSurface(snapshot,alert_reader or (lambda:None),cooking.menu,cooking,actions,png,ha,sources.read)
+        device_store=device_frames.DeviceFrames(surface.dispatch)
+        handler=device_http.make_handler(device_store,surface.build,opts.get('device_token',''))
+        class DeviceHandler(handler):
+            def do_GET(self):
+                if self.path=='/healthz':return self.send(200,'{"ok":true}','application/json')
+                return super().do_GET()
+        ThreadingHTTPServer(('0.0.0.0',8841),DeviceHandler).serve_forever()
+    else:ThreadingHTTPServer(('0.0.0.0',8841),make_handler(store)).serve_forever()
 
 if __name__=='__main__':main()

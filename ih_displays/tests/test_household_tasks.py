@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
         values['input_text.booking']['last_changed']=iso(NOW-3*86400);self.assertEqual(make(values).read()['items'],[])
     def test_wheel_same_day_positive_count(self):
         values={'input_text.booking':value(''),'input_text.wheel':value('spun:3'),'input_boolean.oven':value('off')}
-        out=make(values).read();self.assertEqual(out['items'][0]['title'],'🎡 Spun the Example wheel ×3')
+        out=make(values).read();self.assertEqual(out['items'][0]['title'],'🎡 Spun the Example wheel ×3');self.assertEqual(out['items'][0]['action_identity'],{'state':'spun:3','last_changed':iso(NOW)})
         values['input_text.wheel']['last_changed']=iso(NOW-86400);self.assertEqual(make(values).read()['items'],[])
         values['input_text.wheel']=value('spun:0');self.assertEqual(make(values).read()['items'],[])
     def test_oven_chooses_earliest_active_or_future_event(self):

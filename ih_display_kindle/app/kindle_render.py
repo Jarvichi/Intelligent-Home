@@ -5,6 +5,7 @@ import time
 import math
 import textwrap
 from render import clean
+import cooking_render
 
 ART=re.compile(r'^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}$')
 
@@ -21,7 +22,22 @@ def task_page(tasks,offset,now):
     per_page=max(1,3-len(messages));pages=max(1,math.ceil(len(general)/per_page));page=(int(now//300)+offset)%pages
     return (messages+general[page*per_page:page*per_page+per_page]+collections)[:5],page,pages,True
 
+def dismissible_alert(data,alerts,now):
+    """The one displayed energy warning, if present in the current cycle."""
+    if not isinstance(alerts,dict):return None
+    entries=[x for x in (alerts.get('alerts') or []) if isinstance(x,dict) and x.get('title')]
+    life=[x for x in entries if x.get('kind') in ('smoke','co')]
+    active=[x for x in (data.get('panels') or []) if isinstance(x,dict) and x.get('active')]
+    motion=[None for x in active if x.get('label')=='Motion while away' and x.get('urgent') is True]
+    other=motion+[x for x in entries if x.get('kind') not in ('smoke','co')]
+    status=alerts.get('configured') is False or not alerts.get('complete')
+    slots=max(0,4-min(len(life),2)-(1 if status else 0));pages=max(1,(len(other)+slots-1)//slots) if slots else 1;page=int(now//300)%pages
+    visible=other[page*slots:page*slots+slots] if slots else []
+    matches=[x for x in visible if isinstance(x,dict) and x.get('kind') in ('free','saving') and x.get('dismissible') is True]
+    return matches[0] if len(matches)==1 else None
+
 def svg(data,alerts=None,now=None):
+    if isinstance(data.get('cooking'),dict) and data['cooking'].get('running') is True:return cooking_render.svg(data['cooking'],alerts)
     timestamp=time.time() if now is None else now;today=datetime.datetime.fromtimestamp(timestamp).astimezone()
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
     def text(x,y,value,size=28,bold=False,anchor='start'):
@@ -99,6 +115,8 @@ def svg(data,alerts=None,now=None):
         else:text(x+20,809,(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable',23,True)
         if title=='HEAT' and heat.get('detail'):text(x+20,843,heat['detail'],18)
         if title=='DOORS' and doors.get('detail'):text(x+20,843,doors['detail'],18)
+    if charging and isinstance(data.get('cooking'),dict) and 16<=today.hour<19:
+        box(48,726,232,140,'black');label(164,786,'COOK',30,'white','middle');label(164,827,'DINNER',30,'white','middle')
     lights=next((x for x in panels if x.get('label')=='Lights on'),{})
     label(48,911,'LIGHTS ON',25);text(48,958,lights.get('detail') or 'Unavailable',26)
     if charging:
@@ -109,6 +127,7 @@ def svg(data,alerts=None,now=None):
     if str(energy_detail).startswith('Saving'):
         box(48,1040,976,48,'black');label(65,1073,energy_detail,22,'white')
     else:text(48,1065,energy_detail,25,True)
+    if data.get('cooking_unavailable') is True:text(1024,1090,'Cooking unavailable · controls paused',18,True,'end')
     # Keep life-safety alerts visible while cycling other alerts. The source
     # emits at most one aggregate smoke alert and one CO alert.
     entries=[x for x in (alerts.get('alerts') or []) if isinstance(x,dict) and x.get('title')] if isinstance(alerts,dict) else []
@@ -122,6 +141,8 @@ def svg(data,alerts=None,now=None):
         box(48,478,976,190,'black')
         for i,item in enumerate(warning):label(70,517+i*37,item[:52],25,'white')
         if pages>1:label(995,650,f'{page+1}/{pages}',18,'white','end')
+        if data.get('allow_alert_dismiss') is True and dismissible_alert(data,alerts,timestamp):
+            p.append('<rect x="872" y="612" width="142" height="52" rx="20" fill="white"/>');label(943,645,'DISMISS',20,'black','middle')
     tasks=data.get('tasks');partial=data.get('tasks_partial') is True
     offset=device.get('page_offset') if type(device.get('page_offset')) is int else 0
     rows,page,pages,grouped=task_page(tasks,offset,timestamp)

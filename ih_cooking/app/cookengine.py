@@ -5,7 +5,7 @@ stdlib only. Everything that touches the house goes through four small objects s
   clocks   now() -> datetime, ts() -> epoch seconds, sleep(s)
 DRY by default: in dry mode every write (HA service, HA state, Discord, voice, oven) is only logged as 'would ...'.
 LIVE needs cook_mode=live AND the guard (see Engine.guard): it refuses while another controller's heartbeat is fresh."""
-import datetime, json, os, re, threading, time, urllib.request, urllib.error
+import copy, datetime, hashlib, json, os, re, threading, time, urllib.request, urllib.error
 from ihlib.ha import HA   # shared library: shipped as app/ihlib
 
 LIVE_PHRASE = 'I-AM-THE-ONLY-COOK-CONTROLLER'
@@ -165,6 +165,9 @@ class Engine:
         self.start_lock = threading.RLock()
         self.thread = None
         self.stop_flag = threading.Event()
+        self.cook_cancel = threading.Event()
+        # Serializes a session oven request with session cancellation.
+        self.oven_dispatch_lock = threading.Lock()
         self._guard_cache = (0, False, 'not checked')
         self._demoted = False
         self._pub_sig = None
@@ -327,6 +330,13 @@ class Engine:
         except Exception as e:
             return False, type(e).__name__
 
+    def _cook_svc(self, cancel, service, data):
+        """Do not issue a session request after its cancellation has completed."""
+        if cancel is None:return self._svc(service,data)
+        with self.oven_dispatch_lock:
+            if cancel.is_set():return False,'cancelled'
+            return self._svc(service,data)
+
     def _signpost(self, text): self.voice(text)
 
     def _shout(self, text):
@@ -339,34 +349,42 @@ class Engine:
     def _opstate(self):
         return str(self.state(self.OVEN_OP).get('state', ''))
 
-    def oven_start(self, temp=220, prog='HotAir', mins=60):
+    def oven_start(self, temp=220, prog='HotAir', mins=60, cancel=None):
         if not self.live:
             self.log('would set oven: start %s at %s C for %s min (dry: no oven call made)' % (prog, temp, mins)); return 'dry'
         dev = self.cfg.get('oven_device')
         body = {'device_id': dev, 'program_key': 'Cooking.Oven.Program.HeatingMode.%s' % prog, 'validate': False,
                 'options': [{'key': 'Cooking.Oven.Option.SetpointTemperature', 'value': temp}, {'key': 'BSH.Common.Option.Duration', 'value': mins * 60},
                             {'key': 'Cooking.Oven.Option.FastPreHeat', 'value': True}]}
+        if cancel is not None and cancel.is_set():return False
         self._signpost('Turning the oven on to %s degrees now.' % temp)
-        ok, msg = self._svc('start_program', body)
+        if cancel is not None and cancel.is_set():return False
+        ok, msg = self._cook_svc(cancel,'start_program',body)
         for _ in range(15):          # the oven blocks remote commands for ~1 min after anyone touches it: keep retrying
             if ok: break
-            self.log('oven blocked, retrying: ' + msg); self.sleep(20)
-            ok, msg = self._svc('start_program', body)
+            self.log('oven blocked, retrying: ' + msg)
+            if cancel is not None and cancel.wait(20):return False
+            if cancel is None:self.sleep(20)
+            if cancel is not None and cancel.is_set():return False
+            ok, msg = self._cook_svc(cancel,'start_program',body)
         t_start = self.ts(); shouted = False
         for i in range(20):          # "Always retry turning oven on and off - it's vital": re-send until it reports Run
-            self.sleep(20)
+            if cancel is not None and cancel.wait(20):return False
+            if cancel is None:self.sleep(20)
             if self._opstate() == RUN:
                 self.log('oven reports Run: STARTED'); return True
             self.log('oven not running yet, re-sending start %d' % (i + 1))
             if not shouted and self.ts() - t_start > 60:
                 self._shout('The oven has not started yet. I am still trying. Please check the oven knob is on remote start.'); shouted = True
-            self._svc('start_program', body)
+            if cancel is not None and cancel.is_set():return False
+            self._cook_svc(cancel,'start_program',body)
         self._shout('I could not start the oven. Please switch it on by hand.')
         self.log('oven FAILED: never reported Run'); return False
 
-    def oven_set_temp(self, want, max_min=5):
+    def oven_set_temp(self, want, max_min=5, cancel=None):
         if not self.live:
             self.log('would set oven: temperature %s C (dry: no oven call made)' % want); return 'dry'
+        if cancel is not None and cancel.is_set():return False
         if 'Run' not in self._opstate():
             self.log('oven is not running: cannot change temperature'); return False
         self._signpost('Changing the oven to %s degrees now.' % want)
@@ -376,9 +394,11 @@ class Engine:
             except (TypeError, ValueError): return None
         t0 = self.ts(); end = t0 + 60 * float(max_min); c0 = cavity(); shouted = False
         while self.ts() < end:
-            ok, msg = self._svc('set_program_option', {'device_id': self.cfg.get('oven_device'), 'key': 'Cooking.Oven.Option.SetpointTemperature', 'value': want})
+            if cancel is not None and cancel.is_set():return False
+            ok, msg = self._cook_svc(cancel,'set_program_option',{'device_id': self.cfg.get('oven_device'), 'key': 'Cooking.Oven.Option.SetpointTemperature', 'value': want})
             self.log('oven set sent: ' + ('ok' if ok else msg))
-            self.sleep(30)
+            if cancel is not None and cancel.wait(30):return False
+            if cancel is None:self.sleep(30)
             c = cavity()
             rising = c is not None and c0 is not None and ((want > c0 and c >= c0 + 4) or (want < c0 and c <= c0 - 4) or abs(c - want) <= 3)
             if rising: self.log('oven WORKING: heading for %s' % want); return True
@@ -405,11 +425,12 @@ class Engine:
         self._shout('I could not switch the oven off. Please turn it off by hand.')
         self.log('oven stop GAVE UP'); return False
 
-    def oven_action(self, spec):
+    def oven_action(self, spec, session=False):
         """spec = {"action": "start"|"set"|"stop", "temp": 200, ...}. Runs in the background so the cook loop carries on."""
         a = (spec or {}).get('action')
-        fn = {'start': lambda: self.oven_start(int(spec.get('temp', 220)), spec.get('program', 'HotAir'), int(spec.get('minutes', 60))),
-              'set': lambda: self.oven_set_temp(int(spec['temp'])), 'stop': lambda: self.oven_stop()}.get(a)
+        cancel=self.cook_cancel if session else None
+        fn = {'start': lambda: self.oven_start(int(spec.get('temp', 220)), spec.get('program', 'HotAir'), int(spec.get('minutes', 60)), cancel=cancel),
+              'set': lambda: self.oven_set_temp(int(spec['temp']), cancel=cancel), 'stop': lambda: self.oven_stop()}.get(a)
         if not fn: self.log('oven action ignored: %r' % (spec,)); return False
         self.spawn(lambda: self._safe(fn)); return True
 
@@ -418,7 +439,7 @@ class Engine:
         if not s.get('oven'): return False
         key = s['at'] + ' ' + s['text']; fired = st.setdefault('oven_fired', [])
         if key in fired: return False
-        fired.append(key); return self.oven_action(s['oven'])
+        fired.append(key); return self.oven_action(s['oven'],session=True)
 
     def _safe(self, fn):
         try: fn()
@@ -441,12 +462,16 @@ class Engine:
         nd = [x for x in full if not x['done']]
         grp = [x for x in nd if x['at'] <= hmn][:3] or ([x for x in nd if x['at'] == nd[0]['at']][:3] if nd else [])
         next_n = len(grp)
-        try: self.dump('shownext.json', [x['key'] for x in grp])
-        except Exception: pass
         dn = [x for x in steps if x['done']]; steps = dn[-1:] + [x for x in steps if not x['done']]
         shown = [x['text'] for x in (plan or {}).get('prep', []) if not x.get('done')][:5]
-        try: self.dump('shown.json', shown)
-        except Exception: pass
+        # Keep both row snapshots coherent for revision-checked display actions.
+        with self.lock:
+            try:
+                current_plan=self.load('plan.json',None);current_state=self.load('state.json',{}) or {}
+                if current_plan!=plan or (plan is not None and current_state.get('done',[])!=st.get('done',[])):return None
+                self.dump('shownext.json', [x['key'] for x in grp])
+                self.dump('shown.json', shown)
+            except Exception: pass
         sensor = self.cfg.get('plan_sensor') or 'sensor.cooking_plan'
         body = {'state': 'on' if on else 'off', 'attributes': {'title': (plan or {}).get('title', ''), 'eat': (plan or {}).get('eat', ''),
                 'prep': [x['text'] for x in (plan or {}).get('prep', []) if not x.get('done')][:5], 'prep_left': sum(1 for x in (plan or {}).get('prep', []) if not x.get('done')),
@@ -504,16 +529,24 @@ class Engine:
             self.log('fact sync error (%s)' % type(e).__name__)
 
     def tick(self):
+        # Serialize controller decisions and effects with display actions and stop.
+        # An older tick must not issue a command after a newer action is accepted.
+        with self.lock:
+            return self._tick_locked()
+
+    def _tick_locked(self):
         cfg = self.cfg
         with self.lock:
             plan = self.load('plan.json', None)
+            original_plan = copy.deepcopy(plan)
+            original_state = self.load('state.json', {'done': [], 'oven': False})
         self._sync_fact(plan)
         if not plan:
             self.log('no plan, stopping')
             try: self.publish(None, {'done': []}, False)
             except Exception: pass
             return False
-        st = self.load('state.json', {'done': [], 'oven': False})
+        st = copy.deepcopy(original_state)
         now = self.now()
         hm = now.strftime('%H:%M')
         gate = next((x for x in plan.get('steps', []) if x.get('gate')), None)
@@ -529,6 +562,8 @@ class Engine:
                 if k in tk: st['told'] = [x['at'] + ' ' + x['text'] if t == k else t for t in st['told']]
             plan['eat'] = sh(plan['eat'])
             with self.lock:
+                # A tap or stop may have changed the plan while this tick was calculating.
+                if self.load('plan.json',None)!=original_plan or self.load('state.json',{'done': [], 'oven': False})!=original_state:return True
                 self.dump('plan.json', plan, indent=1, ensure_ascii=False)
             self.log(f'waiting for the ingredients: plan moved {lag} min later, eating at {plan["eat"]}')
         voice = plan.get('voice', False)
@@ -654,29 +689,64 @@ class Engine:
         finally:
             self.log('loop ended')
 
-    def start_cook(self, recipe_obj, name, eat):
-        """Request arrives by HTTP. Replaces a running cook (old plan -> plan.replaced.json), like cookd.sh."""
-        if self.cfg.get('mode') == 'off':
-            return {'ok': False, 'why': 'cook_mode is off'}
-        if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', str(eat)):
-            return {'ok': False, 'why': 'eat must be HH:MM'}
-        with self.start_lock:                      # not self.lock: the old loop needs it to finish its tick
+    def start_cook(self, recipe_obj, name, eat, allow_replace=True, lock_timeout=None):
+        """Start one cook; existing callers may explicitly retain replacement behaviour."""
+        if self.cfg.get('mode') == 'off':return {'ok':False,'why':'cook_mode is off'}
+        if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d',str(eat)):return {'ok':False,'why':'eat must be HH:MM'}
+        # A single lock order keeps simultaneous requests from starting two loops.
+        with self.start_lock:
             if self.running():
-                self.stop_flag.set(); self.thread.join(timeout=30)
-        with self.lock, self.start_lock:
-            if os.path.exists(self.p('plan.json')): os.replace(self.p('plan.json'), self.p('plan.replaced.json'))
-            plan = build_plan(recipe_obj, name, eat, self.now().date(), self.cfg.get('child_name') or 'Child')
-            self.dump('plan.json', plan, indent=1, ensure_ascii=False)
-            self.dump('state.json', {'done': [], 'told': [], 'oven': False})
-            self.stop_flag = threading.Event()
-            self.thread = threading.Thread(target=self._loop, daemon=True); self.thread.start()
-        ok, why = self.guard(force=True)
-        self.log('started %s for %s (%s)' % (name, eat, 'LIVE' if ok else 'dry: ' + why))
-        return {'ok': True, 'live': ok, 'dry': not ok, 'why': why, 'steps': [(s['at'], s['short']) for s in plan['steps']]}
+                if not allow_replace:return {'ok':False,'why':'cooking already active'}
+                with self.oven_dispatch_lock:self.cook_cancel.set()
+                self.stop_flag.set();self.thread.join(timeout=30)
+                if self.running():return {'ok':False,'why':'previous controller did not stop'}
+            acquired=self.lock.acquire() if lock_timeout is None else self.lock.acquire(timeout=lock_timeout)
+            if not acquired:return {'ok':False,'why':'controller busy'}
+            try:
+                acquired=self.oven_dispatch_lock.acquire() if lock_timeout is None else self.oven_dispatch_lock.acquire(timeout=lock_timeout)
+                if not acquired:return {'ok':False,'why':'controller busy'}
+                try:
+                    self.cook_cancel.set();self.cook_cancel=threading.Event()
+                finally:self.oven_dispatch_lock.release()
+                if os.path.exists(self.p('plan.json')):os.replace(self.p('plan.json'),self.p('plan.replaced.json'))
+                plan=build_plan(recipe_obj,name,eat,self.now().date(),self.cfg.get('child_name') or 'Child')
+                self.dump('plan.json',plan,indent=1,ensure_ascii=False);self.dump('state.json',{'done':[],'told':[],'oven':False})
+                self.stop_flag=threading.Event();self.thread=threading.Thread(target=self._loop,daemon=True);self.thread.start()
+            finally:self.lock.release()
+        ok,why=self.guard(force=True);self.log('started %s for %s (%s)'%(name,eat,'LIVE' if ok else 'dry: '+why))
+        return {'ok':True,'live':ok,'dry':not ok,'why':why,'steps':[(v['at'],v['short']) for v in plan['steps']]}
 
-    def stop_cook(self):
+    def start_from_display(self,recipe_obj,name,eat,request_id):
+        """Idempotent display request, reserved before starting and never replacing a cook."""
+        if not isinstance(request_id,str) or not re.fullmatch(r'[a-f0-9]{32,64}',request_id):return {'ok':False,'why':'invalid request id'}
+        if self.cfg.get('mode') == 'off':return {'ok':False,'why':'cook_mode is off'}
+        if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d',str(eat)):return {'ok':False,'why':'eat must be HH:MM'}
+        if not self.start_lock.acquire(timeout=1):return {'ok':False,'why':'controller busy'}
+        try:
+            if self.running():return {'ok':False,'why':'cooking already active'}
+            if not self.lock.acquire(timeout=1):return {'ok':False,'why':'controller busy'}
+            try:
+                try:
+                    with open(self.p('display-requests.json')) as handle:ledger=json.load(handle)
+                except FileNotFoundError:ledger=[]
+                except (OSError,ValueError,UnicodeError):return {'ok':False,'why':'request journal unavailable'}
+                if not isinstance(ledger,list) or any(not isinstance(x,str) or not re.fullmatch(r'[a-f0-9]{32,64}',x) for x in ledger) or len(ledger)>100000:return {'ok':False,'why':'request journal unavailable'}
+                if request_id in ledger:return {'ok':False,'why':'request already handled'}
+                # Bounded journal: fail closed rather than evict an old request.
+                if len(ledger)>=100000:return {'ok':False,'why':'request journal full'}
+                self.dump('display-requests.json',ledger+[request_id])
+            finally:self.lock.release()
+            return self.start_cook(recipe_obj,name,eat,allow_replace=False,lock_timeout=1)
+        finally:self.start_lock.release()
+
+    def stop_cook(self, lock_timeout=None):
         with self.lock:
-            if os.path.exists(self.p('plan.json')): os.replace(self.p('plan.json'), self.p('plan.stopped.json'))
+            acquired=self.oven_dispatch_lock.acquire() if lock_timeout is None else self.oven_dispatch_lock.acquire(timeout=lock_timeout)
+            if not acquired:return {'ok':False,'why':'controller busy'}
+            try:
+                self.cook_cancel.set()
+                if os.path.exists(self.p('plan.json')): os.replace(self.p('plan.json'), self.p('plan.stopped.json'))
+            finally:self.oven_dispatch_lock.release()
         self.log('stop requested')
         return {'ok': True}
 
@@ -756,6 +826,71 @@ class Engine:
             p['steps'].sort(key=lambda s: s['at'])
             self.dump('plan.json', p, indent=1)
             return {'ok': bool(r), 'moved': r}
+
+    def display_snapshot(self):
+        if not self.lock.acquire(timeout=1):raise TimeoutError('controller busy')
+        try:return self._display_snapshot_locked()
+        finally:self.lock.release()
+
+    def _display_snapshot_locked(self):
+        """Return a bounded, read-only cooking projection with a revision for safe taps."""
+        with self.lock:
+            plan=self.load('plan.json',None)
+            if not self.running() or not isinstance(plan,dict):return {'running':False,'revision':None,'next':[],'prep':[],'steps':[]}
+            try:
+                st=os.stat(self.p('plan.json'))
+                identity=[st.st_ino,st.st_mtime_ns,st.st_ctime_ns]
+            except OSError:return {'running':False,'revision':None,'next':[],'prep':[],'steps':[]}
+            state=self.load('state.json',{}) or {};keys=self.load('shownext.json',[]) or [];shown=self.load('shown.json',[]) or []
+            steps=plan.get('steps') if isinstance(plan.get('steps'),list) else [];prep=plan.get('prep') if isinstance(plan.get('prep'),list) else []
+            def row_id(kind,index,key):
+                return hashlib.sha256(json.dumps([identity,kind,index,key],ensure_ascii=False).encode()).hexdigest()
+            next_rows=[]
+            for i,key in enumerate(keys[:3]):
+                matches=[v for v in steps if isinstance(v,dict) and str(v.get('at',''))+' '+str(v.get('text',''))==key]
+                if len(matches)==1:
+                    match=matches[0];next_rows.append({'id':row_id('next',i,key),'row':i,'at':str(match.get('at',''))[:5],'text':str(match.get('short') or match.get('text') or '')[:120],'done':key in state.get('done',[])})
+            prep_rows=[]
+            for i,value in enumerate(shown[:5]):
+                # A stale legacy projection must not tick a different active item.
+                matches=[v for v in prep if isinstance(v,dict) and v.get('text')==value and not v.get('done')]
+                if isinstance(value,str) and len(matches)==1:prep_rows.append({'id':row_id('prep',i,value),'row':i,'text':value[:120]})
+            summary=[{'at':str(v.get('at',''))[:5],'text':str(v.get('short') or v.get('text') or '')[:120],'done':str(v.get('at',''))+' '+str(v.get('text','')) in state.get('done',[])} for v in steps[:100] if isinstance(v,dict)]
+            basis={'identity':identity,'plan':plan,'state':state,'keys':keys,'shown':shown}
+            revision=hashlib.sha256(json.dumps(basis,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
+            return {'running':True,'revision':revision,'title':str(plan.get('title') or '')[:120],'eat':str(plan.get('eat') or '')[:5],
+                    'oven_target':plan.get('oven_target'),'next':next_rows,'prep':prep_rows,'steps':summary}
+
+    def display_action(self,revision,action,item_id=None):
+        """Execute only an action for the exact displayed revision and row identity."""
+        if not isinstance(revision,str) or not re.fullmatch(r'[a-f0-9]{64}',revision):return {'ok':False,'why':'invalid revision'}
+        if action not in ('done','did','ack','early','delay','tick','stop'):return {'ok':False,'why':'invalid action'}
+        if not self.lock.acquire(timeout=1):return {'ok':False,'why':'controller busy'}
+        try:
+            snap=self.display_snapshot()
+            if not snap['running'] or not snap['revision'] or not __import__('hmac').compare_digest(snap['revision'],revision):return {'ok':False,'why':'stale display'}
+            if action=='stop':return self.stop_cook(lock_timeout=1)
+            kind='prep' if action=='tick' else 'next';rows=snap[kind]
+            index=next((i for i,row in enumerate(rows) if row['id']==item_id),None)
+            if index is None:return {'ok':False,'why':'stale item'}
+            selected=rows[index];row=selected['row']
+            if selected.get('done') is True:return {'ok':False,'why':'stale item'}
+            if action=='tick':
+                shown=self.load('shown.json',[]) or [];plan=self.load('plan.json',{}) or {}
+                value=shown[row] if row<len(shown) else None
+                matches=[v for v in plan.get('prep',[]) if isinstance(v,dict) and v.get('text')==value and not v.get('done')]
+                if len(matches)!=1 or shown.count(value)!=1:return {'ok':False,'why':'ambiguous item'}
+                return self.tick_prep(row)
+            # The legacy DONE handler can use its own 90-second row snapshot.
+            # Refuse a tap if that row no longer denotes this displayed item.
+            if action in ('done','did'):
+                state=self.load('state.json',{}) or {};legacy=state.get('snap') or {};legacy_keys=legacy.get('keys') or []
+                current=self.load('shownext.json',[]) or []
+                if legacy_keys and self.ts()-legacy.get('ts',0)<self.SNAP_S and (row>=len(legacy_keys) or row>=len(current) or legacy_keys[row]!=current[row]):return {'ok':False,'why':'stale item'}
+                return self.done(row,did=action=='did')
+            if action=='ack':return self.ack(row)
+            return self.delay(-5 if action=='early' else 5,row)
+        finally:self.lock.release()
 
     def status(self):
         ok, why = self.guard()

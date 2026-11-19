@@ -1,5 +1,5 @@
 name: "Intelligent Home - Kindle Display"
-version: "0.3.0"
+version: "0.4.0"
 slug: ih_display_kindle
 image: "ghcr.io/jarvichi/{arch}-ih_display_kindle"
 description: "Preview an existing Kindle display picture."
@@ -22,13 +22,21 @@ ports_description:
 watchdog: "http://[HOST]:[PORT:8841]/healthz"
 options:
   source_url: ""
+  cooking_url: ""
+  cooking_token: ""
   displays_url: ""
   displays_token: ""
   render_shared_messages: false
   render_shared_alerts: false
+  device_enabled: false
+  device_token: ""
 schema:
   source_url: str?
+  cooking_url: str?
+  cooking_token: password?
   displays_url: str?
   displays_token: password?
   render_shared_messages: bool
   render_shared_alerts: bool
+  device_enabled: bool
+  device_token: password?
