@@ -39,3 +39,13 @@
 @media(max-width:700px){.status-app{padding:14px 12px 32px}.ih-page-heading{margin-bottom:12px}.ih-page-heading h1{font-size:27px}.livepill{padding:6px 9px;font-size:11px;white-space:normal}}
 @media(max-width:520px){.status-footer{font-size:9px}}
 @media(prefers-reduced-motion:reduce){.ih-button{transition:none}}
+
+.scores-wrap{overflow-x:auto}
+.scores-table{width:100%;border-collapse:collapse;font-size:14px}
+.scores-table th,.scores-table td{padding:8px 10px;border-top:1px solid var(--ih-line);text-align:left;white-space:nowrap}
+.scores-table th{border-top:0;color:var(--ih-muted);font-size:12px;font-weight:650}
+.scores-table .n{text-align:right;font-variant-numeric:tabular-nums}.scores-table .iq{font-weight:750}.scores-table .name{font-weight:650}
+.scores-table .bad{color:var(--ih-danger);font-weight:650}
+@media (max-width:560px){.scores-table thead{display:none}.scores-table,.scores-table tbody,.scores-table tr,.scores-table td{display:block;width:100%}
+.scores-table tr{padding:8px 0;border-top:1px solid var(--ih-line)}.scores-table tr:first-child{border-top:0}
+.scores-table td{border:0;padding:2px 0;display:flex;justify-content:space-between;white-space:normal}.scores-table td:before{content:attr(data-label);color:var(--ih-muted);font-size:13px}}

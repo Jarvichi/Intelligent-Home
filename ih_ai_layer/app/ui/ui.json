@@ -8,7 +8,8 @@
     "Sends questions to the best AI",
     "Keeps track of each AI's daily allowance",
     "Learns which AI answers best",
-    "Switches between test and live mode"
+    "Switches between test and live mode",
+    "Shows each AI's IQ score (test and live)"
   ],
   "access": "Home Assistant authenticated ingress only",
   "page": "status"

@@ -22,6 +22,13 @@ class Handler(BaseHTTPRequestHandler):
    except Exception: data=None
    if data is None: return self.send_error(404)
    return self.reply(200,json.dumps(data).encode(),'application/json; charset=utf-8')
+  if path=='/api/scores':
+   try:
+    import scores_view
+    data=scores_view.scores()
+   except Exception: data=None
+   if data is None: return self.send_error(404)
+   return self.reply(200,json.dumps(data).encode(),'application/json; charset=utf-8')
   if path=='/ui.json':
    body=json.dumps({k:INFO.get(k) for k in ('title','purpose','description','navigation','access')}).encode(); return self.reply(200,body,'application/json; charset=utf-8')
   name=ASSETS.get(path)

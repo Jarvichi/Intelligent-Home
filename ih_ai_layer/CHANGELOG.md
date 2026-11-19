@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.0] - 2026-11-20
+
+### Added
+- "AI scores" card on the ingress page (`/api/scores`): each outside AI's IQ, test part, live part, "made things up" flag and test date, from the AI Trust Test add-on's new `/scores` plus this layer's own live answer score. IQ = 80% test + 20% live (test alone when there is no live score). If the trust add-on cannot be reached the card says so and shows no rows. Needs the same `register_key` as `ih_jobs_trust`.
+
 ## [0.8.0] - 2026-11-18
 
 ### Added

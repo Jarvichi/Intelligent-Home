@@ -106,11 +106,49 @@
     }
   }
 
+  const scoresCard = $('scores-card'), scoresRows = $('scores-rows'), scoresTable = $('scores-table'), scoresMsg = $('scores-msg');
+
+  function renderScores(j) {
+    if (!j || typeof j !== 'object') { scoresCard.hidden = true; scoresRows.replaceChildren(); return; }
+    $('scores-title').textContent = typeof j.title === 'string' && j.title ? j.title : 'AI scores';
+    $('scores-sub').textContent = typeof j.subtitle === 'string' ? j.subtitle : '';
+    scoresMsg.textContent = typeof j.message === 'string' ? j.message : '';
+    scoresMsg.hidden = !scoresMsg.textContent;
+    const rows = Array.isArray(j.rows) ? j.rows.filter((r) => r && typeof r === 'object' && typeof r.name === 'string' && r.name) : [];
+    scoresRows.replaceChildren();
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      const cell = (label, text, cls) => { const td = el('td', cls || '', text); td.dataset.label = label; tr.appendChild(td); };
+      const n = (v) => num(v) === null ? '–' : String(Math.round(v));
+      cell('AI', r.name, 'name');
+      cell('IQ', n(r.iq), 'n iq');
+      cell('Test', n(r.test), 'n');
+      cell('Live', n(r.live), 'n');
+      cell('Made things up', r.invented ? 'Yes' : 'No', r.invented ? 'bad' : '');
+      cell('Tested', typeof r.date === 'string' && r.date ? r.date : '–');
+      scoresRows.appendChild(tr);
+    }
+    scoresTable.hidden = !rows.length;
+    scoresCard.hidden = false;
+  }
+
+  async function loadScores(mine) {
+    try {
+      const r = await fetch(base + 'api/scores', { cache: 'no-store' });
+      if (!r.ok) throw new Error('scores ' + r.status);
+      const j = await r.json();
+      if (mine === seq) renderScores(j);
+    } catch (e) {
+      if (mine === seq) renderScores(null);
+    }
+  }
+
   async function refresh() {
     const mine = ++seq;
     $('check').disabled = true;
     setHealth('unknown', 'Checking…', 'Checking…', 'Checking now', '');
     loadToday(mine);
+    loadScores(mine);
     try {
       const r = await fetch(base + 'api/status', { cache: 'no-store' });
       if (!r.ok) throw new Error('status ' + r.status);
