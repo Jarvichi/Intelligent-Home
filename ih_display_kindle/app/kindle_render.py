@@ -76,6 +76,9 @@ def svg(data,alerts=None,now=None):
         sky=str(facts.get('sky','Unavailable'));sky_label='UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER';sky_value=sky.removeprefix('UV ').removeprefix('Cloud ')
         for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',facts.get('next_rain','Unavailable')),(sky_label,sky_value))):
             label(425,269+i*74,key,19);text(425,300+i*74,value,28,True)
+        bearing=facts.get('bearing')
+        if isinstance(bearing,(int,float)) and not isinstance(bearing,bool) and math.isfinite(bearing):
+            p.append(f'<g aria-label="Wind direction" transform="translate(585 289) rotate({(bearing+180)%360:g})"><path d="M0,-16 L11,0 L4,0 L4,16 L-4,16 L-4,0 L-11,0 Z" fill="black"/></g>')
         future=[x for x in daily if x.get('label')!='Today'][:2]
         for i,day in enumerate(future):
             y=238+i*118;box(640,y,384,98);name=day.get('label','')
@@ -104,7 +107,8 @@ def svg(data,alerts=None,now=None):
     label(48,707,'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):
-        x=48+i*248;box(x,726,232,140);label(x+20,761,title,21)
+        x=48+i*248;inverted=title=='DOORS' and doors.get('urgent') is True
+        box(x,726,232,140,'black' if inverted else 'white');label(x+20,761,title,21,'white' if inverted else 'black')
         persons=home.get('persons') or [] if title=='HOME' else []
         if persons:
             for j,person in enumerate(persons[:3]):
@@ -112,9 +116,14 @@ def svg(data,alerts=None,now=None):
                 p.append(f'<circle cx="{px+28}" cy="816" r="26" fill="#ddd" stroke="black" stroke-width="2"/>')
                 if isinstance(art,str) and ART.fullmatch(art):p.append(f'<clipPath id="person{j}"><circle cx="{px+28}" cy="816" r="25"/></clipPath><image href="{art}" x="{px+3}" y="791" width="50" height="50" preserveAspectRatio="xMidYMid slice" clip-path="url(#person{j})" filter="url(#gray)"/>')
                 else:text(px+28,824,(person.get('name') or '?')[:1],22,True,'middle')
-        else:text(x+20,809,(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable',23,True)
+        else:
+            shown=(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable'
+            if inverted:label(x+20,809,shown,23,'white')
+            else:text(x+20,809,shown,23,True)
         if title=='HEAT' and heat.get('detail'):text(x+20,843,heat['detail'],18)
-        if title=='DOORS' and doors.get('detail'):text(x+20,843,doors['detail'],18)
+        if title=='DOORS' and doors.get('detail'):
+            if inverted:label(x+20,843,str(doors['detail'])[:23],18,'white')
+            else:text(x+20,843,doors['detail'],18)
     if charging and isinstance(data.get('cooking'),dict) and 16<=today.hour<19:
         box(48,726,232,140,'black');label(164,786,'COOK',30,'white','middle');label(164,827,'DINNER',30,'white','middle')
     lights=next((x for x in panels if x.get('label')=='Lights on'),{})
@@ -141,7 +150,14 @@ def svg(data,alerts=None,now=None):
     warning=life[:2]+(other[page*slots:page*slots+slots] if slots else [])+([status] if status else [])
     if warning:
         box(48,478,976,190,'black')
-        for i,item in enumerate(warning):label(70,517+i*37,item[:52],25,'white')
+        p.append('<rect x="60" y="490" width="952" height="166" rx="16" fill="none" stroke="white" stroke-width="3" stroke-dasharray="14 10"/>')
+        for x in (135,937):
+            p.append(f'<g transform="translate({x} 573)"><path d="M0,-50 L48,35 L-48,35 Z" fill="white" stroke="white" stroke-width="7" stroke-linejoin="round"/><text x="0" y="25" text-anchor="middle" font-family="sans-serif" font-size="58" font-weight="bold">!</text></g>')
+        for i,item in enumerate(warning):
+            if len(warning)<=2:x,y,limit,size=536,565+(i*48 if len(warning)==2 else 14),38,30
+            else:x,y,limit,size=(350 if i%2==0 else 722),555+(i//2)*48,20,23
+            value=clean(item,70);fit=f' textLength="{(650 if len(warning)<=2 else 310)}" lengthAdjust="spacingAndGlyphs"' if len(str(item))>limit else ''
+            p.append(f'<text x="{x}" y="{y}" fill="white" font-family="sans-serif" font-size="{size}" font-weight="bold" text-anchor="middle"{fit}>{value}</text>')
         if pages>1:label(995,650,f'{page+1}/{pages}',18,'white','end')
         if data.get('allow_alert_dismiss') is True and dismissible_alert(data,alerts,timestamp):
             p.append('<rect x="872" y="612" width="142" height="52" rx="20" fill="white"/>');label(943,645,'DISMISS',20,'black','middle')
