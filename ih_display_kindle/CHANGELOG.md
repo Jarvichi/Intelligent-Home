@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+
+- New option `renderer` (`svg` default, or `html`). With `html` the main Kindle screen is built as an HTML and CSS page and rendered by headless Chromium to a greyscale picture. The browser does the text layout, fonts and emoji. The cooking screen, Halloween and event-day headers still use the SVG picture automatically, and so does any picture Chromium fails to make.
+- The image now includes Chromium, Noto Color Emoji and Pillow (about 400 MB larger). Chromium only runs while a picture is being made.
+
 ## 0.6.0
 
 - Draw every Home Assistant weather condition as a clear greyscale vector icon (no font needed). Fog, lightning, hail, wind and warnings were blank or wrong before; clear nights show a moon.

@@ -9,6 +9,7 @@ from urllib.parse import urlparse,parse_qs,urlsplit,urlunsplit
 import frames
 import render
 import kindle_render
+import kindle_html
 import source_settings
 import profile_client
 import device_state
@@ -28,7 +29,12 @@ def png(data):
     if len(result.stdout)>8*1024*1024 or not result.stdout.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid image')
     return result.stdout
 
-def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts=None,png_encoder=png,variants=None,menu=None):
+def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts=None,png_encoder=png,variants=None,menu=None,html=None):
+    def main_picture(data,alert_data):
+        if html:
+            value=html.png(data,alert_data)
+            if value:return value
+        return kindle_render.svg(data,alert_data)
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()
@@ -60,8 +66,8 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
                         data=snapshot()
                         if screen=='home':picture=popup_render.svg('home',next((x for x in data.get('panels',[]) if x.get('label')=='Home'),None))
                         elif screen=='birthdays':picture=popup_render.svg('birthdays',data.get('birthdays'))
-                        else:picture=kindle_render.svg(data,alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})
-                    return self.reply(200,png_encoder(picture),'image/png')
+                        else:picture=main_picture(data,alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})
+                    return self.reply(200,picture if picture[:8]==b'\x89PNG\r\n\x1a\n' else png_encoder(picture),'image/png')
                 except (OSError,ValueError,TypeError,subprocess.SubprocessError):return self.reply(503,{'error':'Preview unavailable.'})
             selected=store if screen=='main' else (variants or {}).get(screen)
             if method=='GET' and path=='/api/status':return self.reply(200,selected.status() if selected else {'state':'not_configured','has_frame':False})
@@ -105,13 +111,14 @@ def main():
             for person in presence.get('members',[]):
                 key=person.get('presence_key','');person['transition']=attrs.get(key+('_arrived' if person.get('home') is True else '_left')) if key else None
         return result
+    html=kindle_html.Renderer() if opts.get('renderer')=='html' else None   # the main screen as an HTML page; anything it cannot draw falls back to the SVG
     alert_reader=shared.alerts if opts.get('render_shared_alerts') is True else None
-    ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader,variants=variants,menu=cooking.menu))
+    ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader,variants=variants,menu=cooking.menu,html=html))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
     if opts.get('device_enabled') is True:
         # The device client obtains a new owner snapshot after this action.
         actions=kindle_actions.KindleActions(ha,sources.read,alerts=alert_reader,refresh=lambda:None)
-        surface=device_surface.DeviceSurface(snapshot,alert_reader or (lambda:None),cooking.menu,cooking,actions,png,ha,sources.read)
+        surface=device_surface.DeviceSurface(snapshot,alert_reader or (lambda:None),cooking.menu,cooking,actions,png,ha,sources.read,html=html)
         device_store=device_frames.DeviceFrames(surface.dispatch)
         handler=device_http.make_handler(device_store,surface.build,opts.get('device_token',''))
         class DeviceHandler(handler):
