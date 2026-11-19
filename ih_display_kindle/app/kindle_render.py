@@ -199,5 +199,6 @@ def svg(data,alerts=None,now=None):
             if detail:label(1000,y+h//2+7,detail[:22],18,fill,'end')
     weather=data.get('weather') or {}
     current=weather.get('current') or {}
-    p.append(cat_render.render(timestamp,current.get('condition'),data.get('halloween_mode')=='on'))
+    halloween=data.get('halloween_mode')=='on' or (today.month,today.day)==(10,31)
+    p.append(cat_render.render(timestamp,current.get('condition'),halloween))
     return (''.join(p)+'</svg>').encode('utf-8')
