@@ -8,6 +8,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 ENTITY=re.compile(r'^input_text\.[a-z0-9_]+$')
 LIMIT=65536
+def action_identity(value):
+    """Identity of the exact HA state used to derive a displayed task."""
+    if not isinstance(value,dict):return None
+    state=value.get('state');changed=value.get('last_changed')
+    if not isinstance(state,str) or state in ('unknown','unavailable') or not isinstance(changed,str) or not changed:return None
+    return {'state':state,'last_changed':changed}
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
 class Messages:
@@ -23,7 +30,7 @@ class Messages:
                 body=response.read(LIMIT+1)
                 if response.status!=200 or len(body)>LIMIT:return None
             data=json.loads(body);state=data.get('state')
-            return state if isinstance(state,str) and state not in ('unknown','unavailable') else None
+            return data if isinstance(state,str) and state not in ('unknown','unavailable') else None
         except (OSError,ValueError,AttributeError,urllib.error.URLError,http.client.HTTPException):return None
     def read(self):
         if not self.entities:return {'configured':False,'complete':True,'items':[]}
@@ -31,10 +38,14 @@ class Messages:
         items=[];complete=True
         with ThreadPoolExecutor(max_workers=12) as pool:
             states=list(pool.map(self._state,self.entities))
-        for state in states:
-            if state is None:complete=False;continue
+        for entity,value in zip(self.entities,states):
+            if value is None:complete=False;continue
+            state=value['state']
             if not state.strip():continue
             title,_,detail=state.partition('|');title=title.strip();detail=detail.strip()
             if not title:complete=False;continue
-            items.append({'title':title,'detail':detail,'priority':'high'})
+            item={'title':title,'detail':detail,'priority':'high'}
+            identity=action_identity(value)
+            if identity:item.update(action_kind='message',action_source=entity,action_identity=identity)
+            items.append(item)
         return {'configured':True,'complete':complete,'items':items}

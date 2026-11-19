@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+
+- Include source identity with actionable household tasks on the authenticated shared display feed.
+
 ## 0.11.0
 
 - Include display grouping on shared tasks so clients can retain pinned messages and collections.

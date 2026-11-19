@@ -14,12 +14,12 @@ class Opener:
         self.calls.append((req.full_url,req.get_method()));entity=req.full_url.rsplit('/',1)[-1]
         state=self.states.get(entity)
         if isinstance(state,Exception):raise state
-        return Response(json.dumps({'state':state}).encode())
+        return Response(json.dumps({'state':state,'last_changed':'2033-05-18T00:00:00+00:00'}).encode())
 class Tests(unittest.TestCase):
     def test_empty_and_populated_messages(self):
         opener=Opener({'input_text.one':'Example title | Example detail','input_text.two':''})
         service=messages.Messages(['input_text.one','input_text.two'],'token',opener);result=service.read()
-        self.assertEqual(result,{'configured':True,'complete':True,'items':[{'title':'Example title','detail':'Example detail','priority':'high'}]})
+        self.assertEqual(result,{'configured':True,'complete':True,'items':[{'title':'Example title','detail':'Example detail','priority':'high','action_kind':'message','action_source':'input_text.one','action_identity':{'state':'Example title | Example detail','last_changed':'2033-05-18T00:00:00+00:00'}}]})
         self.assertTrue(all(method=='GET' for _,method in opener.calls))
     def test_missing_and_invalid_sources_mark_incomplete(self):
         opener=Opener({'input_text.one':'unknown','input_text.two':OSError()})

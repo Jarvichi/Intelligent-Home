@@ -1,5 +1,5 @@
 name: "Intelligent Home - Displays"
-version: "0.11.0"
+version: "0.12.0"
 slug: ih_displays
 image: "ghcr.io/jarvichi/{arch}-ih_displays"
 description: "Shared display profiles for Intelligent Home display adapters."

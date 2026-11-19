@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.0] - 2026-11-19
+
+### Added
+- Provide a revision-bound display projection and meal selection interface from the Cooking owner.
+
+### Fixed
+- Serialize cook controller decisions with display actions, and reject stale selections and repeated display start requests.
+
 ## [0.9.1] - 2026-11-17
 
 ### Added

@@ -84,6 +84,10 @@ Calendars, the oven, the speaker and the cooking sensor are your own Home Assist
 | `GET /clashes?days=7&today=YYYY-MM-DD` | who is away for each planned meal (see below) |
 | `POST /cook` | `{recipe, eat:"HH:MM"}` starts (replaces) a cook; `POST /cook/stop`; `GET /cook` status |
 | `POST /cook/done`, `/cook/ack`, `/cook/tick`, `/cook/delay` | the wall display buttons: `{row, did}`, `{row}`, `{row}`, `{minutes, row}` |
+| `GET /cook/display` | Bounded cooking screen projection with a revision and opaque row identities. |
+| `GET /cook/menu?page=0` | Paged meal selections and recipe revisions from the Cooking data owner. |
+| `POST /cook/display-action` | Apply a cooking control to the displayed revision and item; stale selections are rejected. |
+| `POST /cook/menu-start` | Start a revision-checked recipe with a unique request ID. It cannot replace a running cook; the requested serving time is moved later if necessary to allow preparation. |
 | `POST /oven/start`, `/oven/set`, `/oven/stop` | `{temp, program, minutes}` ; retried until the oven confirms. Dry = logs `would set oven ...` |
 | `POST /publish` | writes changed recipe notes to the Brain add-on (`brain_url`) and sends www copies to `publish_webhook_url` if set (dry: logs counts only) |
 | `POST /import` | seed `/data` from the host (see Seeding). Never overwrites unless `overwrite: true` |

@@ -26,3 +26,18 @@ def read(ha,battery_entity,last_seen_entity,page_entity='',now=None):
         if result['fresh']:result['battery']=int(level)
     except (TypeError,ValueError,KeyError,OverflowError,OSError):pass
     return result
+
+def birthdays(ha,entity):
+    if not entity:return None
+    value=ha.optional_state(entity)
+    attrs=value.get('attributes') if isinstance(value,dict) else None
+    rows=attrs.get('items') if isinstance(attrs,dict) else None
+    if not isinstance(rows,list) or len(rows)>100:return None
+    out=[]
+    for row in rows[:8]:
+        if not isinstance(row,dict) or not isinstance(row.get('n'),str) or not isinstance(row.get('d'),str) or type(row.get('k')) is not int:return None
+        days=row['k'];countdown='Today' if days==0 else 'Tomorrow' if days==1 else str(days)+' days'
+        name=row['n'] if row.get('fam') is True or not isinstance(row.get('full'),str) else row['full']
+        date=row['d']+(' · turns '+str(row['age']) if type(row.get('age')) is int and row['age']>0 else '')
+        out.append({'name':name[:80],'date':date[:60],'countdown':countdown.upper(),'today':days==0})
+    return {'items':out}

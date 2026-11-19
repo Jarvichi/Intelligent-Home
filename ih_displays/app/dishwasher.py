@@ -57,7 +57,10 @@ class Dishwasher:
                 same_day=datetime.date.fromtimestamp(timestamp)==datetime.date.fromtimestamp(now)
                 detail='Finished '+('' if same_day else 'yesterday ')+self.format_time(timestamp)
         except (OverflowError,OSError,ValueError):return {'configured':True,'complete':False,'items':[]}
-        return {'configured':True,'complete':complete,'items':[{'title':title,'detail':detail,'priority':'normal'}]}
+        item={'title':title,'detail':detail,'priority':'normal'}
+        identity=messages.action_identity(flag)
+        if identity:item.update(action_kind='dishwasher',action_source=self.pending,action_identity=identity)
+        return {'configured':True,'complete':complete,'items':[item]}
 
 class Combined:
     def __init__(self,*sources,groups=None):

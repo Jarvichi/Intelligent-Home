@@ -8,20 +8,20 @@ import threading
 from pathlib import Path
 
 ENTITY=re.compile(r'^[a-z][a-z0-9_]*\.[a-z0-9_]+$')
-SCALARS={'kindle_battery_entity':'sensor.','kindle_last_seen_entity':'sensor.','kindle_page_entity':'input_text.',
+SCALARS={'kindle_dishwasher_entity':'input_boolean.','kindle_wheel_entity':'input_text.','kindle_warning_dismissed_entity':'input_text.','kindle_presence_times_entity':'sensor.','kindle_birthdays_entity':'sensor.','kindle_battery_entity':'sensor.','kindle_last_seen_entity':'sensor.','kindle_page_entity':'input_text.',
          'render_alarm':'alarm_control_panel.','render_cooking_entity':'sensor.',
          'render_intrusion_alert':'input_boolean.','render_intrusion_log':'input_text.',
          'render_heat_boiler':'binary_sensor.','render_heat_thermostat':'climate.',
          'weather_forecast_entity':'sensor.','weather_forecast_fallback_entity':'sensor.',
          'weather_current_entity':'weather.','render_sun_entity':'sun.',
          'render_birthdays_entity':'sensor.','render_halloween_entity':'input_boolean.'}
-LISTS={'render_intrusion_presence':'switch.',
+LISTS={'kindle_message_entities':'input_text.','kindle_lights_off_entities':'light.','render_intrusion_presence':'switch.',
        'render_heat_floors':'climate.','render_media_entities':'media_player.',
        'render_game_entities':'media_player.','render_overlay_entities':'binary_sensor.',
        'render_entities':''}
 ENERGY={'current':'sensor.','next':'sensor.','electricity':'sensor.','gas':'sensor.',
         'calendar':'calendar.','sessions':'event.','rates_today':'event.','rates_tomorrow':'event.'}
-LIST_LIMITS={'render_intrusion_presence':10,'render_heat_floors':8,
+LIST_LIMITS={'kindle_message_entities':12,'kindle_lights_off_entities':100,'render_intrusion_presence':10,'render_heat_floors':8,
              'render_media_entities':8,'render_game_entities':8,'render_overlay_entities':8,'render_entities':6}
 
 def entity(value,prefix,empty=False):
@@ -31,7 +31,7 @@ def local_picture(value):
     return isinstance(value,str) and len(value)<=255 and bool(re.fullmatch(r'/local/[A-Za-z0-9_./-]+',value)) and '..' not in value.split('/')
 
 def validate(value):
-    if not isinstance(value,dict) or not value or len(value)>40:return False
+    if not isinstance(value,dict) or not value or len(value)>50:return False
     for key,item in value.items():
         if key in SCALARS:
             if not entity(item,SCALARS[key],True):return False
@@ -47,6 +47,8 @@ def validate(value):
                 if not isinstance(row,dict) or set(row)!={'name','entities'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not isinstance(row['entities'],list) or not 0<len(row['entities'])<=50:return False
                 if any(not entity(e,'light.') and not entity(e,'switch.') for e in row['entities']):return False
             if len({e for row in item for e in row['entities']})>100:return False
+        elif key in ('kindle_lights_off_floors','kindle_lights_off_exclude'):
+            if not isinstance(item,list) or len(item)>20 or any(not isinstance(x,str) or not re.fullmatch(r'[a-z0-9_]{1,80}',x) for x in item) or len(set(item))!=len(item):return False
         elif key=='render_rooms':
             if not isinstance(item,list) or len(item)>20:return False
             for row in item:
@@ -54,7 +56,7 @@ def validate(value):
         elif key=='render_presence':
             if not isinstance(item,list) or len(item)>10:return False
             for row in item:
-                if not isinstance(row,dict) or not {'name','entity'}<=set(row) or set(row)-{'name','entity','picture'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not entity(row['entity'],'switch.') or ('picture' in row and not local_picture(row['picture'])):return False
+                if not isinstance(row,dict) or not {'name','entity'}<=set(row) or set(row)-{'name','entity','picture','presence_key'} or not isinstance(row['name'],str) or not 0<len(row['name'].strip())<=80 or not entity(row['entity'],'switch.') or ('picture' in row and not local_picture(row['picture'])) or ('presence_key' in row and (not isinstance(row['presence_key'],str) or not re.fullmatch(r'[a-z0-9_]{1,40}',row['presence_key']))):return False
         elif key=='render_background_path':
             if not isinstance(item,str) or (item and not local_picture(item)):return False
         elif key=='render_birthdays_fixed':
