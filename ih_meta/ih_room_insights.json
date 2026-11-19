@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Room Insights",
+  "purpose": "Learns how long each room takes to warm up and warns about stuck valves and damp air."
+ }
+}
