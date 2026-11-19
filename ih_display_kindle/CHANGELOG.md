@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Render symbol and emoji glyphs on the device and keep the first dinner-time label inside its button.
+
 ## 0.4.0
 
 - Preview Cooking, dinner, home and birthday screens using owner-provided data.

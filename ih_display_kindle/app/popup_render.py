@@ -17,7 +17,7 @@ def svg(screen,data,now=None):
         selected=data.get('selected_eat','ASAP') if isinstance(data,dict) else 'ASAP'
         if selected not in ('ASAP','12:30','13:30','18:30'):selected='ASAP'
         for i,caption in enumerate(('As soon as ready','12:30 lunch','13:30 lunch','18:30 dinner')):
-            x=48+i*247;on=selected==('ASAP','12:30','13:30','18:30')[i];box(x,112,235,64,'black' if on else 'white',32);text(x+117,153,caption,27,True,'white' if on else 'black','middle')
+            x=48+i*247;on=selected==('ASAP','12:30','13:30','18:30')[i];box(x,112,235,64,'black' if on else 'white',32);text(x+117,153,caption,22 if i==0 else 27,True,'white' if on else 'black','middle')
         items=data.get('items') if isinstance(data,dict) and isinstance(data.get('items'),list) else []
         if not isinstance(data,dict):text(76,250,'Cooking menu unavailable',26)
         elif not items:text(76,250,'No recipes available',26)
