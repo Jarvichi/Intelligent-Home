@@ -3,6 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-11-19
+
+### Added
+- Clip cache: every message that is rendered is kept as a file under `/data/cache/<engine>/<voice>/<sha1 of the normalised text>.<ext>` (not part of backups) with an index in the add-on database (`/data/ih.db`: engine, voice, text, label, size, created, last_used, hits, pinned). A request checks the cache first: a hit plays at once, a miss renders, stores and plays. The same phrase under two voices or engines is two entries. The Discord voice clip uses the cache too (a dry run reads it but stores nothing).
+- Limits: `cache_mb` (default 1024) caps the total size; after each store the least recently used unpinned clips are deleted until it fits. Unpinned clips not used for `cache_days` (default 30) expire. Pinned clips are never deleted.
+- Fillers: `POST /speak` takes `filler=<label>`. The cached phrase plays at once while the real message renders; it must finish (or is stopped) before the real clip starts. If the phrase is not cached for that voice, or playback of cached clips is not set up, the filler is skipped. `seed_fillers` (default on) makes the pinned phrases One moment, Just checking, Alarm armed, Alarm disarmed and Good morning for the engine default voice and each configured voice (at start in live mode, and on first use of a voice).
+- `base_url` option: the address a speaker can use to fetch clips from this add-on (for example `http://<home assistant host>:8831`). Clips are served at `/clip/<id>.<ext>` with a signed, 10-minute link (no bearer needed, the signature uses `api_token`). Without it, messages still play through `tts.speak` as before (and are still cached), but fillers and "play on speaker" from the page are not available.
+- Ingress page (admin only): table of clips with search, voice and engine filters and Clear, Listen, Play on speaker, Pin or Unpin, Delete, and a box to type a message, pick a voice, then Generate (saved) or Generate and play. In dry mode nothing is played on a speaker.
+- `dry_run` answers carry `cache`: hit or miss, clip and cache size, and which clips a store would evict. `GET /status` shows cache totals.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

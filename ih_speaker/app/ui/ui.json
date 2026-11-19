@@ -1,0 +1,9 @@
+{
+  "title": "Speaker",
+  "purpose": "Keep and replay the spoken clips the house speakers use.",
+  "description": "Every message the speaker tool says is kept as an audio clip so the next time is instant. Search the clips, play one on a speaker, pin the ones to keep, delete the rest, or type a new message and save it.",
+  "health_port": 8831,
+  "health_path": "/healthz",
+  "navigation": ["Search and filter saved clips", "Play a clip on a speaker", "Pin or delete clips", "Type a message and save it as a clip"],
+  "access": "Home Assistant authenticated admin ingress only"
+}

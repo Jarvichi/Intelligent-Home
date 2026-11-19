@@ -2,6 +2,6 @@
  "requires": [],
  "ui": {
   "title": "Speaker",
-  "purpose": "Speaks messages on the house speakers for other add-ons, with volume, queue and quiet-hour rules. No page of its own."
+  "purpose": "Speaks messages for other add-ons and keeps every clip in a cache. Page: search, play, pin, delete and generate clips."
  }
 }

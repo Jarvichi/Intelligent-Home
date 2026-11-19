@@ -17,5 +17,9 @@
   "discord_permissions": ["hearth=alex"],
   "engines": ["tts.piper", "tts.kokoro"],
   "queue_max": 5,
-  "queue_ttl_s": 120
+  "queue_ttl_s": 120,
+  "cache_mb": 1024,
+  "cache_days": 30,
+  "base_url": "http://homeassistant.local:8831",
+  "seed_fillers": true
 }
