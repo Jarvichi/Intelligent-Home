@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'app'))
 import kindle_render
+import cooking_render
+import popup_render
 
 class TextLayoutTests(unittest.TestCase):
     def root(self,data):
@@ -31,5 +33,15 @@ class TextLayoutTests(unittest.TestCase):
         self.assertLessEqual(kindle_render.text_units(title)*int(title_node.get('font-size')),600)
         self.assertLessEqual(kindle_render.text_units(detail)*int(detail_node.get('font-size')),300)
         self.assertEqual(detail_node.get('text-anchor'),'end')
+
+    def test_cooking_and_recipe_titles_do_not_stop_at_old_limits(self):
+        title='A long recipe title that should remain readable rather than disappear'
+        recipe=ET.fromstring(popup_render.svg('dinner',{'items':[{'title':title}]}))
+        self.assertIn(title,[n.text for n in recipe.findall('.//{*}text')])
+        step='Prepare all the ingredients carefully and place everything into the oven'
+        cooking=ET.fromstring(cooking_render.svg({'next':[{'text':step}],'steps':[{'text':step}]}))
+        nodes=cooking.findall('.//{*}text')
+        self.assertTrue(any(step in (n.text or '') for n in nodes))
+        self.assertTrue(any(int(n.get('font-size'))<24 for n in nodes if step in (n.text or '')))
 
 if __name__=='__main__':unittest.main()

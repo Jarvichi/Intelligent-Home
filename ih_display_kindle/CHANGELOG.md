@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+
+- Restore the original Roboto typeface and weather and seasonal symbols.
+- Fit long status, task, cooking and recipe text into the available space.
+
 ## 0.5.0
 
 - Restore seasonal headers, event countdowns, cat visitors and weather scenes.
