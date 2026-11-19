@@ -38,3 +38,14 @@ class FestiveTests(unittest.TestCase):
     def test_fixed_birthday_wraps_year(self):
         event=self.panel('2026-12-28',fixed=[{'name':'Example','month':1,'day':3}])
         self.assertEqual((event['countdown_days'],event['countdown_name']),(6,'Example’s birthday'))
+    def test_halloween_art_and_weather_cat_follow_day_or_switch(self):
+        halloween=datetime.datetime(2026,10,31,12,tzinfo=datetime.timezone.utc).timestamp()
+        normal=datetime.datetime(2026,11,2,12,tzinfo=datetime.timezone.utc).timestamp()
+        data={'weather':{'current':{'condition':'rainy'}}}
+        for stamp,state in ((halloween,'off'),(normal,'on')):
+            image=kindle_render.svg(dict(data,halloween_mode=state),now=stamp)
+            ET.fromstring(image)
+            self.assertIn(b'id="k_hw_h"',image);self.assertIn(b'id="k_hw_b"',image)
+            self.assertIn(b'HAUNTED HOUSE',image);self.assertNotIn(b'id="weather-cat"',image)
+        image=kindle_render.svg(dict(data,halloween_mode='off'),now=normal)
+        self.assertNotIn(b'id="k_hw_h"',image);self.assertIn(b'id="weather-cat"',image)

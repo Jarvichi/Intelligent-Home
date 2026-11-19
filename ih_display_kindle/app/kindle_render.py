@@ -1,6 +1,7 @@
 """Read-only e-ink preview; it does not publish a touch-zone map."""
 import datetime
 import cat_render
+import halloween_art
 import re
 import time
 import math
@@ -41,6 +42,7 @@ def dismissible_alert(data,alerts,now):
 def svg(data,alerts=None,now=None):
     if isinstance(data.get('cooking'),dict) and data['cooking'].get('running') is True:return cooking_render.svg(data['cooking'],alerts)
     timestamp=time.time() if now is None else now;today=datetime.datetime.fromtimestamp(timestamp).astimezone()
+    halloween=data.get('halloween_mode')=='on' or (today.month,today.day)==(10,31)
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
     header_color='black';header_font='sans-serif'
     def text(x,y,value,size=28,bold=False,anchor='start'):
@@ -62,6 +64,7 @@ def svg(data,alerts=None,now=None):
     panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
     event=next((x for x in active if x.get('slot')=='occasion'),None)
     inverted,header_font=festive_header.style(event)
+    if halloween:inverted=True
     if inverted:
         p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
@@ -73,6 +76,7 @@ def svg(data,alerts=None,now=None):
         size=min(25,max(12,int(380/max(1,len(line))*1.5)))
         text(1024,110+i*30,line,size,True,'end')
     text(1024,181,data.get('sun') or 'Sun unavailable',34,True,'end');p.append('<path d="M48 214H1024" stroke="black" stroke-width="3"/>')
+    if halloween:p.append(halloween_art.header_decor())
     weather=data.get('weather')
     if weather:
         current=weather.get('current') or {};facts=weather.get('facts') or {};daily=weather.get('daily') or [];hours=weather.get('hours') or []
@@ -110,7 +114,7 @@ def svg(data,alerts=None,now=None):
         box(48,478,976,190);art=media.get('art')
         if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
         parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,(parts[0] or str(media.get('label') or 'Playing'))[:42],30,True);text(245,620,(parts[1] if len(parts)>1 else '')[:55],23)
-    label(48,707,'HOUSE',25)
+    label(48,707,'HAUNTED HOUSE' if halloween else 'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):
         x=48+i*248;inverted=title=='DOORS' and doors.get('urgent') is True
@@ -199,6 +203,6 @@ def svg(data,alerts=None,now=None):
             if detail:label(1000,y+h//2+7,detail[:22],18,fill,'end')
     weather=data.get('weather') or {}
     current=weather.get('current') or {}
-    halloween=data.get('halloween_mode')=='on' or (today.month,today.day)==(10,31)
+    if halloween:p.append(halloween_art.body_decor())
     p.append(cat_render.render(timestamp,current.get('condition'),halloween))
     return (''.join(p)+'</svg>').encode('utf-8')
