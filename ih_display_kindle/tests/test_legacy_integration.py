@@ -89,9 +89,9 @@ class Tests(unittest.TestCase):
             (base/'ih-device'/'env.sh').write_text('IH_DEVICE_ENABLED=true\nIH_DEVICE_DIR="'+tmp+'/state"\n')
             (base/'state'/'screen').write_text('main\n')
             shell='''BASE="$1"; TMP="$1"; TOUCH_REFETCH=45; charging() { return 1; }
-lipc-get-prop() { echo 0; }; lipc-set-prop() { echo wake >> "$BASE/log"; }
+lipc_get_prop() { echo 0; }; lipc_set_prop() { echo wake >> "$BASE/log"; }
 wait_wifi() { echo wait >> "$BASE/log"; return 0; }; status_line() { :; }
-now() { echo 1000; }; '''+integration.BOOT+'''
+now() { echo 1000; }; '''+integration.BOOT.replace('lipc-get-prop','lipc_get_prop').replace('lipc-set-prop','lipc_set_prop')+'''
 ih_run() { echo "$*" >> "$BASE/log"; return 0; }
 ih_send "$2"
 '''
