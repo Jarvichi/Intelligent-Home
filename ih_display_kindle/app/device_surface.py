@@ -35,6 +35,10 @@ class DeviceSurface:
             warning=kindle_render.dismissible_alert(data,alerts,now)
             dismiss=self.actions.describe('alert',alert=warning) if warning else None
             data=dict(data);data['allow_alert_dismiss']=bool(dismiss)
+            date=datetime.datetime.fromtimestamp(now).astimezone()
+            halloween=self.actions.describe('halloween') if powered and (date.month,date.day)==(10,31) else None
+            data['allow_halloween_toggle']=bool(halloween)
+            if halloween:data['halloween_mode']=(halloween.get('expected') or {}).get('state')
             if not isinstance(data.get('cooking'),dict):
                 # Do not offer household controls while an active cook may be hidden.
                 data['cooking_unavailable']=True
@@ -64,6 +68,7 @@ class DeviceSurface:
                     nav([292,726,528,866],'home');nav([880,884,1024,924],'menu')
                     if isinstance(cook,dict) and 16<=datetime.datetime.fromtimestamp(now).astimezone().hour<19:nav([48,726,280,866],'dinner')
                     add([270,884,410,924],self.actions.describe('lights'))
+                    add([716,882,864,922],halloween)
                     add([985,36,1024,76],self.actions.describe('refresh'))
                 tasks=data.get('tasks');offset=data.get('device',{}).get('page_offset',0)
                 rows,_,pages,grouped=kindle_render.task_page(tasks,offset if type(offset) is int else 0,now)

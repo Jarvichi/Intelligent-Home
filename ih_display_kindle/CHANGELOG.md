@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- Restore seasonal headers, event countdowns, cat visitors and weather scenes.
+- Match warning, wind and door visuals more closely and restore the Halloween party control when available.
+
 ## 0.4.1
 
 - Render symbol and emoji glyphs on the device and keep the first dinner-time label inside its button.

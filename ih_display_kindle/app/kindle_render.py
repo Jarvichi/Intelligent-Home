@@ -1,11 +1,14 @@
 """Read-only e-ink preview; it does not publish a touch-zone map."""
 import datetime
+import cat_render
+import halloween_art
 import re
 import time
 import math
 import textwrap
 from render import clean
 import cooking_render
+import festive_header
 
 ART=re.compile(r'^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}$')
 
@@ -39,9 +42,12 @@ def dismissible_alert(data,alerts,now):
 def svg(data,alerts=None,now=None):
     if isinstance(data.get('cooking'),dict) and data['cooking'].get('running') is True:return cooking_render.svg(data['cooking'],alerts)
     timestamp=time.time() if now is None else now;today=datetime.datetime.fromtimestamp(timestamp).astimezone()
+    halloween=data.get('halloween_mode')=='on' or (today.month,today.day)==(10,31)
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
+    header_color='black';header_font='sans-serif'
     def text(x,y,value,size=28,bold=False,anchor='start'):
-        p.append(f'<text x="{x}" y="{y}" fill="black" font-family="sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,80)}</text>')
+        color=header_color if y<=187 else 'black';font=header_font if y<=187 else 'sans-serif'
+        p.append(f'<text x="{x}" y="{y}" fill="{color}" font-family="{font}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,80)}</text>')
     def box(x,y,w,h,fill='white'):
         p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="20" fill="{fill}" stroke="black" stroke-width="3"/>')
     def label(x,y,value,size=28,fill='black',anchor='start'):
@@ -55,18 +61,22 @@ def svg(data,alerts=None,now=None):
         if 'rain' in condition or 'pour' in condition:p.append('<path d="M30 79l-5 11 M52 79l-5 11 M74 79l-5 11" stroke="#555" stroke-width="5"/>')
         if 'snow' in condition:p.append('<path d="M30 82l5 5m0-5l-5 5 M62 82l5 5m0-5l-5 5" stroke="#555" stroke-width="4"/>')
         p.append('</g>')
+    panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
+    event=next((x for x in active if x.get('slot')=='occasion'),None)
+    inverted,header_font=festive_header.style(event)
+    if halloween:inverted=True
+    if inverted:
+        p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
     device=data.get('device') if isinstance(data.get('device'),dict) else {};charging=device.get('charging') is True;info='Updated '+today.strftime('%H:%M')
     if device.get('fresh') and device.get('battery') is not None:info+=' · '+('Plugged in' if charging else 'Kindle '+str(device['battery'])+'%')
     text(970 if charging else 1024,64,info,25,anchor='end')
-    if charging:p.append('<circle cx="1005" cy="55" r="19" fill="black"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="white" stroke-width="3"/>')
-    panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
-    event=next((x for x in active if x.get('slot')=='occasion'),None)
-    if event:
-        occasion=str(event.get('detail') or '');match=re.fullmatch(r'(.+?) in (\d+) days',occasion)
-        if match:occasion=match.group(2)+' days: '+match.group(1)
-        text(1024,114,occasion,25,True,'end')
+    if charging:p.append(f'<circle cx="1005" cy="55" r="19" fill="{header_color}"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="{"black" if inverted else "white"}" stroke-width="3"/>')
+    for i,line in enumerate(festive_header.lines(event)):
+        size=min(25,max(12,int(380/max(1,len(line))*1.5)))
+        text(1024,110+i*30,line,size,True,'end')
     text(1024,181,data.get('sun') or 'Sun unavailable',34,True,'end');p.append('<path d="M48 214H1024" stroke="black" stroke-width="3"/>')
+    if halloween:p.append(halloween_art.header_decor())
     weather=data.get('weather')
     if weather:
         current=weather.get('current') or {};facts=weather.get('facts') or {};daily=weather.get('daily') or [];hours=weather.get('hours') or []
@@ -76,6 +86,9 @@ def svg(data,alerts=None,now=None):
         sky=str(facts.get('sky','Unavailable'));sky_label='UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER';sky_value=sky.removeprefix('UV ').removeprefix('Cloud ')
         for i,(key,value) in enumerate((('WIND',facts.get('wind','Unavailable')),('NEXT RAIN',facts.get('next_rain','Unavailable')),(sky_label,sky_value))):
             label(425,269+i*74,key,19);text(425,300+i*74,value,28,True)
+        bearing=facts.get('bearing')
+        if isinstance(bearing,(int,float)) and not isinstance(bearing,bool) and math.isfinite(bearing):
+            p.append(f'<g aria-label="Wind direction" transform="translate(585 289) rotate({(bearing+180)%360:g})"><path d="M0,-16 L11,0 L4,0 L4,16 L-4,16 L-4,0 L-11,0 Z" fill="black"/></g>')
         future=[x for x in daily if x.get('label')!='Today'][:2]
         for i,day in enumerate(future):
             y=238+i*118;box(640,y,384,98);name=day.get('label','')
@@ -101,10 +114,11 @@ def svg(data,alerts=None,now=None):
         box(48,478,976,190);art=media.get('art')
         if isinstance(art,str) and ART.fullmatch(art):p.append(f'<image href="{art}" x="62" y="493" width="160" height="160" preserveAspectRatio="xMidYMid meet" filter="url(#gray)"/>')
         parts=str(media.get('detail') or '').split(' · ',1);text(245,524,'NOW PLAYING',20,True);text(245,574,(parts[0] or str(media.get('label') or 'Playing'))[:42],30,True);text(245,620,(parts[1] if len(parts)>1 else '')[:55],23)
-    label(48,707,'HOUSE',25)
+    label(48,707,'HAUNTED HOUSE' if halloween else 'HOUSE',25)
     alarm=next((x for x in panels if x.get('label')=='Alarm'),{});home=next((x for x in panels if x.get('label')=='Home'),{});doors=next((x for x in panels if str(x.get('label','')).startswith('Doors')),{});heat=next((x for x in panels if str(x.get('label','')).startswith(('Heat','Heating','Floors'))),{})
     for i,(title,value) in enumerate((('ALARM',alarm.get('detail')),('HOME',home.get('detail')),('DOORS',doors.get('label','').removeprefix('Doors ')),('HEAT',heat.get('label','').removeprefix('Heat ')))):
-        x=48+i*248;box(x,726,232,140);label(x+20,761,title,21)
+        x=48+i*248;inverted=title=='DOORS' and doors.get('urgent') is True
+        box(x,726,232,140,'black' if inverted else 'white');label(x+20,761,title,21,'white' if inverted else 'black')
         persons=home.get('persons') or [] if title=='HOME' else []
         if persons:
             for j,person in enumerate(persons[:3]):
@@ -112,15 +126,22 @@ def svg(data,alerts=None,now=None):
                 p.append(f'<circle cx="{px+28}" cy="816" r="26" fill="#ddd" stroke="black" stroke-width="2"/>')
                 if isinstance(art,str) and ART.fullmatch(art):p.append(f'<clipPath id="person{j}"><circle cx="{px+28}" cy="816" r="25"/></clipPath><image href="{art}" x="{px+3}" y="791" width="50" height="50" preserveAspectRatio="xMidYMid slice" clip-path="url(#person{j})" filter="url(#gray)"/>')
                 else:text(px+28,824,(person.get('name') or '?')[:1],22,True,'middle')
-        else:text(x+20,809,(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable',23,True)
+        else:
+            shown=(str(value or 'Unavailable')[:12]+'…') if len(str(value or 'Unavailable'))>13 else value or 'Unavailable'
+            if inverted:label(x+20,809,shown,23,'white')
+            else:text(x+20,809,shown,23,True)
         if title=='HEAT' and heat.get('detail'):text(x+20,843,heat['detail'],18)
-        if title=='DOORS' and doors.get('detail'):text(x+20,843,doors['detail'],18)
+        if title=='DOORS' and doors.get('detail'):
+            if inverted:label(x+20,843,str(doors['detail'])[:23],18,'white')
+            else:text(x+20,843,doors['detail'],18)
     if charging and isinstance(data.get('cooking'),dict) and 16<=today.hour<19:
         box(48,726,232,140,'black');label(164,786,'COOK',30,'white','middle');label(164,827,'DINNER',30,'white','middle')
     lights=next((x for x in panels if x.get('label')=='Lights on'),{})
     label(48,911,'LIGHTS ON',25);text(48,958,lights.get('detail') or 'Unavailable',26)
     if charging:
         p.append('<rect x="270" y="884" width="140" height="36" rx="18" fill="black"/><rect x="880" y="884" width="144" height="36" rx="18" fill="black"/>');label(340,909,'ALL OFF',18,'white','middle');label(952,909,'MENU',18,'white','middle')
+        if (today.month,today.day)==(10,31) and data.get('allow_halloween_toggle',True) and data.get('halloween_mode') in ('on','off'):
+            on=data['halloween_mode']=='on';p.append(f'<rect x="716" y="882" width="148" height="40" rx="20" fill="{"white" if on else "black"}" stroke="black" stroke-width="3"/>');label(790,910,'PARTY',20,'black' if on else 'white','middle')
     p.append('<path d="M48 1031H1024" stroke="black" stroke-width="3"/>')
     energy=next((x for x in panels if x.get('label')=='Energy'),{})
     energy_detail=energy.get('detail') or 'Energy unavailable'
@@ -139,7 +160,14 @@ def svg(data,alerts=None,now=None):
     warning=life[:2]+(other[page*slots:page*slots+slots] if slots else [])+([status] if status else [])
     if warning:
         box(48,478,976,190,'black')
-        for i,item in enumerate(warning):label(70,517+i*37,item[:52],25,'white')
+        p.append('<rect x="60" y="490" width="952" height="166" rx="16" fill="none" stroke="white" stroke-width="3" stroke-dasharray="14 10"/>')
+        for x in (135,937):
+            p.append(f'<g transform="translate({x} 573)"><path d="M0,-50 L48,35 L-48,35 Z" fill="white" stroke="white" stroke-width="7" stroke-linejoin="round"/><text x="0" y="25" text-anchor="middle" font-family="sans-serif" font-size="58" font-weight="bold">!</text></g>')
+        for i,item in enumerate(warning):
+            if len(warning)<=2:x,y,limit,size=536,565+(i*48 if len(warning)==2 else 14),38,30
+            else:x,y,limit,size=(350 if i%2==0 else 722),555+(i//2)*48,20,23
+            value=clean(item,70);fit=f' textLength="{(650 if len(warning)<=2 else 310)}" lengthAdjust="spacingAndGlyphs"' if len(str(item))>limit else ''
+            p.append(f'<text x="{x}" y="{y}" fill="white" font-family="sans-serif" font-size="{size}" font-weight="bold" text-anchor="middle"{fit}>{value}</text>')
         if pages>1:label(995,650,f'{page+1}/{pages}',18,'white','end')
         if data.get('allow_alert_dismiss') is True and dismissible_alert(data,alerts,timestamp):
             p.append('<rect x="872" y="612" width="142" height="52" rx="20" fill="white"/>');label(943,645,'DISMISS',20,'black','middle')
@@ -173,4 +201,8 @@ def svg(data,alerts=None,now=None):
             title=str(task.get('title',''));detail=str(task.get('detail') or '');title=title if len(title)<=48 else title[:47]+'…'
             label(70,y+h//2+font//3,title,font,fill)
             if detail:label(1000,y+h//2+7,detail[:22],18,fill,'end')
+    weather=data.get('weather') or {}
+    current=weather.get('current') or {}
+    if halloween:p.append(halloween_art.body_decor())
+    p.append(cat_render.render(timestamp,current.get('condition'),halloween))
     return (''.join(p)+'</svg>').encode('utf-8')

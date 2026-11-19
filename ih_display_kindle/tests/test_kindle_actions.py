@@ -72,6 +72,24 @@ class Tests(unittest.TestCase):
         self.assertIsNone(self.actions.describe('page',delta=20));descriptor=self.actions.describe('page',delta=-1)
         self.assertTrue(self.actions.dispatch(descriptor)['ok']);self.assertEqual(self.ha.calls[-1][1]['value'],'2519')
         self.ha.set('input_text.page','1','2030-01-02T00:00:00+00:00');self.assertFalse(self.actions.dispatch(descriptor)['ok'])
+    def test_halloween_toggle_requires_date_mains_and_current_state(self):
+        timestamp=datetime.datetime(2030,10,31,12,tzinfo=datetime.timezone.utc).timestamp()
+        self.actions.clock=lambda:timestamp
+        self.ha.set('sensor.seen',datetime.datetime.fromtimestamp(timestamp,datetime.timezone.utc).isoformat())
+        self.cfg['render_halloween_entity']='input_boolean.halloween'
+        self.ha.set('input_boolean.halloween','off')
+        descriptor=self.actions.describe('halloween')
+        self.assertTrue(self.actions.dispatch(descriptor)['ok'])
+        self.assertEqual(self.ha.calls[-1],('services/input_boolean/turn_on',{'entity_id':'input_boolean.halloween'}))
+        self.ha.set('input_boolean.halloween','on','2030-10-31T12:01:00+00:00')
+        self.assertFalse(self.actions.dispatch(descriptor)['ok'])
+        descriptor=self.actions.describe('halloween')
+        self.ha.set('sensor.battery','80',attrs={'charging':False})
+        self.assertFalse(self.actions.dispatch(descriptor)['ok'])
+        self.ha.set('sensor.battery','80',attrs={'charging':True})
+        self.actions.clock=lambda:timestamp+86400
+        self.assertIsNone(self.actions.describe('halloween'))
+        self.assertFalse(self.actions.dispatch(descriptor)['ok'])
     def test_unknown_target_and_bad_descriptor_are_rejected(self):
         self.assertIsNone(self.actions.describe('message',index=2));self.assertFalse(self.actions.dispatch({'kind':'message','index':0,'expected':{'state':[]}})['ok'])
         self.assertIsNone(self.actions.message_for('Example','Details',source='input_text.other'))
