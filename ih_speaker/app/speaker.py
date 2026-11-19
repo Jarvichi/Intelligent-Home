@@ -7,6 +7,8 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 
+import voice
+
 MAX_TEXT = 600
 DEFAULT_VOLUME = 0.2
 START_TIMEOUT_S = 20      # the speaker must be 'playing' within this time, else the caller plays the old clip
@@ -73,6 +75,9 @@ def parse_options(o):
         'permissions': {k: _names(v) for k, v in _pairs(o.get('permissions')).items()},
         'night_deny': {k: _names(v) for k, v in _pairs(o.get('night_deny')).items()},
         'keep_volume_speakers': _names(','.join(o.get('keep_volume_speakers') or [])),
+        'discord_token': str(o.get('discord_token') or ''),
+        'discord_users': {k: v for k, v in _pairs(o.get('discord_users')).items() if v.isdigit()},
+        'discord_permissions': {k: _names(v) for k, v in _pairs(o.get('discord_permissions')).items()},
         'engines': [e for e in (o.get('engines') or ['tts.piper', 'tts.kokoro']) if isinstance(e, str) and e.startswith('tts.')],
         'queue_max': int(num('queue_max', 5, 1, 20)),
         'queue_ttl_s': int(num('queue_ttl_s', 120, 1, 900)),
@@ -115,8 +120,13 @@ class Turns:
 
 
 class Speaker:
-    def __init__(self, ha, opts, clock=time.time, sleep=time.sleep, now=None, log=None):
+    def __init__(self, ha, opts, clock=time.time, sleep=time.sleep, now=None, log=None, audio=None, encode=None, discord=None):
+        """audio(engine, text, voice) -> bytes, encode(bytes) -> (ogg, seconds, waveform), discord = module with send_voice_message / send_dm_rich / send_dm.
+        All three default to the real ones (HA text-to-speech, ffmpeg, ihlib.discord) and are replaced in tests."""
         self.ha, self.cfg, self.clock, self.sleep = ha, parse_options(opts), clock, sleep
+        self._audio = audio or (lambda engine, text, v: voice.render(self.ha, engine, text, v))
+        self._encode = encode or voice.encode
+        self._discord = discord
         self._now, self.log = now, log or (lambda *a, **k: None)
         self.turns = {n: Turns(self.cfg['queue_max'], clock) for n in self.cfg['speakers']}
         self.history = deque(maxlen=50)   # recent results (no message text), for /status
@@ -213,7 +223,20 @@ class Speaker:
 
     # ---- speak ----
     def speak(self, req):
-        """-> {status, reason, ...}. status: spoken | dry | blocked | skipped | queue_full | expired | fallback | error."""
+        """-> {status, reason, ...}. status: spoken | sent | dry | blocked | skipped | queue_full | expired | fallback | error.
+        `to`: speaker (default) | discord (a voice message DM, no speaker) | both (speaker result, plus a `discord` part)."""
+        to = str(req.get('to') or 'speaker').strip().lower()
+        if to not in ('speaker', 'discord', 'both'):
+            return self._done('blocked', {'allowed': False, 'reason': 'to must be speaker, discord or both', 'text': str(req.get('text') or '').strip(),
+                                          'persona': str(req.get('persona') or '').strip().lower(), 'speaker': str(req.get('speaker') or '').strip().lower()})
+        if to == 'discord':
+            return self.send_voice(req)
+        res = self._speak_speaker(req)
+        if to == 'both':
+            res['discord'] = self.send_voice(req)
+        return res
+
+    def _speak_speaker(self, req):
         p = self.plan(req)
         if not p['allowed']:
             return self._done('blocked', p)
@@ -266,6 +289,81 @@ class Speaker:
                 except Exception:
                     self.log('volume restore failed', speaker=p['speaker'])
 
+    # ---- voice clip to a Discord DM (true voice-message bubble, ogg/opus) ----
+    def check_discord(self, req):
+        """-> (allowed, reason). Quiet hours do NOT apply: a DM makes no sound."""
+        persona = str(req.get('persona') or '').strip().lower()
+        user = str(req.get('discord_user') or '').strip().lower()
+        text = str(req.get('text') or '').strip()
+        if not persona:
+            return False, 'persona is required'
+        if not text:
+            return False, 'text is empty'
+        if len(text) > MAX_TEXT:
+            return False, 'text is longer than %d characters' % MAX_TEXT
+        if user not in self.cfg['discord_users']:
+            return False, 'unknown discord_user'
+        allowed = self.cfg['discord_permissions'].get(persona)
+        if allowed is None or not ('*' in allowed or user in allowed):
+            return False, '%s may not send voice messages to %s' % (persona, user)
+        return True, ''
+
+    def send_voice(self, req):
+        """Render the speech, convert it, send it as a voice message DM. Dry (request or add-on mode): render and measure, send nothing."""
+        persona = str(req.get('persona') or '').strip().lower()
+        user = str(req.get('discord_user') or '').strip().lower()
+        text = str(req.get('text') or '').strip()
+        ok, why = self.check_discord(req)
+        p = {'allowed': ok, 'reason': why, 'text': text, 'persona': persona, 'discord_user': user, 'to': 'discord'}
+        if not ok:
+            return self._done('blocked', p)
+        voice_id = self._voice(persona, req.get('voice'))
+        if voice_id is None:
+            p.update(allowed=False, reason='unknown voice')
+            return self._done('blocked', p)
+        engine = self._engine()
+        dry = bool(req.get('dry_run')) or self.cfg['mode'] != 'live'
+        p.update(engine=engine or 'fallback', voice=voice_id if engine == 'tts.piper' else '', format='ogg/opus voice message',
+                 token_set=bool(self.cfg['discord_token']), caption=req.get('caption') is True)
+        if dry:
+            p['dry_run_reason'] = 'requested' if req.get('dry_run') else 'add-on mode is dry'
+        if not engine:
+            p['reason'] = 'neither TTS engine is available'
+            return self._done('fallback', p)
+        if not dry and not self.cfg['discord_token']:
+            p['reason'] = 'discord_token is not set'
+            return self._done('error', p)
+        try:   # rendering plays nothing anywhere: no speaker, no volume change
+            ogg, secs, wave = self._encode(self._audio(engine, text, voice_id))
+        except Exception as e:
+            p['reason'] = 'audio failed: %s' % (e if isinstance(e, voice.VoiceError) else type(e).__name__)
+            return self._done('error', p)
+        p.update(audio_bytes=len(ogg), duration_s=secs, waveform_bytes=len(wave) * 3 // 4)
+        if dry:
+            return self._done('dry', p)
+        return self._deliver(p, self.cfg['discord_users'][user], ogg, secs, wave)
+
+    def _deliver(self, p, user_id, ogg, secs, wave):
+        d, tok = self._discord or _real_discord(), self.cfg['discord_token']
+        try:
+            d.send_voice_message(tok, user_id, ogg, secs, wave)
+            p['delivery'] = 'voice_message'
+        except Exception as e:
+            self.log('voice message failed, trying a plain attachment', error=type(e).__name__)
+            try:
+                d.send_dm_rich(tok, user_id, '', file=(voice_filename(), ogg))
+                p['delivery'] = 'attachment'
+                p['reason'] = 'voice message refused (%s): sent as a plain audio file' % type(e).__name__
+            except Exception as e2:
+                p['reason'] = 'Discord send failed: %s' % type(e2).__name__
+                return self._done('error', p)
+        if p.get('caption'):   # a voice message cannot carry text: the caption is its own message
+            try:
+                d.send_dm(tok, user_id, p['text'])
+            except Exception as e:
+                p['reason'] = (p.get('reason', '') + ' caption failed: %s' % type(e).__name__).strip()
+        return self._done('sent', p)
+
     def _wait_for(self, entity, state, timeout, until_not=False):
         """Poll every 0.5 s. True when the speaker is in `state` (or, with until_not, no longer in it) within `timeout` seconds."""
         waited = 0.0
@@ -279,8 +377,17 @@ class Speaker:
             waited += 0.5
 
     def _done(self, status, p):
-        res = dict(p, status=status, ok=status in ('spoken', 'dry'))
+        res = dict(p, status=status, ok=status in ('spoken', 'sent', 'dry'))
         self.history.append({'at': self.now().isoformat(timespec='seconds'), 'status': status, 'persona': p.get('persona'),
-                             'speaker': p.get('speaker'), 'reason': p.get('reason', ''), 'chars': len(p.get('text', ''))})
+                             'speaker': p.get('speaker') or p.get('discord_user'), 'to': p.get('to', 'speaker'), 'delivery': p.get('delivery', ''), 'reason': p.get('reason', ''), 'chars': len(p.get('text', ''))})
         self.log('speak', status=status, persona=p.get('persona'), speaker=p.get('speaker'), reason=p.get('reason', ''))
         return res
+
+
+def voice_filename():
+    return 'voice-message.ogg'
+
+
+def _real_discord():
+    from ihlib import discord
+    return discord

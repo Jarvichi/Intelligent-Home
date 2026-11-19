@@ -6,6 +6,7 @@ A small tool that speaks a message on a house speaker (HomePod) through Home Ass
 
 ## Requires
 
+- For Discord voice clips: a Discord bot token that can DM the user (the user shares a server with the bot).
 - No other Intelligent Home add-on is required.
 - Home Assistant OS or Supervised, with a `tts.piper` and/or `tts.kokoro` entity and the speaker as a `media_player` entity.
 
@@ -31,10 +32,13 @@ A small tool that speaks a message on a house speaker (HomePod) through Home Ass
 | `permissions` | `persona=speaker1,speaker2` (or `*`). A persona that is not listed may not speak. |
 | `night_deny` | `persona=speaker` entries the persona may not use between `night_start` and `quiet_end`. |
 | `keep_volume_speakers` | Speakers whose volume is never touched (a group leader). |
+| `discord_token` | Discord bot token used to send voice clips (secret). Empty = Discord sending is refused. |
+| `discord_users` | `name=numeric Discord user id` entries. Callers use the name only. |
+| `discord_permissions` | `persona=name1,name2` (or `*`): who a persona may send voice messages to. A persona that is not listed may not send. |
 | `engines` | TTS entities in order of preference. The voice option is passed to Piper only. |
 | `queue_max`, `queue_ttl_s` | Longest waiting line per speaker, and how long a message may wait. |
 
-Example entries (placeholders): `speakers: ["bedroom=media_player.bedroom_speaker"]`, `voices: ["hearth=voice_id_here"]`, `permissions: ["hearth=*", "guest=kitchen"]`, `night_deny: ["guest=bedroom"]`.
+Example entries (placeholders): `discord_users: ["alex=123456789012345678"]`, `discord_permissions: ["hearth=alex"]`, `speakers: ["bedroom=media_player.bedroom_speaker"]`, `voices: ["hearth=voice_id_here"]`, `permissions: ["hearth=*", "guest=kitchen"]`, `night_deny: ["guest=bedroom"]`.
 
 ## Calling it
 
@@ -46,8 +50,14 @@ Example entries (placeholders): `speakers: ["bedroom=media_player.bedroom_speake
 
 The call returns when the message has been spoken (allow up to about two minutes while other messages are ahead). `status` is one of `spoken`, `dry`, `blocked`, `skipped`, `queue_full`, `expired`, `fallback` (play your old clip), `error`. `GET /status` lists recent results (no message text). `GET /healthz` is open.
 
+## Voice clip to Discord
+
+Add `"to": "discord"` (or `"both"`) and `"discord_user": "alex"` to the request. The message is rendered by Home Assistant text-to-speech (same engine and voice as the speaker, nothing is played), converted with ffmpeg to ogg/opus and sent as a Discord **voice message** DM (round player bubble, with duration and waveform). A voice message cannot carry text; `"caption": true` sends the text as a second message. If Discord refuses the voice message the clip goes as a plain audio file (`delivery: attachment`). `status` is `sent` when delivered. Quiet hours do not apply (a DM is silent); the `discord_permissions` rule does. With `both`, the speaker result is the main answer and the Discord result is under `discord`. The speech text leaves the house to Discord: keep it free of private details.
+
+`dry_run` (or `mode: dry`) renders and measures the clip and returns `duration_s`, `audio_bytes` and `waveform_bytes`, and sends nothing.
+
 A file named `STOP` in the add-on data folder refuses every request.
 
 ## Not tested here
 
-No real speaker playback has been heard. Test with `dry_run` first, then one real message.
+No real speaker playback has been heard, no real Discord voice message has been sent and ffmpeg has not been run in the built image (the tests use fakes). Test with `dry_run` first, then one real message.

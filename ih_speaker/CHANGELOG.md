@@ -3,6 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.2.0] - 2026-11-19
+
+### Added
+- Voice clip to Discord: `POST /speak` takes `to` (`speaker` default, `discord` or `both`), `discord_user` (a name from `discord_users`, never a raw ID) and optional `caption` (true = the text also goes as a separate message). The audio is rendered by Home Assistant text-to-speech with the same engine and voice as the speaker, without playing anything (no speaker, no volume change, no queue).
+- It is sent as a true Discord voice message (round player bubble): ffmpeg converts the audio to ogg/opus (libopus, mono, 48 kHz), the duration and a 256-point waveform are measured, and the message is sent with flag 8192 through the three-step upload. If Discord refuses the voice message, the clip is sent as a plain `voice-message.ogg` attachment (`delivery: attachment`).
+- Options `discord_token` (secret), `discord_users` (`name=numeric id`) and `discord_permissions` (`persona=name1,name2` or `*`; a persona that is not listed may not send). Quiet hours do not block a DM (it makes no sound).
+- `dry_run` (or dry mode) renders and measures the clip and reports `duration_s`, `audio_bytes`, `waveform_bytes`; it sends nothing.
+- ffmpeg added to the Dockerfile. New helper `send_voice_message` in the shared `ihlib/discord.py` (copied into this add-on only; other add-ons keep their copy until their next sync).
+- `GET /status` lists the `discord_users` names.
+
 ## [0.1.0] - 2026-11-18
 
 ### Added

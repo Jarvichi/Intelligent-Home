@@ -12,7 +12,7 @@ from ihlib import log as loglib   # noqa: E402
 from ihlib.ha import HA           # noqa: E402
 import speaker as sp              # noqa: E402
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 MAX_BODY = 8192
 DATA = os.environ.get('IHS_DATA', '/data')
 
@@ -58,7 +58,7 @@ def make_handler(spk):
             if method == 'GET' and path == '/status':
                 c = spk.cfg
                 return self._send(200, {'ok': True, 'version': VERSION, 'mode': c['mode'], 'speakers': sorted(c['speakers']),
-                                        'personas': sorted(c['permissions']), 'engines': c['engines'],
+                                        'personas': sorted(c['permissions']), 'discord_users': sorted(c['discord_users']), 'engines': c['engines'],
                                         'waiting': {n: t.waiting() for n, t in spk.turns.items()}, 'recent': list(spk.history)[-10:]})
             if method == 'POST' and path == '/speak':
                 try:

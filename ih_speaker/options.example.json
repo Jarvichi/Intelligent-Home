@@ -12,6 +12,9 @@
   "permissions": ["hearth=*", "guest=kitchen"],
   "night_deny": ["guest=bedroom"],
   "keep_volume_speakers": ["kitchen"],
+  "discord_token": "",
+  "discord_users": ["alex=123456789012345678"],
+  "discord_permissions": ["hearth=alex"],
   "engines": ["tts.piper", "tts.kokoro"],
   "queue_max": 5,
   "queue_ttl_s": 120
