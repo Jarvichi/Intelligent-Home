@@ -1,8 +1,8 @@
 name: "Intelligent Home - Speaker"
-version: "0.2.0"
+version: "0.3.0"
 slug: ih_speaker
 image: "ghcr.io/jarvichi/{arch}-ih_speaker"
-description: "Text-to-speech tool for the house speakers (can also send the clip as a Discord voice message). Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."
+description: "Text-to-speech tool for the house speakers with a clip cache and an admin page (can also send the clip as a Discord voice message). Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."
 arch:
   - aarch64
   - amd64
@@ -11,6 +11,13 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8831]/healthz  once boot is auto.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8832
+panel_title: "IH · Speaker"
+panel_icon: mdi:speaker-wireless
+panel_admin: true
+backup_exclude:
+  - /data/cache
 homeassistant_api: true
 ports:
   8831/tcp: 8831
@@ -38,6 +45,10 @@ options:
     - "tts.kokoro"
   queue_max: 5
   queue_ttl_s: 120
+  cache_mb: 1024
+  cache_days: 30
+  base_url: ""
+  seed_fillers: true
 schema:
   mode: list(dry|live)
   api_token: password
@@ -67,3 +78,7 @@ schema:
     - str?
   queue_max: int(1,20)
   queue_ttl_s: int(1,900)
+  cache_mb: int(1,100000)
+  cache_days: int(1,3650)
+  base_url: str?
+  seed_fillers: bool

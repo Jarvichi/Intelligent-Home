@@ -37,6 +37,10 @@ A small tool that speaks a message on a house speaker (HomePod) through Home Ass
 | `discord_permissions` | `persona=name1,name2` (or `*`): who a persona may send voice messages to. A persona that is not listed may not send. |
 | `engines` | TTS entities in order of preference. The voice option is passed to Piper only. |
 | `queue_max`, `queue_ttl_s` | Longest waiting line per speaker, and how long a message may wait. |
+| `cache_mb` | Size cap of the clip cache in MB (default 1024). Least recently used unpinned clips go first. |
+| `cache_days` | Unpinned clips not used for this many days are deleted (default 30). Pinned clips never expire. |
+| `base_url` | Address a speaker can fetch clips from, for example `http://<home assistant host>:8831`. Needed for fillers and for playing cached clips. |
+| `seed_fillers` | Make the pinned filler phrases for each voice (default on, live mode only). |
 
 Example entries (placeholders): `discord_users: ["alex=123456789012345678"]`, `discord_permissions: ["hearth=alex"]`, `speakers: ["bedroom=media_player.bedroom_speaker"]`, `voices: ["hearth=voice_id_here"]`, `permissions: ["hearth=*", "guest=kitchen"]`, `night_deny: ["guest=bedroom"]`.
 
@@ -56,8 +60,16 @@ Add `"to": "discord"` (or `"both"`) and `"discord_user": "alex"` to the request.
 
 `dry_run` (or `mode: dry`) renders and measures the clip and returns `duration_s`, `audio_bytes` and `waveform_bytes`, and sends nothing.
 
+## Clip cache and fillers
+
+Every message that is rendered is kept in `/data/cache/<engine>/<voice>/<sha1 of the normalised text>.<ext>` (excluded from backups; the index is in `/data/ih.db`). Case and spacing do not matter. The same phrase with another voice or engine is a separate clip. A request that is in the cache plays at once; otherwise it is rendered, stored and played. Over `cache_mb`, the least recently used unpinned clips are deleted; unpinned clips unused for `cache_days` expire; pinned clips stay.
+
+Add `"filler": "one moment"` to a `/speak` request to play a cached phrase (matched by its label, case ignored) immediately while the real message renders. It finishes, or is stopped, before the real clip starts. The seeded labels are `one moment`, `just checking`, `alarm armed`, `alarm disarmed`, `good morning`. A clip you generate on the page can have any label. A filler that is not cached for that voice is skipped (`filler: skipped: ...` in the answer).
+
+`dry_run` answers include `cache`: `status` (hit or miss), sizes and `would_evict` (clips a store would remove, no text). The Speaker page (sidebar, admin only) lists the clips: search, filter by voice and engine, listen, play on a speaker, pin, delete, and generate a new clip. Playing on a speaker follows the add-on mode (dry plays nothing).
+
 A file named `STOP` in the add-on data folder refuses every request.
 
 ## Not tested here
 
-No real speaker playback has been heard, no real Discord voice message has been sent and ffmpeg has not been run in the built image (the tests use fakes). Test with `dry_run` first, then one real message.
+No real speaker playback has been heard (neither tts.speak nor playing a cached clip by link), the signed clip link has not been fetched by a real speaker, the page has not been opened inside Home Assistant, no real Discord voice message has been sent and ffmpeg has not been run in the built image (the tests use fakes). Test with `dry_run` first, then one real message.
