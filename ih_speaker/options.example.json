@@ -1,0 +1,18 @@
+{
+  "mode": "dry",
+  "api_token": "",
+  "timezone": "Europe/London",
+  "default_volume": 0.2,
+  "quiet_start": "00:00",
+  "quiet_end": "07:00",
+  "night_start": "22:00",
+  "alert_personas": ["hearth"],
+  "speakers": ["bedroom=media_player.bedroom_speaker", "kitchen=media_player.kitchen_speaker"],
+  "voices": ["hearth=voice_id_one", "picard=voice_id_two"],
+  "permissions": ["hearth=*", "guest=kitchen"],
+  "night_deny": ["guest=bedroom"],
+  "keep_volume_speakers": ["kitchen"],
+  "engines": ["tts.piper", "tts.kokoro"],
+  "queue_max": 5,
+  "queue_ttl_s": 120
+}
