@@ -1,8 +1,8 @@
 name: "Intelligent Home - Speaker"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_speaker
 image: "ghcr.io/jarvichi/{arch}-ih_speaker"
-description: "Text-to-speech tool for the house speakers. Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."
+description: "Text-to-speech tool for the house speakers (can also send the clip as a Discord voice message). Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."
 arch:
   - aarch64
   - amd64
@@ -30,6 +30,9 @@ options:
   permissions: []
   night_deny: []
   keep_volume_speakers: []
+  discord_token: ""
+  discord_users: []
+  discord_permissions: []
   engines:
     - "tts.piper"
     - "tts.kokoro"
@@ -54,6 +57,11 @@ schema:
   night_deny:
     - str?
   keep_volume_speakers:
+    - str?
+  discord_token: password?
+  discord_users:
+    - str?
+  discord_permissions:
     - str?
   engines:
     - str?

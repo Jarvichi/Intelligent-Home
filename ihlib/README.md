@@ -2,6 +2,8 @@
 
 Standard library only (Python 3.12 or newer). Each add-on carries its own copy in `app/ihlib/`. Never edit a copy: edit the master, then copy it into the add-ons (`sync_ihlib.sh`), with a version bump and a CHANGELOG entry for every add-on that receives it.
 
+**New:** `discord.send_voice_message` (true Discord voice-message DM, ogg/opus, 3-step upload); so far copied into ih_speaker only.
+
 **State:** the master holds all modules (`ha`, `discord`, `state`, `log`, `http`, `series`, `trace`, `db`). `db` is copied into the add-ons but no add-on uses it yet.
 
 ## db.py: one SQLite file per add-on
