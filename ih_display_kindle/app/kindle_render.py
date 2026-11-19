@@ -1,5 +1,6 @@
 """Read-only e-ink preview; it does not publish a touch-zone map."""
 import datetime
+import cat_render
 import re
 import time
 import math
@@ -130,7 +131,7 @@ def svg(data,alerts=None,now=None):
     label(48,911,'LIGHTS ON',25);text(48,958,lights.get('detail') or 'Unavailable',26)
     if charging:
         p.append('<rect x="270" y="884" width="140" height="36" rx="18" fill="black"/><rect x="880" y="884" width="144" height="36" rx="18" fill="black"/>');label(340,909,'ALL OFF',18,'white','middle');label(952,909,'MENU',18,'white','middle')
-        if (today.month,today.day)==(10,31) and data.get('halloween_mode') in ('on','off'):
+        if (today.month,today.day)==(10,31) and data.get('allow_halloween_toggle',True) and data.get('halloween_mode') in ('on','off'):
             on=data['halloween_mode']=='on';p.append(f'<rect x="716" y="882" width="148" height="40" rx="20" fill="{"white" if on else "black"}" stroke="black" stroke-width="3"/>');label(790,910,'PARTY',20,'black' if on else 'white','middle')
     p.append('<path d="M48 1031H1024" stroke="black" stroke-width="3"/>')
     energy=next((x for x in panels if x.get('label')=='Energy'),{})
@@ -191,4 +192,7 @@ def svg(data,alerts=None,now=None):
             title=str(task.get('title',''));detail=str(task.get('detail') or '');title=title if len(title)<=48 else title[:47]+'…'
             label(70,y+h//2+font//3,title,font,fill)
             if detail:label(1000,y+h//2+7,detail[:22],18,fill,'end')
+    weather=data.get('weather') or {}
+    current=weather.get('current') or {}
+    p.append(cat_render.render(timestamp,current.get('condition'),data.get('halloween_mode')=='on'))
     return (''.join(p)+'</svg>').encode('utf-8')
