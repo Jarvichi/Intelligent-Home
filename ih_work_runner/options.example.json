@@ -1,0 +1,10 @@
+{
+  "mode": "dry",
+  "stop": false,
+  "work_token": "",
+  "claude_oauth_token": "",
+  "mcp_config_file": "",
+  "work_url": "",
+  "idle_max_s": 300,
+  "idle_check_s": 15
+}
