@@ -213,6 +213,9 @@ class HA:
                 except ValueError:
                     if (entry['month'],entry['day'])==(2,29):date=datetime.date(year,3,1)
                     else:return {'available':False}
+                if date<today:
+                    try:date=date.replace(year=year+1)
+                    except ValueError:date=datetime.date(year+1,3,1)
                 fixed_birth.append(((date-today).days,entry['name'].strip()[:80]))
         except (TypeError,OverflowError):return {'available':False}
         def easter(y):
@@ -234,19 +237,27 @@ class HA:
                             offset=int(fields[1]);name=fields[0].strip()[:80]
                             if not any(existing_offset==offset and existing_name.casefold()==name.casefold() for existing_offset,existing_name in birth):birth.append((offset,name))
                         except ValueError:continue
+        halloween_mode=False
         if halloween:
             value=self.optional_state(halloween);state=value.get('state') if isinstance(value,dict) else None
             if state not in ('on','off'):complete=False
-            elif state=='on' and (today.month,today.day)!=(10,31):return {'available':complete,'active':True,'pinned':True,'slot':'occasion','label':'Occasion','detail':'Haunted house'}
+            else:halloween_mode=state=='on'
+        if halloween_mode and (today.month,today.day)!=(10,31):return {'available':complete,'active':True,'pinned':True,'slot':'occasion','label':'Occasion','detail':'Haunted house','theme':'halloween','event_today':True,'halloween_mode':True}
         birthday_today=next((name for offset,name in birth if offset==0),None)
-        detail=(birthday_today+'’s birthday today!') if birthday_today else next((message for date,message in days if date==today),'')
+        holiday=next((message for date,message in days if date==today),'')
+        detail=holiday or ((birthday_today+'’s birthday today!') if birthday_today else '')
+        event_today=bool(detail)
+        theme=({'Merry Christmas!':'christmas','Happy Boxing Day':'christmas','New Year’s Eve':'newyear','Happy New Year!':'newyear','Happy Halloween!':'halloween','Bonfire Night':'bonfire','Valentine’s Day':'valentine'}.get(holiday,'other') if holiday else 'birthday' if birthday_today else '')
+        countdown_days=None;countdown_name=''
         if not detail:
             candidates=[(offset,name+'’s birthday') for offset,name in birth if 0<offset<=14]
             candidates.extend(((date-today).days,name) for date,name,limit in future if 0<(date-today).days<=limit)
             if candidates:
                 offset,name=min(candidates,key=lambda row:row[0])
+                countdown_days=offset;countdown_name=name
                 detail=name+' tomorrow!' if offset==1 else str(offset)+' sleeps till Christmas' if name=='Christmas' else name+' in '+str(offset)+' days'
-        return {'available':complete,'active':bool(detail),'pinned':True,'slot':'occasion','label':'Occasion','detail':detail}
+                theme={'Christmas':'christmas','Halloween':'halloween','Easter':'other','Pancake Day':'other'}.get(name,'birthday')
+        return {'available':complete,'active':bool(detail),'pinned':True,'slot':'occasion','label':'Occasion','detail':detail,'theme':theme,'event_today':event_today,'countdown_days':countdown_days,'countdown_name':countdown_name,'halloween_mode':halloween_mode}
     def presence_panel(self,people):
         if not isinstance(people,list) or not people or len(people)>10:return {'available':False}
         for person in people:
@@ -468,7 +479,7 @@ class HA:
             if presence:panels.append(pool.submit(self.presence_panel,presence))
             if lights:panels.append(pool.submit(self.lights_panel,lights))
             if isinstance(rooms,list):panels.extend(pool.submit(self.room_panel,room) for room in rooms[:20])
-            if isinstance(festive,dict) and any(festive.values()):panels.append(pool.submit(self.festive_panel,festive.get('birthdays',''),festive.get('halloween',''),festive.get('fixed',[])))
+            if isinstance(festive,dict):panels.append(pool.submit(self.festive_panel,festive.get('birthdays',''),festive.get('halloween',''),festive.get('fixed',[])))
             sources=[f.result() for f in (ff,tf) if f is not None]
             shared_result=sf.result() if sf else None
             shared_partial=bool(sf and (shared_result is None or not shared_result.get('complete',False)))

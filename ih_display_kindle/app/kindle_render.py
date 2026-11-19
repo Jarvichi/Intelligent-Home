@@ -7,6 +7,7 @@ import math
 import textwrap
 from render import clean
 import cooking_render
+import festive_header
 
 ART=re.compile(r'^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]{1,700000}$')
 
@@ -41,8 +42,10 @@ def svg(data,alerts=None,now=None):
     if isinstance(data.get('cooking'),dict) and data['cooking'].get('running') is True:return cooking_render.svg(data['cooking'],alerts)
     timestamp=time.time() if now is None else now;today=datetime.datetime.fromtimestamp(timestamp).astimezone()
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
+    header_color='black';header_font='sans-serif'
     def text(x,y,value,size=28,bold=False,anchor='start'):
-        p.append(f'<text x="{x}" y="{y}" fill="black" font-family="sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,80)}</text>')
+        color=header_color if y<=187 else 'black';font=header_font if y<=187 else 'sans-serif'
+        p.append(f'<text x="{x}" y="{y}" fill="{color}" font-family="{font}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,80)}</text>')
     def box(x,y,w,h,fill='white'):
         p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="20" fill="{fill}" stroke="black" stroke-width="3"/>')
     def label(x,y,value,size=28,fill='black',anchor='start'):
@@ -56,17 +59,19 @@ def svg(data,alerts=None,now=None):
         if 'rain' in condition or 'pour' in condition:p.append('<path d="M30 79l-5 11 M52 79l-5 11 M74 79l-5 11" stroke="#555" stroke-width="5"/>')
         if 'snow' in condition:p.append('<path d="M30 82l5 5m0-5l-5 5 M62 82l5 5m0-5l-5 5" stroke="#555" stroke-width="4"/>')
         p.append('</g>')
+    panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
+    event=next((x for x in active if x.get('slot')=='occasion'),None)
+    inverted,header_font=festive_header.style(event)
+    if inverted:
+        p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
     device=data.get('device') if isinstance(data.get('device'),dict) else {};charging=device.get('charging') is True;info='Updated '+today.strftime('%H:%M')
     if device.get('fresh') and device.get('battery') is not None:info+=' · '+('Plugged in' if charging else 'Kindle '+str(device['battery'])+'%')
     text(970 if charging else 1024,64,info,25,anchor='end')
-    if charging:p.append('<circle cx="1005" cy="55" r="19" fill="black"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="white" stroke-width="3"/>')
-    panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
-    event=next((x for x in active if x.get('slot')=='occasion'),None)
-    if event:
-        occasion=str(event.get('detail') or '');match=re.fullmatch(r'(.+?) in (\d+) days',occasion)
-        if match:occasion=match.group(2)+' days: '+match.group(1)
-        text(1024,114,occasion,25,True,'end')
+    if charging:p.append(f'<circle cx="1005" cy="55" r="19" fill="{header_color}"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="{"black" if inverted else "white"}" stroke-width="3"/>')
+    for i,line in enumerate(festive_header.lines(event)):
+        size=min(25,max(12,int(380/max(1,len(line))*1.5)))
+        text(1024,110+i*30,line,size,True,'end')
     text(1024,181,data.get('sun') or 'Sun unavailable',34,True,'end');p.append('<path d="M48 214H1024" stroke="black" stroke-width="3"/>')
     weather=data.get('weather')
     if weather:
