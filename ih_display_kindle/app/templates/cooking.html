@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n ck-title">{{ title }}</div><div class="a n ck-eat">Eating at {{ eat }}</div><div class="a pill ck-stop">STOP COOKING</div>
+<div class="a card ck-oven"></div><div class="a n ck-oven-l">OVEN</div><div class="a n ck-oven-v">{{ oven }}</div>
+<div class="a card ink ck-next" style="--h:{{ next_h }}px"></div><div class="a n ck-next-l">NEXT</div>
+{% if not next_rows %}<div class="a n ck-next-none">No upcoming steps</div>{% endif %}
+{% for row in next_rows %}{% set i = loop.index0 %}<div class="a n ck-next-t" style="--i:{{ i }}">{{ row }}</div>
+{% for b in buttons %}<div class="a card ck-btn" style="--i:{{ i }};--x:{{ b.x }}px;--w:{{ b.w }}px">{{ b.label }}</div>{% endfor %}{% endfor %}
+<div class="a ck-line" style="--y:{{ line_y }}px"></div>
+{% for s in steps %}<div class="a n ck-step-at" style="--i:{{ loop.index0 }};--y0:{{ line_y + 28 }}px">{{ s.at }}</div><div class="a n ck-step-t" style="--i:{{ loop.index0 }};--y0:{{ line_y + 28 }}px">{{ s.text }}</div>{% endfor %}
+<div class="a ck-line" style="--y:1000px"></div><div class="a n ck-prep-l">PREPARATION</div>
+{% for p in prep %}<div class="a card ck-prep" style="--i:{{ loop.index0 }}"></div><div class="a card ck-prep-box" style="--i:{{ loop.index0 }}"></div><div class="a n ck-prep-t" style="--i:{{ loop.index0 }}">{{ p }}</div>{% endfor %}
+{% if warnings %}<div class="a ink ck-alerts" style="height:{{ 30 * (warnings | length) + 6 }}px"></div>{% for w in warnings %}<div class="a n ck-alert" style="--i:{{ loop.index0 }}">{{ w }}</div>{% endfor %}{% endif %}
+{% endblock %}

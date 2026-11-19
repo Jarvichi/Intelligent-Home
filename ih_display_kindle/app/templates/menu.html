@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n menu-title">Menu</div>
+{% for label in rows %}<div class="a ink menu-row" style="--i:{{ loop.index0 }}">{{ label }}</div>{% endfor %}
+{% endblock %}

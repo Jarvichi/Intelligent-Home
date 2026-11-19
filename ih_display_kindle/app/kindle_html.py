@@ -1,15 +1,15 @@
-"""The main Kindle screen as an HTML + CSS page, rendered to a greyscale PNG by headless Chromium.
+"""The main Kindle screen: this module prepares the values, templates/main.html says what is on the screen and templates/kindle.css says where.
 
-Blocks sit at the same fixed positions as the SVG picture (so the touch zones in device_surface still line up); inside a block the browser
-does the text layout, wrapping, fonts and emoji. Anything this page does not draw yet (cooking, Halloween, an event-day header) is left to
-kindle_render.svg(): supports() says False and Renderer.png() returns None, so the caller falls back.
+Headless Chromium renders the page to a greyscale PNG. A folder of your own templates (see DOCS.md) is searched before the built-in ones, so the
+layout can be changed without touching Python. Anything the page does not draw yet (Halloween, an event-day header) is left to kindle_render.svg():
+supports() says False and Renderer.png() returns None, so the caller falls back. The same happens if a template is broken or Chromium fails.
 """
 import datetime
-import html
 import math
 import os
-import re
+import pathlib
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -18,16 +18,49 @@ import festive_header
 import kindle_render as K
 import weather_icons
 
-e = lambda v: html.escape(str(v if v is not None else ''), quote=True)
 ART = K.ART
+BUILTIN = pathlib.Path(__file__).resolve().parent / 'templates'
 
-CSS = """*{box-sizing:border-box;margin:0;padding:0}html,body{width:1072px;height:1448px;background:#fff;overflow:hidden}
-body{position:relative;font:28px Roboto,'DejaVu Sans',sans-serif;color:#000}.a{position:absolute}.n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.b{font-weight:700}.r{text-align:right}.c{text-align:center}.ink{background:#000;color:#fff}.box{border:3px solid #000;border-radius:20px;background:#fff}.box.ink{background:#000}
-.lb{font-size:25px;font-weight:700;letter-spacing:.08em}.sm{font-size:19px;font-weight:700;letter-spacing:.06em}.pill{border-radius:18px;background:#000;color:#fff;font-size:18px;font-weight:700;text-align:center;line-height:36px;letter-spacing:.04em}
-.rule{height:3px;background:#000;left:48px;width:976px}.row{border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
-.row.ink{background:#000;color:#fff}.row span:first-child{flex:1 1 auto;min-width:0}.row .d{font-size:18px;flex:0 1 auto;max-width:300px}.av{width:56px;height:56px;border-radius:50%;border:2px solid #000;background:#ddd;overflow:hidden;text-align:center;font:700 22px/52px Roboto,sans-serif}
-.av img,.art{filter:grayscale(1);display:block}svg{display:block}"""
+
+class Safe(str):
+    """Markup the template must not escape (our own inline SVG); no markupsafe import needed."""
+    def __html__(self):
+        return str(self)
+
+
+class Templates:
+    """Jinja2 environment: your template folder first (if given), then the built-in templates. jinja2 is imported only when first used."""
+    def __init__(self, override=None):
+        import jinja2
+        loaders = [jinja2.FileSystemLoader(str(override))] if override and os.path.isdir(str(override)) else []
+        loaders.append(jinja2.FileSystemLoader(str(BUILTIN)))
+        self.loader = jinja2.ChoiceLoader(loaders)
+        self.env = jinja2.Environment(loader=self.loader, autoescape=True, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
+
+    def render(self, name, **context):
+        css = Safe(self.loader.get_source(self.env, 'kindle.css')[0])   # read each time, so an edited stylesheet applies at once
+        return self.env.get_template(name).render(css=css, **context)
+
+
+_templates = None
+_override = None
+
+
+def configure(override=None):
+    """Set the folder searched before the built-in templates (None = built-in only)."""
+    global _templates, _override
+    _override, _templates = override, None
+
+
+def templates():
+    global _templates
+    if _templates is None:
+        _templates = Templates(_override)
+    return _templates
+
+
+def render(name, **context):
+    return templates().render(name, **context)
 
 
 def supports(data, alerts=None, now=None):
@@ -42,86 +75,67 @@ def supports(data, alerts=None, now=None):
     return not festive_header.style(event)[0]
 
 
-def icon(condition, x, y, size):
+def icon(condition, size):
     draw = weather_icons.ICONS.get(weather_icons.key(condition))
-    return f'<svg class="a" style="left:{x}px;top:{y}px" viewBox="0 0 100 100" width="{size}" height="{size}">{draw()}</svg>' if draw else ''
+    return Safe(f'<svg viewBox="0 0 100 100" width="{size}" height="{size}">{draw()}</svg>') if draw else Safe('')
 
 
-def t(x, y, value, size=28, cls='', w=None, color=None):
-    """A text line whose TOP is y (the SVG used baselines, so callers pass baseline - ascent)."""
-    style = f'left:{x}px;top:{y}px;font-size:{size}px;line-height:1.15' + (f';width:{w}px' if w else '') + (f';color:{color}' if color else '')
-    return f'<div class="a n {cls}" style="{style}">{e(value)}</div>'
+def number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def pill(x, y, w, label, size=18, h=36):
-    return f'<div class="a pill" style="left:{x}px;top:{y}px;width:{w}px;height:{h}px;line-height:{h}px;font-size:{size}px">{e(label)}</div>'
-
-
-def page(data, alerts=None, now=None):
+def context(data, alerts=None, now=None):
+    """Everything main.html shows, as plain values. No layout here."""
     stamp = time.time() if now is None else now
     today = datetime.datetime.fromtimestamp(stamp).astimezone()
-    p = []
     device = data.get('device') if isinstance(data.get('device'), dict) else {}
     charging = device.get('charging') is True
     panels = [x for x in (data.get('panels') or []) if isinstance(x, dict)]
     active = [x for x in panels if x.get('active')]
     event = next((x for x in active if x.get('slot') == 'occasion'), None)
-    # header
-    p.append(t(48, 24, today.strftime('%A'), 96, 'b') + t(48, 150, str(today.day) + ' ' + today.strftime('%B'), 52))
     info = 'Updated ' + today.strftime('%H:%M')
     if device.get('fresh') and device.get('battery') is not None:
         info += ' · ' + ('⚡ Plugged in' if charging else '🔋 Kindle ' + str(device['battery']) + '%')
-    p.append(t(500, 38, info, 25, 'r', 524 if not charging else 470))
-    if charging:
-        p.append('<svg class="a" style="left:986px;top:36px" width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="19"/><path d="M12 19a8 8 0 1 0 8-8M18 7l5 4-5 4" fill="none" stroke="#fff" stroke-width="3"/></svg>')
-    for i, line in enumerate(festive_header.lines(event)):
-        p.append(t(300, 86 + i * 30, line, min(25, max(12, int(380 / max(1, len(line)) * 1.5))), 'b r', 724))
-    p.append(t(500, 144, data.get('sun') or 'Sun unavailable', 34, 'b r', 524))
-    p.append('<div class="a rule" style="top:213px"></div>')
+    c = {'day': today.strftime('%A'), 'date': str(today.day) + ' ' + today.strftime('%B'), 'info': info, 'mains': charging, 'refresh': charging,
+         'festive': [{'text': line, 'size': min(25, max(12, int(380 / max(1, len(line)) * 1.5)))} for line in festive_header.lines(event)],
+         'sun': data.get('sun') or 'Sun unavailable', 'house_label': 'HOUSE', 'buttons': charging, 'cook_unavailable': data.get('cooking_unavailable') is True}
     # weather
     weather = data.get('weather')
     game = next((x for x in active if x.get('kind') == 'game'), None)
     media = next((x for x in active if x.get('kind') == 'media'), None)
+    c['weather_msg'] = 'Weather unavailable' if data.get('weather_configured') else 'Weather not configured'
+    c['wx'] = None
     if weather:
-        cur = weather.get('current') or {}
-        facts = weather.get('facts') or {}
-        daily = weather.get('daily') or []
-        hours = weather.get('hours') or []
+        cur, facts = weather.get('current') or {}, weather.get('facts') or {}
+        daily, hours = weather.get('daily') or [], weather.get('hours') or []
         cond = str(cur.get('condition') or 'Unavailable')
         cond = K.CONDITION_NAMES.get(cond, cond.replace('-', ' ').replace('_', ' ').capitalize())
-        p.append(icon(cur.get('condition'), 48, 248, 125) + t(200, 250, str(cur.get('temperature', '–')) + '°', 110, 'b') + t(48, 362, cond, 37, 'b', 340))
         today_row = next((d for d in daily if d.get('label') == 'Today'), {})
-        if today_row:
-            p.append(t(48, 408, 'Today ' + str(today_row.get('low', '–')) + '° – ' + str(today_row.get('high', '–')) + '°', 28, '', 340))
         sky = str(facts.get('sky', 'Unavailable'))
         label = 'UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER'
-        for i, (key, value) in enumerate((('WIND', facts.get('wind', 'Unavailable')), ('NEXT RAIN', K.next_rain_text(facts.get('next_rain', 'Unavailable'))), (label, sky.removeprefix('UV ').removeprefix('Cloud ')))):
-            p.append(t(425, 252 + i * 74, key, 19, 'sm', 200) + t(425, 272 + i * 74, value, 28, 'b', 200))
         bearing = facts.get('bearing')
-        if isinstance(bearing, (int, float)) and not isinstance(bearing, bool) and math.isfinite(bearing):
-            p.append(f'<svg class="a" style="left:560px;top:264px;transform:rotate({(bearing + 180) % 360:g}deg)" width="50" height="50" viewBox="-25 -25 50 50"><path d="M0,-16 L11,0 L4,0 L4,16 L-4,16 L-4,0 L-11,0 Z"/></svg>')
+        wx = {'icon': icon(cur.get('condition'), 125), 'temp': str(cur.get('temperature', '–')) + '°', 'cond': cond,
+              'range': ('Today ' + str(today_row.get('low', '–')) + '° – ' + str(today_row.get('high', '–')) + '°') if today_row else '',
+              'facts': [{'l': k, 'v': v} for k, v in (('WIND', facts.get('wind', 'Unavailable')), ('NEXT RAIN', K.next_rain_text(facts.get('next_rain', 'Unavailable'))),
+                                                       (label, sky.removeprefix('UV ').removeprefix('Cloud ')))],
+              'arrow': None, 'game': None, 'days': []}
+        if number(bearing) and math.isfinite(bearing):
+            wx['arrow'] = f'{(bearing + 180) % 360:g}'
         if game:
             art = game.get('art')
-            p.append('<div class="a box" style="left:640px;top:238px;width:384px;height:216px"></div>')
-            if isinstance(art, str) and ART.fullmatch(art):
-                p.append(f'<img class="a art" style="left:653px;top:251px;width:140px;height:190px;object-fit:contain" src="{art}">')
             lines = textwrap.wrap(str(game.get('detail') or game.get('label') or 'Game'), width=14)
-            if len(lines) > 3:
-                lines = lines[:2] + [' '.join(lines[2:])]
-            p.append(t(806, 262, 'NOW PLAYING', 18, 'b', 200) + ''.join(t(806, 292 + i * 32, ln, 24, 'b', 200) for i, ln in enumerate(lines)))
+            wx['game'] = {'art': art if isinstance(art, str) and ART.fullmatch(art) else None, 'lines': lines[:2] + [' '.join(lines[2:])] if len(lines) > 3 else lines}
         else:
-            for i, day in enumerate([d for d in daily if d.get('label') != 'Today'][:2]):
-                y = 238 + i * 118
+            for day in [d for d in daily if d.get('label') != 'Today'][:2]:
                 name = day.get('label', '')
                 if name == 'Next day':
                     name = (today + datetime.timedelta(days=2)).strftime('%A')
                 rain = day.get('precipitation')
                 text = str(day.get('low', '–')) + '–' + str(day.get('high', '–')) + '°'
-                text += (' ' + K.num(rain) + ' mm rain') if isinstance(rain, (int, float)) and not isinstance(rain, bool) and rain >= 0.1 else ' dry'
-                p.append(f'<div class="a box" style="left:640px;top:{y}px;width:384px;height:98px"></div>' + t(662, y + 14, name, 30, 'b', 250) + t(662, y + 56, text, 23, '', 250) + icon(day.get('condition'), 935, y + 10, 70))
-    else:
-        p.append(t(48, 300, 'Weather unavailable' if data.get('weather_configured') else 'Weather not configured', 30))
-    # warning banner, media, or the hourly strip
+                text += (' ' + K.num(rain) + ' mm rain') if number(rain) and rain >= 0.1 else ' dry'
+                wx['days'].append({'name': name, 'text': text, 'icon': icon(day.get('condition'), 70)})
+        c['wx'] = wx
+    # the band under the weather: warning banner, now playing, or the hourly strip
     entries = [x for x in (alerts.get('alerts') or []) if isinstance(x, dict) and x.get('title')] if isinstance(alerts, dict) else []
     life = [str(x['title']) for x in entries if x.get('kind') in ('smoke', 'co')]
     motion = [str(x.get('label')) + (': ' + str(x.get('detail')) if x.get('detail') else '') for x in active if x.get('label') == 'Motion while away' and x.get('urgent') is True]
@@ -132,129 +146,75 @@ def page(data, alerts=None, now=None):
     page_no = int(stamp // 300) % pages
     warning = life[:2] + (other[page_no * slots:page_no * slots + slots] if slots else []) + ([status] if status else [])
     if warning:
-        p.append('<div class="a box ink" style="left:48px;top:478px;width:976px;height:190px"></div><div class="a" style="left:60px;top:490px;width:952px;height:166px;border:3px dashed #fff;border-radius:16px"></div>')
-        for x in (135, 937):
-            p.append(f'<svg class="a" style="left:{x - 56}px;top:515px" width="112" height="90" viewBox="-56 -58 112 98"><path d="M0,-50 L48,35 L-48,35 Z" fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/><text y="25" text-anchor="middle" font-family="Roboto,sans-serif" font-size="58" font-weight="bold">!</text></svg>')
         few = len(warning) <= 2
-        for i, item in enumerate(warning):
-            if few:
-                x, y, w, size = 211, (565 + i * 48 if len(warning) == 2 else 579), 650, 30   # y = the text baseline, as in the SVG
-            else:
-                x, y, w, size = (195 if i % 2 == 0 else 567), 555 + (i // 2) * 48, 310, 23
-            p.append(f'<div class="a n b c" style="left:{x}px;top:{y - round(size * 0.9)}px;width:{w}px;font-size:{size}px;color:#fff">{e(item)}</div>')
-        if pages > 1:
-            p.append(t(900, 632, f'{page_no + 1}/{pages}', 18, 'b r', 95, '#fff'))
-        if data.get('allow_alert_dismiss') is True and K.dismissible_alert(data, alerts, stamp):
-            p.append('<div class="a" style="left:872px;top:612px;width:142px;height:52px;border-radius:20px;background:#fff;color:#000;font:700 20px/52px Roboto,sans-serif;text-align:center">DISMISS</div>')
+        lines = [{'text': w, 'cls': ('warn-1' if len(warning) == 1 else 'warn-2') if few else 'warn-n', 'i': i, 'c': i % 2, 'r': i // 2} for i, w in enumerate(warning)]
+        c['band'] = {'kind': 'warn', 'lines': lines, 'page': f'{page_no + 1}/{pages}' if pages > 1 else '',
+                     'dismiss': data.get('allow_alert_dismiss') is True and bool(K.dismissible_alert(data, alerts, stamp))}
     elif media:
         art = media.get('art')
-        p.append('<div class="a box" style="left:48px;top:478px;width:976px;height:190px"></div>')
-        if isinstance(art, str) and ART.fullmatch(art):
-            p.append(f'<img class="a art" style="left:62px;top:493px;width:160px;height:160px;object-fit:contain" src="{art}">')
         parts = str(media.get('detail') or '').split(' · ', 1)
-        p.append(t(245, 504, 'NOW PLAYING', 20, 'b') + t(245, 540, parts[0] or str(media.get('label') or 'Playing'), 30, 'b', 755) + t(245, 595, parts[1] if len(parts) > 1 else '', 23, '', 755))
+        c['band'] = {'kind': 'media', 'art': art if isinstance(art, str) and ART.fullmatch(art) else None,
+                     'title': parts[0] or str(media.get('label') or 'Playing'), 'sub': parts[1] if len(parts) > 1 else ''}
     elif weather:
-        p.append('<div class="a box" style="left:48px;top:478px;width:976px;height:190px"></div>')
-        for i, h in enumerate((weather.get('hours') or [])[:6]):
-            x = 130 + i * 163
-            rain = h.get('precipitation')
-            p.append(t(x - 70, 497, h.get('time', ''), 25, 'b c', 140) + icon(h.get('condition'), x - 30, 532, 60) + t(x - 70, 598, str(h.get('temperature', '–')) + '°', 36, 'b c', 140))
-            if isinstance(rain, (int, float)) and not isinstance(rain, bool) and rain > 0.1:
-                p.append(t(x - 70, 640, K.num(rain) + ' mm', 17, 'c', 140))
-            if i:
-                p.append(f'<div class="a" style="left:{x - 80}px;top:496px;width:2px;height:152px;background:#aaa"></div>')
+        c['band'] = {'kind': 'hours', 'hours': [{'time': h.get('time', ''), 'icon': icon(h.get('condition'), 60), 'temp': str(h.get('temperature', '–')) + '°',
+                                                  'rain': (K.num(h['precipitation']) + ' mm') if number(h.get('precipitation')) and h['precipitation'] > 0.1 else ''}
+                                                 for h in (weather.get('hours') or [])[:6]]}
+    else:
+        c['band'] = {'kind': 'none'}
     # house tiles
-    p.append(t(48, 688, 'HOUSE', 25, 'lb'))
     alarm = next((x for x in panels if x.get('label') == 'Alarm'), {})
     home = next((x for x in panels if x.get('label') == 'Home'), {})
     doors = next((x for x in panels if str(x.get('label', '')).startswith('Doors')), {})
     heat = next((x for x in panels if str(x.get('label', '')).startswith(('Heat', 'Heating', 'Floors'))), {})
-    for i, (title, value) in enumerate((('ALARM', alarm.get('detail')), ('HOME', home.get('detail')), ('DOORS', K.cap(doors.get('label', '').removeprefix('Doors '))), ('HEAT', K.cap(heat.get('label', '').removeprefix('Heat '))))):
-        x = 48 + i * 248
-        ink = title == 'DOORS' and doors.get('urgent') is True
-        p.append(f'<div class="a box{" ink" if ink else ""}" style="left:{x}px;top:726px;width:232px;height:140px"></div>' + t(x + 20, 742, title, 21, 'sm', 192, '#fff' if ink else None))
-        persons = (home.get('persons') or []) if title == 'HOME' else []
-        if persons:
-            for j, person in enumerate(persons[:3]):
-                art = person.get('art') if isinstance(person, dict) else None
-                inner = f'<img src="{art}" width="56" height="56" style="object-fit:cover">' if isinstance(art, str) and ART.fullmatch(art) else e((person.get('name') or '?')[:1])
-                p.append(f'<div class="a av" style="left:{x + 20 + j * 64}px;top:788px">{inner}</div>')
-        else:
-            color = ';color:#fff' if ink else ''
-            p.append(f'<div class="a n b" style="left:{x + 20}px;top:787px;width:192px;font-size:23px{color}">{e(value or "Unavailable")}</div>')
-        sub = heat.get('detail') if title == 'HEAT' else (doors.get('detail') or ('all locked' if doors.get('label') == 'Doors locked' else '')) if title == 'DOORS' else ''
-        if sub:
-            p.append(f'<div class="a n" style="left:{x + 20}px;top:827px;width:192px;font-size:18px{";color:#fff" if ink else ""}">{e(sub)}</div>')
-    if charging and isinstance(data.get('cooking'), dict) and 16 <= today.hour < 19:
-        p.append('<div class="a box ink c" style="left:48px;top:726px;width:232px;height:140px;font-size:30px;font-weight:700;padding-top:36px;line-height:1.4">COOK<br>DINNER</div>')
+    ink = doors.get('urgent') is True
+    persons = [{'art': p.get('art') if isinstance(p, dict) and isinstance(p.get('art'), str) and ART.fullmatch(p['art']) else None,
+                'initial': ((p.get('name') or '?')[:1]) if isinstance(p, dict) else '?'} for p in (home.get('persons') or [])[:3]]
+    c['tiles'] = [
+        {'title': 'ALARM', 'value': alarm.get('detail') or 'Unavailable', 'sub': '', 'ink': False, 'persons': None},
+        {'title': 'HOME', 'value': home.get('detail') or 'Unavailable', 'sub': '', 'ink': False, 'persons': persons or None},
+        {'title': 'DOORS', 'value': K.cap(doors.get('label', '').removeprefix('Doors ')) or 'Unavailable',
+         'sub': doors.get('detail') or ('all locked' if doors.get('label') == 'Doors locked' else ''), 'ink': ink, 'persons': None},
+        {'title': 'HEAT', 'value': K.cap(heat.get('label', '').removeprefix('Heat ')) or 'Unavailable', 'sub': heat.get('detail') or '', 'ink': False, 'persons': None}]
+    c['cook_tile'] = charging and isinstance(data.get('cooking'), dict) and 16 <= today.hour < 19
     # lights
     lights = next((x for x in panels if x.get('label') == 'Lights on'), {})
-    p.append(t(48, 892, 'LIGHTS ON', 25, 'lb'))
     floors = lights.get('floors')
+    c['lights'] = {'flat': lights.get('detail') or 'Unavailable', 'floors': None}
     if isinstance(floors, list) and floors:
-        for i, floor in enumerate(floors[:4]):
-            rooms = ', '.join(floor.get('rooms') or []) or '–'
-            x, y = 48 + (i % 2) * 488, 932 + (i // 2) * 44
-            p.append(t(x, y, str(floor.get('floor', '')), 26, 'b', 138) + t(x + 140, y, rooms if len(rooms) <= 26 else rooms[:25] + '…', 26, '', 340))
-    else:
-        p.append(t(48, 934, lights.get('detail') or 'Unavailable', 26, '', 950))
-    if charging:
-        p.append(pill(270, 884, 140, 'ALL OFF') + pill(880, 884, 144, 'MENU'))
+        c['lights']['floors'] = [{'floor': str(f.get('floor', '')), 'rooms': (lambda r: r if len(r) <= 26 else r[:25] + '…')(', '.join(f.get('rooms') or []) or '–')} for f in floors[:4]]
     # energy
-    p.append('<div class="a rule" style="top:1030px"></div>')
     energy = next((x for x in panels if x.get('label') == 'Energy'), {})
     detail = energy.get('detail') or 'Energy unavailable'
-    left, cost = energy.get('kindle_left') or detail, energy.get('kindle_cost') or ''
-    if str(detail).startswith('Saving'):
-        p.append(f'<div class="a box ink n b" style="left:48px;top:1040px;width:976px;height:48px;padding:7px 17px;font-size:22px">{e(left)}</div>')
-    else:
-        p.append(t(48, 1042, left, 25, 'b', 560 if cost else 976) + (t(624, 1042, cost, 25, 'b r', 400) if cost else ''))
-    if data.get('cooking_unavailable') is True:
-        p.append(t(500, 1070, 'Cooking unavailable · controls paused', 18, 'b r', 524))
-    # to-do
+    c['energy'] = {'saving': str(detail).startswith('Saving'), 'left': energy.get('kindle_left') or detail, 'cost': energy.get('kindle_cost') or ''}
+    # to do
     tasks = data.get('tasks')
     offset = device.get('page_offset') if type(device.get('page_offset')) is int else 0
     rows, page_idx, page_cnt, grouped = K.task_page(tasks, offset, stamp)
     partial = data.get('tasks_partial') is True
-    p.append(t(48, 1117, 'TO DO' + (f' · {page_idx + 1}/{page_cnt}' if page_cnt > 1 else ''), 25, 'lb'))
-    if partial:
-        p.append(t(500, 1120, 'Some task sources unavailable', 18, 'r', 524))
-    elif isinstance(tasks, list) and tasks and not grouped:
-        p.append(t(500, 1120, 'Task grouping unavailable', 18, 'r', 524))
-    elif charging and page_cnt > 1:
-        p.append(pill(800, 1106, 108, 'PREV') + pill(916, 1106, 108, 'NEXT'))
+    note = 'Some task sources unavailable' if partial else 'Task grouping unavailable' if isinstance(tasks, list) and tasks and not grouped else ''
+    def title(t):
+        return (K.ENVELOPE if t.get('display_group') == 'message' else '') + str(t.get('title', ''))
+    todo = {'label': 'TO DO' + (f' · {page_idx + 1}/{page_cnt}' if page_cnt > 1 else ''), 'note': note, 'paging': not note and charging and page_cnt > 1,
+            'msg': '', 'empty': False, 'cards': [], 'rooms': [], 'rows': []}
     if tasks is None:
-        p.append(t(48, 1158, 'Task sources unavailable' if data.get('tasks_configured') else 'Task sources not configured', 25))
+        todo['msg'] = 'Task sources unavailable' if data.get('tasks_configured') else 'Task sources not configured'
     elif not rows and partial:
-        p.append(t(48, 1158, 'Task sources unavailable', 25))
+        todo['msg'] = 'Task sources unavailable'
     elif len(rows) <= 2:
-        if not rows:
-            p.append(t(70, 1183, 'No tasks', 23, 'b'))
-        for i, task in enumerate(rows):
-            x = 48 + i * 494
-            ink = task.get('urgent') is True
-            title = (K.ENVELOPE if task.get('display_group') == 'message' else '') + str(task.get('title', ''))
-            p.append(f'<div class="a box{" ink" if ink else ""}" style="left:{x}px;top:1150px;width:482px;height:144px;padding:17px 21px;font-size:23px;font-weight:700;line-height:32px;{"color:#fff" if ink else ""}">'
-                     f'<div style="max-height:64px;overflow:hidden">{e(title)}</div><div style="position:absolute;left:21px;top:104px;font-size:19px;width:430px" class="n">{e(K.detail_text(task.get("detail") or ""))}</div></div>')
-        rooms = [x for x in panels if x.get('kind') == 'room'][:10]
-        if rooms:
-            p.append(t(48, 1315, 'ROOMS', 25, 'lb'))
-            for i, room in enumerate(rooms):
-                x = 97 + i * 97
-                p.append(t(x - 46, 1362, room.get('label', ''), 14, 'c', 92) + t(x - 46, 1403, str(room.get('detail', '–')), 20, 'b c', 92))
+        todo['empty'] = not rows
+        todo['cards'] = [{'ink': t.get('urgent') is True, 'title': title(t), 'detail': K.detail_text(t.get('detail') or '')} for t in rows]
+        todo['rooms'] = [{'l': r.get('label', ''), 'v': str(r.get('detail', '–'))} for r in [x for x in panels if x.get('kind') == 'room'][:10]]
     else:
-        h, pitch, font = {3: (87, 99, 29), 4: (61, 75, 27), 5: (50, 59, 24)}[min(len(rows), 5)]
-        for i, task in enumerate(rows[:5]):
-            y = 1150 + i * pitch
-            ink = task.get('urgent') is True
-            title = (K.ENVELOPE if task.get('display_group') == 'message' else '') + str(task.get('title', ''))
-            d = K.detail_text(task.get('detail') or '')
-            p.append(f'<div class="a row{" ink" if ink else ""}" style="left:48px;top:{y}px;width:976px;height:{h}px;font-size:{font}px"><span class="n">{e(title)}</span>' + (f'<span class="d n r">{e(d)}</span>' if d else '') + '</div>')
+        todo['rows'] = [{'ink': t.get('urgent') is True, 'title': title(t), 'detail': K.detail_text(t.get('detail') or '')} for t in rows[:5]]
+    c['todo'] = todo
     weather_now = (data.get('weather') or {}).get('current') or {}
     overlay = cat_render.render(stamp, weather_now.get('condition'), False)
-    if overlay:
-        p.append(f'<svg class="a" style="left:0;top:0" width="1072" height="1448" viewBox="0 0 1072 1448">{overlay}</svg>')
-    return '<!doctype html><meta charset="utf-8"><style>' + CSS + '</style><body>' + ''.join(p) + '</body>'
+    c['overlay'] = Safe(overlay) if overlay else ''
+    return c
+
+
+def page(data, alerts=None, now=None):
+    return render('main.html', **context(data, alerts, now))
 
 
 def to_grey(path):
@@ -277,6 +237,13 @@ class Renderer:
     def __init__(self, chromium=None, run=subprocess.run, grey=to_grey, timeout=30):
         self.chromium = chromium or next((c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser') if os.path.exists(c)), 'chromium')
         self.run, self.grey, self.timeout = run, grey, timeout
+        self.last_error = ''
+
+    def note(self, exc):
+        text = type(exc).__name__ + ': ' + str(exc)[:200]
+        if text != self.last_error:
+            print('kindle html renderer fell back to SVG: ' + text, file=sys.stderr, flush=True)
+        self.last_error = text
 
     def shoot(self, html_text):
         """One Chromium picture from a page -> greyscale PNG bytes, or None on any failure."""
@@ -293,22 +260,28 @@ class Renderer:
                 with open(grey, 'rb') as f:
                     value = f.read()
             return value if value.startswith(b'\x89PNG\r\n\x1a\n') and 4096 < len(value) < 8 * 1024 * 1024 else None
-        except (OSError, ValueError, subprocess.SubprocessError):
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            self.note(exc)
+            return None
+
+    def build(self, make):
+        """Run a page builder; a broken template or odd data means 'use the SVG', never an error."""
+        try:
+            return self.shoot(make())
+        except Exception as exc:   # jinja2.TemplateError, KeyError, TypeError ...: the SVG picture covers it
+            self.note(exc)
             return None
 
     def screen(self, name, payload, alerts=None, now=None):
         """The other screens: 'dinner', 'home', 'birthdays', 'menu', 'cooking'. None = use the SVG picture."""
         import screens_html
-        build = {'dinner': screens_html.dinner, 'home': screens_html.home, 'birthdays': screens_html.birthdays, 'menu': screens_html.menu}.get(name)
-        try:
-            if name == 'cooking':
-                return self.shoot(screens_html.cooking(payload, alerts)) if isinstance(payload, dict) else None
-            return self.shoot(build(payload, now)) if build else None
-        except (KeyError, TypeError, ValueError):
-            return None
+        if name == 'cooking':
+            return self.build(lambda: screens_html.cooking(payload, alerts)) if isinstance(payload, dict) else None
+        make = {'dinner': screens_html.dinner, 'home': screens_html.home, 'birthdays': screens_html.birthdays, 'menu': screens_html.menu}.get(name)
+        return self.build(lambda: make(payload, now)) if make else None
 
     def png(self, data, alerts=None, now=None):
         """-> PNG bytes, or None when the page cannot draw this state or Chromium fails (the caller then uses the SVG)."""
         if not supports(data, alerts, now):
             return None
-        return self.shoot(page(data, alerts, now))
+        return self.build(lambda: page(data, alerts, now))

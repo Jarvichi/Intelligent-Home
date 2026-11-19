@@ -116,7 +116,15 @@ def main():
             for person in presence.get('members',[]):
                 key=person.get('presence_key','');person['transition']=attrs.get(key+('_arrived' if person.get('home') is True else '_left')) if key else None
         return result
-    html=kindle_html.Renderer() if opts.get('renderer')=='html' else None   # the main screen as an HTML page; anything it cannot draw falls back to the SVG
+    html=None
+    if opts.get('renderer')=='html':   # every screen as an HTML page; anything it cannot draw falls back to the SVG
+        mine=Path('/config/templates')   # the add-on's own config folder: your template files here are used before the built-in ones
+        kindle_html.configure(mine if mine.is_dir() else None)
+        try:
+            reference=mine/'default';reference.mkdir(parents=True,exist_ok=True)
+            for source in kindle_html.BUILTIN.iterdir():(reference/source.name).write_bytes(source.read_bytes())   # a fresh copy to start from
+        except OSError:pass
+        html=kindle_html.Renderer()
     alert_reader=shared.alerts if opts.get('render_shared_alerts') is True else None
     ingress=ThreadingHTTPServer(('0.0.0.0',8840),make_handler(store,True,sources=sources,snapshot=snapshot,alerts=alert_reader,variants=variants,menu=cooking.menu,html=html))
     threading.Thread(target=ingress.serve_forever,daemon=True).start()
