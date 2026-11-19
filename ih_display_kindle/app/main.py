@@ -35,6 +35,11 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
             value=html.png(data,alert_data)
             if value:return value
         return kindle_render.svg(data,alert_data)
+    def popup(name,payload):
+        if html:
+            value=html.screen(name,payload,None)
+            if value:return value
+        return popup_render.svg(name,payload)
     class Handler(BaseHTTPRequestHandler):
         def reply(self,code,body,kind='application/json'):
             raw=body if isinstance(body,bytes) else json.dumps(body).encode()
@@ -61,11 +66,11 @@ def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts
                 if screen not in ('main','dinner','home','birthdays'):return self.reply(400,{'error':'Invalid preview screen.'})
                 try:
                     if screen=='dinner':
-                        page=int((query.get('page') or ['0'])[0]);picture=popup_render.svg('dinner',menu(page) if menu else None)
+                        page=int((query.get('page') or ['0'])[0]);picture=popup('dinner',menu(page) if menu else None)
                     else:
                         data=snapshot()
-                        if screen=='home':picture=popup_render.svg('home',next((x for x in data.get('panels',[]) if x.get('label')=='Home'),None))
-                        elif screen=='birthdays':picture=popup_render.svg('birthdays',data.get('birthdays'))
+                        if screen=='home':picture=popup('home',next((x for x in data.get('panels',[]) if x.get('label')=='Home'),None))
+                        elif screen=='birthdays':picture=popup('birthdays',data.get('birthdays'))
                         else:picture=main_picture(data,alerts() if alerts else {'configured':False,'complete':False,'alerts':[]})
                     return self.reply(200,picture if picture[:8]==b'\x89PNG\r\n\x1a\n' else png_encoder(picture),'image/png')
                 except (OSError,ValueError,TypeError,subprocess.SubprocessError):return self.reply(503,{'error':'Preview unavailable.'})

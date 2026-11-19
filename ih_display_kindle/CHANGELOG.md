@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- With `renderer: html` the dinner menu, who's-home, birthdays, Kindle menu and cooking screens are now HTML pages too, at the same positions as the SVG pictures so the touch zones still line up. Any screen Chromium cannot make falls back to the SVG picture.
+
 ## 0.7.0
 
 - New option `renderer` (`svg` default, or `html`). With `html` the main Kindle screen is built as an HTML and CSS page and rendered by headless Chromium to a greyscale picture. The browser does the text layout, fonts and emoji. The cooking screen, Halloween and event-day headers still use the SVG picture automatically, and so does any picture Chromium fails to make.

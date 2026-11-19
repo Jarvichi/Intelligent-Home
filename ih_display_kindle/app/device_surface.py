@@ -19,9 +19,17 @@ class DeviceSurface:
     def main_picture(self,data,alerts,now):
         """The main screen: the HTML page when it is switched on and can draw this state, otherwise the SVG picture."""
         if self.html:
-            value=self.html.png(data,alerts,now)
+            cook=data.get('cooking')
+            value=self.html.screen('cooking',cook,alerts,now) if isinstance(cook,dict) and cook.get('running') is True else self.html.png(data,alerts,now)
             if value:return value
         return kindle_render.svg(data,alerts,now=now)
+
+    def screen_picture(self,name,payload):
+        """A popup screen: HTML when switched on, otherwise (or if Chromium fails) the SVG picture."""
+        if self.html:
+            value=self.html.screen(name,payload,None)
+            if value:return value
+        return device_menu.svg() if name=='menu' else popup_render.svg(name,payload)
 
     def encode(self,image):
         return image if image[:8]==b'\x89PNG\r\n\x1a\n' else self.png(image)   # the SVG picture is bytes too, so check the PNG signature
@@ -95,7 +103,7 @@ class DeviceSurface:
                 if powered and grouped and pages>1 and data.get('tasks_partial') is not True:
                     add([800,1106,908,1142],self.actions.describe('page',delta=-1));add([916,1106,1024,1142],self.actions.describe('page',delta=1))
         elif screen=='menu':
-            image=device_menu.svg()
+            image=self.screen_picture('menu',None)
             nav([140,300,932,416],'dinner');nav([140,440,932,556],'home')
             if powered:
                 add([140,580,932,696],self.actions.describe('lights'));add([140,720,932,836],self.actions.describe('refresh'))
@@ -116,11 +124,11 @@ class DeviceSurface:
                     nav([48,1240,288,1344],'dinner',(current-1)%pages,eat);nav([312,1240,760,1344],'main');nav([784,1240,1024,1344],'dinner',(current+1)%pages,eat)
                 else:nav([48,1240,1024,1344],'main')
             else:nav([48,1240,1024,1344],'main')
-            image=popup_render.svg('dinner',menu)
+            image=self.screen_picture('dinner',menu)
         elif screen=='home':
-            image=popup_render.svg('home',next((p for p in data.get('panels',[]) if p.get('label')=='Home'),None));nav([140,1010,932,1114],'main')
+            image=self.screen_picture('home',next((p for p in data.get('panels',[]) if p.get('label')=='Home'),None));nav([140,1010,932,1114],'main')
         elif screen=='birthdays':
-            image=popup_render.svg('birthdays',data.get('birthdays'));nav([48,1240,1024,1344],'main')
+            image=self.screen_picture('birthdays',data.get('birthdays'));nav([48,1240,1024,1344],'main')
         else:raise ValueError('invalid screen')
         return self.encode(image),zones
 

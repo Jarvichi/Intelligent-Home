@@ -278,15 +278,13 @@ class Renderer:
         self.chromium = chromium or next((c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser') if os.path.exists(c)), 'chromium')
         self.run, self.grey, self.timeout = run, grey, timeout
 
-    def png(self, data, alerts=None, now=None):
-        """-> PNG bytes, or None when the page cannot draw this state or Chromium fails (the caller then uses the SVG)."""
-        if not supports(data, alerts, now):
-            return None
+    def shoot(self, html_text):
+        """One Chromium picture from a page -> greyscale PNG bytes, or None on any failure."""
         try:
             with tempfile.TemporaryDirectory(prefix='kindle-html-') as folder:
                 source, shot = os.path.join(folder, 'page.html'), os.path.join(folder, 'shot.png')
                 with open(source, 'w', encoding='utf-8') as f:
-                    f.write(page(data, alerts, now))
+                    f.write(html_text)
                 self.run([self.chromium, *self.ARGS, '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
                          env=dict(os.environ, HOME=folder))
                 grey = self.grey(shot)
@@ -297,3 +295,20 @@ class Renderer:
             return value if value.startswith(b'\x89PNG\r\n\x1a\n') and 4096 < len(value) < 8 * 1024 * 1024 else None
         except (OSError, ValueError, subprocess.SubprocessError):
             return None
+
+    def screen(self, name, payload, alerts=None, now=None):
+        """The other screens: 'dinner', 'home', 'birthdays', 'menu', 'cooking'. None = use the SVG picture."""
+        import screens_html
+        build = {'dinner': screens_html.dinner, 'home': screens_html.home, 'birthdays': screens_html.birthdays, 'menu': screens_html.menu}.get(name)
+        try:
+            if name == 'cooking':
+                return self.shoot(screens_html.cooking(payload, alerts)) if isinstance(payload, dict) else None
+            return self.shoot(build(payload, now)) if build else None
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def png(self, data, alerts=None, now=None):
+        """-> PNG bytes, or None when the page cannot draw this state or Chromium fails (the caller then uses the SVG)."""
+        if not supports(data, alerts, now):
+            return None
+        return self.shoot(page(data, alerts, now))

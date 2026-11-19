@@ -16,7 +16,7 @@ For kindle-dash v2, `device/integrate_legacy.py CURRENT COPY` generates a separa
 
 While charging, the client can prefetch dinner, home and birthday pictures. Navigation shows a cached picture immediately, then loads the live screen. If the service is unavailable, the cached picture remains read-only and offers a local Back action. Cached pictures cannot show new alerts while offline.
 
-Set `renderer` to `html` to try the HTML page for the main screen (default `svg`). It draws the normal screen at the same positions as the SVG picture so the tap zones still line up. The cooking screen, Halloween and event-day headers use the SVG picture, and so does any picture Chromium cannot make. Compare the two in the preview before switching the device to the new add-on.
+Set `renderer` to `html` to use HTML pages for every Kindle screen (default `svg`): the main screen, the dinner menu, who is home, birthdays, the Kindle menu and cooking. It draws the normal screen at the same positions as the SVG picture so the tap zones still line up. Halloween and event-day headers use the SVG picture, and so does any picture Chromium cannot make. Compare the two in the preview before switching the device to the new add-on.
 
 Each `render_lights` group may carry an optional `floor` (for example `Ground`, `1st floor`, `2nd floor`, `Outside`). When every group has one, the Kindle lists the rooms that are on floor by floor, in two columns, like the original picture. Without floors it shows one flat list.
 
