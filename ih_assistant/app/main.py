@@ -19,9 +19,10 @@ import caldav as caldavmod
 import dates as datesmod
 import reminders as remmod
 import gateway as gatewaymod
+import hearth as hearthmod
 import random
 
-VERSION = '0.17.0'
+VERSION = '0.23.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -174,6 +175,8 @@ def load_options(path):
             'bedtime_nudge': p.get('bedtime_nudge') is True, 'bedtime_start': hhmm(p.get('bedtime_start'), '22:00'), 'bedtime_end': hhmm(p.get('bedtime_end'), '00:30'),
             'bedtime_every_min': int(num(p.get('bedtime_every_min'), 5, 240, 30)), 'bedtime_firm_after': hhmm(p.get('bedtime_firm_after'), '23:00'),
             'awake_entities': ents(p.get('awake_entities'))[:10], 'bedtime_texts': [x.strip()[:300] for x in (p.get('bedtime_texts') or []) if isinstance(x, str) and x.strip()][:10] if isinstance(p.get('bedtime_texts'), list) else [],
+            'household': p.get('household') is True,   # 0.23.0: a shared household assistant (Hearth): no private chat, no bot needed
+            'household_users': [u.strip().lower() for u in (p.get('household_users') or []) if isinstance(u, str) and PERSON_RE.match(u.strip().lower())][:10] if isinstance(p.get('household_users'), list) else [],
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
@@ -191,6 +194,8 @@ def load_options(path):
             'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
             'discord_push': o.get('discord_push') is not False,
             'presence_entities': parse_presence_entities(o.get('presence_entities')),
+            'speaker_url': str(o.get('speaker_url') or '').strip().rstrip('/'), 'speaker_token': str(o.get('speaker_token') or '').strip(),
+            'hearth': hearthmod.parse_options(o.get('hearth')),
             'personas': personas}, problems
 
 
@@ -225,6 +230,30 @@ class Assistant:
             if p['bot_token'] and p['user_id']:
                 self.discord[k] = Discord(p['bot_token'], opener, sleep)
         self.init_push()
+        self.hearth = self.make_hearth()
+
+    def make_hearth(self):
+        """0.23.0: Hearth, the shared household assistant, when its option is enabled and a household persona with its key exists."""
+        h = self.opts.get('hearth') or {}
+        if not h.get('enabled'):
+            return None
+        k = h['persona']
+        if k not in self.cfg or not self.cfg[k].get('household'):
+            self.log('hearth: enabled but no household persona %s: off' % k)
+            return None
+        if not (h['speaker'] and h['alarm_entity']):
+            self.log('hearth: speaker or alarm_entity not set: bedtime message will not run')
+        return hearthmod.Hearth(self.ha, h, hearthmod.make_speaker_client(self.opts.get('speaker_url'), self.opts.get('speaker_token')), self.now, self.sleep, self.log,
+                                lambda: self.is_live(k), store=self.stores[k], rng=self.rng)
+
+    def start_hearth(self):
+        """Follow Home Assistant state changes for the alarm and the kitchen door. -> the thread, or None."""
+        if self.hearth is None or self.ha is None:
+            return None
+        self.hearth_stop = threading.Event()
+        t = threading.Thread(target=self.hearth.listen, args=(self.hearth_stop,), daemon=True)
+        t.start()
+        return t
 
     # ---- push from the Discord Gateway (0.15.0) ----
     def init_push(self):
@@ -2193,11 +2222,20 @@ class Assistant:
         self.log('persona %s: attachment %s/%s fetched (%d bytes)' % (key, msg_id, n, len(data)))
         return 200, data, str(a.get('content_type') or 'application/octet-stream')
 
+    def hearth_preview(self, event):
+        """Read-only: what Hearth would say now for 'armed' or 'failed' (it plays nothing and says nothing to the speaker)."""
+        if self.hearth is None:
+            return 404, {'ok': False, 'why': 'hearth is off'}
+        if event not in ('armed', 'failed'):
+            return 400, {'ok': False, 'why': 'event is armed or failed'}
+        h = self.hearth
+        return 200, {'ok': True, 'event': event, 'awake': h.awake(), 'would_speak': event == 'failed' or h.awake(), 'check_door_first': bool(h.suspect()) and event != 'failed', 'text': h.build(event, False)}
+
     def status(self):
         out = {}
         for k, c in self.cfg.items():
             s = self.stores[k]
-            out[k] = {'live': self.is_live(k), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
+            out[k] = {'live': self.is_live(k), 'household': c.get('household', False), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
                       'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF, 'checkin_rules': self.checkin_rules(k)}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
@@ -2221,6 +2259,8 @@ def make_handler(app):
                 return self._send(503, {'ok': False, 'why': 'STOP file present'})
             if method == 'GET' and parts == ['status']:
                 return self._send(200, app.status())
+            if method == 'GET' and parts == ['hearth', 'preview']:
+                return self._send(*app.hearth_preview((parse_qs(u.query).get('event') or ['armed'])[0]))
             if len(parts) < 3 or parts[0] != 'persona' or parts[1] not in app.stores:
                 return self._send(404, {'ok': False})
             key, act = parts[1], parts[2]
@@ -2333,7 +2373,7 @@ def worker(app, key):
 
 def main():
     opts, problems = load_options(os.environ.get('IHP_OPTIONS', '/data/options.json'))
-    secrets = [opts['api_token'], opts['facts_key'], opts.get('giphy_api_key', ''), opts.get('caldav_password', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
+    secrets = [opts['api_token'], opts['speaker_token'], opts['facts_key'], opts.get('giphy_api_key', ''), opts.get('caldav_password', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
     lg = logging.getLogger('ih_assistant'); lg.setLevel(logging.INFO)
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     log = ihlog.Logger(lg.info, [s for s in secrets if len(s) >= 4])
@@ -2352,6 +2392,7 @@ def main():
     for k in app.cfg:
         threading.Thread(target=worker, args=(app, k), daemon=True).start()
     app.start_gateways()
+    app.start_hearth()
     def on_term(signum, frame):
         raise SystemExit(0)
     signal.signal(signal.SIGTERM, on_term)   # Supervisor stop: leave serve_forever so the gateways close cleanly

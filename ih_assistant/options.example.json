@@ -17,6 +17,26 @@
     "person_a=switch.person_a_home",
     "person_b=switch.person_b_home"
   ],
+  "speaker_url": "http://speaker-host:8831",
+  "speaker_token": "",
+  "hearth": {
+    "enabled": false,
+    "persona": "hearth",
+    "speaker": "bedroom",
+    "voice": "hearth",
+    "alarm_entity": "alarm_control_panel.example",
+    "bedroom_lamps": ["light.example_bedside"],
+    "locks": ["lock.example=the front door"],
+    "doors": ["binary_sensor.example_door=the front door"],
+    "lock_door_pairs": ["lock.example=binary_sensor.example_door"],
+    "lights_downstairs": ["light.example_hall"],
+    "forecast_entity": "sensor.example_forecast",
+    "workday_calendar": "calendar.example_workdays",
+    "own_calendar": "calendar.example_own",
+    "event_calendars": ["calendar.example_family"],
+    "wake_up_entity": "input_datetime.example_wake_up",
+    "picard": {"enabled": false, "door_entity": "binary_sensor.example_door", "person_switch": "switch.example_person_home", "person_name": "Alex", "speaker": "kitchen", "voice": "picard", "lines": ["Welcome home, {name}. Make it so."]}
+  },
   "personas": [
     {
       "key": "persona_a",
