@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s);
-  let info = {speakers: [], voices: [], engines: [], mode: 'dry'}, timer = null;
+  let info = {speakers: [], voices: [], engines: [], mode: 'dry'}, timer = null, sortKey = 'last_used', sortDir = -1, player = null;
   const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
   const api = async (path, body) => {
     const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
@@ -19,29 +19,52 @@
     fill($('#gen-voice'), info.voices, ['', 'Engine default']); fill($('#speaker'), info.speakers); fill($('#gen-speaker'), info.speakers);
   }
   async function load() {
-    const p = new URLSearchParams({q: $('#q').value.trim(), engine: $('#f-engine').value, voice: $('#f-voice').value});
+    const p = new URLSearchParams({q: $('#q').value.trim(), engine: $('#f-engine').value, voice: $('#f-voice').value, pinned: $('#f-pin').value});
     const d = await api('api/clips?' + p);
     const rows = $('#rows'); rows.replaceChildren();
+    const val = c => sortKey === 'voice' ? c.engine + c.voice : sortKey === 'text' ? c.text.toLowerCase() : sortKey === 'pinned' ? (c.pinned ? 1 : 0) : c[sortKey];
+    d.clips.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sortDir);
+    document.querySelectorAll('th .sort').forEach(h => h.parentElement.setAttribute('aria-sort', h.dataset.k === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'));
     d.clips.forEach(c => {
-      const tr = el('tr'), msg = el('td', c.text, 'msg');
-      if (c.label) msg.append(el('span', c.label, 'tag')); if (c.pinned) msg.append(el('span', 'pinned', 'tag'));
-      tr.append(msg, el('td', (c.engine.replace('tts.', '')) + (c.voice ? ' / ' + c.voice : '')), el('td', kb(c.size)), el('td', String(c.hits)), el('td', ago(c.last_used)));
+      const tr = el('tr'), msg = el('td', c.text, 'msg'), pin = el('td', undefined, 'pincell');
+      pin.append(el('span', c.pinned ? 'Pinned' : '-', c.pinned ? 'tag pinned' : 'muted'));
+      if (c.auto_pinned) pin.append(el('span', 'auto', 'tag auto'));
+      if (c.label) msg.append(el('span', c.label, 'tag'));
+      tr.append(pin, msg, el('td', (c.engine.replace('tts.', '')) + (c.voice ? ' / ' + c.voice : '')), el('td', kb(c.size)), el('td', String(c.hits)), el('td', String(c.uses_30d)), el('td', ago(c.last_used)));
       const b = el('td', undefined, 'btns');
-      const btn = (t, f, cls) => { const x = el('button', t, cls); x.type = 'button'; x.onclick = f; b.append(x); return x; };
-      btn('Listen', () => { const a = new Audio('api/clips/' + c.id + '/audio'); a.play().catch(() => msg.append(el('span', 'cannot play here', 'tag'))); });
+      const btn = (t, f, cls) => { const x = el('button', t, cls); x.type = 'button'; x.onclick = () => Promise.resolve(f()).catch(err); b.append(x); return x; };
+      btn('Listen', () => listen(c));
       btn('Play on speaker', async () => say(await api('api/clips/' + c.id + '/play', {speaker: $('#speaker').value})));
-      btn(c.pinned ? 'Unpin' : 'Pin', async () => { await api('api/clips/' + c.id + '/pin', {pinned: !c.pinned}); load(); }, c.pinned ? 'pinned' : '');
-      btn('Delete', async () => { if (confirm('Delete this clip?')) { await api('api/clips/' + c.id + '/delete', {}); load(); } });
+      btn(c.pinned ? 'Unpin' : 'Pin', async () => { await api('api/clips/' + c.id + '/pin', {pinned: !c.pinned}); await load(); }, c.pinned ? 'pinned' : '');
+      btn('Delete', async () => { if (confirm('Delete this clip?')) { await api('api/clips/' + c.id + '/delete', {}); await load(); } });
       tr.append(b); rows.append(tr);
     });
     $('#empty').hidden = d.clips.length > 0;
-    if (d.stats) $('#stats').textContent = d.stats.clips + ' clips (' + d.stats.pinned + ' pinned), ' + kb(d.stats.bytes) + ' of ' + kb(d.stats.max_bytes);
+    if (d.stats) meter(d.stats);
+  }
+  function meter(st) {
+    const pct = Math.min(100, st.percent);
+    $('#stats').textContent = st.clips + ' clips (' + st.pinned + ' pinned' + (st.auto_pinned ? ', ' + st.auto_pinned + ' auto' : '') + ')' + (st.auto_pin_uses ? '. Auto-pin: ' + st.auto_pin_uses + ' uses in ' + st.auto_pin_days + ' days.' : '');
+    $('#bar-fill').style.width = pct + '%'; $('#bar').setAttribute('aria-valuenow', String(Math.round(pct))); $('#bar').classList.toggle('full', st.percent >= 90);
+    $('#bar-text').textContent = kb(st.bytes) + ' of ' + kb(st.max_bytes) + ' (' + st.percent + '%)';
+  }
+  // Listen plays through the ingress itself (relative URL, no signed link, so it needs neither base_url nor api_token). If the audio element refuses
+  // the stream, the file is fetched and played from memory instead.
+  async function listen(c) {
+    if (player) { player.pause(); player = null; }
+    const url = 'api/clips/' + c.id + '/audio', a = new Audio(); player = a;
+    try { a.src = url; await a.play(); return; } catch (e) { /* fall back below */ }
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Could not load the clip.');
+    const blob = await r.blob(), b = new Audio(URL.createObjectURL(blob)); player = b;
+    try { await b.play(); } catch (e) { throw new Error('This browser could not play the clip.'); }
   }
   function say(r) { $('#status').textContent = r.status === 'dry' ? 'Dry mode: nothing was played.' : r.status === 'spoken' ? 'Played.' : 'Not played (' + r.status + (r.reason ? ': ' + r.reason : '') + ').'; }
   const err = e => { $('#status').textContent = e.message; };
   const later = () => { clearTimeout(timer); timer = setTimeout(() => load().catch(err), 250); };
-  $('#q').oninput = later; $('#f-voice').onchange = $('#f-engine').onchange = () => load().catch(err);
-  $('#clear').onclick = () => { $('#q').value = ''; $('#f-voice').value = '*'; $('#f-engine').value = ''; load().catch(err); };
+  $('#q').oninput = later; $('#f-voice').onchange = $('#f-engine').onchange = $('#f-pin').onchange = () => load().catch(err);
+  document.querySelectorAll('th .sort').forEach(h => h.onclick = () => { sortDir = sortKey === h.dataset.k ? -sortDir : (['text', 'voice'].includes(h.dataset.k) ? 1 : -1); sortKey = h.dataset.k; load().catch(err); });
+  $('#clear').onclick = () => { $('#q').value = ''; $('#f-voice').value = '*'; $('#f-engine').value = ''; $('#f-pin').value = ''; load().catch(err); };
   let act = 'save';
   document.querySelectorAll('#gen button[type=submit]').forEach(b => b.onclick = () => { act = b.dataset.act; });
   $('#gen').onsubmit = async ev => {

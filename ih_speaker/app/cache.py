@@ -14,12 +14,18 @@ MIGRATIONS = [(1, '''CREATE TABLE clips(
     id INTEGER PRIMARY KEY, engine TEXT NOT NULL, voice TEXT NOT NULL, key TEXT NOT NULL, text TEXT NOT NULL,
     label TEXT NOT NULL DEFAULT '', ext TEXT NOT NULL, size INTEGER NOT NULL, created REAL NOT NULL, last_used REAL NOT NULL,
     hits INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, UNIQUE(engine, voice, key));
-    CREATE INDEX clips_lru ON clips(pinned, last_used)''')]
+    CREATE INDEX clips_lru ON clips(pinned, last_used)'''),
+    (2, '''ALTER TABLE clips ADD COLUMN auto_pinned INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE clips ADD COLUMN user_unpinned INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE uses(clip_id INTEGER NOT NULL, at REAL NOT NULL);
+    CREATE INDEX uses_clip ON uses(clip_id, at)''')]
 
-COLS = 'id, engine, voice, key, text, label, ext, size, created, last_used, hits, pinned'
+COLS = 'id, engine, voice, key, text, label, ext, size, created, last_used, hits, pinned, auto_pinned, user_unpinned'
 FIELDS = COLS.split(', ')
 MAX_CLIP = 8 * 1024 * 1024
 DAY = 86400
+USE_KEEP_DAYS = 90        # the use log keeps at least this long (longer when auto_pin_days is larger)
+COUNT_DAYS = 30           # the page shows uses in the last 30 days
 
 
 def normalise(text):
@@ -44,16 +50,21 @@ def sniff_ext(data):
         return 'ogg'
     if data[:4] == b'fLaC':
         return 'flac'
+    if data[4:8] == b'ftyp':
+        return 'm4a'
+    if data[:2] in (b'\xff\xf1', b'\xff\xf9'):
+        return 'aac'
     return 'mp3'
 
 
-MIME = {'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'flac': 'audio/flac'}
+MIME = {'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'flac': 'audio/flac', 'm4a': 'audio/mp4', 'aac': 'audio/aac'}
 
 
 class Cache:
-    def __init__(self, directory, database, max_bytes=1024 * 1024 * 1024, days=30, clock=time.time):
+    def __init__(self, directory, database, max_bytes=1024 * 1024 * 1024, days=30, clock=time.time, auto_pin_uses=5, auto_pin_days=30):
         """`database` is an ihlib.db.DB (usually /data/ih.db) or a path."""
         self.dir, self.max_bytes, self.days, self.clock = directory, int(max_bytes), int(days), clock
+        self.auto_pin_uses, self.auto_pin_days = int(auto_pin_uses), int(auto_pin_days)   # uses = 0 switches auto-pin off
         self.db = database if hasattr(database, 'query') else ihdb.open_db(database, MIGRATIONS)
         if hasattr(database, 'query') and database.schema_version() < MIGRATIONS[-1][0]:
             database.migrate(MIGRATIONS)
@@ -66,14 +77,21 @@ class Cache:
 
     @staticmethod
     def _row(r):
-        return dict(zip(FIELDS, r), pinned=bool(r[11])) if r else None
+        return dict(zip(FIELDS, r), pinned=bool(r[11]), auto_pinned=bool(r[12]), user_unpinned=bool(r[13])) if r else None
 
     def find(self, engine, voice, text):
         return self._row((self.db.query('SELECT %s FROM clips WHERE engine=? AND voice=? AND key=?' % COLS,
                                         (engine, voice or '', text_key(text))) or [None])[0])
 
     def by_id(self, cid):
-        return self._row((self.db.query('SELECT %s FROM clips WHERE id=?' % COLS, (int(cid),)) or [None])[0])
+        row = self._row((self.db.query('SELECT %s FROM clips WHERE id=?' % COLS, (int(cid),)) or [None])[0])
+        if row:
+            row['uses_30d'] = self.uses_since(row['id'], COUNT_DAYS)
+        return row
+
+    def uses_since(self, cid, days):
+        """How many times a clip was used in the last `days` days."""
+        return int(self.db.query('SELECT COUNT(*) FROM uses WHERE clip_id=? AND at>=?', (int(cid), self.clock() - days * DAY))[0][0])
 
     def by_label(self, engine, voice, label):
         lab = normalise(label)
@@ -83,14 +101,19 @@ class Cache:
                 return row
         return None
 
-    def list(self, engine='', voice=None, q=''):
+    def list(self, engine='', voice=None, q='', pinned=None):
         """Rows newest-used first. voice None = all voices ('' is the engine default voice)."""
         sql, args = 'SELECT %s FROM clips WHERE 1=1' % COLS, []
         if engine:
             sql, args = sql + ' AND engine=?', args + [engine]
         if voice is not None:
             sql, args = sql + ' AND voice=?', args + [voice]
+        if pinned is not None:
+            sql, args = sql + ' AND pinned=?', args + [int(bool(pinned))]
+        counts = dict(self.db.query('SELECT clip_id, COUNT(*) FROM uses WHERE at>=? GROUP BY clip_id', (self.clock() - COUNT_DAYS * DAY,)))
         rows = [self._row(r) for r in self.db.query(sql + ' ORDER BY last_used DESC', args)]
+        for r in rows:
+            r['uses_30d'] = int(counts.get(r['id'], 0))
         needle = normalise(q)
         return [r for r in rows if not needle or needle in normalise(r['text']) or needle in normalise(r['label'])]
 
@@ -103,16 +126,39 @@ class Cache:
             return f.read()
 
     # ---- use
-    def get(self, engine, voice, text):
+    def get(self, engine, voice, text, count=True):
         """A hit: the row, with last_used and hits updated. A miss, or a row whose file is gone: None (the stale row is dropped)."""
         row = self.find(engine, voice, text)
         if not row:
             return None
         if not os.path.exists(self.path(row)):
             self.db.execute('DELETE FROM clips WHERE id=?', (row['id'],))
+            self.db.execute('DELETE FROM uses WHERE clip_id=?', (row['id'],))
             return None
-        self.db.execute('UPDATE clips SET last_used=?, hits=hits+1 WHERE id=?', (self.clock(), row['id']))
+        if count:
+            self.record_use(row['id'])
         return self.by_id(row['id'])
+
+    def record_use(self, cid):
+        """One real use of a clip (a cache hit that is played or sent): bump the counters, log the time, auto-pin when it is used often.
+        Dry runs, the admin page and seeding never call this. -> True when this use pinned the clip."""
+        now = self.clock()
+        with self.lock:
+            self.db.execute('UPDATE clips SET last_used=?, hits=hits+1 WHERE id=?', (now, int(cid)))
+            self.db.execute('INSERT INTO uses(clip_id, at) VALUES(?,?)', (int(cid), now))
+            self.db.execute('DELETE FROM uses WHERE clip_id=? AND at<?', (int(cid), now - max(USE_KEEP_DAYS, self.auto_pin_days) * DAY))
+            if self.auto_pin_uses <= 0:
+                return False
+            row = self.find_id(cid)
+            if not row or row['pinned'] or row['user_unpinned']:
+                return False
+            if self.uses_since(cid, self.auto_pin_days) >= self.auto_pin_uses:
+                self.db.execute('UPDATE clips SET pinned=1, auto_pinned=1 WHERE id=?', (int(cid),))
+                return True
+            return False
+
+    def find_id(self, cid):
+        return self._row((self.db.query('SELECT %s FROM clips WHERE id=?' % COLS, (int(cid),)) or [None])[0])
 
     def put(self, engine, voice, text, data, label='', pinned=None):
         """Store a clip (replaces the audio of the same engine, voice and text), then expire and evict. -> row."""
@@ -132,8 +178,8 @@ class Cache:
                 if old['ext'] != ext:
                     self._unlink(old)
                 self.db.execute('UPDATE clips SET ext=?, size=?, last_used=?, text=?, label=CASE WHEN ?<>\'\' THEN ? ELSE label END, '
-                                'pinned=CASE WHEN ? IS NULL THEN pinned ELSE ? END WHERE id=?',
-                                (ext, len(data), now, text, label, label, pinned, None if pinned is None else int(bool(pinned)), old['id']))
+                                'pinned=CASE WHEN ? IS NULL THEN pinned ELSE ? END, auto_pinned=CASE WHEN ? THEN 0 ELSE auto_pinned END WHERE id=?',
+                                (ext, len(data), now, text, label, label, pinned, None if pinned is None else int(bool(pinned)), int(bool(pinned)), old['id']))
                 cid = old['id']
             else:
                 cid = self.db.execute('INSERT INTO clips(engine, voice, key, text, label, ext, size, created, last_used, hits, pinned) '
@@ -143,7 +189,12 @@ class Cache:
             return self.by_id(cid)
 
     def set_pinned(self, cid, pinned):
-        return bool(self.db.execute('UPDATE clips SET pinned=? WHERE id=?', (int(bool(pinned)), int(cid))).rowcount)
+        """A person pins or unpins. A pin clears the 'auto' mark; an unpin is remembered so auto-pin never pins that clip again."""
+        if pinned:
+            sql = 'UPDATE clips SET pinned=1, auto_pinned=0, user_unpinned=0 WHERE id=?'
+        else:
+            sql = 'UPDATE clips SET pinned=0, auto_pinned=0, user_unpinned=1 WHERE id=?'
+        return bool(self.db.execute(sql, (int(cid),)).rowcount)
 
     def delete(self, cid):
         with self.lock:
@@ -152,6 +203,7 @@ class Cache:
                 return False
             self._unlink(row)
             self.db.execute('DELETE FROM clips WHERE id=?', (row['id'],))
+            self.db.execute('DELETE FROM uses WHERE clip_id=?', (row['id'],))
             return True
 
     def _unlink(self, row):
@@ -193,8 +245,10 @@ class Cache:
 
     def stats(self):
         size, n = self.total()
-        pinned = self.db.query('SELECT COUNT(*) FROM clips WHERE pinned=1')[0][0]
-        return {'clips': n, 'pinned': pinned, 'bytes': size, 'max_bytes': self.max_bytes, 'days': self.days}
+        pinned, auto = self.db.query('SELECT COALESCE(SUM(pinned),0), COALESCE(SUM(auto_pinned),0) FROM clips')[0]
+        pct = round(100.0 * size / self.max_bytes, 1) if self.max_bytes else 0.0
+        return {'clips': n, 'pinned': int(pinned), 'auto_pinned': int(auto), 'bytes': size, 'max_bytes': self.max_bytes, 'percent': pct,
+                'days': self.days, 'auto_pin_uses': self.auto_pin_uses, 'auto_pin_days': self.auto_pin_days}
 
 
 def brief(row):

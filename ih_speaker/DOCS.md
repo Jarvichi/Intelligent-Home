@@ -40,6 +40,8 @@ A small tool that speaks a message on a house speaker (HomePod) through Home Ass
 | `cache_mb` | Size cap of the clip cache in MB (default 1024). Least recently used unpinned clips go first. |
 | `cache_days` | Unpinned clips not used for this many days are deleted (default 30). Pinned clips never expire. |
 | `base_url` | Address a speaker can fetch clips from, for example `http://<home assistant host>:8831`. Needed for fillers and for playing cached clips. |
+| `auto_pin_uses` | A clip used this many times within `auto_pin_days` is pinned automatically (default 5; 0 = off). A clip you unpinned yourself is never auto-pinned again. |
+| `auto_pin_days` | Window in days for `auto_pin_uses` (default 30). |
 | `seed_fillers` | Make the pinned filler phrases for each voice (default on, live mode only). |
 
 Example entries (placeholders): `discord_users: ["alex=123456789012345678"]`, `discord_permissions: ["hearth=alex"]`, `speakers: ["bedroom=media_player.bedroom_speaker"]`, `voices: ["hearth=voice_id_here"]`, `permissions: ["hearth=*", "guest=kitchen"]`, `night_deny: ["guest=bedroom"]`.
@@ -62,14 +64,16 @@ Add `"to": "discord"` (or `"both"`) and `"discord_user": "alex"` to the request.
 
 ## Clip cache and fillers
 
+Usage and auto-pin: each real cache hit (a played or sent message, a played filler) is logged with its time. A dry run, a page action (generate, listen, play) and seeding are not uses. When a clip reaches `auto_pin_uses` uses within `auto_pin_days` days it is pinned and shown with an `auto` badge. If you unpin a clip it stays unpinned.
+
 Every message that is rendered is kept in `/data/cache/<engine>/<voice>/<sha1 of the normalised text>.<ext>` (excluded from backups; the index is in `/data/ih.db`). Case and spacing do not matter. The same phrase with another voice or engine is a separate clip. A request that is in the cache plays at once; otherwise it is rendered, stored and played. Over `cache_mb`, the least recently used unpinned clips are deleted; unpinned clips unused for `cache_days` expire; pinned clips stay.
 
 Add `"filler": "one moment"` to a `/speak` request to play a cached phrase (matched by its label, case ignored) immediately while the real message renders. It finishes, or is stopped, before the real clip starts. The seeded labels are `one moment`, `just checking`, `alarm armed`, `alarm disarmed`, `good morning`. A clip you generate on the page can have any label. A filler that is not cached for that voice is skipped (`filler: skipped: ...` in the answer).
 
-`dry_run` answers include `cache`: `status` (hit or miss), sizes and `would_evict` (clips a store would remove, no text). The Speaker page (sidebar, admin only) lists the clips: search, filter by voice and engine, listen, play on a speaker, pin, delete, and generate a new clip. Playing on a speaker follows the add-on mode (dry plays nothing).
+`dry_run` answers include `cache`: `status` (hit or miss), sizes and `would_evict` (clips a store would remove, no text). The Speaker page (sidebar, admin only) lists the clips: search, filter by voice and engine, listen, play on a speaker, pin (Pinned filter and column), delete, and generate a new clip. A bar shows the cache space used of `cache_mb`; the table shows how often each clip was used (total and last 30 days) and every column sorts. Listen plays through the page itself (no signed link needed). Playing on a speaker follows the add-on mode (dry plays nothing).
 
 A file named `STOP` in the add-on data folder refuses every request.
 
 ## Not tested here
 
-No real speaker playback has been heard (neither tts.speak nor playing a cached clip by link), the signed clip link has not been fetched by a real speaker, the page has not been opened inside Home Assistant, no real Discord voice message has been sent and ffmpeg has not been run in the built image (the tests use fakes). Test with `dry_run` first, then one real message.
+No real speaker playback has been heard (neither tts.speak nor playing a cached clip by link), the signed clip link has not been fetched by a real speaker, the page has not been opened inside Home Assistant (so Listen in a real browser behind ingress is untested; the Range fix is tested at the HTTP level only), no real Discord voice message has been sent and ffmpeg has not been run in the built image (the tests use fakes). Test with `dry_run` first, then one real message.

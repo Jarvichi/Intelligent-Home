@@ -21,5 +21,7 @@
   "cache_mb": 1024,
   "cache_days": 30,
   "base_url": "http://homeassistant.local:8831",
-  "seed_fillers": true
+  "seed_fillers": true,
+  "auto_pin_uses": 5,
+  "auto_pin_days": 30
 }

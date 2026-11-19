@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-11-19
+
+### Fixed
+- The Speaker page could not play a clip in the browser (Listen). The audio route answered every request with a plain 200 and no `Accept-Ranges`/206 support; Safari, iOS and Chromium media playback start with a `Range` request and refuse such a stream. The route now supports single byte ranges (206, 416 for an unsatisfiable range), uses a relative ingress URL (never the signed `base_url` link) and sniffs m4a and aac as well. If the audio element still refuses, the page fetches the file and plays it from memory, and shows an error instead of failing silently.
+
+### Added
+- Cache space bar on the page (used MB of `cache_mb`, with %), refreshed after generate, delete and pin. `/status` and `/api/info` stats now carry `percent`, `auto_pinned`, `auto_pin_uses` and `auto_pin_days`.
+- Pin column and a Pinned filter (all, pinned only, not pinned); the Pin/Unpin button was already there.
+- Usage tracking: every real cache hit is one use with a timestamp (table `uses` in `/data/ih.db`, migration 2, kept 90 days or `auto_pin_days` if longer). Dry runs, the admin page (generate, listen, play) and filler seeding are not uses; a filler that is played is.
+- Auto-pin: options `auto_pin_uses` (default 5; 0 switches it off) and `auto_pin_days` (default 30). A clip used at least that many times within that many days is pinned and marked `auto` (badge on the page). A pin or unpin from the page is remembered: a clip you unpinned is never auto-pinned again until you pin it yourself.
+- Table shows total uses and uses in the last 30 days; every column header sorts.
+
 ## [0.3.0] - 2026-11-19
 
 ### Added
