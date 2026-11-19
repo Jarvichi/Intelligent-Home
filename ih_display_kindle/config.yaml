@@ -1,5 +1,5 @@
 name: "Intelligent Home - Kindle Display"
-version: "0.6.0"
+version: "0.7.0"
 slug: ih_display_kindle
 image: "ghcr.io/jarvichi/{arch}-ih_display_kindle"
 description: "Preview an existing Kindle display picture."
@@ -28,6 +28,7 @@ options:
   displays_token: ""
   render_shared_messages: false
   render_shared_alerts: false
+  renderer: svg
   device_enabled: false
   device_token: ""
 schema:
@@ -38,5 +39,6 @@ schema:
   displays_token: password?
   render_shared_messages: bool
   render_shared_alerts: bool
+  renderer: list(svg|html)
   device_enabled: bool
   device_token: password?

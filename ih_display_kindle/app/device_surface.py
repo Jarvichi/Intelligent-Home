@@ -12,9 +12,19 @@ import popup_render
 EATS={'asap':'ASAP','1230':'12:30','1330':'13:30','1830':'18:30'}
 
 class DeviceSurface:
-    def __init__(self,snapshot,alerts,menu,cooking,actions,png,ha,settings,clock=time.time):
+    def __init__(self,snapshot,alerts,menu,cooking,actions,png,ha,settings,clock=time.time,html=None):
         self.snapshot=snapshot;self.alerts=alerts;self.menu=menu;self.cooking=cooking
-        self.actions=actions;self.png=png;self.ha=ha;self.settings=settings;self.clock=clock
+        self.actions=actions;self.png=png;self.ha=ha;self.settings=settings;self.clock=clock;self.html=html
+
+    def main_picture(self,data,alerts,now):
+        """The main screen: the HTML page when it is switched on and can draw this state, otherwise the SVG picture."""
+        if self.html:
+            value=self.html.png(data,alerts,now)
+            if value:return value
+        return kindle_render.svg(data,alerts,now=now)
+
+    def encode(self,image):
+        return image if image[:8]==b'\x89PNG\r\n\x1a\n' else self.png(image)   # the SVG picture is bytes too, so check the PNG signature
 
     def charging(self):
         cfg=self.settings()
@@ -43,10 +53,10 @@ class DeviceSurface:
                 # Do not offer household controls while an active cook may be hidden.
                 data['cooking_unavailable']=True
                 data['device']=dict(data.get('device') or {},charging=False)
-                image=kindle_render.svg(data,alerts,now=now)
+                image=self.main_picture(data,alerts,now)
                 add([872,612,1014,664],dismiss)
-                return self.png(image),zones
-            image=kindle_render.svg(data,alerts,now=now)
+                return self.encode(image),zones
+            image=self.main_picture(data,alerts,now)
             cook=data.get('cooking')
             if isinstance(cook,dict) and cook.get('running') is True:
                 revision=cook.get('revision')
@@ -112,7 +122,7 @@ class DeviceSurface:
         elif screen=='birthdays':
             image=popup_render.svg('birthdays',data.get('birthdays'));nav([48,1240,1024,1344],'main')
         else:raise ValueError('invalid screen')
-        return self.png(image),zones
+        return self.encode(image),zones
 
     def dispatch(self,descriptor):
         kind=descriptor.get('kind')
