@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.22.0] - 2026-11-18
+
+### Added
+- Check-ins per day can be changed by chat, separately for weekdays, weekends and holidays (closed dates). New endpoints `GET /persona/<key>/checkin_rules` and `POST /persona/<key>/checkin_rules` with `weekday`, `weekend`, `holiday` (a whole number 0..`max_per_day`, or null to go back to the normal setting) and `add_closed` / `remove_closed` (a date or a `YYYY-MM-DD..YYYY-MM-DD` range, up to 50 chat-added). The reply lists what changed so the persona can repeat it back. Values are stored in the persona's own state and survive restarts. A cap above 0 for `holiday` lets check-ins run on a closed date. The option `max_per_day` is never exceeded, and `checkin_level` 0 still means none. With nothing set, behaviour is exactly as before. `GET behaviour` and the status page show the caps and today's day type. Why: a persona can then adjust itself when asked, without editing options or restarting. Replies and urgent alerts are not check-ins and are untouched.
+
 ## [0.21.0] - 2026-11-18
 
 ### Added
