@@ -1,0 +1,10 @@
+{
+ "requires": [
+  "ih_work",
+  "ih_tasks"
+ ],
+ "ui": {
+  "title": "Work Runner",
+  "purpose": "Runs the Claude jobs from the Work list; no page of its own."
+ }
+}
