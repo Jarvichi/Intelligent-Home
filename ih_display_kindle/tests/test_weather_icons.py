@@ -9,23 +9,26 @@ import kindle_render
 import weather_icons
 
 class WeatherIconsTests(unittest.TestCase):
-    def test_legacy_conditions_have_distinct_expected_symbols(self):
-        expected = {'sunny':'☀', 'clear-night':'🌙', 'rainy':'🌦',
-                    'fog':'🌫', 'windy':'💨', 'lightning':'⚡',
-                    'snowy':'❄', 'partlycloudy':'⛅'}
-        for condition, value in expected.items():
-            self.assertEqual(weather_icons.symbol(condition), value)
-        self.assertEqual(weather_icons.symbol('not a condition'), '')
-        self.assertEqual(weather_icons.symbol('clear_night'), '🌙')
+    def test_every_home_assistant_condition_has_its_own_drawn_icon(self):
+        conditions=['clear-night','cloudy','exceptional','fog','hail','lightning','lightning-rainy','partlycloudy','pouring','rainy','snowy','snowy-rainy','sunny','windy','windy-variant']
+        drawn={c:weather_icons.svg(c,0,0,100) for c in conditions}
+        for condition,value in drawn.items():
+            self.assertTrue(value.startswith('<g '), condition)
+            ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+value+'</svg>')   # well-formed
+        # windy and windy-variant share a drawing; every other condition looks different
+        self.assertEqual(len({v.replace(k,'') for k,v in drawn.items() if k!='windy-variant'}), len(conditions)-1)
+        self.assertEqual(weather_icons.svg('not a condition',0,0,100), '')
+        self.assertEqual(weather_icons.svg('clear_night',0,0,100).replace('clear-night',''), drawn['clear-night'].replace('clear-night',''))
 
-    def test_render_uses_monochrome_font_for_weather_in_each_section(self):
+    def test_render_draws_icons_without_needing_a_font(self):
         data={'weather': {'current': {'condition':'windy'}, 'daily': [
               {'label':'Tomorrow','condition':'fog'}],
               'hours': [{'condition':'clear-night'}]}}
         root=ET.fromstring(kindle_render.svg(data, now=0))
-        icons=[node.text for node in root.iter('{http://www.w3.org/2000/svg}text')
-               if node.get('font-family')=='Symbola, sans-serif']
-        self.assertEqual(icons, ['💨︎','🌫︎','🌙︎'])
+        ns='{http://www.w3.org/2000/svg}'
+        labels=[g.get('aria-label') for g in root.iter(ns+'g') if g.get('aria-label')]
+        self.assertEqual(labels, ['windy','fog','clear-night'])
+        self.assertFalse([t for t in root.iter(ns+'text') if t.get('font-family')=='Symbola, sans-serif'])
 
     def test_occasion_icons_include_birthday_and_christmas(self):
         self.assertEqual(festive_header.lines({'active':True,'detail':'Happy Halloween!'}), ['🎃 Happy Halloween!'])

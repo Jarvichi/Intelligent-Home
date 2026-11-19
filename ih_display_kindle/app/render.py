@@ -281,7 +281,7 @@ class HA:
     def lights_panel(self,groups):
         if not isinstance(groups,list) or not groups or len(groups)>40:return {'available':False}
         for group in groups:
-            if not isinstance(group,dict) or not isinstance(group.get('name'),str) or not group['name'].strip() or not isinstance(group.get('entities'),list) or not group['entities'] or len(group['entities'])>50:return {'available':False}
+            if not isinstance(group,dict) or not isinstance(group.get('name'),str) or not group['name'].strip() or not isinstance(group.get('entities'),list) or not group['entities'] or len(group['entities'])>50 or ('floor' in group and (not isinstance(group['floor'],str) or not 0<len(group['floor'].strip())<=40)):return {'available':False}
             if any(not isinstance(e,str) or not ENTITY.fullmatch(e) or not e.startswith(('light.','switch.')) for e in group['entities']):return {'available':False}
         entities=list(dict.fromkeys(e for group in groups for e in group['entities']))
         if len(entities)>100:return {'available':False}
@@ -291,11 +291,19 @@ class HA:
                 except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
             with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(entities,pool.map(fetch,entities)))
             incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values.values())
-            active=[]
+            active=[];is_on=[]
             for group in groups:
-                if any(isinstance(values[entity],dict) and values[entity].get('state')=='on' for entity in group['entities']):active.append(group['name'])
+                on=any(isinstance(values[entity],dict) and values[entity].get('state')=='on' for entity in group['entities']);is_on.append(on)
+                if on:active.append(group['name'])
             detail=', '.join(active) if active else 'Unavailable' if incomplete else 'All off'
-            return {'available':not incomplete,'active':True,'label':'Lights on','detail':detail}
+            floors=None
+            if all(group.get('floor') for group in groups):   # optional: the original Kindle listed the rooms that are on floor by floor
+                floors=[]
+                for group,on in zip(groups,is_on):
+                    name=group['floor'].strip();row=next((f for f in floors if f['floor']==name),None)
+                    if row is None:row={'floor':name,'rooms':[]};floors.append(row)
+                    if on and group['name'] not in row['rooms']:row['rooms'].append(group['name'])
+            return {'available':not incomplete,'active':True,'label':'Lights on','detail':detail,'floors':floors}
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}
     def energy_panel(self,sources,now=None):
         now=time.time() if now is None else now
@@ -341,10 +349,14 @@ class HA:
             start_label=start_date.strftime('%H:%M');end_label=datetime.datetime.fromtimestamp(end).astimezone().strftime('%H:%M')
             detail=('Saving now until '+end_label) if start<=now else ('Saving '+day+start_label+'–'+end_label if joined else 'Saving '+day+start_label+' · join in app')
             if (joined or start<=now) and points and isinstance(points,(str,int,float)) and not isinstance(points,bool):detail+=' · '+str(points)[:20]+' pts/kWh'
+            kindle_left=('⚡ SAVING SESSION NOW · until '+end_label) if start<=now else ('⚡ Saving session '+(day+start_label+'–'+end_label if joined else day+start_label+' — join in the app'))
+            if (joined or start<=now) and points and isinstance(points,(str,int,float)) and not isinstance(points,bool):kindle_left+=' · '+str(points)[:20]+' pts/kWh'
+            kindle_cost=''
         else:
             current=state('current');upcoming=state('next')
             if current is None:return {'available':False}
             price=current*100;detail=f'{price:.1f}p now'+(' peak' if price>=28 else ' cheap' if price<15 else '')
+            kindle_left='⚡ '+f'{price:.1f}p now'+(' (peak)' if price>=28 else ' (cheap)' if price<15 else '');kindle_from=''
             if upcoming is not None:
                 detail+=f' · {upcoming*100:.1f}p next'
                 rates=[]
@@ -355,11 +367,14 @@ class HA:
                     if not isinstance(rate,dict):continue
                     finish=epoch(rate.get('end'));begins=epoch(rate.get('start'));rate_value=number(rate.get('value_inc_vat'))
                     if finish is not None and begins is not None and finish>now and rate_value is not None and abs(rate_value*100-price)>0.01:
-                        detail+=' from '+datetime.datetime.fromtimestamp(begins).astimezone().strftime('%H:%M');break
+                        detail+=' from '+datetime.datetime.fromtimestamp(begins).astimezone().strftime('%H:%M');kindle_from=' from '+datetime.datetime.fromtimestamp(begins).astimezone().strftime('%H:%M');break
+                kindle_left+=f' · {upcoming*100:.1f}p'+kindle_from
+            costs=[]
             for key in ('electricity','gas'):
                 cost=state(key)
-                if cost is not None:detail+=(' · Electricity £' if key=='electricity' else ' · Gas £')+f'{cost:.2f}'
-        return {'available':not missing,'active':True,'label':'Energy','detail':detail}
+                if cost is not None:detail+=(' · Electricity £' if key=='electricity' else ' · Gas £')+f'{cost:.2f}';costs.append(('⚡ £' if key=='electricity' else '🔥 £')+f'{cost:.2f}')
+            kindle_cost='Today '+' '.join(costs) if costs else ''
+        return {'available':not missing,'active':True,'label':'Energy','detail':detail,'kindle_left':kindle_left,'kindle_cost':kindle_cost}
     def todos(self,entity):
         if not isinstance(entity,str) or not entity.startswith('todo.') or not ENTITY.fullmatch(entity):return None
         try:
