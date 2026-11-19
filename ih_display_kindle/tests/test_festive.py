@@ -5,9 +5,15 @@ import unittest
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'app'))
-import render, kindle_render
+import render, kindle_render, festive_header
 
 class FestiveTests(unittest.TestCase):
+    def test_original_base_font_is_used_with_open_font_fallback(self):
+        image=kindle_render.svg({'panels':[]},now=0)
+        root=ET.fromstring(image)
+        self.assertIn('Roboto',next(element for element in root.iter() if element.tag.endswith('text')).get('font-family'))
+        self.assertEqual(festive_header.style({}),(False,'Roboto'))
+        self.assertEqual(festive_header.style({'active':True,'event_today':True,'theme':'other'}),(True,'Roboto'))
     def panel(self,day,states=None,fixed=None):
         ha=render.HA('')
         ha.optional_state=lambda entity: {'state':(states or {}).get(entity,'off')}

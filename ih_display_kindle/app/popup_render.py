@@ -11,7 +11,7 @@ def svg(screen,data,now=None):
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter><pattern id="home-stripes" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="18" stroke="#bbb" stroke-width="4"/></pattern></defs><rect width="1072" height="1448" fill="white"/>']
     def text(x,y,value,size=30,bold=False,fill='black',anchor='start',max_width=None):
         if max_width and len(str(value))*size*.62>max_width:size=max(12,int(max_width/(len(str(value))*.62)))
-        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,200)}</text>')
+        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="Roboto, sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,200)}</text>')
     def box(x,y,w,h,fill='white',radius=18):p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}" fill="{fill}" stroke="black" stroke-width="3"/>')
     if screen=='dinner':
         text(48,84,"🍽 What's for dinner?",56,True)

@@ -5,7 +5,7 @@ def svg(cooking,alerts=None):
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><rect width="1072" height="1448" fill="white"/>']
     def text(x,y,value,size=30,bold=False,fill='black',anchor='start',max_width=None):
         if max_width and len(str(value))*size*.62>max_width:size=max(12,int(max_width/(len(str(value))*.62)))
-        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,200)}</text>')
+        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="Roboto, sans-serif" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,200)}</text>')
     def box(x,y,w,h,fill='white',radius=20):
         p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}" fill="{fill}" stroke="black" stroke-width="3"/>')
     def pill(x,y,w,label):

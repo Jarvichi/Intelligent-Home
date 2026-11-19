@@ -44,14 +44,14 @@ def svg(data,alerts=None,now=None):
     timestamp=time.time() if now is None else now;today=datetime.datetime.fromtimestamp(timestamp).astimezone()
     halloween=data.get('halloween_mode')=='on' or (today.month,today.day)==(10,31)
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
-    header_color='black';header_font='sans-serif'
+    header_color='black';header_font='Roboto, sans-serif'
     def text(x,y,value,size=28,bold=False,anchor='start'):
-        color=header_color if y<=187 else 'black';font=header_font if y<=187 else 'sans-serif'
+        color=header_color if y<=187 else 'black';font=header_font if y<=187 else 'Roboto, sans-serif'
         p.append(f'<text x="{x}" y="{y}" fill="{color}" font-family="{font}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}">{clean(value,80)}</text>')
     def box(x,y,w,h,fill='white'):
         p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="20" fill="{fill}" stroke="black" stroke-width="3"/>')
     def label(x,y,value,size=28,fill='black',anchor='start'):
-        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="sans-serif" font-size="{size}" font-weight="bold" text-anchor="{anchor}">{clean(value,70)}</text>')
+        p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="Roboto, sans-serif" font-size="{size}" font-weight="bold" text-anchor="{anchor}">{clean(value,70)}</text>')
     def icon(condition,x,y,size):
         condition=str(condition or '').lower();p.append(f'<g transform="translate({x} {y}) scale({size/100})">')
         if 'sun' in condition or 'clear' in condition or 'partly' in condition:
@@ -162,12 +162,12 @@ def svg(data,alerts=None,now=None):
         box(48,478,976,190,'black')
         p.append('<rect x="60" y="490" width="952" height="166" rx="16" fill="none" stroke="white" stroke-width="3" stroke-dasharray="14 10"/>')
         for x in (135,937):
-            p.append(f'<g transform="translate({x} 573)"><path d="M0,-50 L48,35 L-48,35 Z" fill="white" stroke="white" stroke-width="7" stroke-linejoin="round"/><text x="0" y="25" text-anchor="middle" font-family="sans-serif" font-size="58" font-weight="bold">!</text></g>')
+            p.append(f'<g transform="translate({x} 573)"><path d="M0,-50 L48,35 L-48,35 Z" fill="white" stroke="white" stroke-width="7" stroke-linejoin="round"/><text x="0" y="25" text-anchor="middle" font-family="Roboto, sans-serif" font-size="58" font-weight="bold">!</text></g>')
         for i,item in enumerate(warning):
             if len(warning)<=2:x,y,limit,size=536,565+(i*48 if len(warning)==2 else 14),38,30
             else:x,y,limit,size=(350 if i%2==0 else 722),555+(i//2)*48,20,23
             value=clean(item,70);fit=f' textLength="{(650 if len(warning)<=2 else 310)}" lengthAdjust="spacingAndGlyphs"' if len(str(item))>limit else ''
-            p.append(f'<text x="{x}" y="{y}" fill="white" font-family="sans-serif" font-size="{size}" font-weight="bold" text-anchor="middle"{fit}>{value}</text>')
+            p.append(f'<text x="{x}" y="{y}" fill="white" font-family="Roboto, sans-serif" font-size="{size}" font-weight="bold" text-anchor="middle"{fit}>{value}</text>')
         if pages>1:label(995,650,f'{page+1}/{pages}',18,'white','end')
         if data.get('allow_alert_dismiss') is True and dismissible_alert(data,alerts,timestamp):
             p.append('<rect x="872" y="612" width="142" height="52" rx="20" fill="white"/>');label(943,645,'DISMISS',20,'black','middle')

@@ -10,13 +10,13 @@ FONTS={
     'newyear':'Monoton',
     'bonfire':'Monoton',
     'valentine':'DejaVu Serif',
-    'other':'DejaVu Sans',
+    'other':'Roboto',
 }
 
 def style(event):
     event=event if isinstance(event,dict) else {}
     inverted=bool(event.get('active') and event.get('event_today'))
-    return inverted,FONTS.get(event.get('theme'),'DejaVu Sans') if inverted else 'DejaVu Sans'
+    return inverted,FONTS.get(event.get('theme'),'Roboto') if inverted else 'Roboto'
 
 def lines(event):
     if not isinstance(event,dict) or not event.get('active'):return []
