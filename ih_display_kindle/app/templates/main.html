@@ -36,7 +36,7 @@
 {% else %}<div class="a n tile-value{% if tl.ink %} on-ink{% endif %}" style="--i:{{ i }}">{{ tl.value }}</div>{% endif %}
 {% if tl.sub %}<div class="a n tile-sub{% if tl.ink %} on-ink{% endif %}" style="--i:{{ i }}">{{ tl.sub }}</div>{% endif %}
 {% endfor %}
-{% if cook_tile %}<div class="a box ink c cook-tile">COOK<br>DINNER</div>{% endif %}
+{% if cook_tile %}<div class="a box ink cook-tile"></div><div class="a n sm tile-title on-ink cook-title">COOK DINNER</div><div class="a n tile-value on-ink cook-value">Pick a meal</div>{% endif %}
 
 <div class="a n lb lights-label">LIGHTS ON</div>
 {% if lights.floors %}{% for f in lights.floors %}<div class="a n floor-l" style="--c:{{ loop.index0 % 2 }};--r:{{ loop.index0 // 2 }}">{{ f.floor }}</div><div class="a n floor-v" style="--c:{{ loop.index0 % 2 }};--r:{{ loop.index0 // 2 }}">{{ f.rooms }}</div>{% endfor %}

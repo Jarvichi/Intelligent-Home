@@ -73,7 +73,9 @@ svg{display:block}
 .tile-sub{left:calc(68px + var(--i) * 248px);top:827px;width:192px;font-size:18px}
 .on-ink{color:#fff}
 .person{left:calc(316px + var(--j) * 64px);top:788px}
-.cook-tile{left:48px;top:726px;width:232px;height:140px;font-size:30px;font-weight:700;text-align:center;padding-top:36px;line-height:1.4}
+.cook-tile{left:48px;top:726px;width:232px;height:140px}
+.cook-title{left:68px;top:742px;width:192px;font-size:21px}
+.cook-value{left:68px;top:787px;width:192px;font-size:23px;font-weight:700}
 
 /* lights */
 .lights-label{left:48px;top:892px}
