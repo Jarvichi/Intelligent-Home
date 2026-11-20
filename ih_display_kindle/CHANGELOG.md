@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Weather icons are now the Meteocons monochrome set (Bas Milius, MIT; licence in `app/weather_svg/`): black line art that reads better on e-ink than the 0.10.0 set, drawn larger. Day and night versions of sunny, partly cloudy and rainy; the other conditions look the same day and night.
+
 ## 0.10.0
 
 - Weather icons are now the Makin-Things static set (MIT licence, `app/weather_svg/LICENSE`) in place of the hand-drawn vector icons. The coloured icons are turned into dark greys when loaded so they read on e-ink. After dark there are night versions of sunny (moon), partly cloudy, rainy, pouring, snowy and fog: the current icon follows the sun entity, and each hourly icon is night when its UV index is 0. Same conditions as before (sunny, clear-night, cloudy, partly cloudy, rainy, pouring, snowy, snowy-rainy, lightning, lightning-rainy, fog, hail, windy, exceptional).

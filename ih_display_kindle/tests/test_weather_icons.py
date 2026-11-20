@@ -20,12 +20,11 @@ class WeatherIconsTests(unittest.TestCase):
         self.assertEqual(weather_icons.svg('not a condition',0,0,100), '')
         self.assertEqual(weather_icons.svg('clear_night',0,0,100).replace('clear-night',''), drawn['clear-night'].replace('clear-night',''))
 
-    def test_icons_come_from_the_vendored_set_in_greys(self):
-        import re
-        for condition in weather_icons.FILES:
-            body=weather_icons.ICONS[condition]()
-            self.assertNotIn('filter',body)
-            self.assertFalse(set(re.findall(r'#[0-9a-fA-F]{3,6}\b',body))-{'#fff','#000','#1d1d1d','#222','#333','#444','#555','#777'}, condition)
+    def test_icons_come_from_the_vendored_set_in_black(self):
+        for condition in list(weather_icons.FILES)+list(weather_icons.NIGHT_FILES):
+            body=weather_icons.draw(condition, condition in weather_icons.NIGHT_FILES)()
+            self.assertNotIn('currentColor',body)
+            self.assertIn('#000',body)
         self.assertTrue((weather_icons.HERE/'LICENSE').exists())
 
     def test_night_versions(self):
