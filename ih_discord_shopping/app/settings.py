@@ -37,6 +37,9 @@ DEFAULTS = {
     # shopping
     'shopping_list_entity': 'todo.shopping_list',
     'meal_plan_script': '',              # HA script (name without "script.") run quietly before a shopping list is built; '' = none
+    'meal_plan_source': 'script',        # 'script' = run meal_plan_script; 'cooking' = ask the ih_cooking add-on (falls back to the script when it fails)
+    'cooking_url': '',                   # e.g. http://<ih_cooking host>:8809 (cooking source only)
+    'cooking_token': '',                 # ih_cooking api_token (bearer)
     'shop_names': '',                    # extra shop names for "I'm at <shop>", regex alternatives, e.g. "acme|corner store"
     'aisles': DEFAULT_AISLES,
     'aisle_order': DEFAULT_AISLE_ORDER,

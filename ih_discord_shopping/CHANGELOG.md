@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.0] - 2026-11-20
+
+### Added
+- Option `meal_plan_source` (`script` default, or `cooking`) with `cooking_url` and `cooking_token`. With `cooking`, the meal plan and staples are added to the list by asking the ih_cooking add-on (`POST /shop/merge`), so staple wording and the duplicate drop live in one place. Items already on the list (ticked too) are never added again. If the cooking add-on fails, `meal_plan_script` runs as before. Default `script`: no change until switched.
+
 ## [0.4.0] - 2026-11-12
 
 ### Added

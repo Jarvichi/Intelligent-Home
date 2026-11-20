@@ -16,6 +16,9 @@
   "shortcut_token": "",
   "shortcut_dry": true,
   "meal_plan_script": "",
+  "meal_plan_source": "script",
+  "cooking_url": "",
+  "cooking_token": "",
   "shop_names": "corner shop|acme",
   "aisles": [
     {"name": "Fruit", "words": "apple|pear|banana"},
