@@ -84,8 +84,8 @@ def svg(data,alerts=None,now=None):
         if max_width:size=fitted_size(value,size,max_width)
         fit=f' textLength="{max_width}" lengthAdjust="spacingAndGlyphs"' if max_width and text_units(value)*size>max_width else ''
         p.append(f'<text x="{x}" y="{y}" fill="{fill}" font-family="Roboto, sans-serif" font-size="{size}" font-weight="bold" text-anchor="{anchor}"{fit}>{clean(value,256)}</text>')
-    def icon(condition,x,y,size):
-        p.append(weather_icons.svg(condition,x,y,size))
+    def icon(condition,x,y,size,night=False):
+        p.append(weather_icons.svg(condition,x,y,size,night))
     panels=[x for x in (data.get('panels') or []) if isinstance(x,dict)];active=[x for x in panels if x.get('active')]
     event=next((x for x in active if x.get('slot')=='occasion'),None)
     inverted,header_font=festive_header.style(event)
@@ -105,7 +105,7 @@ def svg(data,alerts=None,now=None):
     weather=data.get('weather')
     if weather:
         current=weather.get('current') or {};facts=weather.get('facts') or {};daily=weather.get('daily') or [];hours=weather.get('hours') or []
-        icon(current.get('condition'),48,248,125);text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable');condition=CONDITION_NAMES.get(condition,condition.replace('-',' ').replace('_',' ').capitalize());text(48,397,condition,37,True)
+        icon(current.get('condition'),48,248,125,weather_icons.after_dark(current,data.get('sun_dark')));text(200,350,str(current.get('temperature','–'))+'°',110,True);condition=str(current.get('condition') or 'Unavailable');condition=CONDITION_NAMES.get(condition,condition.replace('-',' ').replace('_',' ').capitalize());text(48,397,condition,37,True)
         day=next((d for d in daily if d.get('label')=='Today'),{})
         if day:text(48,438,'Today '+str(day.get('low','–'))+'° – '+str(day.get('high','–'))+'°',28)
         sky=str(facts.get('sky','Unavailable'));sky_label='UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER';sky_value=sky.removeprefix('UV ').removeprefix('Cloud ')
@@ -123,7 +123,7 @@ def svg(data,alerts=None,now=None):
             text(662,y+79,forecast,23)
         box(48,478,976,190)
         for i,h in enumerate(hours[:6]):
-            x=130+i*163;text(x,520,h.get('time',''),25,True,'middle');icon(h.get('condition'),x-30,532,60);text(x,630,str(h.get('temperature','–'))+'°',36,True,'middle')
+            x=130+i*163;text(x,520,h.get('time',''),25,True,'middle');icon(h.get('condition'),x-30,532,60,weather_icons.after_dark(h));text(x,630,str(h.get('temperature','–'))+'°',36,True,'middle')
             rain=h.get('precipitation')
             if isinstance(rain,(int,float)) and not isinstance(rain,bool) and rain>0.1:text(x,655,num(rain)+' mm',17,anchor='middle')
             if i:p.append(f'<path d="M{x-80} 496v152" stroke="#aaa" stroke-width="2"/>')
