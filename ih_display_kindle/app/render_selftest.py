@@ -42,4 +42,10 @@ from PIL import Image
 _src=io.BytesIO();Image.new('L',(60,60),255).save(_src,'PNG')
 with Image.open(io.BytesIO(pressed.invert_crop(_src.getvalue(),[0,0,30,30]))) as _out:
     if _out.size!=(30,30) or _out.getpixel((5,5))!=0:raise RuntimeError('pressed picture is wrong')
+_btn=Image.new('L',(60,60),255)
+for _x in range(10,50):
+    for _y in range(10,50):_btn.putpixel((_x,_y),0)
+_b=io.BytesIO();_btn.save(_b,'PNG')
+with Image.open(io.BytesIO(pressed.invert_crop(_b.getvalue(),[0,0,60,60]))) as _out:   # fill gone, outline kept, page untouched
+    if (_out.getpixel((30,30)),_out.getpixel((11,30)),_out.getpixel((2,2)))!=(255,0,255):raise RuntimeError('pressed button shape is wrong')
 if '--stdout' in sys.argv:sys.stdout.buffer.write(image)

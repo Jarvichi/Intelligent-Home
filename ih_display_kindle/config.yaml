@@ -1,5 +1,5 @@
 name: "Intelligent Home - Kindle Display"
-version: "0.14.0"
+version: "0.14.1"
 slug: ih_display_kindle
 image: "ghcr.io/jarvichi/{arch}-ih_display_kindle"
 description: "Preview an existing Kindle display picture."
