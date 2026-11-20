@@ -6,7 +6,7 @@ sys.path.insert(0, HERE)
 import jobs_child
 import trustjob, trustdb
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 DATA = os.environ.get('IHJ_DATA', '/data')
 
 SPEC = dict(job='trust', source='ih_jobs_trust', slug='ih_jobs_trust', title='Intelligent Home - Jobs - AI Trust Test', version=VERSION, port=8810, runner=trustjob.run)
@@ -46,5 +46,6 @@ if __name__ == '__main__':
     store = trustdb.get(DATA)          # migrations, legacy import, trash purge: before the first job run
     store.start_maintenance((jobs_child.load_options(os.environ.get('IHJ_OPTIONS', '/data/options.json'), extra_str=[('timezone', 'Europe/London')])['timezone']))
     _with_db_status()
+    _with_scores()
     jobs_child.main(SPEC, extra_str=[('ai_layer_url', 'http://172.30.32.1:8801'), ('ai_layer_token', ''), ('run_hour', '3'), ('todo_entity', 'todo.claude_to_do'),
                                      ('pause_s', '4'), ('providers', ''), ('exclude', 'openai'), ('timezone', 'Europe/London')], extra_bool=[('keep_answers', False)])

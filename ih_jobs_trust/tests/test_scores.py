@@ -50,3 +50,9 @@ class T(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Wired(unittest.TestCase):
+    def test_main_installs_the_scores_route(self):
+        src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'main.py')).read()
+        self.assertIn("    _with_scores()\n", src.split("if __name__ == '__main__':")[1])   # 0.3.0 defined it but never called it: /scores was a 404
