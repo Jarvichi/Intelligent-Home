@@ -24,8 +24,8 @@
     if (!minutes) return null;
     const sinceDates = found.filter(function (s) { return s.tracked && s.since; }).map(function (s) { return String(s.since); }).sort();
     const allTracked = found.every(function (s) { return s.tracked; });
-    const label = allTracked && sinceDates.length ? 'Play time since ' + (formatDate ? formatDate(sinceDates[0]) : sinceDates[0]) : 'Play time';
-    return { kind: 'playtime', label: label, value: formatPlaytime(minutes) };
+    const note = allTracked && sinceDates.length ? 'Tracked since ' + (formatDate ? formatDate(sinceDates[0]) : sinceDates[0]) : '';   // shown as an info tooltip
+    return { kind: 'playtime', label: 'Play time', value: formatPlaytime(minutes), note: note };
   }
   /* The play time box on its own, for a card that also shows quests or trophies. Same text as the playtime stat; null = none. */
   function cardPlaytime(game, formatDate) {
