@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n s-title">🍽 What's for dinner?</div>
+{% if pages > 1 %}<div class="a n s-page">{{ page + 1 }}/{{ pages }}</div>{% endif %}
+{% for c in chips %}<div class="a chip{% if c.on %} on{% endif %}{% if loop.first %} small{% endif %}" style="--i:{{ loop.index0 }}">{{ c.label }}</div>{% endfor %}
+{% if message %}<div class="a n s-msg" style="--top:228px">{{ message }}</div>{% endif %}
+{% for it in items %}<div class="a card item dinner-row{% if it.tonight %} ink{% endif %}" style="--i:{{ loop.index0 }}"><div class="a n t">{{ it.title }}</div><div class="a n s">{{ it.sub }}</div><div class="a n g">COOK ›</div></div>{% endfor %}
+{% if pages > 1 %}<div class="a btn btn-left">‹ PREV</div><div class="a btn btn-mid">BACK</div><div class="a btn btn-right">NEXT ›</div>{% else %}<div class="a btn btn-full">BACK</div>{% endif %}
+{% endblock %}

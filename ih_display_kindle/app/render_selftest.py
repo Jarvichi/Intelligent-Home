@@ -25,4 +25,14 @@ if '--stdout' not in sys.argv:
     for screen in screens:
         converted=main.png(screen)
         if converted[:8]!=b'\x89PNG\r\n\x1a\n' or struct.unpack('>II',converted[16:24])!=(1072,1448):raise RuntimeError('Invalid screen PNG')
+    import kindle_html,screens_html   # every built-in template must render with sample data (a broken template fails the image build)
+    sample_day=dict(sample,device=dict(sample['device'],charging=True))
+    pages={'main':kindle_html.page(sample_day,alerts,now=12*3600),
+           'dinner':screens_html.dinner({'items':[{'title':'Example meal','eat':'19:00','lead':40}],'page':0,'pages':2}),
+           'home':screens_html.home({'members':[{'name':'Example','home':True}]}),
+           'birthdays':screens_html.birthdays({'items':[{'name':'Example','date':'Monday','countdown':'TODAY'}]}),
+           'menu':screens_html.menu(),
+           'cooking':screens_html.cooking({'title':'Example meal','eat':'19:00','next':[{'at':'18:30','text':'Example step'}],'steps':[{'at':'18:30','text':'Example step'}],'prep':[{'text':'Example prep'}]})}
+    for name,page in pages.items():
+        if not page.startswith('<!doctype html>') or 'Traceback' in page:raise RuntimeError('Invalid '+name+' template output')
 if '--stdout' in sys.argv:sys.stdout.buffer.write(image)

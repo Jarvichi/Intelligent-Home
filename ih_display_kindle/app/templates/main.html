@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n day">{{ day }}</div><div class="a n date">{{ date }}</div>
+<div class="a n info{% if mains %} mains{% endif %}">{{ info }}</div>
+{% if refresh %}<svg class="a refresh" width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="19"/><path d="M12 19a8 8 0 1 0 8-8M18 7l5 4-5 4" fill="none" stroke="#fff" stroke-width="3"/></svg>{% endif %}
+{% for line in festive %}<div class="a n festive" style="--i:{{ loop.index0 }};font-size:{{ line.size }}px">{{ line.text }}</div>{% endfor %}
+<div class="a n sun">{{ sun }}</div><div class="a rule h-rule"></div>
+{% if wx %}
+<div class="a wx-icon">{{ wx.icon }}</div><div class="a n wx-temp">{{ wx.temp }}</div><div class="a n wx-cond">{{ wx.cond }}</div>{% if wx.range %}<div class="a n wx-range">{{ wx.range }}</div>{% endif %}
+{% for f in wx.facts %}<div class="a n sm fact-l" style="--i:{{ loop.index0 }}">{{ f.l }}</div><div class="a n fact-v" style="--i:{{ loop.index0 }}">{{ f.v }}</div>{% endfor %}
+{% if wx.arrow is not none %}<svg class="a arrow" style="transform:rotate({{ wx.arrow }}deg)" width="50" height="50" viewBox="-25 -25 50 50"><path d="M0,-16 L11,0 L4,0 L4,16 L-4,16 L-4,0 L-11,0 Z"/></svg>{% endif %}
+{% if wx.game %}
+<div class="a box game-box"></div>{% if wx.game.art %}<img class="a art game-art" src="{{ wx.game.art }}">{% endif %}
+<div class="a n game-label">NOW PLAYING</div>{% for line in wx.game.lines %}<div class="a n game-line" style="--i:{{ loop.index0 }}">{{ line }}</div>{% endfor %}
+{% else %}{% for d in wx.days %}<div class="a box day-box" style="--i:{{ loop.index0 }}"></div><div class="a n day-name" style="--i:{{ loop.index0 }}">{{ d.name }}</div><div class="a n day-text" style="--i:{{ loop.index0 }}">{{ d.text }}</div><div class="a day-icon" style="--i:{{ loop.index0 }}">{{ d.icon }}</div>{% endfor %}{% endif %}
+{% else %}<div class="a n wx-none">{{ weather_msg }}</div>{% endif %}
+
+{% if band.kind == 'warn' %}
+<div class="a box ink band"></div><div class="a band-dash"></div>
+{% for side in ('l', 'r') %}<svg class="a tri tri-{{ side }}" width="112" height="90" viewBox="-56 -58 112 98"><path d="M0,-50 L48,35 L-48,35 Z" fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/><text y="25" text-anchor="middle" font-family="Roboto,sans-serif" font-size="58" font-weight="bold">!</text></svg>{% endfor %}
+{% for w in band.lines %}<div class="a n warn {{ w.cls }}" style="--i:{{ w.i }};--c:{{ w.c }};--r:{{ w.r }}">{{ w.text }}</div>{% endfor %}
+{% if band.page %}<div class="a n warn-page">{{ band.page }}</div>{% endif %}
+{% if band.dismiss %}<div class="a dismiss">DISMISS</div>{% endif %}
+{% elif band.kind == 'media' %}
+<div class="a box band"></div>{% if band.art %}<img class="a art media-art" src="{{ band.art }}">{% endif %}
+<div class="a n media-label">NOW PLAYING</div><div class="a n media-title">{{ band.title }}</div><div class="a n media-sub">{{ band.sub }}</div>
+{% elif band.kind == 'hours' %}
+<div class="a box band"></div>
+{% for h in band.hours %}{% set i = loop.index0 %}<div class="a n hour-time" style="--i:{{ i }}">{{ h.time }}</div><div class="a hour-icon" style="--i:{{ i }}">{{ h.icon }}</div><div class="a n hour-temp" style="--i:{{ i }}">{{ h.temp }}</div>{% if h.rain %}<div class="a n hour-rain" style="--i:{{ i }}">{{ h.rain }}</div>{% endif %}{% if i %}<div class="a hour-sep" style="--i:{{ i }}"></div>{% endif %}{% endfor %}
+{% endif %}
+
+<div class="a n lb house-label">{{ house_label }}</div>
+{% for tl in tiles %}{% set i = loop.index0 %}
+<div class="a box tile{% if tl.ink %} ink{% endif %}" style="--i:{{ i }}"></div>
+<div class="a n sm tile-title{% if tl.ink %} on-ink{% endif %}" style="--i:{{ i }}">{{ tl.title }}</div>
+{% if tl.persons %}{% for p in tl.persons %}<div class="a av person" style="--j:{{ loop.index0 }}">{% if p.art %}<img src="{{ p.art }}" width="56" height="56" style="object-fit:cover">{% else %}{{ p.initial }}{% endif %}</div>{% endfor %}
+{% else %}<div class="a n tile-value{% if tl.ink %} on-ink{% endif %}" style="--i:{{ i }}">{{ tl.value }}</div>{% endif %}
+{% if tl.sub %}<div class="a n tile-sub{% if tl.ink %} on-ink{% endif %}" style="--i:{{ i }}">{{ tl.sub }}</div>{% endif %}
+{% endfor %}
+{% if cook_tile %}<div class="a box ink c cook-tile">COOK<br>DINNER</div>{% endif %}
+
+<div class="a n lb lights-label">LIGHTS ON</div>
+{% if lights.floors %}{% for f in lights.floors %}<div class="a n floor-l" style="--c:{{ loop.index0 % 2 }};--r:{{ loop.index0 // 2 }}">{{ f.floor }}</div><div class="a n floor-v" style="--c:{{ loop.index0 % 2 }};--r:{{ loop.index0 // 2 }}">{{ f.rooms }}</div>{% endfor %}
+{% else %}<div class="a n lights-flat">{{ lights.flat }}</div>{% endif %}
+{% if buttons %}<div class="a pill btn-alloff">ALL OFF</div><div class="a pill btn-menu">MENU</div>{% endif %}
+
+<div class="a rule e-rule"></div>
+{% if energy.saving %}<div class="a box ink n saving">{{ energy.left }}</div>
+{% else %}<div class="a n en-left{% if not energy.cost %} wide{% endif %}">{{ energy.left }}</div>{% if energy.cost %}<div class="a n en-cost">{{ energy.cost }}</div>{% endif %}{% endif %}
+{% if cook_unavailable %}<div class="a n cook-unavail">Cooking unavailable · controls paused</div>{% endif %}
+
+<div class="a n lb todo-label">{{ todo.label }}</div>
+{% if todo.note %}<div class="a n todo-note">{{ todo.note }}</div>{% endif %}
+{% if todo.paging %}<div class="a pill btn-prev">PREV</div><div class="a pill btn-next">NEXT</div>{% endif %}
+{% if todo.msg %}<div class="a n todo-msg">{{ todo.msg }}</div>{% endif %}
+{% if todo.empty %}<div class="a n no-tasks">No tasks</div>{% endif %}
+{% for c in todo.cards %}<div class="a box card2{% if c.ink %} ink{% endif %}" style="--i:{{ loop.index0 }}"><div class="t">{{ c.title }}</div><div class="d n">{{ c.detail }}</div></div>{% endfor %}
+{% if todo.rooms %}<div class="a n lb rooms-label">ROOMS</div>{% for r in todo.rooms %}<div class="a n room-l" style="--i:{{ loop.index0 }}">{{ r.l }}</div><div class="a n room-v" style="--i:{{ loop.index0 }}">{{ r.v }}</div>{% endfor %}{% endif %}
+{% for r in todo.rows %}<div class="a row rows-{{ todo.rows | length }}{% if r.ink %} ink{% endif %}" style="--i:{{ loop.index0 }}"><span class="t n">{{ r.title }}</span>{% if r.detail %}<span class="d n">{{ r.detail }}</span>{% endif %}</div>{% endfor %}
+{% if overlay %}<svg class="a overlay" width="1072" height="1448" viewBox="0 0 1072 1448">{{ overlay }}</svg>{% endif %}
+{% endblock %}

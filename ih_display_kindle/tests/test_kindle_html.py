@@ -2,6 +2,8 @@
 import pathlib
 import subprocess
 import sys
+import importlib.util
+import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'app'))
@@ -9,6 +11,9 @@ import device_surface
 import kindle_html
 import kindle_render
 
+HAVE_JINJA = importlib.util.find_spec('jinja2') is not None
+CSS = (pathlib.Path(__file__).resolve().parents[1] / 'app' / 'templates' / 'kindle.css').read_text()
+needs_jinja = unittest.skipUnless(HAVE_JINJA, 'jinja2 is installed in the add-on image, not on every test machine')
 PNG = b'\x89PNG\r\n\x1a\n' + b'0' * 5000
 
 def data(**kw):
@@ -28,7 +33,10 @@ def data(**kw):
     base.update(kw)
     return base
 
+@needs_jinja
 class PageTests(unittest.TestCase):
+    def tearDown(self): kindle_html.configure(None)
+
     def test_normal_screen_has_the_original_wording_and_escapes_text(self):
         page = kindle_html.page(data(), {'configured': True, 'complete': True, 'alerts': []}, now=0)
         for text in ('Showers', '2–8° 1 mm rain', '1–10° dry', '22:00 tmrw', 'Locked', 'Idle', 'all locked', '⚡ 31.9p now (peak)', 'Today ⚡ £7.68', 'Ground', 'Outside', 'LIGHTS ON', 'TO DO'):
@@ -36,27 +44,49 @@ class PageTests(unittest.TestCase):
         self.assertIn('✉︎ Message &lt;b&gt;row&lt;/b&gt;', page)
         self.assertIn('in 5 days', page)
         self.assertNotIn('<b>row</b>', page)
+        self.assertIn('<style>', page); self.assertIn('--i:', page)   # the stylesheet is inlined; repeated items use --i
 
     def test_buttons_only_while_charging(self):
         off = kindle_html.page(data(), now=0)
         on = kindle_html.page(data(device={'charging': True, 'fresh': True, 'battery': 90}), now=0)
-        for label in ('ALL OFF', 'MENU'):
-            self.assertNotIn(label, off); self.assertIn(label, on)
+        for cls in ('btn-alloff', 'btn-menu', 'refresh'):
+            self.assertNotIn('class="a pill ' + cls, off); self.assertIn(cls, on.split('</style>')[1])
         self.assertIn('⚡ Plugged in', on)
         self.assertIn('🔋 Kindle 90%', kindle_html.page(data(device={'charging': False, 'fresh': True, 'battery': 90}), now=0))
 
     def test_warning_banner_replaces_the_hourly_strip(self):
         alerts = {'configured': True, 'complete': True, 'alerts': [{'kind': 'smoke', 'title': 'Smoke alarm: kitchen'}]}
-        page = kindle_html.page(data(), alerts, now=0)
-        self.assertIn('Smoke alarm: kitchen', page)
-        self.assertIn('dashed', page)
-        self.assertNotIn('23:00', page)
-        self.assertIn('23:00', kindle_html.page(data(), {'configured': True, 'complete': True, 'alerts': []}, now=0))
+        body = kindle_html.page(data(), alerts, now=0).split('</style>')[1]
+        self.assertIn('Smoke alarm: kitchen', body); self.assertIn('band-dash', body); self.assertNotIn('23:00', body)
+        self.assertIn('23:00', kindle_html.page(data(), {'configured': True, 'complete': True, 'alerts': []}, now=0).split('</style>')[1])
 
-    def test_every_zone_button_sits_at_its_svg_position(self):
+    def test_button_positions_live_in_the_stylesheet_where_the_touch_zones_expect_them(self):
+        for rule in ('.btn-alloff{left:270px;top:884px;width:140px}', '.btn-menu{left:880px;top:884px;width:144px}', '.btn-prev{left:800px;top:1106px;width:108px}',
+                     '.btn-next{left:916px;top:1106px;width:108px}', '.refresh{left:986px;top:36px}', '.tile{left:calc(48px + var(--i) * 248px);top:726px;width:232px;height:140px}',
+                     '.rows-5{--pitch:59px;--h:50px;--font:24px}', '.dismiss{left:872px;top:612px;width:142px;height:52px'):
+            self.assertIn(rule, CSS)
         page = kindle_html.page(data(device={'charging': True, 'fresh': True, 'battery': 90}, tasks=[{'title': str(i), 'display_group': 'task'} for i in range(7)]), now=0)
-        for box in ('left:270px;top:884px;width:140px', 'left:880px;top:884px;width:144px', 'left:800px;top:1106px;width:108px', 'left:916px;top:1106px;width:108px'):
-            self.assertIn(box, page)
+        self.assertIn('btn-prev', page); self.assertIn('btn-next', page)
+
+    def test_your_own_templates_are_used_before_the_built_in_ones(self):
+        with tempfile.TemporaryDirectory() as folder:
+            pathlib.Path(folder, 'main.html').write_text('{% extends "base.html" %}{% block body %}MINE {{ day }}{% endblock %}')
+            pathlib.Path(folder, 'kindle.css').write_text('/* my css */body{background:#eee}')
+            kindle_html.configure(folder)
+            page = kindle_html.page(data(), now=0)
+            self.assertIn('MINE', page); self.assertIn('my css', page)
+            self.assertIn('<meta charset', page)   # base.html still comes from the built-in set
+            self.assertIn('Menu', kindle_html.render('menu.html', rows=('A',)))   # other templates still the built-in ones
+
+    def test_a_broken_template_falls_back_instead_of_failing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            pathlib.Path(folder, 'main.html').write_text('{{ no_such_value }}')
+            kindle_html.configure(folder)
+            calls = []
+            renderer = kindle_html.Renderer('chromium', lambda cmd, **kw: calls.append(cmd), lambda p: None)
+            self.assertIsNone(renderer.png(data(), now=0))
+            self.assertEqual(calls, [])   # never reached Chromium
+            self.assertIn('no_such_value', renderer.last_error)
 
 class SupportsTests(unittest.TestCase):
     def test_states_the_page_does_not_draw_yet_go_to_the_svg(self):
@@ -66,6 +96,7 @@ class SupportsTests(unittest.TestCase):
         event = {'label': 'Occasion', 'active': True, 'slot': 'occasion', 'event_today': True, 'theme': 'birthday', 'detail': 'Happy birthday'}
         self.assertFalse(kindle_html.supports(data(panels=data()['panels'] + [event]), now=0))
 
+@needs_jinja
 class RendererTests(unittest.TestCase):
     def renderer(self, run=None, grey=None):
         calls = []

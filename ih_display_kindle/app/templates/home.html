@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block bodyattr %} class="stripes"{% endblock %}{% block body %}
+<div class="a card home-card"></div><div class="a n home-title">Who's home</div>
+{% if message %}<div class="a n s-msg" style="--top:460px;left:140px;font-size:28px">{{ message }}</div>{% endif %}
+{% for m in members %}{% set i = loop.index0 %}
+{% if m.art %}<img class="a art home-photo" style="--i:{{ i }}" src="{{ m.art }}">{% else %}<div class="a card home-initial" style="--i:{{ i }}">{{ m.initial }}</div>{% endif %}
+<div class="a n home-name{% if m.out %} out{% endif %}" style="--i:{{ i }}">{{ m.name }}</div><div class="a n home-status" style="--i:{{ i }}">{{ m.status }}</div>
+{% endfor %}
+<div class="a btn ink home-done">DONE</div>
+{% endblock %}

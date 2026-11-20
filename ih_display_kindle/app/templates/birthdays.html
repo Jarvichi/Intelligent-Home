@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n s-title">🎂 Birthdays</div>
+{% if message %}<div class="a n s-msg" style="--top:168px">{{ message }}</div>{% endif %}
+{% for it in items %}<div class="a card item bday-row{% if it.today %} ink{% endif %}" style="--i:{{ loop.index0 }}"><div class="a n t">{{ it.name }}</div><div class="a n s">{{ it.date }}</div><div class="a n g">{{ it.countdown }}</div></div>{% endfor %}
+<div class="a btn btn-full">BACK</div>
+{% endblock %}

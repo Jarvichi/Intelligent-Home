@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- The HTML screens are now templates: each screen has a Jinja2 template (`app/templates/*.html`) that says what is on it, and one stylesheet (`kindle.css`) that holds every position. Python only prepares the values. Positions did not change (checked against the previous version for the same data).
+- You can change the layout without a release: put your own `main.html`, `dinner.html`, `home.html`, `birthdays.html`, `menu.html`, `cooking.html`, `base.html` or `kindle.css` in the add-on's own config folder under `templates/`. Your files are used before the built-in ones. A broken template falls back to the SVG picture, and the log says why. A fresh copy of the built-in files is written to `templates/default/` each time the add-on starts, to copy from.
+- The add-on now maps its own private config folder (`addon_config`).
+- The image installs Jinja2. The image build renders every template as a check.
+
 ## 0.8.0
 
 - With `renderer: html` the dinner menu, who's-home, birthdays, Kindle menu and cooking screens are now HTML pages too, at the same positions as the SVG pictures so the touch zones still line up. Any screen Chromium cannot make falls back to the SVG picture.
