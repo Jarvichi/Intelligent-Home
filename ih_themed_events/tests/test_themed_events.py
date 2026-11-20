@@ -299,3 +299,21 @@ class Files(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class IdleConnection(unittest.TestCase):
+    def test_idle_connection_does_not_block_other_requests(self):
+        """The ingress gateway keeps an idle connection open; a single-threaded server then never answered the page (0.1.1)."""
+        import socket, threading, urllib.request
+        sys.path.insert(0, str(ADDON / 'app'))
+        import main as M
+        class H(M.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200); self.send_header('Content-Length', '2'); self.end_headers(); self.wfile.write(b'ok')
+            def log_message(self, *a): pass
+        srv = M.QuietServer(('127.0.0.1', 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+        idle = socket.create_connection(srv.server_address)
+        try:
+            self.assertEqual(urllib.request.urlopen('http://127.0.0.1:%d/' % srv.server_address[1], timeout=3).read(), b'ok')
+        finally:
+            idle.close(); srv.shutdown()

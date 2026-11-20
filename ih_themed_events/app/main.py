@@ -18,10 +18,11 @@ import re
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-class QuietServer(HTTPServer):
+class QuietServer(ThreadingHTTPServer):
+    daemon_threads = True   # one thread per connection: the ingress gateway keeps idle connections open, which froze the old single-threaded server (page stuck on a loading circle)
     """The ingress gateway drops idle connections; that is not an error, so no traceback for a reset or broken pipe."""
     def handle_error(self, request, client_address):
         if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, ConnectionAbortedError)):
@@ -37,7 +38,7 @@ import model as M
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))

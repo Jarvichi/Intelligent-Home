@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.2] - 2026-11-20
+
+### Fixed
+- The page sat on a loading circle: the single-threaded server was blocked by an idle connection from the ingress gateway. It now serves each connection in its own thread.
+
 ## [0.1.1] - 2026-11-20
 
 ### Fixed
