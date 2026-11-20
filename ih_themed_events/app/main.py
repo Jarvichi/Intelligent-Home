@@ -19,6 +19,14 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+
+class QuietServer(HTTPServer):
+    """The ingress gateway drops idle connections; that is not an error, so no traceback for a reset or broken pipe."""
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, ConnectionAbortedError)):
+            return
+        super().handle_error(request, client_address)
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -29,7 +37,7 @@ import model as M
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -252,8 +260,8 @@ def main():
         ha = None
     lg.info('ih_themed_events %s starting: API %s, switching %s, events %d%s', VERSION, 'on' if opts['api_token'] else 'OFF (no api_token)', opts['control'],
             first.counts()['events'], ' (Halloween and NYE records added)' if seeded else '')
-    serve(lambda s: HTTPServer(('0.0.0.0', PORT), make_handler(s, ha, lambda: opts, False)), lambda: Store(DATA), 'api', lg.info)
-    serve(lambda s: HTTPServer(('0.0.0.0', UI_PORT), make_handler(s, ha, lambda: opts, True)), lambda: Store(DATA), 'ui', lg.info)
+    serve(lambda s: QuietServer(('0.0.0.0', PORT), make_handler(s, ha, lambda: opts, False)), lambda: Store(DATA), 'api', lg.info)
+    serve(lambda s: QuietServer(('0.0.0.0', UI_PORT), make_handler(s, ha, lambda: opts, True)), lambda: Store(DATA), 'ui', lg.info)
     from ihlib import db as ihdb
     day = None
     while True:
