@@ -25,13 +25,13 @@ case "${1:-}" in
     [ "$page" -le 999 ] || exit 2
     # A failed or interrupted draw is deliberately not tappable.
     rm -f "$IH_DEVICE_DIR/current"
-    fetch "$IH_DEVICE_URL/device/v1/frame?screen=$screen&page=$page&eat=$eat" > "$lock/manifest"
+    fetch "$IH_DEVICE_URL/device/v1/frame?screen=$screen&page=$page&eat=$eat&batch=1" > "$lock/manifest"
     frame=$(awk '$1=="frame" && NF==2 {print $2}' "$lock/manifest")
     digest=$(awk '$1=="sha256" && NF==2 {print $2}' "$lock/manifest")
     case "$frame" in *[!0-9a-f]*|'') exit 1 ;; esac
     case "$digest" in *[!0-9a-f]*|'') exit 1 ;; esac
     [ "${#frame}" -eq 32 ] && [ "${#digest}" -eq 64 ] || exit 1
-    awk 'BEGIN {ok=1} $1=="zone" {if(NF!=8 || length($2)!=32 || $2 !~ /^[0-9a-f]+$/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/ || $6 !~ /^[0-9]+$/ || $3 >= $5 || $4 >= $6 || $5 > 1072 || $6 > 1448 || ($7!="battery" && $7!="mains") || ($8!="none" && $8!="dinner" && $8!="home" && $8!="birthdays")) ok=0; else print $2, $3, $4, $5, $6, $7, $8} END {if(!ok) exit 1}' "$lock/manifest" > "$lock/zones"
+    awk 'BEGIN {ok=1} $1=="zone" {if(NF!=8 || length($2)!=32 || $2 !~ /^[0-9a-f]+$/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/ || $6 !~ /^[0-9]+$/ || $3 >= $5 || $4 >= $6 || $5 > 1072 || $6 > 1448 || ($7!="battery" && $7!="mains") || ($8!="none" && $8!="dinner" && $8!="home" && $8!="birthdays" && $8!="batch")) ok=0; else print $2, $3, $4, $5, $6, $7, $8} END {if(!ok) exit 1}' "$lock/manifest" > "$lock/zones"
     fetch "$IH_DEVICE_URL/device/v1/picture/$frame" > "$lock/picture.png"
     actual=$(sha256sum "$lock/picture.png" | awk '{print $1}')
     [ "$actual" = "$digest" ] || exit 1
@@ -139,17 +139,34 @@ case "${1:-}" in
       mv -f "$IH_DEVICE_DIR/screen.new" "$IH_DEVICE_DIR/screen"
       exit 0
     fi
-    case "$zone" in *[!0-9a-f]*|'') exit 2 ;; esac
-    [ "${#zone}" -eq 32 ] && [ -s "$IH_DEVICE_DIR/current" ] && [ -f "$IH_DEVICE_DIR/zones" ] || exit 1
-    if [ "$1" = tap-cached ]; then
-      [ "$(cat "$IH_DEVICE_DIR/current")" = local-cache ] && [ -s "$IH_DEVICE_DIR/return.frame" ] && [ -f "$IH_DEVICE_DIR/return.zones" ] && [ -s "$IH_DEVICE_DIR/cache-screen" ] || exit 1
-      IFS= read -r cache_screen < "$IH_DEVICE_DIR/cache-screen"
-      awk -v id="$zone" -v screen="$cache_screen" '$1==id && $7==screen {found=1} END {exit !found}' "$IH_DEVICE_DIR/return.zones" || exit 1
-      IFS= read -r frame < "$IH_DEVICE_DIR/return.frame"
-    else
-      awk -v id="$zone" '$1==id {found=1} END {exit !found}' "$IH_DEVICE_DIR/zones" || exit 1
-      IFS= read -r frame < "$IH_DEVICE_DIR/current"
-    fi
+    case "$zone" in *[!0-9a-f,]*|'') exit 2 ;; esac
+    case "$zone" in
+      *,*)
+        # Several taps held on the device and sent together (zone ids joined by commas, at most 12).
+        [ "$1" = tap ] && [ -s "$IH_DEVICE_DIR/current" ] && [ -f "$IH_DEVICE_DIR/zones" ] || exit 1
+        old_ifs=$IFS; IFS=,; count=0
+        for one in $zone; do
+          [ "${#one}" -eq 32 ] || exit 2
+          awk -v id="$one" '$1==id {found=1} END {exit !found}' "$IH_DEVICE_DIR/zones" || exit 1
+          count=$((count + 1))
+        done
+        IFS=$old_ifs
+        [ "$count" -le 12 ] || exit 2
+        IFS= read -r frame < "$IH_DEVICE_DIR/current"
+        ;;
+      *)
+      [ "${#zone}" -eq 32 ] && [ -s "$IH_DEVICE_DIR/current" ] && [ -f "$IH_DEVICE_DIR/zones" ] || exit 1
+      if [ "$1" = tap-cached ]; then
+        [ "$(cat "$IH_DEVICE_DIR/current")" = local-cache ] && [ -s "$IH_DEVICE_DIR/return.frame" ] && [ -f "$IH_DEVICE_DIR/return.zones" ] && [ -s "$IH_DEVICE_DIR/cache-screen" ] || exit 1
+        IFS= read -r cache_screen < "$IH_DEVICE_DIR/cache-screen"
+        awk -v id="$zone" -v screen="$cache_screen" '$1==id && $7==screen {found=1} END {exit !found}' "$IH_DEVICE_DIR/return.zones" || exit 1
+        IFS= read -r frame < "$IH_DEVICE_DIR/return.frame"
+      else
+        awk -v id="$zone" '$1==id {found=1} END {exit !found}' "$IH_DEVICE_DIR/zones" || exit 1
+        IFS= read -r frame < "$IH_DEVICE_DIR/current"
+      fi
+        ;;
+    esac
     if [ "$1" = tap-cached ]; then
       # Leave local BACK responsive during a slow network request. If BACK
       # changed the screen, discard the late response without drawing it.

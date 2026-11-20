@@ -32,7 +32,7 @@ class CookingClient:
         if not isinstance(value,dict) or not isinstance(value.get('items'),list) or not isinstance(value.get('revision'),str) or type(value.get('page')) is not int or type(value.get('pages')) is not int:return None
         return value
     def post(self,path,body):
-        if path not in ('/cook/display-action','/cook/menu-start') or not frames.valid_url(self.url) or urlsplit(self.url).query or not self.token:return {'ok':False}
+        if path not in ('/cook/display-action','/cook/display-actions','/cook/menu-start') or not frames.valid_url(self.url) or urlsplit(self.url).query or not self.token:return {'ok':False}
         try:
             req=urllib.request.Request(self.url+path,data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+self.token,'Content-Type':'application/json'},method='POST')
             with self.opener.open(req,timeout=8) as response:

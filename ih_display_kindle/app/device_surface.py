@@ -9,6 +9,7 @@ import device_menu
 import kindle_render
 import popup_render
 
+BATCH_ACTIONS=('done','did','ack','early','delay','tick')
 EATS={'asap':'ASAP','1230':'12:30','1330':'13:30','1830':'18:30'}
 
 class DeviceSurface:
@@ -46,6 +47,7 @@ class DeviceSurface:
                 power='battery' if descriptor.get('kind') in ('cook','dishwasher','alert') else 'mains'
                 target=descriptor.get('screen') if descriptor.get('kind')=='navigate' else None
                 preview=target if target in ('dinner','home','birthdays') and target!=screen else 'none'
+                if descriptor.get('kind')=='cook' and descriptor.get('action') in BATCH_ACTIONS:preview='batch'   # the Kindle holds these taps for a few seconds and sends them together
                 zones.append({'box':box,'action':descriptor,'power':power,'preview':preview})
         def nav(box,target,page=0,eat='asap'):
             if powered:add(box,{'kind':'navigate','screen':target,'page':page,'eat':eat})
@@ -135,6 +137,15 @@ class DeviceSurface:
             image=self.screen_picture('birthdays',data.get('birthdays'));nav([48,1240,1024,1344],'main')
         else:raise ValueError('invalid screen')
         return self.encode(image),zones
+
+    def dispatch_many(self,descriptors):
+        """Taps held on the Kindle and sent together. Row taps on one cooking picture go to the cooking add-on as one request;
+        anything else is done one by one in order."""
+        cooks=[d for d in descriptors if d.get('kind')=='cook' and d.get('action') in BATCH_ACTIONS]
+        if len(cooks)==len(descriptors) and len({d.get('revision') for d in cooks})==1:
+            return self.cooking.post('/cook/display-actions',{'revision':cooks[0]['revision'],'actions':[{'action':d['action'],'item_id':d['item_id']} for d in cooks]})
+        results=[self.dispatch(d) for d in descriptors]
+        return {'ok':any(isinstance(r,dict) and r.get('ok') is True for r in results)}
 
     def dispatch(self,descriptor):
         kind=descriptor.get('kind')

@@ -34,6 +34,18 @@ class Tests(unittest.TestCase):
         snap=self.engine.display_snapshot();self.engine.dump('plan.json',dict(self.plan,oven_target=180));self.engine.dump('state.json',{'done':[],'told':self.keys,'snap':{'keys':self.keys,'ts':5}})
         self.assertEqual(self.engine.display_snapshot()['revision'],snap['revision'])
         self.assertTrue(self.engine.display_action(snap['revision'],'done',snap['next'][0]['id'])['ok'])
+    def test_batch_applies_every_tap_against_one_picture(self):
+        snap=self.engine.display_snapshot();ids=[r['id'] for r in snap['next']]
+        result=self.engine.display_actions(snap['revision'],[{'action':'done','item_id':ids[0]},{'action':'done','item_id':ids[1]}])
+        self.assertTrue(result['ok']);self.assertEqual(result['applied'],2);self.assertEqual(result['failed'],[])
+        self.assertEqual(self.engine.load('state.json',{})['done'],self.keys)
+        again=self.engine.display_actions(snap['revision'],[{'action':'done','item_id':ids[0]}])
+        self.assertFalse(again['ok'])
+    def test_batch_rejects_stale_picture_and_bad_input(self):
+        snap=self.engine.display_snapshot();rid=snap['next'][0]['id']
+        self.assertEqual(self.engine.display_actions('0'*64,[{'action':'done','item_id':rid}])['why'],'stale display')
+        self.assertFalse(self.engine.display_actions(snap['revision'],[{'action':'stop','item_id':rid}])['ok'])
+        self.assertFalse(self.engine.display_actions(snap['revision'],[])['ok'])
     def test_invalid_and_ambiguous_targets_are_rejected(self):
         snap=self.engine.display_snapshot();self.assertFalse(self.engine.display_action(snap['revision'],'delete',snap['next'][0]['id'])['ok'])
         self.assertEqual(self.engine.display_action(snap['revision'],'done','x')['why'],'stale item')

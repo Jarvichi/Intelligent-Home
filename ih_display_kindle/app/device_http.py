@@ -40,6 +40,8 @@ def make_handler(frames, build, token, card=None):
                     return self.send(400, 'Invalid screen')
                 try:
                     image, zones = build(screen, int(page), eat)
+                    if (query.get('batch') or [''])[0] != '1':   # only a Kindle that says it can hold taps (batch=1) is told which zones to hold
+                        zones = [dict(z, preview='none') if z.get('preview') == 'batch' else z for z in zones]
                     frame = frames.bundle(frames.issue(image, zones))
                     lines = ['frame ' + frame['frame'], 'sha256 ' + frame['sha256']]
                     for zone in frame['zones']:
@@ -74,7 +76,7 @@ def make_handler(frames, build, token, card=None):
             if self.path not in ('/device/v1/activate', '/device/v1/tap'): return self.send(404, 'Not found')
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= 512: raise ValueError()
+                if not 0 < length <= 700: raise ValueError()
                 data = parse_qs(self.rfile.read(length).decode('ascii'), strict_parsing=True, max_num_fields=2)
                 if any(len(v) != 1 for v in data.values()): raise ValueError()
                 if self.path.endswith('/activate'):
