@@ -193,6 +193,7 @@ class CardStatTest(TmpCase):
         self.assertEqual(card_stat.for_entry(e, self.TOTALS, quest), {"kind": "quests", "done": 101, "total": 250, "label": "Quests"})
         self.assertEqual(card_stat.for_entry(e, self.TOTALS), {"kind": "trophies", "earned": 24, "total": 55})
         self.assertEqual(card_stat.for_entry(e, {}), {"kind": "playtime", "minutes": 356, "tracked": False, "since": None})
+        self.assertEqual(card_stat.playtime_stat(e), {"kind": "playtime", "minutes": 356, "tracked": False, "since": None})
         self.assertIsNone(card_stat.for_entry(self.entry(), {}))
 
     def test_zero_minutes_is_hidden_not_shown(self):
@@ -399,6 +400,15 @@ class CardStatScriptTest(unittest.TestCase):
                          {"kind": "playtime", "label": "Play time since D2026-11-01", "value": "5 hours 56 min"})
         self.assertEqual(self.stat({"card_stat": {"kind": "playtime", "minutes": 61, "tracked": False, "since": None}}),
                          {"kind": "playtime", "label": "Play time", "value": "1 hour 1 min"})
+
+    def test_play_time_is_available_beside_trophies(self):
+        playtime = {"kind": "playtime", "minutes": 356, "tracked": False, "since": None}
+        game = {"card_stat": {"kind": "trophies", "earned": 24, "total": 55}, "card_playtime": playtime}
+        self.assertEqual(self.js("c.cardPlaytime(%s, v => 'D' + v)" % json.dumps(game)), {"kind": "playtime", "label": "Play time", "value": "5 hours 56 min"})
+        merged = {"platformEntries": [{"card_playtime": playtime}, {"card_playtime": dict(playtime, minutes=4)}]}
+        self.assertEqual(self.js("c.cardPlaytime(%s)" % json.dumps(merged))["value"], "6 hours")
+        for empty in ({}, {"card_playtime": None}, {"card_playtime": {"kind": "playtime", "minutes": 0}}):
+            self.assertIsNone(self.js("c.cardPlaytime(%s)" % json.dumps(empty)))
 
     def test_no_box_without_data_or_with_zero_minutes(self):
         for game in ({}, {"card_stat": None}, {"playtime_min": 0}, {"card_stat": {"kind": "playtime", "minutes": 0}},

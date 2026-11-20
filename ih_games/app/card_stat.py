@@ -45,6 +45,11 @@ def for_entry(entry, trophy_totals, quest=None):
         t = trophy_totals.get(L.norm(entry.get("title")))
         if t and t.get("total"):
             return {"kind": KIND_TROPHIES, "earned": t["earned"], "total": t["total"]}
+    return playtime_stat(entry)
+
+
+def playtime_stat(entry):
+    """The play time on its own (shown beside quests / trophies too), or None when no time above zero is known."""
     minutes = _count(entry.get("playtime_min"))
     if minutes:
         tracked = entry.get("playtime_src") == L.PLAYTIME_SRC_TRACKED
@@ -59,5 +64,5 @@ def annotate(games, data_dir, player, tool_for=None, tc=None):
     out = []
     for e in games:
         tool = tool_for(e) if tool_for and e.get("tools") else None
-        out.append(dict(e, card_stat=for_entry(e, totals, tool_progress(tool, tc, player) if tool else None)))
+        out.append(dict(e, card_playtime=playtime_stat(e), card_stat=for_entry(e, totals, tool_progress(tool, tc, player) if tool else None)))
     return out
