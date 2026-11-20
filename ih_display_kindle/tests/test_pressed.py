@@ -41,8 +41,9 @@ class PressedTests(unittest.TestCase):
         out = pressed.invert_crop(make_png(), [10, 5, 110, 45])
         with Image.open(io.BytesIO(out)) as image:
             self.assertEqual(image.size, (100, 40))
-            self.assertEqual(image.getpixel((15, 10)), 255)   # was the black square at x20,y10: now white
-            self.assertEqual(image.getpixel((1, 1)), 0)       # was white: now black
+            self.assertEqual(image.getpixel((25, 15)), 255)   # the middle of the black square at x20-60,y10-30: fill gone (white)
+            self.assertEqual(image.getpixel((11, 6)), 0)      # its edge (x21,y11): outline stays black
+            self.assertEqual(image.getpixel((1, 1)), 255)     # the page around the button is left alone
 
     def test_bad_boxes_give_none(self):
         self.assertIsNone(pressed.invert_crop(make_png(), [10, 5, 10, 45]))

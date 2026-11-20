@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.1
+
+- A tapped button now loses its fill and keeps its outline (only the button shape is inverted), instead of showing a black rectangle with the white button inside. The page around rounded corners is left alone.
+
 ## 0.14.0
 
 - After a meal is picked on the Kindle the main screen now shows "Getting your recipe…" (for up to 2½ minutes, until the cooking screen is ready) instead of "Cooking unavailable · controls paused". No taps are offered while it shows.
