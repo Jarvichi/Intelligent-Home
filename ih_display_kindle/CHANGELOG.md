@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1
+
+- A tap the add-on refuses is now logged with a short reason (for example `stale display`, `stale frame or zone`, `cooking unreachable`), and the cooking add-on's reason is passed through, so a Kindle "Tap not sent" can be traced. No household data is logged.
+
 ## 0.13.0
 
 - New on the device listener: `GET /device/v1/pressed/<frame>/<zone>` returns the tapped button's area of the picture on screen, inverted (black and white swapped), as a PNG. The Kindle can draw it at once on a tap so the button looks pressed and keeps its label, instead of a plain black box.

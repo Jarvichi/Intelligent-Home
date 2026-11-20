@@ -88,6 +88,9 @@ def make_handler(frames, build, token, card=None):
                     screen=navigation.get('screen');page=navigation.get('page',0);eat=navigation.get('eat','asap')
                     if screen in ('main','menu','dinner','home','birthdays','wifi') and type(page) is int and 0<=page<=999 and eat in ('asap','1230','1330','1830'):
                         return self.send(200, f'navigate {screen} {page} {eat}\n')
+                if result.get('ok') is not True:
+                    why = result.get('why')
+                    print('tap refused:', why[:40] if isinstance(why, str) else 'no reason given', flush=True)   # a short code only: no household data
                 return self.send(200 if result.get('ok') is True else 409, json.dumps({'ok': result.get('ok') is True}), 'application/json')
             except (UnicodeError, ValueError):
                 return self.send(400, 'Invalid request')

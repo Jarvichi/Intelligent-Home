@@ -40,4 +40,10 @@ class CookingClient:
                 if response.status!=200 or len(data)>LIMIT:raise ValueError()
             result=json.loads(data)
             return result if isinstance(result,dict) else {'ok':False}
-        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'ok':False}
+        except urllib.error.HTTPError as error:
+            # The cooking add-on says why it refused (stale display, stale item ...): keep that short code for the log.
+            try:
+                why=json.loads(error.read(2048)).get('why')
+                return {'ok':False,'why':why[:40] if isinstance(why,str) else 'refused'}
+            except (OSError,ValueError,TypeError,AttributeError):return {'ok':False,'why':'refused'}
+        except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'ok':False,'why':'cooking unreachable'}
