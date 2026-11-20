@@ -1,0 +1,25 @@
+{
+ "name": "ih_themed_events",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Themed events (Halloween, NYE, ...) as data, with a checklist, a review and a generator for the standard Home Assistant pieces (text only). Own database, token-protected API, page.",
+ "owner": "local add-on ih_themed_events",
+ "start": "Supervisor add-on 32c8114c_ih_themed_events (boot auto)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8819/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8819,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token"
+ ],
+ "restore": "Stop the add-on. The events live in the add-on's own database (/data/ih.db, daily snapshots in /data/backup) and are lost on uninstall. Nothing in Home Assistant depends on it.",
+ "requires": []
+}

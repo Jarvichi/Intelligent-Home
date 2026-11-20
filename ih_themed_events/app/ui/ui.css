@@ -1,0 +1,18 @@
+.e-list{display:grid;gap:12px}
+.e-card{border:1px solid var(--ih-border,#8884);border-radius:12px;padding:14px;display:grid;gap:6px}
+.e-card h2{margin:0;font-size:1.1rem}
+.e-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.e-pill{border-radius:999px;padding:2px 10px;font-size:.8rem;border:1px solid var(--ih-border,#8886)}
+.e-pill[data-on="on"]{background:#2e7d3233}
+.e-button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--ih-border,#8886);background:transparent;color:inherit;font:inherit;cursor:pointer}
+.e-button:disabled{opacity:.5;cursor:default}
+.e-check{display:flex;gap:10px;align-items:center;min-height:44px}
+.e-check input{width:24px;height:24px}
+.e-check[data-done="1"] span{text-decoration:line-through;opacity:.7}
+.e-sect{margin-top:18px}
+.e-sect h3{margin:0 0 6px}
+.e-code{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;font-size:.8rem;max-height:420px;overflow:auto;border:1px solid var(--ih-border,#8884);border-radius:8px;padding:10px}
+.e-form{display:grid;gap:8px;max-width:640px}
+.e-form textarea,.e-form input[type=text],.e-form input[type=number]{min-height:44px;font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--ih-border,#8886);background:transparent;color:inherit;width:100%;box-sizing:border-box}
+.e-warn{border-left:4px solid #e6a100;padding:6px 10px}
+.e-msg{min-height:1.4em}

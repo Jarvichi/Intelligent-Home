@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Events",
+  "purpose": "Themed events such as Halloween and New Year's Eve as data: checklist, review and the standard Home Assistant pieces."
+ }
+}

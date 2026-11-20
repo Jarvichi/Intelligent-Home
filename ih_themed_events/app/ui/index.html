@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Themed events</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Themed events"></ih-nav>
+  <ih-app>
+    <main>
+      <div class="ih-page-heading">
+        <h1 id="page-title">Themed events</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="ih-metadata">One record per event (Halloween, New Year's Eve, ...). Each has a date, its lights and speakers, a checklist and a review. The add-on writes the standard Home Assistant files as text for you to read. It never changes Home Assistant itself.</p>
+      <section id="list-view" aria-label="Events">
+        <div id="events" class="e-list"></div>
+        <p id="events-empty" class="ih-empty-inline" hidden>No events yet.</p>
+      </section>
+      <section id="detail-view" aria-label="Event" hidden>
+        <button id="back" class="e-button" type="button">Back to the events</button>
+        <div id="detail"></div>
+      </section>
+      <p id="msg" class="ih-metadata" role="status" aria-live="polite"></p>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
