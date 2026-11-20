@@ -97,3 +97,8 @@ def tyres(values):
         ok = all(type(x) in (int, float) and 0 < x < 200 for x in (now, target))
         rows.append({'k': k, 'name': TYRE_NAMES[k], 'now': round(now) if ok else '–', 'target': round(target) if ok else '–', 'low': ok and now < 0.9 * target})
     return render('tyres.html', tyres=rows, any_low=any(r['low'] for r in rows))
+
+
+def loading():
+    """Shown on the main screen for the minute or so between picking a meal and the cooking screen being ready."""
+    return render('loading.html')

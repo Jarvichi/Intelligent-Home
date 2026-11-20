@@ -277,6 +277,8 @@ class Renderer:
         import screens_html
         if name == 'cooking':
             return self.build(lambda: screens_html.cooking(payload, alerts)) if isinstance(payload, dict) else None
+        if name == 'loading':
+            return self.build(lambda: screens_html.loading())
         make = {'dinner': screens_html.dinner, 'home': screens_html.home, 'birthdays': screens_html.birthdays, 'menu': screens_html.menu}.get(name)
         return self.build(lambda: make(payload, now)) if make else None
 

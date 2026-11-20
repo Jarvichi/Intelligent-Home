@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0
+
+- After a meal is picked on the Kindle the main screen now shows "Getting your recipe…" (for up to 2½ minutes, until the cooking screen is ready) instead of "Cooking unavailable · controls paused". No taps are offered while it shows.
+
 ## 0.13.1
 
 - A tap the add-on refuses is now logged with a short reason (for example `stale display`, `stale frame or zone`, `cooking unreachable`), and the cooking add-on's reason is passed through, so a Kindle "Tap not sent" can be traced. No household data is logged.

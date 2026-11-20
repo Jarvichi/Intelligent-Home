@@ -3,6 +3,10 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.1] - 2026-11-20
+### Fixed
+- Kindle cooking-screen buttons said "Tap not sent" (`stale display`): the display revision hashed the whole plan/state files, which the cook loop rewrites every few seconds. It now covers only the plan title, eat time and the rows the buttons act on, so a tap works while the cook runs and is still refused if the rows or the plan changed.
+
 ## [0.10.0] - 2026-11-19
 
 ### Added
