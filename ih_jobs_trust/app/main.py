@@ -4,9 +4,9 @@ import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jobs_child
-import trustjob, trustdb
+import trustjob, trustdb, scores
 
-VERSION = '0.3.2'
+VERSION = '0.3.3'
 DATA = os.environ.get('IHJ_DATA', '/data')
 
 SPEC = dict(job='trust', source='ih_jobs_trust', slug='ih_jobs_trust', title='Intelligent Home - Jobs - AI Trust Test', version=VERSION, port=8810, runner=trustjob.run)

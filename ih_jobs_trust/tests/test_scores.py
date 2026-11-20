@@ -53,6 +53,22 @@ if __name__ == '__main__':
 
 
 class Wired(unittest.TestCase):
-    def test_main_installs_the_scores_route(self):
-        src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'main.py')).read()
-        self.assertIn("    _with_scores()\n", src.split("if __name__ == '__main__':")[1])   # 0.3.0 defined it but never called it: /scores was a 404
+    def test_scores_route_answers_over_http(self):
+        """0.3.0 never switched the route on (404), 0.3.2 forgot an import (500). Go through main's own wiring and a real socket."""
+        import threading, urllib.request, urllib.error, importlib
+        from http.server import ThreadingHTTPServer
+        import jobs_child
+        orig = jobs_child.make_handler
+        main = importlib.import_module('main')
+        d = tempfile.mkdtemp(); main.DATA = d
+        try:
+            main._with_scores()
+            child = type('C', (), {'opts': {'register_key': 'K1'}, 'healthy': lambda s: True, 'status': lambda s: {}})()
+            srv = ThreadingHTTPServer(('127.0.0.1', 0), jobs_child.make_handler(child)); threading.Thread(target=srv.serve_forever, daemon=True).start()
+            url = 'http://127.0.0.1:%d/scores' % srv.server_address[1]
+            with self.assertRaises(urllib.error.HTTPError) as e: urllib.request.urlopen(urllib.request.Request(url, headers={'Authorization': 'Bearer nope'}))
+            self.assertEqual(e.exception.code, 401)
+            r = json.load(urllib.request.urlopen(urllib.request.Request(url, headers={'Authorization': 'Bearer K1'})))
+            self.assertIn('rows', r); srv.shutdown()
+        finally:
+            jobs_child.make_handler = orig
