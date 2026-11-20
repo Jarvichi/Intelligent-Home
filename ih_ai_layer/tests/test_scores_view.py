@@ -56,6 +56,9 @@ class T(unittest.TestCase):
             seen['auth'] = req.get_header('Authorization'); return R()
         self.assertEqual(scores_view.fetch_trust(p, opener=opener)['date'], '2026-11-01')
         self.assertEqual(seen['auth'], 'Bearer KEY1')
+        json.dump({'register_key': 'KEY1', 'trust_scores_key': 'TKEY'}, open(p, 'w'))
+        scores_view.fetch_trust(p, opener=opener)
+        self.assertEqual(seen['auth'], 'Bearer TKEY')
 
     def test_cached_and_never_raises(self):
         scores_view._cache.update(t=0.0, v=None)

@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer"
-version: "0.9.0"
+version: "0.9.1"
 slug: ih_ai_layer
 image: "ghcr.io/jarvichi/{arch}-ih_ai_layer"
 description: "Routes an AI request (text + optional capability) to an AI provider and returns the answer. Providers (Gemini, Groq, OpenRouter, Mistral, OpenAI, Pollinations, SerpApi, Serper, Grok, Claude) run inside this add-on; separate agent add-ons can still register with a signed registration (register_key). Remembers which answers best per capability. NOT connected to Discord or any chat. SHADOW mode by default: nothing is called. No Home Assistant access. Maps no folders."
@@ -25,6 +25,7 @@ options:
   api_token: ""
   games_art_token: ""
   register_key: ""
+  trust_scores_key: ""
   shadow: true
   agent_timeout_s: 20
   rate_per_min: 30
@@ -48,6 +49,7 @@ schema:
   api_token: password
   games_art_token: password?
   register_key: password
+  trust_scores_key: password?
   shadow: bool
   agent_timeout_s: int(1,60)
   rate_per_min: int(1,600)
