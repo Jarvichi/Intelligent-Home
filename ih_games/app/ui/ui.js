@@ -406,6 +406,7 @@
     if (stat) facts.append(row(stat.label, stat.value));
     const played = stat && stat.kind === 'playtime' ? null : cardStatHelpers.cardPlaytime(game, showDate);
     if (played) facts.append(row(played.label, played.value));
+    if (facts.children.length > 2) facts.classList.add('three-facts');   // Last played | trophies | play time as three columns
     main.appendChild(facts);
     let artStatus = null;
     function showArtStatus(message, className) {

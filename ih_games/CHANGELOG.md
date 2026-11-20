@@ -3,7 +3,7 @@
 ## [0.14.0] - 2026-11-20
 
 ### Added
-- The game card shows **Play time** as its own row as well as quests / trophies (before, play time only appeared when a game had neither). Each library entry carries `card_playtime`; nothing shows when no time above zero is known.
+- The game card shows **Play time** as an optional third column (after Last played and quests / trophies) (before, play time only appeared when a game had neither). Each library entry carries `card_playtime`; nothing shows when no time above zero is known.
 
 ## [0.13.2] - 2026-11-11
 

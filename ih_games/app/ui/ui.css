@@ -42,6 +42,7 @@
 .game-heading h2{margin:0;font-size:clamp(18px,2vw,22px);line-height:1.15;letter-spacing:-.03em;overflow-wrap:anywhere}
 .platform-pill{justify-self:start;padding:4px 8px;border:1px solid var(--ih-line);border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-muted);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
 .game-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;width:100%;margin:10px 0 0}
+.game-facts.three-facts{grid-template-columns:repeat(3,minmax(0,1fr))}
 .detail-row{display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 0;border-top:1px solid var(--ih-line)}
 .detail-row dt{color:var(--ih-muted);font-size:11px;font-weight:650}
 .detail-row dd{margin:0;font-size:13px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
