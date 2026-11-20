@@ -36,4 +36,9 @@ if '--stdout' not in sys.argv:
            'cooking':screens_html.cooking({'title':'Example meal','eat':'19:00','next':[{'at':'18:30','text':'Example step'}],'steps':[{'at':'18:30','text':'Example step'}],'prep':[{'text':'Example prep'}]})}
     for name,page in pages.items():
         if not page.startswith('<!doctype html>') or 'Traceback' in page:raise RuntimeError('Invalid '+name+' template output')
+import io,pressed   # the pressed-button picture needs Pillow, which only the image has
+from PIL import Image
+_src=io.BytesIO();Image.new('L',(60,60),255).save(_src,'PNG')
+with Image.open(io.BytesIO(pressed.invert_crop(_src.getvalue(),[0,0,30,30]))) as _out:
+    if _out.size!=(30,30) or _out.getpixel((5,5))!=0:raise RuntimeError('pressed picture is wrong')
 if '--stdout' in sys.argv:sys.stdout.buffer.write(image)

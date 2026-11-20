@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 import device_frames
+import pressed
 
 
 def make_handler(frames, build, token, card=None):
@@ -56,6 +57,12 @@ def make_handler(frames, build, token, card=None):
                     values[k] = float(v)
                 image = card('tyres', values)
                 return self.send(200, image, 'image/png') if image else self.send(503, 'Card unavailable')
+            if request.path.startswith('/device/v1/pressed/'):
+                parts = request.path[len('/device/v1/pressed/'):].split('/')
+                frame = frames.bundle(parts[0]) if len(parts) == 2 else None
+                zone = next((z for z in frame['zones'] if z['id'] == parts[1]), None) if frame else None
+                image = pressed.invert_crop(frame['image'], zone['box']) if zone else None
+                return self.send(200, image, 'image/png') if image else self.send(404, 'Not found')
             prefix = '/device/v1/picture/'
             if request.path.startswith(prefix):
                 frame = frames.bundle(request.path[len(prefix):])

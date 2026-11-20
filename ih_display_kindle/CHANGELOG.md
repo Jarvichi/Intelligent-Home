@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+
+- New on the device listener: `GET /device/v1/pressed/<frame>/<zone>` returns the tapped button's area of the picture on screen, inverted (black and white swapped), as a PNG. The Kindle can draw it at once on a tap so the button looks pressed and keeps its label, instead of a plain black box.
+
 ## 0.12.0
 
 - New picture on the device listener for scripts: `GET /device/v1/card/tyres` (same bearer token) with the four tyre pressures and targets in PSI (`fl fr rl rr tfl tfr trl trr`) returns a 600 x 760 PNG of the car from above, with tyres under 90% of target drawn black. It needs `renderer: html`. This replaces the Lovelace screenshot the MINI tyre warning used.
