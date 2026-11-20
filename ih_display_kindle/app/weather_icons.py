@@ -19,6 +19,11 @@ FILES = {
     'lightning': 'thunderstorms', 'lightning-rainy': 'severe-thunderstorm', 'fog': 'fog', 'hail': 'hail',
     'windy': 'wind', 'windy-variant': 'wind', 'exceptional': 'tornado',
 }
+# the same conditions after dark (the rest look the same day and night)
+NIGHT_FILES = {
+    'sunny': 'clear-night', 'partlycloudy': 'cloudy-1-night', 'rainy': 'rainy-2-night', 'pouring': 'rainy-3-night',
+    'snowy': 'snowy-2-night', 'fog': 'fog-night',
+}
 # coloured -> ink greys (lower-case hex as they appear in the files)
 GREYS = {'#ffa500': '#444', '#ffc04a': '#666', '#57a0ee': '#222', '#91c0f8': '#555', '#c6deff': '#777',
          '#cd9e73': '#555', '#c00': '#000', '#666': '#333'}
@@ -43,6 +48,21 @@ def _draw(name):
 
 
 ICONS = {condition: _draw(name) for condition, name in FILES.items()}
+NIGHT = {condition: _draw(name) for condition, name in NIGHT_FILES.items()}
+
+
+def draw(condition, night=False):
+    """The icon's drawing for a condition, or None. `night` picks the after-dark version where there is one."""
+    name = key(condition)
+    return (NIGHT.get(name) if night else None) or ICONS.get(name)
+
+
+def after_dark(row=None, dark=None):
+    """True when a forecast row (or the sun entity: dark=True/False) says it is night. A row with a UV index of 0 is after dark."""
+    if isinstance(dark, bool):
+        return dark
+    uv = row.get('uv_index') if isinstance(row, dict) else None
+    return isinstance(uv, (int, float)) and not isinstance(uv, bool) and uv == 0
 
 
 def key(condition):
@@ -53,8 +73,8 @@ def known(condition):
     return key(condition) in ICONS
 
 
-def svg(condition, x, y, size):
-    draw = ICONS.get(key(condition))
-    if not draw:
+def svg(condition, x, y, size, night=False):
+    drawing = draw(condition, night)
+    if not drawing:
         return ''
-    return f'<g aria-label="{key(condition)}" transform="translate({x:g} {y:g}) scale({size / 100:g})">{draw()}</g>'
+    return f'<g aria-label="{key(condition)}" transform="translate({x:g} {y:g}) scale({size / 100:g})">{drawing()}</g>'

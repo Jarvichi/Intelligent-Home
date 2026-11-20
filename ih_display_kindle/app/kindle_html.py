@@ -75,8 +75,8 @@ def supports(data, alerts=None, now=None):
     return not festive_header.style(event)[0]
 
 
-def icon(condition, size):
-    draw = weather_icons.ICONS.get(weather_icons.key(condition))
+def icon(condition, size, night=False):
+    draw = weather_icons.draw(condition, night)
     return Safe(f'<svg viewBox="0 0 100 100" width="{size}" height="{size}">{draw()}</svg>') if draw else Safe('')
 
 
@@ -114,7 +114,7 @@ def context(data, alerts=None, now=None):
         sky = str(facts.get('sky', 'Unavailable'))
         label = 'UV INDEX' if sky.startswith('UV ') else 'CLOUD COVER'
         bearing = facts.get('bearing')
-        wx = {'icon': icon(cur.get('condition'), 125), 'temp': str(cur.get('temperature', '–')) + '°', 'cond': cond,
+        wx = {'icon': icon(cur.get('condition'), 125, weather_icons.after_dark(cur, data.get('sun_dark'))), 'temp': str(cur.get('temperature', '–')) + '°', 'cond': cond,
               'range': ('Today ' + str(today_row.get('low', '–')) + '° – ' + str(today_row.get('high', '–')) + '°') if today_row else '',
               'facts': [{'l': k, 'v': v} for k, v in (('WIND', facts.get('wind', 'Unavailable')), ('NEXT RAIN', K.next_rain_text(facts.get('next_rain', 'Unavailable'))),
                                                        (label, sky.removeprefix('UV ').removeprefix('Cloud ')))],
@@ -156,7 +156,7 @@ def context(data, alerts=None, now=None):
         c['band'] = {'kind': 'media', 'art': art if isinstance(art, str) and ART.fullmatch(art) else None,
                      'title': parts[0] or str(media.get('label') or 'Playing'), 'sub': parts[1] if len(parts) > 1 else ''}
     elif weather:
-        c['band'] = {'kind': 'hours', 'hours': [{'time': h.get('time', ''), 'icon': icon(h.get('condition'), 60), 'temp': str(h.get('temperature', '–')) + '°',
+        c['band'] = {'kind': 'hours', 'hours': [{'time': h.get('time', ''), 'icon': icon(h.get('condition'), 60, weather_icons.after_dark(h)), 'temp': str(h.get('temperature', '–')) + '°',
                                                   'rain': (K.num(h['precipitation']) + ' mm') if number(h.get('precipitation')) and h['precipitation'] > 0.1 else ''}
                                                  for h in (weather.get('hours') or [])[:6]]}
     else:

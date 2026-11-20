@@ -28,6 +28,16 @@ class WeatherIconsTests(unittest.TestCase):
             self.assertFalse(set(re.findall(r'#[0-9a-fA-F]{3,6}\b',body))-{'#fff','#000','#1d1d1d','#222','#333','#444','#555','#777'}, condition)
         self.assertTrue((weather_icons.HERE/'LICENSE').exists())
 
+    def test_night_versions(self):
+        self.assertNotEqual(weather_icons.svg('sunny',0,0,100,True).replace('sunny',''), weather_icons.svg('sunny',0,0,100).replace('sunny',''))
+        for c in weather_icons.NIGHT_FILES: self.assertNotEqual(weather_icons.svg(c,0,0,1,True), weather_icons.svg(c,0,0,1), c)
+        self.assertEqual(weather_icons.svg('windy',0,0,1,True), weather_icons.svg('windy',0,0,1))
+        self.assertTrue(weather_icons.after_dark({'uv_index':0.0}))
+        self.assertFalse(weather_icons.after_dark({'uv_index':1.2}))
+        self.assertFalse(weather_icons.after_dark({}))
+        self.assertTrue(weather_icons.after_dark({'uv_index':3}, True))
+        self.assertFalse(weather_icons.after_dark({'uv_index':0}, False))
+
     def test_render_draws_icons_without_needing_a_font(self):
         data={'weather': {'current': {'condition':'windy'}, 'daily': [
               {'label':'Tomorrow','condition':'fog'}],
