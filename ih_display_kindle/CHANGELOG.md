@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.2
+
+- Only one Chromium picture is drawn at a time. Several quick taps on the Kindle ask for several pictures at once; running them in parallel on the Pi made some time out and fall back to the plain picture.
+
 ## 0.14.1
 
 - A tapped button now loses its fill and keeps its outline (only the button shape is inverted), instead of showing a black rectangle with the white button inside. The page around rounded corners is left alone.

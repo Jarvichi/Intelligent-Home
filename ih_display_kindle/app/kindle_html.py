@@ -11,6 +11,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import threading
 import textwrap
 import time
 import cat_render
@@ -238,6 +239,7 @@ class Renderer:
         self.chromium = chromium or next((c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser') if os.path.exists(c)), 'chromium')
         self.run, self.grey, self.timeout = run, grey, timeout
         self.last_error = ''
+        self.busy = threading.Lock()   # one Chromium at a time: quick taps ask for several pictures at once and parallel runs time out on the Pi
 
     def note(self, exc):
         text = type(exc).__name__ + ': ' + str(exc)[:200]
@@ -252,8 +254,10 @@ class Renderer:
                 source, shot = os.path.join(folder, 'page.html'), os.path.join(folder, 'shot.png')
                 with open(source, 'w', encoding='utf-8') as f:
                     f.write(html_text)
-                self.run([self.chromium, *(self.ARGS if not size else [a if not a.startswith('--window-size') else '--window-size=%d,%d' % size for a in self.ARGS]), '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
-                         env=dict(os.environ, HOME=folder))
+                args = self.ARGS if not size else [a if not a.startswith('--window-size') else '--window-size=%d,%d' % size for a in self.ARGS]
+                with self.busy:
+                    self.run([self.chromium, *args, '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
+                             env=dict(os.environ, HOME=folder))
                 grey = self.grey(shot)
                 if not grey:
                     return None
