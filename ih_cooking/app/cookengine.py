@@ -837,10 +837,8 @@ class Engine:
         with self.lock:
             plan=self.load('plan.json',None)
             if not self.running() or not isinstance(plan,dict):return {'running':False,'revision':None,'next':[],'prep':[],'steps':[]}
-            try:
-                st=os.stat(self.p('plan.json'))
-                identity=[st.st_ino,st.st_mtime_ns,st.st_ctime_ns]
-            except OSError:return {'running':False,'revision':None,'next':[],'prep':[],'steps':[]}
+            # Stable while the same cook runs: the loop rewrites plan.json/state.json every few seconds, so file identity or content must not be part of the revision.
+            identity=[str(plan.get('title') or '')[:120],str(plan.get('eat') or '')[:5]]
             state=self.load('state.json',{}) or {};keys=self.load('shownext.json',[]) or [];shown=self.load('shown.json',[]) or []
             steps=plan.get('steps') if isinstance(plan.get('steps'),list) else [];prep=plan.get('prep') if isinstance(plan.get('prep'),list) else []
             def row_id(kind,index,key):
@@ -856,7 +854,7 @@ class Engine:
                 matches=[v for v in prep if isinstance(v,dict) and v.get('text')==value and not v.get('done')]
                 if isinstance(value,str) and len(matches)==1:prep_rows.append({'id':row_id('prep',i,value),'row':i,'text':value[:120]})
             summary=[{'at':str(v.get('at',''))[:5],'text':str(v.get('short') or v.get('text') or '')[:120],'done':str(v.get('at',''))+' '+str(v.get('text','')) in state.get('done',[])} for v in steps[:100] if isinstance(v,dict)]
-            basis={'identity':identity,'plan':plan,'state':state,'keys':keys,'shown':shown}
+            basis={'identity':identity,'next':[[r['id'],r['done']] for r in next_rows],'prep':[r['id'] for r in prep_rows]}
             revision=hashlib.sha256(json.dumps(basis,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
             return {'running':True,'revision':revision,'title':str(plan.get('title') or '')[:120],'eat':str(plan.get('eat') or '')[:5],
                     'oven_target':plan.get('oven_target'),'next':next_rows,'prep':prep_rows,'steps':summary}

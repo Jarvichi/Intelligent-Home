@@ -30,6 +30,7 @@ if '--stdout' not in sys.argv:
     pages={'main':kindle_html.page(sample_day,alerts,now=12*3600),
            'dinner':screens_html.dinner({'items':[{'title':'Example meal','eat':'19:00','lead':40}],'page':0,'pages':2}),
            'home':screens_html.home({'members':[{'name':'Example','home':True}]}),
+           'loading':screens_html.loading(),
            'birthdays':screens_html.birthdays({'items':[{'name':'Example','date':'Monday','countdown':'TODAY'}]}),
            'menu':screens_html.menu(),
            'tyres':screens_html.tyres({'fl':26,'tfl':32,'fr':32,'tfr':32,'rl':32,'trl':32,'rr':32,'trr':32}),

@@ -28,8 +28,12 @@ class Tests(unittest.TestCase):
     def test_reordered_rows_and_replaced_plan_are_rejected(self):
         snap=self.engine.display_snapshot();self.engine.dump('shownext.json',list(reversed(self.keys)))
         self.assertEqual(self.engine.display_action(snap['revision'],'done',snap['next'][0]['id'])['why'],'stale display')
-        snap=self.engine.display_snapshot();self.engine.dump('plan.json',self.plan)
+        snap=self.engine.display_snapshot();self.engine.dump('plan.json',dict(self.plan,title='Different meal'))
         self.assertEqual(self.engine.display_action(snap['revision'],'done',snap['next'][0]['id'])['why'],'stale display')
+    def test_background_rewrites_do_not_stale_the_display(self):
+        snap=self.engine.display_snapshot();self.engine.dump('plan.json',dict(self.plan,oven_target=180));self.engine.dump('state.json',{'done':[],'told':self.keys,'snap':{'keys':self.keys,'ts':5}})
+        self.assertEqual(self.engine.display_snapshot()['revision'],snap['revision'])
+        self.assertTrue(self.engine.display_action(snap['revision'],'done',snap['next'][0]['id'])['ok'])
     def test_invalid_and_ambiguous_targets_are_rejected(self):
         snap=self.engine.display_snapshot();self.assertFalse(self.engine.display_action(snap['revision'],'delete',snap['next'][0]['id'])['ok'])
         self.assertEqual(self.engine.display_action(snap['revision'],'done','x')['why'],'stale item')
