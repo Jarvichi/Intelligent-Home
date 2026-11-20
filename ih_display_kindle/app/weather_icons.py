@@ -1,10 +1,8 @@
-"""Weather icons for the Kindle picture: the Makin-Things static set (MIT, see weather_svg/LICENSE).
+"""Weather icons for the Kindle picture: the Meteocons monochrome static set (Bas Milius, MIT; see weather_svg/LICENSE).
 
-The 25 icons we need are kept in weather_svg/. They are coloured; the Kindle shows
-greys, so each colour is swapped for a dark grey when the icon is loaded (orange and
-pale blue would otherwise come out as faint greys on e-ink). The soft drop-shadow
-filter is dropped: it is almost invisible and its id clashes when several icons
-share one page.
+The 16 icons we need are kept in weather_svg/. They are black line art (drawn with
+currentColor, which becomes black here), which suits e-ink. Day and night versions
+are picked from the same set.
 """
 
 import pathlib
@@ -14,37 +12,27 @@ HERE = pathlib.Path(__file__).resolve().parent / 'weather_svg'
 
 # Home Assistant condition -> icon file (without .svg)
 FILES = {
-    'sunny': 'clear-day', 'clear-night': 'clear-night', 'cloudy': 'cloudy', 'partlycloudy': 'cloudy-1-day',
-    'rainy': 'rainy-2-day', 'pouring': 'rainy-3-day', 'snowy': 'snowy-2-day', 'snowy-rainy': 'rain-and-snow-mix',
-    'lightning': 'thunderstorms', 'lightning-rainy': 'severe-thunderstorm', 'fog': 'fog', 'hail': 'hail',
-    'windy': 'wind', 'windy-variant': 'wind', 'exceptional': 'tornado',
+    'sunny': 'clear-day', 'clear-night': 'clear-night', 'cloudy': 'cloudy', 'partlycloudy': 'partly-cloudy-day',
+    'rainy': 'partly-cloudy-day-rain', 'pouring': 'rain', 'snowy': 'snow', 'snowy-rainy': 'sleet',
+    'lightning': 'thunderstorms', 'lightning-rainy': 'thunderstorms-rain', 'fog': 'fog', 'hail': 'hail',
+    'windy': 'wind', 'windy-variant': 'wind', 'exceptional': 'weather-alert',
 }
 # the same conditions after dark (the rest look the same day and night)
-NIGHT_FILES = {
-    'sunny': 'clear-night', 'partlycloudy': 'cloudy-1-night', 'rainy': 'rainy-2-night', 'pouring': 'rainy-3-night',
-    'snowy': 'snowy-2-night', 'fog': 'fog-night',
-}
-# coloured -> ink greys (lower-case hex as they appear in the files)
-GREYS = {'#ffa500': '#444', '#ffc04a': '#666', '#57a0ee': '#222', '#91c0f8': '#555', '#c6deff': '#777',
-         '#cd9e73': '#555', '#c00': '#000', '#666': '#333'}
+NIGHT_FILES = {'sunny': 'clear-night', 'partlycloudy': 'partly-cloudy-night', 'rainy': 'partly-cloudy-night-rain'}
 _cache = {}
 
 
 def _load(name):
     if name not in _cache:
         raw = (HERE / (name + '.svg')).read_text(encoding='utf-8')
-        body = re.sub(r'<defs>.*?</defs>', '', raw, flags=re.S)
-        body = re.sub(r'\sfilter="url\(#blur\)"', '', body)
-        body = re.sub(r'<\?xml.*?\?>|<!--.*?-->', '', body, flags=re.S)
-        inner = re.search(r'<svg\b[^>]*>(.*)</svg>', body, flags=re.S).group(1)
-        inner = re.sub(r'#[0-9a-fA-F]{3,6}\b', lambda m: GREYS.get(m.group(0).lower(), m.group(0)), inner)
-        _cache[name] = re.sub(r'\s+', ' ', inner).strip()
+        inner = re.search(r'<svg\b[^>]*>(.*)</svg>', raw, flags=re.S).group(1)
+        _cache[name] = re.sub(r'\s+', ' ', inner.replace('currentColor', '#000')).strip()
     return _cache[name]
 
 
 def _draw(name):
-    # the files are 56 x 48 with the drawing in the middle; crop to 44 x 44 so the icon fills the 100 x 100 square
-    return lambda: f'<svg x="0" y="0" width="100" height="100" viewBox="6 0 44 44">{_load(name)}</svg>'
+    # the files are 128 x 128 with a margin; crop to 100 x 100 so the icon fills the 100 x 100 square
+    return lambda: f'<svg x="0" y="0" width="100" height="100" viewBox="14 16 100 100">{_load(name)}</svg>'
 
 
 ICONS = {condition: _draw(name) for condition, name in FILES.items()}

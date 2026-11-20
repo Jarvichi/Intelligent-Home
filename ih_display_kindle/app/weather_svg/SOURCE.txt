@@ -1,0 +1,1 @@
+Meteocons by Bas Milius, MIT (see LICENSE). Static monochrome set, @meteocons/svg-static 0.1.0.

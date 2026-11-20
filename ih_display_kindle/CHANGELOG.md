@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.10.1
+## 0.11.0
 
-- Weather icons are drawn about 27% larger (the art was cropped too loosely, so they looked small).
+- Weather icons are now the Meteocons monochrome set (Bas Milius, MIT; licence in `app/weather_svg/`): black line art that reads better on e-ink than the 0.10.0 set, drawn larger. Day and night versions of sunny, partly cloudy and rainy; the other conditions look the same day and night.
 
 ## 0.10.0
 
