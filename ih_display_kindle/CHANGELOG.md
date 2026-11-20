@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Weather icons are drawn about 27% larger (the art was cropped too loosely, so they looked small).
+
 ## 0.10.0
 
 - Weather icons are now the Makin-Things static set (MIT licence, `app/weather_svg/LICENSE`) in place of the hand-drawn vector icons. The coloured icons are turned into dark greys when loaded so they read on e-ink. After dark there are night versions of sunny (moon), partly cloudy, rainy, pouring, snowy and fog: the current icon follows the sun entity, and each hourly icon is night when its UV index is 0. Same conditions as before (sunny, clear-night, cloudy, partly cloudy, rainy, pouring, snowy, snowy-rainy, lightning, lightning-rainy, fog, hail, windy, exceptional).

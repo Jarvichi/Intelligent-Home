@@ -43,8 +43,8 @@ def _load(name):
 
 
 def _draw(name):
-    # the files are 56 x 48; fit them across the 100 x 100 icon square, centred
-    return lambda: f'<svg x="0" y="7" width="100" height="86" viewBox="0 0 56 48">{_load(name)}</svg>'
+    # the files are 56 x 48 with the drawing in the middle; crop to 44 x 44 so the icon fills the 100 x 100 square
+    return lambda: f'<svg x="0" y="0" width="100" height="100" viewBox="6 0 44 44">{_load(name)}</svg>'
 
 
 ICONS = {condition: _draw(name) for condition, name in FILES.items()}
