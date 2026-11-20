@@ -400,9 +400,13 @@
     main.appendChild(top);
     const facts = el('dl', null, 'game-facts');
     facts.append(row('Last played', fmtDate(game.last_seen, true)));
-    /* One stat box: progress, else play time above zero, else no box (never a misleading "0 min"). */
-    const stat = cardStatHelpers.cardStat(game, function (value) { return fmtDate(value, true); });
+    /* Progress (quests / trophies) first, then play time above zero; no box when unknown (never a misleading "0 min"). */
+    const showDate = function (value) { return fmtDate(value, true); };
+    const stat = cardStatHelpers.cardStat(game, showDate);
     if (stat) facts.append(row(stat.label, stat.value));
+    const played = stat && stat.kind === 'playtime' ? null : cardStatHelpers.cardPlaytime(game, showDate);
+    if (played) facts.append(row(played.label, played.value));
+    if (facts.children.length > 2) facts.classList.add('three-facts');   // Last played | trophies | play time as three columns
     main.appendChild(facts);
     let artStatus = null;
     function showArtStatus(message, className) {
