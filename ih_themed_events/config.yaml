@@ -1,5 +1,5 @@
 name: "Intelligent Home - Themed Events"
-version: "0.1.1"
+version: "0.1.2"
 slug: ih_themed_events
 image: "ghcr.io/jarvichi/{arch}-ih_themed_events"
 description: "Themed events (Halloween, New Year's Eve, birthdays, ...) kept as data: date, lights, speakers, sounds folder, automations to pause, effects, auto-off time, a checklist and a review after each run. Writes the standard Home Assistant helpers, scripts and automations as text for review. Own database, token-protected local API, page. Changes nothing in Home Assistant by itself; switching an event's mode from the page is off unless you set control to live."
