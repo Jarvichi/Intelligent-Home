@@ -1,10 +1,38 @@
 """Admin-only ingress UI and local health probe for this add-on."""
-import json, os, time, urllib.request
+import json, os, time, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 ROOT=Path(__file__).with_name('ui'); INFO=json.loads((ROOT/'ui.json').read_text()); PEER='172.30.32.2'
 ASSETS={'/ih-patterns.css':'ih-patterns.css','/':'index.html','/index.html':'index.html','/ui.css':'ui.css','/ui.js':'ui.js','/jobs-logic.js':'jobs-logic.js','/ih-ui.css':'ih-ui.css','/ih-ui.js':'ih-ui.js'}
 
+OPTIONS=os.environ.get('IHJ_OPTIONS','/data/options.json')
+DECK_CHOICES=('single','double','unknown')
+def files_token():
+ try: return str(json.loads(Path(OPTIONS).read_text()).get('files_token') or '').strip()
+ except Exception: return ''
+def bus_types_payload(data):
+ """What the Bus types card needs from the overrides endpoint: unknown codes plus the answers already given. Nothing else is passed on."""
+ if not isinstance(data,dict) or not data.get('ok'): return {'available':False}
+ ov=data.get('overrides') if isinstance(data.get('overrides'),dict) else {}
+ unk=[]
+ for e in data.get('unknown') or []:
+  if isinstance(e,dict) and str(e.get('code') or '').isdigit():
+   unk.append({'code':str(e['code'])[:8],'count':e.get('count') if isinstance(e.get('count'),int) else 0,'last_seen':str(e.get('last_seen') or '')[:10],'vehicle_type':str(e['vehicle_type'])[:80] if e.get('vehicle_type') else None})
+ return {'available':True,'unknown':unk,'answers':{str(k)[:8]:v for k,v in ov.items() if v in ('single','double')},'db_ok':bool((data.get('db') or {}).get('db'))}
+def bus_call(method,body=None):
+ """GET/POST the add-on's own overrides endpoint on localhost with the add-on's own token. -> (status, object)."""
+ tok=files_token()
+ if not tok: return 503,{'ok':False,'why':'files_token not set'}
+ headers={'Authorization':'Bearer '+tok,'Accept':'application/json'}
+ data=None
+ if body is not None: data=json.dumps(body).encode(); headers['Content-Type']='application/json'
+ req=urllib.request.Request('http://127.0.0.1:%d/plugin/bus_watch/overrides'%INFO['health_port'],data=data,headers=headers,method=method)
+ try:
+  with urllib.request.urlopen(req,timeout=5) as r: return r.status,json.loads(r.read(1024*1024))
+ except urllib.error.HTTPError as e:
+  try: return e.code,json.loads(e.read(65536))
+  except Exception: return e.code,{'ok':False}
+ except Exception: return 503,{'ok':False,'why':'unavailable'}
 SCHEDULE_KINDS=('daily','every','service','event')
 def clean_schedule(value):
  """Keep only the plain schedule fields the page shows."""
@@ -57,12 +85,29 @@ class Handler(BaseHTTPRequestHandler):
     return self.reply(200,json.dumps(body).encode(),'application/json; charset=utf-8')
    except Exception:
     return self.reply(503,b'{"available":false,"error":"Job results are temporarily unavailable."}','application/json; charset=utf-8')
+  if path=='/api/bus-types':
+   code,obj=bus_call('GET'); out=bus_types_payload(obj)
+   return self.reply(200 if out['available'] else 503,json.dumps(out).encode(),'application/json; charset=utf-8')
   name=ASSETS.get(path)
   if not name:return self.send_error(404)
   try: body=(ROOT/name).read_bytes()
   except OSError:return self.send_error(404)
   typ='text/html; charset=utf-8' if name.endswith('.html') else 'text/css; charset=utf-8' if name.endswith('.css') else 'text/javascript; charset=utf-8'
   self.reply(200,body,typ)
+ def do_POST(self):
+  if self.client_address[0]!=PEER: return self.send_error(403)
+  if self.path.split('?',1)[0]!='/api/bus-types': return self.send_error(404)
+  try:
+   n=int(self.headers.get('Content-Length') or 0)
+   if not 0<n<=2048: raise ValueError
+   obj=json.loads(self.rfile.read(n)); code=str(obj['code']).strip(); deck=str(obj['deck']).strip().lower()
+   if not code.isdigit() or len(code)>8 or deck not in DECK_CHOICES: raise ValueError
+  except Exception:
+   return self.reply(400,b'{"ok":false,"msg":"Choose a bus code and single, double or unknown."}','application/json; charset=utf-8')
+  status,out=bus_call('POST',{'code':code,'deck':deck,'by':'ingress'})
+  msg=str(out.get('msg') or out.get('why') or '')[:200] if isinstance(out,dict) else ''
+  ok=status==200 and isinstance(out,dict) and out.get('ok') is True
+  self.reply(200 if ok else (400 if status==400 else 503),json.dumps({'ok':ok,'msg':msg}).encode(),'application/json; charset=utf-8')
  def reply(self,code,body,typ):
   self.send_response(code);self.send_header('Content-Type',typ);self.send_header('Content-Length',str(len(body)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(body)
  def log_message(self,*args):pass

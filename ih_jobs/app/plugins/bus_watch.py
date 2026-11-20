@@ -429,12 +429,39 @@ def jobs_db(folder, log=None):
     return jobsdb.shared(os.path.dirname(os.path.normpath(folder)) if here else folder, log=log, legacy_dir=folder)
 
 
+def unknown_codes(folder, answered=()):
+    """Bus codes the promise log saw but could not classify: [{'code': '12345', 'count': n, 'last_seen': 'YYYY-MM-DD', 'vehicle_type': text or None}], newest first.
+    Codes that already have a person's answer are left out. Reads promise_log.jsonl in the plugin folder; never raises."""
+    found = {}
+    try:
+        with open(os.path.join(folder, 'promise_log.jsonl')) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict) or not r.get('vehicle') or r.get('deck') != 'unknown':
+                    continue
+                num = jobsdb.fleet_number(r['vehicle']) or jobsdb.fleet_number(str(r['vehicle']).split('-')[-1])
+                if not num or num in answered:
+                    continue
+                e = found.setdefault(num, {'code': num, 'count': 0, 'last_seen': '', 'vehicle_type': None})
+                e['count'] += 1
+                if str(r.get('date') or '') >= e['last_seen']:
+                    e['last_seen'] = str(r.get('date') or '')[:10]
+                    e['vehicle_type'] = str(r['vehicle_type'])[:80] if r.get('vehicle_type') else None
+    except OSError:
+        pass
+    return sorted(found.values(), key=lambda e: (e['last_seen'], e['code']), reverse=True)
+
+
 def http_overrides(folder, method, body=None, log=None):
     """GET/POST /plugin/bus_watch/overrides (files_token auth is done by main.py). GET -> the answers; POST {"code": "OP-12345", "deck": "single|double|unknown"} sets one.
     -> (http status, JSON object)."""
     db = jobs_db(folder, log)
     if method == 'GET':
-        return 200, {'ok': True, 'overrides': db.overrides(), 'db': db.status()}
+        ov = db.overrides()
+        return 200, {'ok': True, 'overrides': ov, 'unknown': unknown_codes(folder, ov), 'db': db.status()}
     if not isinstance(body, dict):
         return 400, {'ok': False, 'why': 'body must be {"code": "OP-12345", "deck": "single|double|unknown"}'}
     ok, msg = db.set_override(body.get('code'), body.get('deck'), by=body.get('by') or 'api')

@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.21.0] - 2026-11-20
+
+### Added
+- "Bus types" card on the admin ingress page: lists bus codes the `bus_watch` promise log could not classify (count, last seen) and lets you choose single, double or unknown for each. The answer is saved in the add-on's own database, the same place as `POST /plugin/bus_watch/overrides`. If the database is down the page says nothing was saved.
+- `GET /plugin/bus_watch/overrides` also returns `unknown`: the unclassified codes from the promise log that have no answer yet.
+
 ## [0.20.0] - 2026-11-14
 
 ### Added
