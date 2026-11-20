@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.9.1] - 2026-11-20
+
+### Added
+- Option `trust_scores_key`: the key the "AI scores" card uses to read the AI Trust Test add-on. Empty = use `register_key`. The Trust Test uses the Jobs key, which can differ from this layer's agent `register_key`.
+
 ## [0.9.0] - 2026-11-20
 
 ### Added

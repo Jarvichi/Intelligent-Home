@@ -28,9 +28,10 @@ def _base(name):
 
 
 def fetch_trust(options_path=None, url=TRUST_URL, opener=urllib.request.urlopen):
-    key = _opt(options_path or os.environ.get('IHA_OPTIONS', '/data/options.json'), 'register_key')
+    path = options_path or os.environ.get('IHA_OPTIONS', '/data/options.json')
+    key = _opt(path, 'trust_scores_key') or _opt(path, 'register_key')   # the Trust Test's key can differ from the agents' register_key
     if not key:
-        raise RuntimeError('no register_key')
+        raise RuntimeError('no trust_scores_key or register_key')
     req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + key, 'Accept': 'application/json'})
     with opener(req, timeout=3) as r:
         return json.loads(r.read(500000))
