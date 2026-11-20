@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.14.1] - 2026-11-20
+
+### Changed
+- The play time label is just "Play time"; for tracked time a small ⓘ glyph shows "Tracked since <date>" as a tooltip.
+
 ## [0.14.0] - 2026-11-20
 
 ### Added

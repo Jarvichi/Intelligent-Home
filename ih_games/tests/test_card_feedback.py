@@ -397,14 +397,14 @@ class CardStatScriptTest(unittest.TestCase):
         self.assertEqual(self.stat({"card_stat": {"kind": "trophies", "earned": 24, "total": 55}}),
                          {"kind": "trophies", "label": "Trophies", "value": "24 out of 55 \U0001F3C6"})
         self.assertEqual(self.stat({"card_stat": {"kind": "playtime", "minutes": 356, "tracked": True, "since": "2026-11-01"}}),
-                         {"kind": "playtime", "label": "Play time since D2026-11-01", "value": "5 hours 56 min"})
+                         {"kind": "playtime", "label": "Play time", "value": "5 hours 56 min", "note": "Tracked since D2026-11-01"})
         self.assertEqual(self.stat({"card_stat": {"kind": "playtime", "minutes": 61, "tracked": False, "since": None}}),
-                         {"kind": "playtime", "label": "Play time", "value": "1 hour 1 min"})
+                         {"kind": "playtime", "label": "Play time", "value": "1 hour 1 min", "note": ""})
 
     def test_play_time_is_available_beside_trophies(self):
         playtime = {"kind": "playtime", "minutes": 356, "tracked": False, "since": None}
         game = {"card_stat": {"kind": "trophies", "earned": 24, "total": 55}, "card_playtime": playtime}
-        self.assertEqual(self.js("c.cardPlaytime(%s, v => 'D' + v)" % json.dumps(game)), {"kind": "playtime", "label": "Play time", "value": "5 hours 56 min"})
+        self.assertEqual(self.js("c.cardPlaytime(%s, v => 'D' + v)" % json.dumps(game)), {"kind": "playtime", "label": "Play time", "value": "5 hours 56 min", "note": ""})
         merged = {"platformEntries": [{"card_playtime": playtime}, {"card_playtime": dict(playtime, minutes=4)}]}
         self.assertEqual(self.js("c.cardPlaytime(%s)" % json.dumps(merged))["value"], "6 hours")
         for empty in ({}, {"card_playtime": None}, {"card_playtime": {"kind": "playtime", "minutes": 0}}):
@@ -420,7 +420,7 @@ class CardStatScriptTest(unittest.TestCase):
                    {"card_stat": {"kind": "trophies", "earned": 2, "total": 9}},
                    {"card_stat": {"kind": "playtime", "minutes": 45, "tracked": True, "since": "2026-11-01"}}]
         self.assertEqual(self.stat({"platformEntries": members})["value"], "2 out of 9 \U0001F3C6")
-        self.assertEqual(self.stat({"platformEntries": [members[0], members[2]]}), {"kind": "playtime", "label": "Play time", "value": "1 hour 15 min"})
+        self.assertEqual(self.stat({"platformEntries": [members[0], members[2]]}), {"kind": "playtime", "label": "Play time", "value": "1 hour 15 min", "note": ""})
 
     def test_tier_view_counts_and_labels(self):
         listing = {"complete": True, "trophies": psn_rows()[:4]}
