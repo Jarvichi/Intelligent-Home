@@ -54,6 +54,9 @@ Only fixed, non-private test questions are sent, through the AI layer to the out
 ### Shadow (dry) and live
 Default `mode: dry` (shadow): it asks the layer, scores and records, but adds **no** to-do (logs "[DRY] would add to-do"). Live needs `mode: live`, `old_loops_disabled: true` (stop the tmux `trustmo` loop) and no `/data/STOP_LIVE`. If you run dry first and go live later in the same month, the to-do is added from the stored result without asking the AIs again. A `/data/STOP` file stops the job at once.
 
+### Scores endpoint (since 0.3.0)
+`GET /scores` on port 8810, header `Authorization: Bearer <register_key>`. Returns the newest month: `{ok, month, date, dry, rows:[{agent,name,test,scored,unscored,invented}]}`. No key set = always 401. Used by the AI layer's "AI scores" card.
+
 ### Data storage (database since 0.2.0)
 
 The add-on keeps its data in one SQLite file, `/data/ih.db` (shared helper `ihlib/db.py`, WAL mode). Every file under `/data` was reviewed:

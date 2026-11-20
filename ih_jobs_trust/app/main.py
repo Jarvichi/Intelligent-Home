@@ -24,6 +24,24 @@ def _with_db_status():
     jobs_child.Child.status = status
 
 
+def _with_scores():
+    """Add GET /scores (bearer register_key) to the shared child's handler without editing the shared jobs_child.py."""
+    orig = jobs_child.make_handler
+
+    def make_handler(child):
+        base = orig(child)
+
+        class H(base):
+            def do_GET(self):
+                if self.path.split('?')[0] != '/scores':
+                    return base.do_GET(self)
+                if not scores.authorised(child.opts.get('register_key', ''), self.headers.get('Authorization')):
+                    return self._send(401, {'ok': False, 'why': 'not authorised'})
+                self._send(200, scores.payload(DATA))
+        return H
+    jobs_child.make_handler = make_handler
+
+
 if __name__ == '__main__':
     store = trustdb.get(DATA)          # migrations, legacy import, trash purge: before the first job run
     store.start_maintenance((jobs_child.load_options(os.environ.get('IHJ_OPTIONS', '/data/options.json'), extra_str=[('timezone', 'Europe/London')])['timezone']))

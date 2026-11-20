@@ -177,5 +177,8 @@ A new MCP server (streamable HTTP, https only) is connected by a settings entry,
 
 On first use, and every 24 hours, the layer reads the server's tool list and keeps only listed tools that the server really offers. Listed tools the server does not offer are logged by name. A listed tool that the server does not mark read-only shows under `write_tools` in the provider status; the allowlist is the owner's decision. Do not allowlist tools that spend money or send messages unless the owner has approved that specific tool. A bad entry (no `id`, an `http` address, a bad `id`, an empty allowlist) is skipped with a log line. Request text, argument values and keys are never logged.
 
+### AI scores page
+The ingress page has an "AI scores" card: IQ, test, live, made-things-up and test date for each outside AI. The test part and date come from the add-on *Intelligent Home - Jobs - AI Trust Test* (`GET http://172.30.32.1:8810/scores`, bearer `register_key`, so both add-ons need the same `register_key`). The live part is this layer's own answer score. IQ = 80% test + 20% live (test alone without a live score). If the trust add-on is off, the card says so. Only fixed fields are shown.
+
 ### Status
 Version 0.3.1: request usage log (`/usage`); 0.3.0: built-in providers added; tests use fake network calls only. Scores live in `/data/scores.json`.
