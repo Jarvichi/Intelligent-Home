@@ -16,10 +16,11 @@ ID = re.compile(r'^[0-9a-f]{32}$')
 
 
 class DeviceFrames:
-    def __init__(self, dispatch, clock=time.monotonic, ttl=900, maximum=8):
+    def __init__(self, dispatch, clock=time.monotonic, ttl=900, maximum=8, dispatch_many=None):
         if not callable(dispatch) or ttl <= 0 or not 1 <= maximum <= 32:
             raise ValueError('invalid frame configuration')
         self.dispatch = dispatch
+        self.dispatch_many = dispatch_many
         self.clock = clock
         self.ttl = ttl
         self.maximum = maximum
@@ -50,7 +51,7 @@ class DeviceFrames:
             power=zone.get('power','mains')
             if power not in ('mains','battery'):raise ValueError('invalid power capability')
             preview=zone.get('preview','none')
-            if preview not in ('none','dinner','home','birthdays'):raise ValueError('invalid preview capability')
+            if preview not in ('none','dinner','home','birthdays','batch'):raise ValueError('invalid preview capability')
             box = zone.get('box')
             if not isinstance(box, (list, tuple)) or len(box) != 4 or any(type(x) is not int for x in box):
                 raise ValueError('invalid box')
@@ -106,6 +107,8 @@ class DeviceFrames:
 
     def tap(self, key, zone):
         """Dispatch exactly one captured action for the current generation."""
+        if isinstance(zone, str) and ',' in zone:
+            return self.tap_many(key, zone.split(','))
         if not isinstance(key, str) or not ID.fullmatch(key) or not isinstance(zone, str) or not ID.fullmatch(zone):
             return {'ok': False, 'why': 'invalid frame or zone'}
         with self.lock:
@@ -118,6 +121,34 @@ class DeviceFrames:
             entry['used'] = True
             try:
                 result = self.dispatch(copy.deepcopy(entry['action']))
+                return result if isinstance(result, dict) else {'ok': False, 'why': 'action unavailable'}
+            except Exception:
+                return {'ok': False, 'why': 'action unavailable'}
+
+    def tap_many(self, key, zones):
+        """Several taps made on one picture, sent together (ticking things off a list). Each zone is still used at most once."""
+        if not isinstance(key, str) or not ID.fullmatch(key) or not 2 <= len(zones) <= 12 or len(set(zones)) != len(zones) \
+                or any(not isinstance(z, str) or not ID.fullmatch(z) for z in zones):
+            return {'ok': False, 'why': 'invalid frame or zone'}
+        with self.lock:
+            self._prune()
+            frame = self.frames.get(key)
+            if frame is None or self.active != key:
+                return {'ok': False, 'why': 'stale frame or zone'}
+            picked = []
+            for zone in zones:
+                entry = frame['controls'].get(zone)
+                if entry is not None and not entry['used']:
+                    entry['used'] = True   # consume before dispatch, as for a single tap
+                    picked.append(copy.deepcopy(entry['action']))
+            if not picked:
+                return {'ok': False, 'why': 'stale frame or zone'}
+            try:
+                if callable(self.dispatch_many):
+                    result = self.dispatch_many(picked)
+                else:
+                    results = [self.dispatch(action) for action in picked]
+                    result = {'ok': any(isinstance(r, dict) and r.get('ok') is True for r in results)}
                 return result if isinstance(result, dict) else {'ok': False, 'why': 'action unavailable'}
             except Exception:
                 return {'ok': False, 'why': 'action unavailable'}

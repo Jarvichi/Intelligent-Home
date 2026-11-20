@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.0
+
+- Taps held on the Kindle can be sent together: `POST /device/v1/tap` accepts several zone ids joined by commas (at most 12) and applies them in one go. Row taps on the cooking screen (DONE, DID IT, ON IT, -5, +5, prep tick) go to the cooking add-on as one request, so ticking several things off in a row works. A Kindle opts in with `&batch=1` on the frame request; only then are those zones marked `batch` in the zone list, so an old Kindle script sees no change. `device/ih-device.sh` knows `batch`, sends `batch=1` and accepts a comma list.
+
 ## 0.14.2
 
 - Only one Chromium picture is drawn at a time. Several quick taps on the Kindle ask for several pictures at once; running them in parallel on the Pi made some time out and fall back to the plain picture.

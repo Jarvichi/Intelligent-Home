@@ -132,7 +132,7 @@ def main():
         # The device client obtains a new owner snapshot after this action.
         actions=kindle_actions.KindleActions(ha,sources.read,alerts=alert_reader,refresh=lambda:None)
         surface=device_surface.DeviceSurface(snapshot,alert_reader or (lambda:None),cooking.menu,cooking,actions,png,ha,sources.read,html=html)
-        device_store=device_frames.DeviceFrames(surface.dispatch)
+        device_store=device_frames.DeviceFrames(surface.dispatch,dispatch_many=surface.dispatch_many)
         handler=device_http.make_handler(device_store,surface.build,opts.get('device_token',''),(html.card if html else None))
         class DeviceHandler(handler):
             def do_GET(self):
