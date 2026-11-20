@@ -54,6 +54,15 @@ class PageTests(unittest.TestCase):
         self.assertIn('.menu-row{left:140px;top:calc(300px + var(--i) * 140px);width:792px;height:116px', CSS)
         self.assertEqual(menu.count('menu-row'), 7)
 
+    def test_tyres_card_marks_low_tyres_black(self):
+        page = self.S.tyres({'fl': 26, 'tfl': 32, 'fr': 32, 'tfr': 32, 'rl': 29, 'trl': 32, 'rr': 20, 'trr': 32})
+        b = body(page)
+        self.assertEqual(b.count('class="a ty ty-'), 4)
+        self.assertEqual(b.count(' ink"'), 2)   # 26 and 20 are under 90% of 32; 29 is not
+        self.assertIn('TOP UP THE BLACK ONES', b)
+        self.assertNotIn('TOP UP', body(self.S.tyres({k: 32 for k in ('fl', 'fr', 'rl', 'rr', 'tfl', 'tfr', 'trl', 'trr')})))
+        self.assertIn('–', body(self.S.tyres({})))   # missing values show a dash, never a crash
+
     def test_cooking_screen(self):
         cook = {'title': 'Roast', 'eat': '18:30', 'oven_target': 180, 'next': [{'at': '17:00', 'text': 'Oven on'}], 'steps': [{'at': '17:00', 'text': 'Prep', 'done': True}], 'prep': [{'text': 'Peel'}]}
         page = body(self.S.cooking(cook, {'configured': True, 'complete': True, 'alerts': [{'kind': 'smoke', 'title': 'Smoke alarm'}]}))

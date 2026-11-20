@@ -82,3 +82,18 @@ def cooking(cook, alerts=None):
                   buttons=[{'x': x, 'w': w, 'label': label} for x, w, label in COOKING_BUTTONS], line_y=line_y, steps=steps,
                   prep=[str(r.get('text', '')) for r in (cook.get('prep') if isinstance(cook.get('prep'), list) else [])[:5] if isinstance(r, dict)],
                   warnings=life[:2] + ([status] if status else []))
+
+
+TYRES_SIZE = (600, 760)
+TYRES = ('fl', 'fr', 'rl', 'rr')
+TYRE_NAMES = {'fl': 'FRONT LEFT', 'fr': 'FRONT RIGHT', 'rl': 'REAR LEFT', 'rr': 'REAR RIGHT'}
+
+
+def tyres(values):
+    """values: {'fl': 26, 'tfl': 32, ...} pressure now and target in PSI for each tyre. A tyre under 90% of its target is low."""
+    rows = []
+    for k in TYRES:
+        now, target = values.get(k), values.get('t' + k)
+        ok = all(type(x) in (int, float) and 0 < x < 200 for x in (now, target))
+        rows.append({'k': k, 'name': TYRE_NAMES[k], 'now': round(now) if ok else '–', 'target': round(target) if ok else '–', 'low': ok and now < 0.9 * target})
+    return render('tyres.html', tyres=rows, any_low=any(r['low'] for r in rows))

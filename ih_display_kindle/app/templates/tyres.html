@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block body %}
+<div class="a n ty-title">{{ 'TYRES: TOP UP THE BLACK ONES' if any_low else 'TYRES' }}</div>
+<div class="a ty-car"></div>
+{% for t in tyres %}<div class="a ty ty-{{ t.k }}{% if t.low %} ink{% endif %}"><div class="ty-psi">{{ t.now }}</div><div class="ty-unit">PSI</div><div class="ty-want">needs {{ t.target }}</div></div><div class="a n ty-name ty-name-{{ t.k }}">{{ t.name }}{% if t.low %} · LOW{% endif %}</div>{% endfor %}
+{% endblock %}

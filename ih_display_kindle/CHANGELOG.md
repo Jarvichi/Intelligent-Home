@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+
+- New picture on the device listener for scripts: `GET /device/v1/card/tyres` (same bearer token) with the four tyre pressures and targets in PSI (`fl fr rl rr tfl tfr trl trr`) returns a 600 x 760 PNG of the car from above, with tyres under 90% of target drawn black. It needs `renderer: html`. This replaces the Lovelace screenshot the MINI tyre warning used.
+
 ## 0.11.0
 
 - Weather icons are now the Meteocons monochrome set (Bas Milius, MIT; licence in `app/weather_svg/`): black line art that reads better on e-ink than the 0.10.0 set, drawn larger. Day and night versions of sunny, partly cloudy and rainy; the other conditions look the same day and night.

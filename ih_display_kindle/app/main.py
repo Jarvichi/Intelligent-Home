@@ -133,7 +133,7 @@ def main():
         actions=kindle_actions.KindleActions(ha,sources.read,alerts=alert_reader,refresh=lambda:None)
         surface=device_surface.DeviceSurface(snapshot,alert_reader or (lambda:None),cooking.menu,cooking,actions,png,ha,sources.read,html=html)
         device_store=device_frames.DeviceFrames(surface.dispatch)
-        handler=device_http.make_handler(device_store,surface.build,opts.get('device_token',''))
+        handler=device_http.make_handler(device_store,surface.build,opts.get('device_token',''),(html.card if html else None))
         class DeviceHandler(handler):
             def do_GET(self):
                 if self.path=='/healthz':return self.send(200,'{"ok":true}','application/json')
