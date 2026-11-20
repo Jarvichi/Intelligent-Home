@@ -164,3 +164,13 @@ svg{display:block}
 .ck-alert{left:0;top:calc(3px + var(--i) * 30px);width:1072px;font-size:20px;font-weight:700;text-align:center;color:#fff}
 .wx-none{left:48px;top:300px;font-size:30px}
 .s-msg{top:var(--top)}
+
+/* ---------------------------------------------------------------- tyres card (600 x 760, asked for by scripts) */
+.ty-title{left:30px;top:24px;width:540px;font-size:30px;font-weight:700;letter-spacing:.04em;text-align:center}
+.ty-car{left:190px;top:130px;width:220px;height:540px;border:5px solid #000;border-radius:70px}
+.ty{width:130px;height:190px;border:5px solid #000;border-radius:22px;background:#fff;text-align:center;padding-top:34px}
+.ty.ink{background:#000;color:#fff}
+.ty-psi{font-size:64px;font-weight:700;line-height:1}.ty-unit{font-size:20px;font-weight:700;letter-spacing:.1em}.ty-want{font-size:20px;margin-top:10px}
+.ty-fl{left:40px;top:150px}.ty-fr{left:430px;top:150px}.ty-rl{left:40px;top:470px}.ty-rr{left:430px;top:470px}
+.ty-name{width:200px;font-size:18px;font-weight:700;letter-spacing:.06em}
+.ty-name-fl{left:10px;top:108px;text-align:left}.ty-name-fr{left:390px;top:108px;text-align:right}.ty-name-rl{left:10px;top:672px;text-align:left}.ty-name-rr{left:390px;top:672px;text-align:right}

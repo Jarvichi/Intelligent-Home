@@ -32,6 +32,7 @@ if '--stdout' not in sys.argv:
            'home':screens_html.home({'members':[{'name':'Example','home':True}]}),
            'birthdays':screens_html.birthdays({'items':[{'name':'Example','date':'Monday','countdown':'TODAY'}]}),
            'menu':screens_html.menu(),
+           'tyres':screens_html.tyres({'fl':26,'tfl':32,'fr':32,'tfr':32,'rl':32,'trl':32,'rr':32,'trr':32}),
            'cooking':screens_html.cooking({'title':'Example meal','eat':'19:00','next':[{'at':'18:30','text':'Example step'}],'steps':[{'at':'18:30','text':'Example step'}],'prep':[{'text':'Example prep'}]})}
     for name,page in pages.items():
         if not page.startswith('<!doctype html>') or 'Traceback' in page:raise RuntimeError('Invalid '+name+' template output')

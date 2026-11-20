@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlparse
 import device_frames
 
 
-def make_handler(frames, build, token):
+def make_handler(frames, build, token, card=None):
     if not isinstance(token, str) or len(token) < 32:
         raise ValueError('a device token of at least 32 characters is required')
     class Handler(BaseHTTPRequestHandler):
@@ -46,6 +46,16 @@ def make_handler(frames, build, token):
                     return self.send(200, '\n'.join(lines) + '\n')
                 except Exception:
                     return self.send(503, 'Frame unavailable')
+            if request.path == '/device/v1/card/tyres':
+                if not card: return self.send(404, 'Not found')
+                query = parse_qs(request.query)
+                values = {}
+                for k in ('fl', 'fr', 'rl', 'rr', 'tfl', 'tfr', 'trl', 'trr'):
+                    v = (query.get(k) or [''])[0]
+                    if not re.fullmatch(r'\d{1,3}(\.\d)?', v): return self.send(400, 'Invalid tyre values')
+                    values[k] = float(v)
+                image = card('tyres', values)
+                return self.send(200, image, 'image/png') if image else self.send(503, 'Card unavailable')
             prefix = '/device/v1/picture/'
             if request.path.startswith(prefix):
                 frame = frames.bundle(request.path[len(prefix):])

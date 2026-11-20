@@ -245,14 +245,14 @@ class Renderer:
             print('kindle html renderer fell back to SVG: ' + text, file=sys.stderr, flush=True)
         self.last_error = text
 
-    def shoot(self, html_text):
-        """One Chromium picture from a page -> greyscale PNG bytes, or None on any failure."""
+    def shoot(self, html_text, size=None):
+        """One Chromium picture from a page -> greyscale PNG bytes, or None on any failure. `size` = (width, height) for a smaller card."""
         try:
             with tempfile.TemporaryDirectory(prefix='kindle-html-') as folder:
                 source, shot = os.path.join(folder, 'page.html'), os.path.join(folder, 'shot.png')
                 with open(source, 'w', encoding='utf-8') as f:
                     f.write(html_text)
-                self.run([self.chromium, *self.ARGS, '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
+                self.run([self.chromium, *(self.ARGS if not size else [a if not a.startswith('--window-size') else '--window-size=%d,%d' % size for a in self.ARGS]), '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
                          env=dict(os.environ, HOME=folder))
                 grey = self.grey(shot)
                 if not grey:
@@ -264,10 +264,10 @@ class Renderer:
             self.note(exc)
             return None
 
-    def build(self, make):
+    def build(self, make, size=None):
         """Run a page builder; a broken template or odd data means 'use the SVG', never an error."""
         try:
-            return self.shoot(make())
+            return self.shoot(make(), size)
         except Exception as exc:   # jinja2.TemplateError, KeyError, TypeError ...: the SVG picture covers it
             self.note(exc)
             return None
@@ -279,6 +279,13 @@ class Renderer:
             return self.build(lambda: screens_html.cooking(payload, alerts)) if isinstance(payload, dict) else None
         make = {'dinner': screens_html.dinner, 'home': screens_html.home, 'birthdays': screens_html.birthdays, 'menu': screens_html.menu}.get(name)
         return self.build(lambda: make(payload, now)) if make else None
+
+    def card(self, name, values):
+        """A small stand-alone picture that scripts ask for (not a Kindle screen). Only 'tyres' for now. None = not drawn."""
+        import screens_html
+        if name == 'tyres':
+            return self.build(lambda: screens_html.tyres(values), screens_html.TYRES_SIZE)
+        return None
 
     def png(self, data, alerts=None, now=None):
         """-> PNG bytes, or None when the page cannot draw this state or Chromium fails (the caller then uses the SVG)."""
