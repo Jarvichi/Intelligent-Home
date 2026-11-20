@@ -131,8 +131,13 @@
       playersEl.appendChild(b);
     });
   }
-  function row(label, value) {
-    const r = el('div', null, 'detail-row'); r.append(el('dt', label), el('dd', value)); return r;
+  function row(label, value, note) {
+    const r = el('div', null, 'detail-row'); const dt = el('dt', label);
+    if (note) {   // a small info glyph with a tooltip
+      const info = el('span', 'ⓘ', 'info-glyph'); info.title = note; info.tabIndex = 0; info.setAttribute('role', 'img'); info.setAttribute('aria-label', note);
+      dt.append(' ', info);
+    }
+    r.append(dt, el('dd', value)); return r;
   }
   function section(title, content) {
     const s = el('ih-card', null, 'data-card');
@@ -403,9 +408,9 @@
     /* Progress (quests / trophies) first, then play time above zero; no box when unknown (never a misleading "0 min"). */
     const showDate = function (value) { return fmtDate(value, true); };
     const stat = cardStatHelpers.cardStat(game, showDate);
-    if (stat) facts.append(row(stat.label, stat.value));
+    if (stat) facts.append(row(stat.label, stat.value, stat.note));
     const played = stat && stat.kind === 'playtime' ? null : cardStatHelpers.cardPlaytime(game, showDate);
-    if (played) facts.append(row(played.label, played.value));
+    if (played) facts.append(row(played.label, played.value, played.note));
     if (facts.children.length > 2) facts.classList.add('three-facts');   // Last played | trophies | play time as three columns
     main.appendChild(facts);
     let artStatus = null;
