@@ -1,0 +1,43 @@
+name: "Intelligent Home - Room Insights"
+version: "0.1.0"
+slug: ih_room_insights
+image: "ghcr.io/jarvichi/{arch}-ih_room_insights"
+description: "Read-only room insights from Home Assistant history: learned warm-up minutes per room, frozen-valve check, mould risk from humidity. It never changes a setpoint or calls a service. DRY by default (computes, publishes nothing)."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# auto_update is a Supervisor setting: turn it on after install (see DOCS.md).
+boot: auto
+watchdog: http://[HOST]:[PORT:8812]/healthz
+init: false
+homeassistant_api: true
+ports:
+  8812/tcp: 8812
+ports_description:
+  8812/tcp: "Health and insights (/healthz open; /status and /insights need the bearer api_token)"
+options:
+  mode: "dry"
+  api_token: ""
+  interval_min: 15
+  history_days: 14
+  frozen_hours: 6
+  mould_pct: 70
+  mould_hours: 2
+  rooms: []
+  exclude: []
+  humidity_sensors: []
+schema:
+  mode: list(dry|live)
+  api_token: password
+  interval_min: int(5,1440)
+  history_days: int(2,60)
+  frozen_hours: int(1,48)
+  mould_pct: int(40,100)
+  mould_hours: float(0.5,48)
+  rooms:
+    - str
+  exclude:
+    - str
+  humidity_sensors:
+    - str
