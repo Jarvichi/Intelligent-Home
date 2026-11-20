@@ -305,14 +305,15 @@ def run(ctx, now=None, sleep=time.sleep):
     if os.path.exists(os.path.join(ctx.data_dir, STOP_FILE)):
         log('trust: STOP file present, nothing done'); return True
     hour = _int(ctx.opts.get('run_hour'), 3, 0, 23)
-    if not due(now, hour):
+    force = ctx.opts.get('_force') is True   # signed 'run now' from the parent link (20 Nov 2026)
+    if not force and not due(now, hour):
         return True
     month = now.strftime('%Y-%m')
     store = trustdb.get(ctx.data_dir)
     if store.degraded:
         log('trust: DATABASE DEGRADED (%s). Running on plain files; see status.' % store.degraded)
     st = store.state()
-    if st.get('month') == month and st.get('done'):
+    if st.get('month') == month and st.get('done') and not force:
         if not ctx.dry and not st.get('todo_added') and st.get('summary'):
             add_todo(ctx, month, st['summary']); st['todo_added'] = True; store.save_state(st)
             log('trust: to-do added for %s (from earlier dry run)' % month)

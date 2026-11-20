@@ -85,6 +85,17 @@ def run(ctx):
     return trustjob.run(ctx, now=NOW, sleep=lambda s: None)
 
 
+class ForcedRun(unittest.TestCase):
+    def test_run_now_ignores_day_one_and_already_done(self):
+        mid = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
+        c = Ctx(layer()); trustjob.run(c, now=mid, sleep=lambda s: None)
+        self.assertFalse([x for x in c.calls if x[0].endswith('/v1/request') or 'request' in x[0]], 'not day 1: nothing is asked')
+        c = Ctx(layer(), opts={'_force': True}); self.assertTrue(trustjob.run(c, now=mid, sleep=lambda s: None))
+        self.assertTrue(any('answered' in l for l in c.logs))
+        c2 = Ctx(layer(), opts={'_force': True}, data=c.data_dir); trustjob.run(c2, now=mid, sleep=lambda s: None)   # already done this month: forced runs again
+        self.assertTrue(any('testing' in l for l in c2.logs))
+
+
 class Discover(unittest.TestCase):
     def test_default_eligible_and_exclusions(self):
         provs, why = trustjob.discover(Ctx(layer()))

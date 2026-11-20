@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.4.0] - 2026-11-20
+
+### Added
+- A signed `POST /run` with `{"job":"trust","force":true}` (same signature as the parent link) runs the test now, ignoring "day 1 only" and "already done this month".
+
 ## [0.3.3] - 2026-11-20
 
 ### Fixed
