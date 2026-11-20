@@ -102,7 +102,7 @@ class Child:
         return 'live' if self.live_mode()[0] else 'dry'
 
     # ---- run ----
-    def run_job(self, trigger='manual'):
+    def run_job(self, trigger='manual', force=False):
         """One job run = ONE invocation: logs ONE line (run id, trigger, job, chars of job log out, ms, ok, why). Job log text only when log_payloads is on."""
         with self.lock:
             live, _ = self.live_mode()
@@ -112,7 +112,7 @@ class Child:
 
             def jlog(m):
                 seen.append(str(m)); self.log(m)
-            ctx = common.Ctx(dry=not live, log=jlog, token=self._token, opener=self._opener, data_dir=self.data, opts=self.opts)
+            ctx = common.Ctx(dry=not live, log=jlog, token=self._token, opener=self._opener, data_dir=self.data, opts=dict(self.opts, _force=True) if force else self.opts)
             self.last_mode, self.last_trigger = ('live' if live else 'dry'), trigger
             ok, why = False, '-'
             try:
@@ -224,7 +224,7 @@ def make_handler(child):
             if obj is None or obj.get('job') != child.spec['job']:
                 child.rejected += 1
                 self._send(401, {'ok': False, 'why': why if obj is None else 'wrong job'}); return
-            ok = child.run_job('parent')
+            ok = child.run_job('parent', force=obj.get('force') is True)   # force: a signed 'run now' (trust job: ignore day-1 and 'already done')
             self._send(200, {'ok': ok, 'job': child.spec['job'], 'mode': child.last_mode})
 
         def log_message(self, *a):
