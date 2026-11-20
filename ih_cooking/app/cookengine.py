@@ -867,28 +867,51 @@ class Engine:
         try:
             snap=self.display_snapshot()
             if not snap['running'] or not snap['revision'] or not __import__('hmac').compare_digest(snap['revision'],revision):return {'ok':False,'why':'stale display'}
-            if action=='stop':return self.stop_cook(lock_timeout=1)
-            kind='prep' if action=='tick' else 'next';rows=snap[kind]
-            index=next((i for i,row in enumerate(rows) if row['id']==item_id),None)
-            if index is None:return {'ok':False,'why':'stale item'}
-            selected=rows[index];row=selected['row']
-            if selected.get('done') is True:return {'ok':False,'why':'stale item'}
-            if action=='tick':
-                shown=self.load('shown.json',[]) or [];plan=self.load('plan.json',{}) or {}
-                value=shown[row] if row<len(shown) else None
-                matches=[v for v in plan.get('prep',[]) if isinstance(v,dict) and v.get('text')==value and not v.get('done')]
-                if len(matches)!=1 or shown.count(value)!=1:return {'ok':False,'why':'ambiguous item'}
-                return self.tick_prep(row)
-            # The legacy DONE handler can use its own 90-second row snapshot.
-            # Refuse a tap if that row no longer denotes this displayed item.
-            if action in ('done','did'):
-                state=self.load('state.json',{}) or {};legacy=state.get('snap') or {};legacy_keys=legacy.get('keys') or []
-                current=self.load('shownext.json',[]) or []
-                if legacy_keys and self.ts()-legacy.get('ts',0)<self.SNAP_S and (row>=len(legacy_keys) or row>=len(current) or legacy_keys[row]!=current[row]):return {'ok':False,'why':'stale item'}
-                return self.done(row,did=action=='did')
-            if action=='ack':return self.ack(row)
-            return self.delay(-5 if action=='early' else 5,row)
+            return self._display_apply(snap,action,item_id)
         finally:self.lock.release()
+
+    def display_actions(self,revision,items):
+        """Several row taps made on one displayed picture (ticking things off a list): the revision is checked once, then every
+        tap is resolved against that same picture, in order. ok is true if at least one tap was applied; failed lists the reasons."""
+        if not isinstance(revision,str) or not re.fullmatch(r'[a-f0-9]{64}',revision):return {'ok':False,'why':'invalid revision'}
+        if not isinstance(items,list) or not 1<=len(items)<=12:return {'ok':False,'why':'invalid actions'}
+        for item in items:
+            if not isinstance(item,dict) or item.get('action') not in ('done','did','ack','early','delay','tick') or not isinstance(item.get('item_id'),str):return {'ok':False,'why':'invalid actions'}
+        if not self.lock.acquire(timeout=1):return {'ok':False,'why':'controller busy'}
+        try:
+            snap=self.display_snapshot()
+            if not snap['running'] or not snap['revision'] or not __import__('hmac').compare_digest(snap['revision'],revision):return {'ok':False,'why':'stale display'}
+            applied=0;failed=[]
+            for item in items:
+                result=self._display_apply(snap,item['action'],item['item_id'])
+                if result.get('ok') is True:applied+=1
+                else:failed.append(str(result.get('why') or 'refused')[:40])
+            return {'ok':applied>0,'applied':applied,'failed':failed,**({} if applied else {'why':failed[0] if failed else 'refused'})}
+        finally:self.lock.release()
+
+    def _display_apply(self,snap,action,item_id):
+        """One action on a row of an already-validated display snapshot (the lock is held)."""
+        if action=='stop':return self.stop_cook(lock_timeout=1)
+        kind='prep' if action=='tick' else 'next';rows=snap[kind]
+        index=next((i for i,row in enumerate(rows) if row['id']==item_id),None)
+        if index is None:return {'ok':False,'why':'stale item'}
+        selected=rows[index];row=selected['row']
+        if selected.get('done') is True:return {'ok':False,'why':'stale item'}
+        if action=='tick':
+            shown=self.load('shown.json',[]) or [];plan=self.load('plan.json',{}) or {}
+            value=shown[row] if row<len(shown) else None
+            matches=[v for v in plan.get('prep',[]) if isinstance(v,dict) and v.get('text')==value and not v.get('done')]
+            if len(matches)!=1 or shown.count(value)!=1:return {'ok':False,'why':'ambiguous item'}
+            return self.tick_prep(row)
+        # The legacy DONE handler can use its own 90-second row snapshot.
+        # Refuse a tap if that row no longer denotes this displayed item.
+        if action in ('done','did'):
+            state=self.load('state.json',{}) or {};legacy=state.get('snap') or {};legacy_keys=legacy.get('keys') or []
+            current=self.load('shownext.json',[]) or []
+            if legacy_keys and self.ts()-legacy.get('ts',0)<self.SNAP_S and (row>=len(legacy_keys) or row>=len(current) or legacy_keys[row]!=current[row]):return {'ok':False,'why':'stale item'}
+            return self.done(row,did=action=='did')
+        if action=='ack':return self.ack(row)
+        return self.delay(-5 if action=='early' else 5,row)
 
     def status(self):
         ok, why = self.guard()

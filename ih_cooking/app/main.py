@@ -148,7 +148,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
             self._logit = False
             if p == '/healthz' and method == 'GET':
                 return self._send(200, 'ok', 'text/plain')
-            self._logit = p not in ('/cook/display','/cook/display-action','/cook/menu','/cook/menu-start')  # private display contents and actions stay out of invocation logs
+            self._logit = p not in ('/cook/display','/cook/display-action','/cook/display-actions','/cook/menu','/cook/menu-start')  # private display contents and actions stay out of invocation logs
             if not st.authed(self.headers.get('Authorization')):
                 self._why = 'unauthorized'
                 return self._send(401, {'ok': False, 'why': 'bearer token required'})
@@ -268,6 +268,9 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 return self._send(code, obj)
             if method == 'POST' and p == '/cook/stop':
                 return self._send(200, en.stop_cook())
+            if method == 'POST' and p == '/cook/display-actions':
+                result=en.display_actions(body.get('revision'),body.get('actions'))
+                return self._send(200 if result.get('ok') else 409,result)
             if method == 'POST' and p == '/cook/display-action':
                 result=en.display_action(body.get('revision'),body.get('action'),body.get('item_id'))
                 return self._send(200 if result.get('ok') else 409,result)
