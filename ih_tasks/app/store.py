@@ -37,9 +37,11 @@ MIGRATIONS = [
     # a child task points at its parent (one level). Children inherit the parent's approval; the parent cannot go to Verifying while one is open
     (13, 'ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id)'),
     (14, 'CREATE INDEX tasks_parent ON tasks(parent_id)'),
+    # a task closed as 'Reminder set' comes back to To do on this date (YYYY-MM-DD)
+    (15, "ALTER TABLE tasks ADD COLUMN remind_at TEXT NOT NULL DEFAULT ''"),
 ]
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
-             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id')
+             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id', 'remind_at')
 LIST_LIMIT = 500
 IDENTITY_KINDS = ('todo_uid', 'queue_id')   # sending the same old item twice returns the task it already became; other old ids only label a task
 COMMENT_MAX = 4000
@@ -69,6 +71,10 @@ class TaskStore:
 
     def close(self):
         self.db.close()
+
+    def today(self):
+        """Today's date in the add-on's own time zone (a reminder date is a calendar day)."""
+        return datetime.fromtimestamp(self.clock()).date()
 
     def now(self):
         return datetime.fromtimestamp(self.clock(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -266,7 +272,7 @@ class TaskStore:
             if verify_by is not None:
                 sets.append('verify_by = ?'); args.append(verify_by)
             if to == 'todo':
-                sets += ["closed_reason = ''", "closed_detail = ''", 'duplicate_of = NULL', 'revise = 0']
+                sets += ["closed_reason = ''", "closed_detail = ''", 'duplicate_of = NULL', 'revise = 0', "remind_at = ''"]
             con.execute('UPDATE tasks SET %s WHERE id = ?' % ', '.join(sets), args + [task_id])
             data = {k: v for k, v in (('result', c['result']), ('verify_by', verify_by), ('plan_sent', bool(c['plan']))) if v}
             self._event(con, task_id, actor, 'moved', t['stage'], to, c['reason'], data or None)
@@ -310,6 +316,51 @@ class TaskStore:
             self._close(con, t, actor, M.check_close(t, actor, reason_kind, detail, duplicate_of))
             self._child_finished(con, t)
         return self.get(task_id)
+
+    # ---- reminders: a task closed as 'Reminder set' reopens in To do (high priority) on its date
+    def set_reminder(self, task_id, actor, date, note=''):
+        """Set a reminder for `date` and close the task with the reason 'Reminder set'. The task comes back to To do on that date (see due_reminders / fire_reminder)."""
+        M.check_actor(actor)
+        if actor not in ('owner', 'worker'):
+            raise M.RuleError('forbidden', 'only the owner or a worker can set a reminder')
+        note = M.clean_text(note, M.NOTE_MAX, 'note')
+        date = M.check_remind_date(date, self.today())
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            if t['stage'] not in M.OPEN_STAGES:
+                raise M.RuleError('conflict', 'the task is %s; only an open task can get a reminder' % M.STAGE_LABELS[t['stage']])
+            self._need_children_finished(con, t)
+            self._close(con, t, actor, {'reason_kind': 'reminder', 'detail': ('Reminder on %s.' % date) + (' ' + note if note else ''), 'duplicate_of': None})
+            con.execute('UPDATE tasks SET remind_at = ? WHERE id = ?', (date, task_id))
+            self._event(con, task_id, actor, 'reminder_set', text=note, data={'date': date, 'note': note, 'was': t['stage']})
+            self._child_finished(con, t)
+        return self.get(task_id)
+
+    def due_reminders(self, today=None):
+        """Closed 'Reminder set' tasks whose date has come: [{id, title, remind_at, note, set_at}] (oldest date first)."""
+        today = (today or self.today()).isoformat()
+        con = self.db.con
+        out = []
+        for r in con.execute("SELECT id, title, remind_at FROM tasks WHERE stage = 'closed' AND closed_reason = 'reminder' AND remind_at != '' AND remind_at <= ? ORDER BY remind_at, id", (today,)):
+            e = con.execute("SELECT at, data FROM events WHERE task_id = ? AND kind = 'reminder_set' ORDER BY id DESC LIMIT 1", (r[0],)).fetchone()
+            data = json.loads(e[1]) if e and e[1] else {}
+            out.append({'id': r[0], 'title': r[1], 'remind_at': r[2], 'note': data.get('note', ''), 'set_at': e[0] if e else ''})
+        return out
+
+    def fire_reminder(self, task_id):
+        """The date has come: reopen the task in To do with high priority and say so in its history."""
+        with self.db.tx() as con:
+            t = self._row(con, task_id)
+            if t['stage'] != 'closed' or t['closed_reason'] != 'reminder':
+                raise M.RuleError('conflict', 'task %d has no reminder waiting' % task_id)
+            con.execute("UPDATE tasks SET stage = 'todo', closed_reason = '', closed_detail = '', duplicate_of = NULL, revise = 0, remind_at = '', priority = 'high' WHERE id = ?", (task_id,))
+            self._event(con, task_id, 'system', 'reminder_fired', 'closed', 'todo', 'The reminder date (%s) came: the task is back in To do, high priority.' % t['remind_at'])
+        return self.get(task_id)
+
+    def reminders(self):
+        """The waiting reminders: [{id, title, remind_at}] soonest first."""
+        return [{'id': r[0], 'title': r[1], 'remind_at': r[2]} for r in self.db.con.execute(
+            "SELECT id, title, remind_at FROM tasks WHERE stage = 'closed' AND closed_reason = 'reminder' AND remind_at != '' ORDER BY remind_at, id")]
 
     # ---- child tasks (a parent's approval covers its children; the parent cannot go to Verifying while one is open)
     def _need_children_finished(self, con, t):

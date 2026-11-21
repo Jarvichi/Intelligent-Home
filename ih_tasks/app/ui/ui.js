@@ -7,7 +7,7 @@
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
-    child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
+    reminder_set: 'Reminder set', reminder_fired: 'Reminder fired', child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -54,6 +54,7 @@
     if (t.due) sub.push('Due ' + t.due);
     if (t.children_total) sub.push((t.children_total - t.children_open) + ' of ' + t.children_total + ' child tasks done');
     if (t.parent_id) sub.push('Part of #' + t.parent_id);
+    if (t.remind_at) sub.push('Reminder on ' + t.remind_at);
     if (t.stage === 'closed' && t.closed_reason) sub.push(closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : ''));
     var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null, labelChips(t)];
     if (state.merging && isOpen(t)) {
@@ -286,7 +287,7 @@
     var msg = msgLine();
     var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
       el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', WAIT_TEXT[t.waiting_on] || '',
-        t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
+        t.remind_at ? 'Reminder on ' + t.remind_at : '', t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
     var root = el('div', { 'class': 't-detail' }, [el('div', {}, head.concat([labelChips(t)]))]);
     if (t.question) root.appendChild(questionForm(t, msg));
 
@@ -347,6 +348,18 @@
       }))]));
     }
 
+    if (isOpen(t)) {
+      /* Remind me: a future date; the task is closed as "Reminder set" and comes back to To do (high priority) that day, with a message from Claude */
+      var rd = el('input', { type: 'date' }), rn = el('input', { type: 'text', maxlength: '500', placeholder: 'what to remember (optional)' }), mr = msgLine();
+      var tomorrow = new Date(Date.now() + 86400000); rd.min = tomorrow.getFullYear() + '-' + ('0' + (tomorrow.getMonth() + 1)).slice(-2) + '-' + ('0' + tomorrow.getDate()).slice(-2);
+      root.appendChild(el('ih-card', {}, [el('h3', { text: 'Remind me later' }),
+        el('p', { 'class': 'ih-metadata', text: 'Closes this task as "Reminder set". On that day it comes back to To do with high priority and Claude messages you.' }),
+        field('Remind me on', rd, 'd-remind-date'), field('Note (optional)', rn, 'd-remind-note'),
+        el('div', { 'class': 't-actions' }, [confirmButton('Set reminder and close', 'primary', function () {
+          if (!rd.value) { mr.setAttribute('data-tone', 'error'); mr.textContent = 'Pick a date.'; rd.focus(); return; }
+          act(mr, api('POST', '/tasks/' + t.id + '/remind', { date: rd.value, note: rn.value.trim() }));
+        })]), mr]));
+    }
     /* close or reopen */
     if (t.stage === 'closed' || t.stage === 'done') {
       var why = el('input', { type: 'text', maxlength: '500' }), m2 = msgLine();
