@@ -30,6 +30,7 @@ REASON_MAX = 2000
 MAX_QUESTIONS = 12
 MAX_OPTIONS = 12
 DUPLICATE_THRESHOLD = 0.72
+MAX_CHILDREN = 12   # child tasks of one parent
 
 # (from, to) -> (actors allowed, what the move needs). Anything not listed is refused.
 #   plan    the task must have a plan (sent with the move or already stored)
@@ -364,3 +365,15 @@ def check_merge(keeper, others, actor):
         if _RANK[t['stage']] >= _APPROVED and _RANK[t['stage']] > _RANK[keeper['stage']]:
             raise RuleError('conflict', 'task %d is %s and task %d is only %s: keep task %d instead, so the approval is not lost'
                             % (t['id'], STAGE_LABELS[t['stage']], keeper['id'], STAGE_LABELS[keeper['stage']], t['id']))
+
+
+def check_child(parent, actor, has_children_of_its_own=False):
+    """Refuse (RuleError) a new child task under `parent` (task dict). Children inherit the parent's approval, so the parent must already be
+    Approved or Implementing; the owner or a worker may add one. Only one level: a child cannot have children."""
+    check_actor(actor)
+    if actor not in ('owner', 'worker'):
+        raise RuleError('forbidden', 'only the owner or a worker can add a child task')
+    if parent['stage'] not in ('approved', 'implementing'):
+        raise RuleError('conflict', 'child tasks inherit the parent\'s approval, so the parent must be Approved or Implementing (it is %s)' % STAGE_LABELS[parent['stage']])
+    if parent.get('parent_id'):
+        raise RuleError('conflict', 'task %d is itself a child task; child tasks have no children of their own' % parent['id'])
