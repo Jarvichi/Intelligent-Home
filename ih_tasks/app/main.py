@@ -12,6 +12,7 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?, priority?, labels?}
   POST /tasks/<n>/ask {questions, after}   POST /tasks/<n>/answer {answers, note?}   POST /tasks/<n>/withdraw {reason}
   POST /tasks/<n>/link {kind, url?, text?}   POST /tasks/<n>/legacy {legacy}   POST /import {item} (owner token)
+  POST /tasks/<n>/children {title, description?}   a child task under an Approved/Implementing parent (inherits the approval; the parent waits for all children)
   POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
 The ingress page (IHT_UI_PORT, Home Assistant sign-in, admin only) uses the same routes under /api/ and always acts as the owner.
 Unknown fields are refused. Task text is never logged. stdlib only."""
@@ -33,7 +34,7 @@ import mirror as MIRROR
 import model as M
 from store import TaskStore
 
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -55,6 +56,7 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'withdraw': ({'reason'}, {'reason'}),
     'link': ({'kind', 'url', 'text'}, {'kind'}),
     'legacy': ({'legacy'}, {'legacy'}),
+    'children': ({'title', 'description'}, {'title'}),
 }
 CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate', 'priority', 'labels'}, {'title'})
 TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z]+))?')
@@ -185,6 +187,8 @@ def dispatch(store, status, method, path, query, body, role):
         return store.answer(tid, actor, b('answers'), b('note', ''))
     if action == 'withdraw':
         return store.withdraw_question(tid, actor, b('reason'))
+    if action == 'children':
+        return store.create_child(tid, b('title'), actor, b('description', ''))
     if action == 'link':
         return store.add_link(tid, actor, b('kind'), b('url', ''), b('text', ''))
     return store.add_legacy(tid, actor, b('legacy'))

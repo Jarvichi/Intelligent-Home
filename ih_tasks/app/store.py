@@ -34,9 +34,12 @@ MIGRATIONS = [
     (11, "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'"),
     # optional free-text labels, comma separated (labels hold only letters, digits and dashes, so a comma never appears inside one)
     (12, "ALTER TABLE tasks ADD COLUMN labels TEXT NOT NULL DEFAULT ''"),
+    # a child task points at its parent (one level). Children inherit the parent's approval; the parent cannot go to Verifying while one is open
+    (13, 'ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id)'),
+    (14, 'CREATE INDEX tasks_parent ON tasks(parent_id)'),
 ]
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
-             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels')
+             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id')
 LIST_LIMIT = 500
 IDENTITY_KINDS = ('todo_uid', 'queue_id')   # sending the same old item twice returns the task it already became; other old ids only label a task
 COMMENT_MAX = 4000
@@ -49,6 +52,8 @@ def waiting_on(task):
         return ''
     if task.get('needs_input'):
         return 'owner'
+    if s in ('approved', 'implementing') and task.get('children_open'):
+        return 'children'          # a parent waits for its child tasks; nothing to do until they are Done or Closed
     if s == 'planning':
         return 'worker' if task.get('revise') else 'owner'
     if s == 'verifying':
@@ -81,8 +86,18 @@ class TaskStore:
         r = con.execute("SELECT id, asked_at, asked_by, questions, after FROM questions WHERE task_id = ? AND status = 'open'", (task_id,)).fetchone()
         return None if not r else {'id': r[0], 'asked_at': r[1], 'asked_by': r[2], 'questions': json.loads(r[3]), 'after': r[4]}
 
-    def _view(self, con, t, open_ids=None):
+    def _kids(self, con, ids=None):
+        """{parent id: (open children, all children)}."""
+        sql = "SELECT parent_id, SUM(CASE WHEN stage IN ('done','closed') THEN 0 ELSE 1 END), COUNT(*) FROM tasks WHERE parent_id IS NOT NULL"
+        args = []
+        if ids is not None:
+            sql += ' AND parent_id IN (%s)' % ', '.join('?' * len(ids)); args = list(ids)
+        return {r[0]: (r[1], r[2]) for r in con.execute(sql + ' GROUP BY parent_id', args)} if ids != [] else {}
+
+    def _view(self, con, t, open_ids=None, kids=None):
         t = dict(t)
+        k = (kids if kids is not None else self._kids(con, [t['id']])).get(t['id'], (0, 0))
+        t['children_open'], t['children_total'] = k
         t['revise'] = bool(t['revise'])
         t['labels'] = [x for x in (t.get('labels') or '').split(',') if x]
         t['needs_input'] = (t['id'] in open_ids) if open_ids is not None else self._open_question(con, t['id']) is not None
@@ -103,6 +118,10 @@ class TaskStore:
         t['legacy'] = [{'kind': r[0], 'value': r[1]} for r in con.execute('SELECT kind, value FROM legacy WHERE task_id = ? ORDER BY kind, value', (task_id,))]
         t['history'] = self.history(task_id)
         t['comments'] = [e for e in t['history'] if e['kind'] == 'comment']
+        t['children'] = [{'id': r[0], 'title': r[1], 'stage': r[2], 'stage_label': M.STAGE_LABELS[r[2]]}
+                         for r in con.execute('SELECT id, title, stage FROM tasks WHERE parent_id = ? ORDER BY id', (task_id,))]
+        pr = con.execute('SELECT id, title, stage FROM tasks WHERE id = ?', (t['parent_id'],)).fetchone() if t.get('parent_id') else None
+        t['parent'] = {'id': pr[0], 'title': pr[1], 'stage': pr[2], 'stage_label': M.STAGE_LABELS[pr[2]]} if pr else None
         return t
 
     def history(self, task_id):
@@ -117,16 +136,17 @@ class TaskStore:
         for s in stages or ():
             if s not in M.STAGES:
                 raise M.RuleError('bad', 'stage must be from: ' + ', '.join(M.STAGES))
-        if waiting not in (None, '', 'owner', 'worker', 'check'):
-            raise M.RuleError('bad', 'waiting must be owner, worker or check')
+        if waiting not in (None, '', 'owner', 'worker', 'check', 'children'):
+            raise M.RuleError('bad', 'waiting must be owner, worker, check or children')
         sql, args = 'SELECT %s FROM tasks' % ', '.join(TASK_COLS), []
         if stages:
             sql += ' WHERE stage IN (%s)' % ', '.join('?' * len(stages))
             args += list(stages)
         open_ids = {r[0] for r in con.execute("SELECT task_id FROM questions WHERE status = 'open'")}
+        kids = self._kids(con)
         out, needle = [], (q or '').strip().lower().lstrip('#')
         for r in con.execute(sql + ' ORDER BY id', args):
-            t = self._view(con, dict(zip(TASK_COLS, r)), open_ids)
+            t = self._view(con, dict(zip(TASK_COLS, r)), open_ids, kids)
             if needs_input is not None and t['needs_input'] != bool(needs_input):
                 continue
             if waiting and t['waiting_on'] != waiting:
@@ -177,10 +197,10 @@ class TaskStore:
                 raise M.RuleError('conflict', 'old identifier %s already belongs to task %d' % (x['kind'], r[0]))
             con.execute('INSERT OR IGNORE INTO legacy(kind, value, task_id) VALUES(?,?,?)', (x['kind'], x['value'], task_id))
 
-    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor, priority='normal', labels=()):
+    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor, priority='normal', labels=(), parent_id=None):
         at = self.now()
-        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at, priority, labels) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                          (title, description, plan, stage, due, verify_by, source, actor, at, at, priority, ','.join(labels)))
+        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at, priority, labels, parent_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                          (title, description, plan, stage, due, verify_by, source, actor, at, at, priority, ','.join(labels), parent_id))
         return cur.lastrowid
 
     def _close(self, con, t, actor, c):
@@ -226,6 +246,8 @@ class TaskStore:
         with self.db.tx() as con:
             t = self._row(con, task_id)
             c = M.check_transition(t, to, actor, reason, plan, result, self._open_question(con, task_id) is not None)
+            if to in ('verifying', 'done'):
+                self._need_children_finished(con, t)
             if verify_by is not None:
                 if verify_by not in M.VERIFY_BY:
                     raise M.RuleError('bad', 'verify_by must be check or owner')
@@ -248,6 +270,8 @@ class TaskStore:
             con.execute('UPDATE tasks SET %s WHERE id = ?' % ', '.join(sets), args + [task_id])
             data = {k: v for k, v in (('result', c['result']), ('verify_by', verify_by), ('plan_sent', bool(c['plan']))) if v}
             self._event(con, task_id, actor, 'moved', t['stage'], to, c['reason'], data or None)
+            if to == 'done':
+                self._child_finished(con, t)
         return self.get(task_id)
 
     def set_plan(self, task_id, actor, plan, verify_by=None):
@@ -284,7 +308,46 @@ class TaskStore:
         with self.db.tx() as con:
             t = self._row(con, task_id)
             self._close(con, t, actor, M.check_close(t, actor, reason_kind, detail, duplicate_of))
+            self._child_finished(con, t)
         return self.get(task_id)
+
+    # ---- child tasks (a parent's approval covers its children; the parent cannot go to Verifying while one is open)
+    def _need_children_finished(self, con, t):
+        open_kids = [r[0] for r in con.execute("SELECT id FROM tasks WHERE parent_id = ? AND stage NOT IN ('done','closed') ORDER BY id", (t['id'],))]
+        if open_kids:
+            raise M.RuleError('conflict', '%d child task(s) are still open (%s): the parent can go to Verifying when all of them are Done or Closed'
+                              % (len(open_kids), ', '.join('#%d' % i for i in open_kids[:6])))
+
+    def _child_finished(self, con, t):
+        """A child reached Done or Closed: when it was the last open one, say so on the parent (the worker then picks the parent up again)."""
+        pid = t.get('parent_id')
+        if not pid:
+            return
+        left = con.execute("SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND stage NOT IN ('done','closed')", (pid,)).fetchone()[0]
+        if left == 0:
+            self._event(con, pid, 'system', 'children_finished', text='All child tasks are Done or Closed; the parent can go to Verifying.')
+
+    def create_child(self, parent_id, title, actor, description=''):
+        """A child task under an Approved or Implementing parent, created straight in Approved (it inherits the parent's approval), with the
+        parent's priority, due date, labels and verify_by. A parent still in Approved moves to Implementing. -> the child task."""
+        M.check_actor(actor)
+        title = M.clean_text(title, M.TITLE_MAX, 'title', required=True)
+        description = M.clean_text(description, M.TEXT_MAX, 'description')
+        with self.db.tx() as con:
+            p = self._row(con, parent_id)
+            M.check_child(p, actor)
+            n = con.execute('SELECT COUNT(*) FROM tasks WHERE parent_id = ?', (parent_id,)).fetchone()[0]
+            if n >= M.MAX_CHILDREN:
+                raise M.RuleError('conflict', 'a task can have at most %d child tasks' % M.MAX_CHILDREN)
+            plan = ('Part of task #%d (%s), approved with it. ' % (parent_id, p['title'][:80])) + (description or title)
+            cid = self._insert(con, title, description, plan[:M.TEXT_MAX], 'approved', p['due'], p['verify_by'], p['source'], actor, p['priority'],
+                               [x for x in (p.get('labels') or '').split(',') if x], parent_id)
+            self._event(con, cid, actor, 'created', '', 'approved', 'Child of task %d; approved with it.' % parent_id, {'parent': parent_id})
+            self._event(con, parent_id, actor, 'child_added', text='Child task #%d: %s' % (cid, title[:120]), data={'child': cid})
+            if p['stage'] == 'approved':
+                con.execute("UPDATE tasks SET stage = 'implementing' WHERE id = ?", (parent_id,))
+                self._event(con, parent_id, 'system', 'moved', 'approved', 'implementing', 'Child tasks were added.')
+        return self.get(cid)
 
     def comment(self, task_id, actor, text):
         """A note on the task. It never creates another task and never changes the stage."""
@@ -412,6 +475,9 @@ class TaskStore:
         with self.db.tx() as con:
             k = self._row(con, keep)
             others = [self._row(con, i) for i in merge]
+            for t in [k] + others:
+                if t.get('parent_id') or con.execute('SELECT 1 FROM tasks WHERE parent_id = ? LIMIT 1', (t['id'],)).fetchone():
+                    raise M.RuleError('conflict', 'task %d is part of a parent/child group; those tasks are not merged' % t['id'])
             M.check_merge(k, others, actor)
             due = min([t['due'] for t in [k] + others if t['due']] or [''])
             prio = min([t['priority'] for t in [k] + others], key=M.PRIORITIES.index)   # the most urgent one

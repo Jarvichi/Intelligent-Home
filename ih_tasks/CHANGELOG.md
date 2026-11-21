@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+- Child tasks (schema 14, new `parent_id`). `POST /tasks/<n>/children {title, description?}` adds a child under an Approved or Implementing task (owner or worker). The child is created straight in Approved because it inherits the parent's approval, and takes the parent's priority, due date, labels and verify-by. A parent still in Approved moves to Implementing. One level only, at most 12 children.
+- The parent cannot go to Verifying (or Done) while any child is open; Done and Closed both count as finished. While children are open the parent waits for them (`waiting_on: children`, a new value for the Waiting-for filter). When the last child finishes the parent gets a "children_finished" note.
+- `GET /tasks/<n>` has `children` and `parent`; every task summary has `parent_id`, `children_open` and `children_total`. Tasks in a parent/child group cannot be merged.
+- Page: a "Replan (back to Planning)" button (two taps) on Approved, Implementing and Verifying tasks. It moves the task back to Planning, flagged for the worker, with a standing reason (look at the current state of the house and code first, then write a new plan for what is still needed) plus whatever is in the comment box.
+- Page: a "Part of" card on a child, a "Child tasks" card on the parent, "x of y child tasks done" on cards, and a Waiting-for option.
+
 ## 0.5.0
 - Page: a "New task" button opens a panel (not a browser dialog) with Title, Detail, Due date and Priority. Save, Cancel and Esc; errors show in the panel. The quick title box stays. Labels will follow with the labels field.
 

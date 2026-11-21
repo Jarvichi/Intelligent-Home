@@ -4,10 +4,10 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = { labels: [], board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
-  var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked' };
+  var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
-    duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
+    child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -52,6 +52,8 @@
     var sub = [];
     if (t.priority && t.priority !== 'normal') sub.push(t.priority === 'high' ? 'High priority' : 'Low priority');
     if (t.due) sub.push('Due ' + t.due);
+    if (t.children_total) sub.push((t.children_total - t.children_open) + ' of ' + t.children_total + ' child tasks done');
+    if (t.parent_id) sub.push('Part of #' + t.parent_id);
     if (t.stage === 'closed' && t.closed_reason) sub.push(closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : ''));
     var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null, labelChips(t)];
     if (state.merging && isOpen(t)) {
@@ -297,6 +299,13 @@
         act(msg, api('POST', '/tasks/' + t.id + '/reject', { comment: comment.value.trim() }));
       } } }));
     }
+    if (t.stage === 'approved' || t.stage === 'implementing' || t.stage === 'verifying') {
+      /* Replan: back to Planning, flagged for the worker, with the comment (if any) as the reason */
+      actions.appendChild(confirmButton('Replan (back to Planning)', '', function () {
+        var why = 'Replan requested by the owner: check the CURRENT state of the house and the code first (what is already built, merged, installed or changed since the plan was written), then write a new plan for what is still needed.' + (comment.value.trim() ? ' Owner note: ' + comment.value.trim() : '');
+        act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'planning', reason: why }));
+      }));
+    }
     if (t.stage === 'verifying') {
       actions.appendChild(confirmButton('I have checked it: done', 'primary', function () { act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'done' })); }));
     }
@@ -323,6 +332,11 @@
       field('Comment (a note on this task; it never makes a new task)', comment, 'd-comment'), actions, msg]);
     root.appendChild(card);
 
+    if (t.parent) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Part of' }), el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + t.parent.id + ': ' + t.parent.title, on: { click: function () { openTask(t.parent.id); } } },
+      [el('b', { text: '#' + t.parent.id }), t.parent.title, el('small', { text: t.parent.stage_label + ' · approved together with this task' })])]));
+    if ((t.children || []).length) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Child tasks (' + (t.children_total - t.children_open) + ' of ' + t.children_total + ' finished)' }), el('ul', { 'class': 't-history' }, t.children.map(function (c) {
+      return el('li', {}, [el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + c.id + ': ' + c.title, on: { click: function () { openTask(c.id); } } }, [el('b', { text: '#' + c.id }), c.title, el('small', { text: c.stage_label })])]);
+    }))]));
     if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), el('p', { 'class': 't-text', text: t.plan })]));
     if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
     if (t.description) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));
