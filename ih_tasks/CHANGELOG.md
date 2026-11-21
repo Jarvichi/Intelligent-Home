@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+- Labels: optional free-text labels on a task (new column, schema 12; existing tasks have none). Send `labels` (a list of words) on `POST /tasks` and `POST /tasks/<n>/edit`; every task and list reply carries `labels` as a list. A label is lowercase letters, digits and dashes, up to 24 characters, at most 8 per task; spaces are trimmed, repeats dropped. `GET /labels` lists the labels in use with counts. Merging keeps the labels of all the merged tasks (up to 8).
+- Page: label chips on cards and on the task, an edit box with suggestions (comma-separated) and a Label filter on the board.
+
 ## 0.3.0
 - Priority: every task has a priority, `high`, `normal` (the default) or `low` (new column, schema 11; existing tasks become normal). Set it with `priority` on `POST /tasks` and `POST /tasks/<n>/edit`; it is in every task and list reply. The page shows it on the task and has a "Save priority" control. Merging keeps the most urgent priority of the merged tasks.
 

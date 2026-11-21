@@ -81,7 +81,7 @@ For each merged task:
 - Its open question set moves to the kept task when that task has none. When the kept task already has open questions, the merged task's questions are added as a comment and withdrawn.
 - Its links are copied (the same link is not added twice).
 - Its old ids (`todo_uid`, `queue_id`, `ok_number`, `wy_id`) MOVE to the kept task, so a look-up by an old id finds the kept task.
-- The kept task takes the earliest due date and the highest priority.
+- The kept task takes the earliest due date, the highest priority and the labels of all the merged tasks.
 - The merged task is closed with the reason duplicate of the kept task. Both histories get a line.
 - Its plan and description are NOT copied. They stay readable on the closed task.
 
@@ -108,13 +108,14 @@ Port 8818. Send `Authorization: Bearer <token>` and JSON. Unknown fields are ref
 | `GET /tasks/<n>` | | The whole task: plan, open question set, past ones, links, old ids, history. |
 | `GET /tasks/<n>/history` | | The history only. |
 | `GET /legacy?kind=todo_uid&value=...` | | The task that carries an old id. |
-| `POST /tasks` | `title`, `description?`, `due?` (YYYY-MM-DD), `priority?` (`high`, `normal` default, `low`), `source?`, `legacy?`, `allow_duplicate?` | Reply: `task`, `duplicate_of`, `similar`, `existing`. |
+| `POST /tasks` | `title`, `description?`, `due?` (YYYY-MM-DD), `priority?` (`high`, `normal` default, `low`), `labels?` (list of words), `source?`, `legacy?`, `allow_duplicate?` | Reply: `task`, `duplicate_of`, `similar`, `existing`. |
 | `POST /tasks/<n>/move` | `to`, `reason?`, `plan?`, `result?`, `verify_by?` | `plan` only with a move to Planning. `verify_by` (`check` or `owner`) with a move to Planning or Verifying. |
 | `POST /tasks/<n>/plan` | `plan`, `verify_by?` | Worker, in Planning: a rewritten plan (after a rejection or an answer). |
 | `POST /tasks/<n>/reject` | `comment` | Owner, in Planning. |
 | `POST /tasks/<n>/close` | `reason`, `detail?`, `duplicate_of?` | `reason` is `wont_do`, `duplicate`, `already_done` or `dropped`. |
 | `POST /tasks/<n>/comment` | `text` | |
-| `POST /tasks/<n>/edit` | `title?`, `description?`, `due?`, `priority?` | Workers take `high` tasks before `normal` before `low`, whatever the stage. |
+| `GET /labels` | | Labels in use: `labels` `[{label, count}]`, most used first. |
+| `POST /tasks/<n>/edit` | `title?`, `description?`, `due?`, `priority?`, `labels?` (a list replaces the old labels; `[]` clears them) | Workers take `high` tasks before `normal` before `low`, whatever the stage. |
 | `POST /tasks/<n>/ask` | `questions` `[{id?, text, type, options?}]`, `after` | Worker. `409` if a set is already open. |
 | `POST /tasks/<n>/answer` | `answers` `{id: value}`, `note?` | Owner. Every question must be answered. |
 | `POST /tasks/<n>/withdraw` | `reason` | Takes the open question set back. |

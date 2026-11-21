@@ -219,6 +219,37 @@ def check_priority(p):
     return p.strip().lower()
 
 
+LABEL_MAX_COUNT = 8
+LABEL_MAX_LEN = 24
+
+
+def check_labels(labels):
+    """None or [] -> []. Otherwise a list of short words (letters, digits, dash): lowercased, trimmed, de-duplicated, in the order given.
+    A comma-separated text is accepted too (what the page's text box sends)."""
+    if labels in (None, '', []):
+        return []
+    if isinstance(labels, str):
+        labels = labels.split(',')
+    if not isinstance(labels, list):
+        raise RuleError('bad', 'labels must be a list of words')
+    out = []
+    for x in labels:
+        if not isinstance(x, str):
+            raise RuleError('bad', 'each label must be text')
+        x = x.strip().lower()
+        if not x:
+            continue
+        if len(x) > LABEL_MAX_LEN:
+            raise RuleError('bad', 'a label is at most %d characters: %s' % (LABEL_MAX_LEN, x[:LABEL_MAX_LEN] + '...'))
+        if not re.fullmatch(r'[a-z0-9-]+', x):
+            raise RuleError('bad', 'labels use letters, digits and dashes only: %s' % x[:LABEL_MAX_LEN])
+        if x not in out:
+            out.append(x)
+    if len(out) > LABEL_MAX_COUNT:
+        raise RuleError('bad', 'at most %d labels on a task' % LABEL_MAX_COUNT)
+    return out
+
+
 def check_legacy(legacy):
     """[{kind, value}] of old identifiers (to-do uid, queue id, OK number, waiting-on-you id)."""
     if legacy in (None, []):
