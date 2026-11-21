@@ -1,5 +1,5 @@
 """Discord REST helpers (no gateway). Tokens are passed in by the caller and never logged. opener is injectable for tests."""
-import json, os, urllib.request
+import base64, json, os, urllib.request
 
 API = 'https://discord.com/api/v10'
 UA = 'DiscordBot (https://example.invalid, 1.0)'
@@ -66,3 +66,39 @@ def send_dm_rich(bot_token, user_id, text='', embeds=None, file=None, opener=Non
     if not ch.get('id'):
         raise RuntimeError('no dm channel')
     return post_rich(bot_token, ch['id'], text, embeds, file, opener)
+
+
+VOICE_FLAG = 8192            # IS_VOICE_MESSAGE
+VOICE_FILENAME = 'voice-message.ogg'
+
+
+def _put(url, data, content_type, opener=None, timeout=60):
+    """PUT raw bytes to a pre-signed upload url (no Authorization header: the url carries its own permission)."""
+    req = urllib.request.Request(url, method='PUT', data=bytes(data), headers={'Content-Type': content_type, 'User-Agent': UA})
+    with (opener or urllib.request.urlopen)(req, timeout=timeout) as r:
+        r.read()
+
+
+def send_voice_message(bot_token, user_id, ogg_bytes, duration, waveform, opener=None, timeout=60):
+    """Send a true Discord voice message (round player bubble) as a DM. ogg_bytes must be ogg/opus.
+    duration: seconds (float). waveform: base64 text (or raw bytes, up to 256 amplitude bytes 0..255).
+    Three-step upload: POST channels/{id}/attachments -> PUT upload_url -> POST message with flags 8192 and uploaded_filename.
+    A voice message cannot carry text. Returns the message id; raises on any failure (the caller may fall back to send_dm_rich)."""
+    if not bot_token:
+        raise RuntimeError('no discord token')
+    if not ogg_bytes:
+        raise ValueError('empty audio')
+    wf = base64.b64encode(bytes(waveform)).decode() if isinstance(waveform, (bytes, bytearray)) else str(waveform)
+    ch = _call(bot_token, 'POST', '/users/@me/channels', {'recipient_id': str(user_id)}, opener, timeout)
+    if not ch.get('id'):
+        raise RuntimeError('no dm channel')
+    slot = _call(bot_token, 'POST', '/channels/%s/attachments' % ch['id'],
+                 {'files': [{'filename': VOICE_FILENAME, 'file_size': len(ogg_bytes), 'id': '0'}]}, opener, timeout)
+    att = (slot.get('attachments') or [{}])[0]
+    if not att.get('upload_url') or not att.get('upload_filename'):
+        raise RuntimeError('no upload slot')
+    _put(att['upload_url'], ogg_bytes, 'audio/ogg', opener, timeout)
+    msg = {'flags': VOICE_FLAG,
+           'attachments': [{'id': '0', 'filename': VOICE_FILENAME, 'uploaded_filename': att['upload_filename'],
+                            'duration_secs': round(float(duration), 2), 'waveform': wf}]}
+    return _call(bot_token, 'POST', '/channels/%s/messages' % ch['id'], msg, opener, timeout).get('id')

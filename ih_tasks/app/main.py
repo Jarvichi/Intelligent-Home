@@ -33,7 +33,7 @@ import mirror as MIRROR
 import model as M
 from store import TaskStore
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))

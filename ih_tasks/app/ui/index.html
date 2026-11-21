@@ -26,6 +26,18 @@
           <button id="add-go" class="t-button" type="submit">Add</button>
         </form>
         <p id="add-msg" class="ih-metadata" role="status" aria-live="polite"></p>
+        <p><button id="new-open" class="t-button" type="button" data-variant="primary" aria-haspopup="true">New task</button></p>
+        <div id="new-modal" class="t-modal" role="dialog" aria-modal="true" aria-labelledby="new-heading" hidden>
+          <form id="new-form" class="t-modal-card" autocomplete="off">
+            <h2 id="new-heading">New task</h2>
+            <div class="t-field"><label for="new-title">Title (required)</label><input id="new-title" type="text" maxlength="200" required></div>
+            <div class="t-field"><label for="new-desc">Detail</label><textarea id="new-desc" rows="5"></textarea></div>
+            <div class="t-field"><label for="new-due">Due date</label><input id="new-due" type="date"></div>
+            <div class="t-field"><label for="new-pri">Priority</label><select id="new-pri"><option value="high">High</option><option value="normal" selected>Normal</option><option value="low">Low</option></select></div>
+            <p id="new-msg" class="t-msg" role="status" aria-live="polite"></p>
+            <div class="t-actions"><button id="new-save" class="t-button" data-variant="primary" type="submit">Save task</button><button id="new-cancel" class="t-button" type="button">Cancel</button></div>
+          </form>
+        </div>
 
         <div class="t-filter" role="search">
           <div class="t-search-row">

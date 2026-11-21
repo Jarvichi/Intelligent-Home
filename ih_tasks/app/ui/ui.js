@@ -392,6 +392,28 @@
       loadBoard();
     }).catch(function (e) { m.textContent = e.message; });
   });
+  /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). */
+  function newOpen() { $('new-msg').textContent = ''; $('new-msg').removeAttribute('data-tone'); $('new-modal').hidden = false; $('new-title').focus(); }
+  function newClose() { $('new-modal').hidden = true; $('new-open').focus(); }
+  $('new-open').addEventListener('click', newOpen);
+  $('new-cancel').addEventListener('click', newClose);
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !$('new-modal').hidden) newClose(); });
+  $('new-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var title = $('new-title').value.trim(), m = $('new-msg'), go = $('new-save');
+    if (!title) { m.setAttribute('data-tone', 'error'); m.textContent = 'A title is needed.'; return; }
+    var body = { title: title, priority: $('new-pri').value };
+    if ($('new-desc').value.trim()) body.description = $('new-desc').value.trim();
+    if ($('new-due').value) body.due = $('new-due').value;
+    go.disabled = true; m.removeAttribute('data-tone'); m.textContent = 'Saving…';
+    api('POST', '/tasks', body).then(function (r) {
+      go.disabled = false;
+      $('new-form').reset();
+      newClose();
+      $('add-msg').textContent = r.duplicate_of ? 'Task ' + r.task.id + ' looked the same as task ' + r.duplicate_of + ', so it was closed as a duplicate. Open it and reopen it if that is wrong.' : 'Added task ' + r.task.id + '.';
+      loadBoard();
+    }).catch(function (e) { go.disabled = false; m.setAttribute('data-tone', 'error'); m.textContent = e.message; });
+  });
   fetch('ui.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (u) {
     if (u.purpose) $('purpose').textContent = u.purpose;
     if (u.access) $('access').textContent = u.access;

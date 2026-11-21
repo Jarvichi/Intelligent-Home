@@ -100,6 +100,12 @@ class Api(unittest.TestCase):
         self.assertEqual(call(self.p, 'GET', '/legacy?kind=ok_number&value=8', token=WORKER)[0], 404)
         self.assertEqual(call(self.p, 'GET', '/status', token=WORKER)[1]['counts']['done'], 1)
 
+    def test_create_with_detail_due_and_priority(self):
+        code, r = call(self.p, 'POST', '/tasks', {'title': 'Paint the fence', 'description': 'Two coats, brown.', 'due': '2026-12-05', 'priority': 'high'}, OWNER)
+        self.assertEqual(code, 200)
+        t = call(self.p, 'GET', '/tasks/%d' % r['task']['id'], None, OWNER)[1]
+        self.assertEqual((t['description'], t['due'], t['priority']), ('Two coats, brown.', '2026-12-05', 'high'))
+
     def test_list_close_comment_and_bad_requests(self):
         call(self.p, 'POST', '/tasks', {'title': 'Clean the gutters'}, WORKER)
         call(self.p, 'POST', '/tasks', {'title': 'Renew the car insurance'}, OWNER)
