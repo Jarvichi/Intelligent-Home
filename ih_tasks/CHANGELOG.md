@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.1
+- Find duplicates, and the duplicate check when a task is created, ignore child tasks: the children of one parent share a title stem on purpose, so they were offered as duplicates of each other.
+
 ## 0.6.0
 - Child tasks (schema 14, new `parent_id`). `POST /tasks/<n>/children {title, description?}` adds a child under an Approved or Implementing task (owner or worker). The child is created straight in Approved because it inherits the parent's approval, and takes the parent's priority, due date, labels and verify-by. A parent still in Approved moves to Implementing. One level only, at most 12 children.
 - The parent cannot go to Verifying (or Done) while any child is open; Done and Closed both count as finished. While children are open the parent waits for them (`waiting_on: children`, a new value for the Waiting-for filter). When the last child finishes the parent gets a "children_finished" note.

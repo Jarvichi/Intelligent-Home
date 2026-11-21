@@ -230,7 +230,7 @@ class TaskStore:
                 if r:
                     return {'task': self.get(r[0]), 'duplicate_of': None, 'similar': [], 'existing': True}
             hits = [] if allow_duplicate else M.find_duplicates(title, con.execute(
-                'SELECT id, title FROM tasks WHERE stage IN (%s)' % ', '.join('?' * len(M.OPEN_STAGES)), M.OPEN_STAGES).fetchall())
+                'SELECT id, title FROM tasks WHERE parent_id IS NULL AND stage IN (%s)' % ', '.join('?' * len(M.OPEN_STAGES)), M.OPEN_STAGES).fetchall())
             tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor, priority, labels)
             self._add_legacy(con, tid, legacy)
             self._event(con, tid, actor, 'created', '', 'todo', '', {'source': source} if source else None)
@@ -531,7 +531,7 @@ class TaskStore:
         """Groups of OPEN tasks whose titles nearly match (labels such as "Handoff from <name>:" are ignored), without the pairs marked as not duplicates.
         -> {groups: [{ids, score, keep (the task a merge would keep by default), tasks: [summaries]}]}"""
         con = self.db.con
-        by_id = {t['id']: t for t in self.list(stages=list(M.OPEN_STAGES))}
+        by_id = {t['id']: t for t in self.list(stages=list(M.OPEN_STAGES)) if not t.get('parent_id')}   # child tasks of one parent share a title stem on purpose
         dismissed = con.execute('SELECT a, b FROM not_duplicates').fetchall()
         groups = M.duplicate_groups([(i, t['title']) for i, t in by_id.items()], dismissed)
         for g in groups:
