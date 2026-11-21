@@ -17,10 +17,15 @@ class FakeHA:
     def __init__(self, items):
         self.items = items
         self.calls = 0
+        self.moves = []
 
-    def post(self, path, data, timeout=10):
+    def approved(self):
         self.calls += 1
-        return {'service_response': {'todo.claude_to_do': {'items': list(self.items)}}}
+        return list(self.items)
+
+    def move(self, number, to, reason='', result=''):
+        self.moves.append((number, to))
+        return ''
 
 
 def todo(n):
@@ -304,7 +309,7 @@ class Runs(Base):
         self.pace(-6.0)
         self.assertTrue(self.svc.claim('w1')['claimed'])
         self.assertEqual(self.svc.opts.get('feed_backlog'), False)
-        self.assertEqual(self.svc.ha.calls, 0)
+        self.assertEqual(self.svc.tasks.calls, 0)
 
     def test_urgent_handoff_still_first(self):
         self.make(mode='live')

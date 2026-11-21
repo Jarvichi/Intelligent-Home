@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import gate as G, feed, main as M, pace
 from service import Service
 from store import StoreError
+from tasks_client import TasksError, TasksClient
 
 NIGHT = datetime(2026, 11, 5, 2, 0, tzinfo=timezone.utc)     # tz = UTC in tests: 02:00 is night
 DAY = datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc)
@@ -37,7 +38,7 @@ class Reader:
 
 def opts(**k):
     o = dict(mode='live', api_token=TOKEN, lease_s=1200, stop=False, bands=G.DEFAULT_BANDS, tz=timezone.utc, feed_backlog=False,
-             feed_prefixes=['IH:', 'Check:', 'Review:'], todo_entity='todo.claude_to_do')
+             feed_prefixes=['IH:', 'Check:', 'Review:'])
     o.update(k)
     return o
 
@@ -219,12 +220,19 @@ class Claim(Base):
 
 
 class FakeHA:
+    """A fake IH Tasks client: approved() returns the tasks, move() records the stage moves."""
     def __init__(self, items):
-        self.items, self.calls = items, 0
+        self.items, self.calls, self.moves, self.down = items, 0, [], False
 
-    def post(self, path, data=None, timeout=0):
+    def approved(self):
         self.calls += 1
-        return {'service_response': {'todo.claude_to_do': {'items': self.items}}}
+        if self.down:
+            raise TasksError('IH Tasks could not be reached (URLError)')
+        return self.items
+
+    def move(self, number, to, reason='', result=''):
+        self.moves.append((number, to, reason, result))
+        return ''
 
 
 def todo(uid, summary, desc='', due=None):
@@ -283,11 +291,105 @@ class Feeder(Base):
         self.assertEqual(ha.calls, 0)
 
 
+class FromIHTasks(Base):
+    def test_unreachable_hands_out_nothing_and_warns(self):
+        t = FakeHA([dict(todo('7', 'Task seven', 'plan', due='2026-12-01'), approved=True)]); t.down = True
+        self.make(ha=t, feed_backlog=True); self.svc.tick()
+        self.assertEqual(len(self.svc.store.list()), 0)
+        self.assertTrue(any('no tasks handed out' in l for l in self.logs))
+        self.assertIn('could not be reached', self.svc.status()['tasks_warning'])
+        t.down = False; self.c.move(minutes=10); self.svc.tick()                 # back up: the warning clears and the task is fed
+        self.assertEqual(self.svc.status()['tasks_warning'], '')
+        self.assertEqual([i['ref'] for i in self.svc.store.list()], ['7'])
+
+    def test_not_configured_hands_out_nothing(self):
+        self.make(ha=None, feed_backlog=True); self.svc.tick()
+        self.assertEqual(len(self.svc.store.list()), 0)
+        self.assertIn('not configured', self.svc.status()['tasks_warning'])
+
+    def test_task_is_the_plan_and_needs_no_tags(self):
+        t = FakeHA([todo('7', 'Task seven', 'plan text [waiting]')])             # old list tags do not apply to IH Tasks tasks
+        t.items[0]['approved'] = True
+        self.make(ha=t, feed_backlog=True); self.svc.tick()
+        it = self.svc.store.list()[0]
+        self.assertEqual((it['ref'], it['approved']), ('7', True))
+        self.assertIn('IH Task #7', it['instruction']); self.assertIn('plan text', it['instruction'])
+
+    def test_stage_moves(self):
+        t = FakeHA([dict(todo('7', 'Task seven', 'plan'), approved=True)])
+        self.make(ha=t, feed_backlog=True); self.svc.tick()
+        got = self.svc.claim('w'); self.assertTrue(got['claimed'], got)
+        self.assertEqual(t.moves, [(7, 'implementing', '', '')])
+        it = self.svc.store.finish(got['item']['id'], 'w', True, summary='built it'); self.svc.finished(it, True, 'built it')
+        self.assertEqual(t.moves[-1], (7, 'verifying', '', 'built it'))
+
+    def test_failure_and_stop_go_back_to_planning(self):
+        t = FakeHA([]); self.make(ha=t)
+        it = dict(kind='todo', ref='9')
+        self.svc.finished(it, False, 'boom'); self.svc.waiting(it, 'needs_ok', 'need a decision')
+        self.assertEqual([(m[0], m[1]) for m in t.moves], [(9, 'planning'), (9, 'planning')])
+        self.assertIn('boom', t.moves[0][2]); self.assertIn('needs_ok', t.moves[1][2])
+        self.svc.finished(dict(kind='review', ref='9'), True); self.svc.finished(dict(kind='todo', ref='abc'), True)   # not tasks: no move
+        self.assertEqual(len(t.moves), 2)
+
+
+class _Resp:
+    def __init__(self, obj): self.b = json.dumps(obj).encode()
+    def read(self): return self.b
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+
+class Client(unittest.TestCase):
+    def fake(self, routes):
+        self.seen = []
+        def opener(req, timeout=0):
+            self.seen.append((req.get_method(), req.full_url, req.headers.get('Authorization'), req.data))
+            r = routes.get((req.get_method(), req.full_url.split('/tasks', 1)[1] if '/tasks' in req.full_url else ''))
+            if isinstance(r, Exception):
+                raise r
+            return _Resp(r)
+        return TasksClient('http://t:1/', 'secret-token', opener)
+
+    def test_only_approved_with_plan_text(self):
+        c = self.fake({('GET', '?stage=approved'): {'tasks': [dict(id=3, stage='approved'), dict(id=4, stage='approved', needs_input=True), dict(id=5, stage='todo')]},
+                       ('GET', '/3'): dict(id=3, stage='approved', title='T3', plan='the plan', due='2026-12-01', priority='high')})
+        items = c.approved()
+        self.assertEqual(items, [dict(uid='3', summary='T3', description='the plan', due='2026-12-01', priority='high', approved=True)])
+        self.assertEqual(self.seen[0][1], 'http://t:1/tasks?stage=approved')
+        self.assertEqual(self.seen[0][2], 'Bearer secret-token')
+
+    def test_task_moved_on_since_is_skipped(self):
+        c = self.fake({('GET', '?stage=approved'): {'tasks': [dict(id=3, stage='approved')]}, ('GET', '/3'): dict(id=3, stage='implementing', title='T')})
+        self.assertEqual(c.approved(), [])
+
+    def test_errors_become_tasks_error_without_secrets(self):
+        c = self.fake({('GET', '?stage=approved'): urllib.error.URLError('boom secret-token')})
+        with self.assertRaises(TasksError) as cm:
+            c.approved()
+        self.assertNotIn('secret-token', str(cm.exception))
+        self.assertIn('could not be reached', str(cm.exception))
+        with self.assertRaises(TasksError):
+            TasksClient('', '').approved()
+        c = self.fake({('GET', '?stage=approved'): {'tasks': 'bad'}})
+        with self.assertRaises(TasksError):
+            c.approved()
+
+    def test_move_posts_and_never_raises(self):
+        c = self.fake({('POST', '/3/move'): {'ok': 1}})
+        self.assertEqual(c.move(3, 'verifying', result='done it'), '')
+        self.assertEqual(json.loads(self.seen[0][3]), {'to': 'verifying', 'result': 'done it'})
+        c = self.fake({('POST', '/3/move'): urllib.error.HTTPError('u', 409, 'x', {}, None)})
+        self.assertIn('409', c.move(3, 'verifying'))
+
+
 class Options(unittest.TestCase):
     def test_defaults_and_bad_values(self):
         d = tempfile.mkdtemp(); p = os.path.join(d, 'o.json')
         o = M.load_options(p)
         self.assertEqual((o['mode'], o['api_token'], o['lease_s'], o['feed_backlog']), ('dry', '', 1200, False))
+        self.assertEqual((o['tasks_api_url'], o['tasks_api_token']), ('', ''))
+        self.assertNotIn('todo_entity', o)
         self.assertEqual(o['bands'], G.DEFAULT_BANDS)
         with open(p, 'w') as f:
             json.dump({'mode': 'weird', 'day_start': 'x', 'lease_minutes': 9999, 'timezone': 'No/Where', 'feed_prefixes': 'str'}, f)

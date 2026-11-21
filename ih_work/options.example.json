@@ -15,7 +15,8 @@
   "session_usage_entity": "",
   "weekly_reset_entity": "",
   "feed_backlog": false,
-  "todo_entity": "todo.claude_to_do",
+  "tasks_api_url": "http://32c8114c-ih-tasks:8818",
+  "tasks_api_token": "",
   "feed_prefixes": [
     "IH:",
     "Check:",

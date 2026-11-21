@@ -1,5 +1,5 @@
 """Backlog feeder rules (pure): which open item of the Claude to-do list is queued next. Replaces the nightly worker's picking.
-Rules: never an item fed in the last 7 days; never an item tagged waiting / needs OK / plan / no-overnight / with an open [needs-you #N] (cleared by [done-you #N]); only items whose title starts with an
+Items come from the IH Tasks API (stage Approved only; see tasks_client.py). Rules: never an item fed in the last 7 days; never an item tagged waiting / needs OK / plan / no-overnight / with an open [needs-you #N] (cleared by [done-you #N]); only items whose title starts with an
 allowed work prefix (option feed_prefixes) or that carry the tag [claude] or [approved #N]; approved items first, then earliest due date
 (no date last), then the item worked on least (fewest '[overnight ' lines), then list order."""
 import re
@@ -41,9 +41,10 @@ def pick(items, prefixes, fed, now, any_item=False):
         if not isinstance(i, dict) or not i.get('uid') or not i.get('summary'):
             continue
         summary, desc = str(i['summary']), str(i.get('description') or '')
-        if _recent(fed, i['uid'], now) or SKIP_TAG.search(summary + '\n' + desc) or open_needs_you(desc):
+        native = i.get('approved') is True   # an IH Tasks task in the stage Approved: the owner's approval is the gate, old list tags do not apply
+        if _recent(fed, i['uid'], now) or (not native and (SKIP_TAG.search(summary + '\n' + desc) or open_needs_you(desc))):
             continue
-        approved = bool(APPROVED.search(desc))
+        approved = native or bool(APPROVED.search(desc))
         if not (any_item or approved or WORK_TAG.search(desc) or (pre and summary.strip().lower().startswith(pre))):
             continue
         (appr if approved else rest).append((_due(i), desc.count('[overnight '), n, i))
@@ -67,6 +68,9 @@ def has_plan(desc):
 
 def instruction(item):
     desc = str(item.get('description') or '')
+    if item.get('approved') is True:   # an IH Tasks task: the description is the approved plan
+        return ('Work on IH Task #%s (stage Implementing). Its plan was approved by the owner: do exactly that plan and nothing more.\nTitle: %s\nDue: %s\nApproved plan:\n%s'
+                % (str(item.get('uid'))[:12], str(item.get('summary'))[:200], str(item.get('due') or 'none'), desc[:3000]))[:4000]
     if REPLAN.search(desc):
         plan = ('\nREPLAN: an earlier plan for this item was graded wrong by a reviewer (reason in the [replan] line). First run the already-done check; '
                 'if the work already exists, report already_done with evidence. Otherwise write a corrected plan note in the brain (projects/<slug>/plan, overwrite or version the old one, '
