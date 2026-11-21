@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0
+- Page: a "New task" button opens a panel (not a browser dialog) with Title, Detail, Due date and Priority. Save, Cancel and Esc; errors show in the panel. The quick title box stays. Labels will follow with the labels field.
+
 ## 0.4.0
 - Labels: optional free-text labels on a task (new column, schema 12; existing tasks have none). Send `labels` (a list of words) on `POST /tasks` and `POST /tasks/<n>/edit`; every task and list reply carries `labels` as a list. A label is lowercase letters, digits and dashes, up to 24 characters, at most 8 per task; spaces are trimmed, repeats dropped. `GET /labels` lists the labels in use with counts. Merging keeps the labels of all the merged tasks (up to 8).
 - Page: label chips on cards and on the task, an edit box with suggestions (comma-separated) and a Label filter on the board.

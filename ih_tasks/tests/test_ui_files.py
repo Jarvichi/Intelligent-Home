@@ -49,6 +49,17 @@ class Files(unittest.TestCase):
         self.assertIn("api('POST', '/tasks/merge', { keep: keep.id, merge: others })", js)
         self.assertIn("api('POST', '/tasks/duplicates/dismiss', { ids: g.ids })", js)
 
+    def test_new_task_modal(self):
+        page = (UI / 'index.html').read_text()
+        js = (UI / 'ui.js').read_text()
+        self.assertIn('id="new-open"', page)
+        self.assertRegex(page, r'<div id="new-modal"[^>]*hidden>')
+        for f in ('new-title', 'new-desc', 'new-due', 'new-pri', 'new-msg', 'new-cancel'):
+            self.assertIn('id="%s"' % f, page)
+        self.assertIn('type="date"', page)
+        self.assertIn("ev.key === 'Escape'", js)
+        self.assertIn("api('POST', '/tasks', body)", js)
+
     def test_versions_and_ports_agree(self):
         cfg = (ADDON / 'config.yaml').read_text()
         version = re.search(r'^version: "([^"]+)"', cfg, re.M).group(1)
