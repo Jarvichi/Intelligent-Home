@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.0] - 2026-11-21
+
+### Changed
+- Tasks now come only from the IH Tasks API (stage Approved), not from a Home Assistant to-do list. Options `todo_entity` removed; `tasks_api_url` and `tasks_api_token` added.
+- Stage moves: claimed -> Implementing, completed -> Verifying (with the result), failed or stopped -> Planning (with the reason). Moves are best effort and never block the queue.
+- IH Tasks unreachable or not configured: nothing is handed out, a warning shows in the status (`tasks_warning`), no fallback.
+
 ## [0.9.1] - 2026-11-18
 
 ### Changed

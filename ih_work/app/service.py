@@ -6,10 +6,11 @@ from datetime import datetime, timedelta, timezone
 import feed
 import gate as G
 import runs as R
+from tasks_client import TasksError
 from workers import Workers
 from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow, queue_order
 
-VERSION = '0.9.0'
+VERSION = '0.10.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -21,15 +22,16 @@ def brief(i):
 
 
 class Service:
-    def __init__(self, data_dir, opts, reader=None, ha=None, clock=utcnow, log=lambda *a: None):
+    def __init__(self, data_dir, opts, reader=None, tasks=None, clock=utcnow, log=lambda *a: None):
         self.dir = data_dir
-        self.opts = opts          # mode, lease_s, stop, bands, tz (tzinfo), feed_backlog, feed_prefixes, todo_entity
-        self.reader, self.ha, self.clock, self.log = reader, ha, clock, log
+        self.opts = opts          # mode, lease_s, stop, bands, tz (tzinfo), feed_backlog, feed_prefixes
+        self.reader, self.tasks, self.clock, self.log = reader, tasks, clock, log   # tasks: a TasksClient (IH Tasks API) or None
         self.store = Store(data_dir, clock)
         self.workers = Workers(data_dir, clock)
         self.state_path = os.path.join(data_dir, 'state.json')
         self.lock = threading.RLock()
         self._reading = (0.0, None, '')
+        self.tasks_problem = '' if tasks else 'IH Tasks is not configured (address or token missing)'
 
     # ---- state ----
     def load_state(self):
@@ -277,6 +279,7 @@ class Service:
                     self.log('[DRY] would hand out urgent item %s: %s' % (urgent['id'], urgent['title']))
                     return dict(claimed=False, dry=True, would_claim=brief(urgent), reason='test mode: would hand out urgent item %s' % urgent['id'], gate=self.gate_line(d, r))
                 it = self.store.claim(consumer, lease, iid=urgent['id'])
+                self.started(it)
                 st['urgent_claims'] = [t for t in st.get('urgent_claims', []) if (parse(t) or now) > now - timedelta(hours=24)] + [iso(now)]
                 self.save_state(st)
                 return dict(claimed=True, item=it, lease_expires_at=it['lease_expires_at'], reason='urgent handoff: pace pause skipped', gate=self.gate_line(d, r))
@@ -296,6 +299,7 @@ class Service:
                 self.log('[DRY] would hand out item %s: %s' % (head['id'], head['title']))
                 return dict(claimed=False, dry=True, would_claim=brief(head), reason='test mode: would hand out item %s' % head['id'], gate=self.gate_line(d, r))
             it = self.store.claim(consumer, lease)
+            self.started(it)
             if run and st.get('run') and it.get('kind') == 'todo' and it['id'] in (st['run'].get('ids') or []):   # only the to-dos the run fed count (not the plan job, not other jobs)
                 st['run']['started'] += 1
             st[key] = recent + [iso(now)]
@@ -320,7 +324,7 @@ class Service:
                         running=brief(next((i for i in items if i['status'] in ACTIVE), None)),
                         last_finished=brief(max(fin, key=lambda i: i['finished_at'])) if fin else None,
                         worker=dict(state=w['state'], reason=w['reason'], mode=w['mode'], band=w['band'], updated=iso(now)),
-                        gate=self.gate_line(d, r), gate_at=iso(now), pace=r and r['pace'], week=r and r['week'], session=r and r['session'],
+                        gate=self.gate_line(d, r), tasks_warning=self.tasks_problem, gate_at=iso(now), pace=r and r['pace'], week=r and r['week'], session=r and r['session'],
                         corrupt_files=list(self.store.corrupt))
 
     # ---- ticker ----
@@ -340,7 +344,7 @@ class Service:
                 ok_r, why_r = self.run_decide(st, r)
                 d = d._replace(ok=ok_r, reason=why_r)
             w = self.worker_view(items, d, r)
-            st['snapshot'] = dict(worker=dict(w, updated=iso(now)), gate=self.gate_line(d, r), pace=r and r['pace'], at=iso(now))
+            st['snapshot'] = dict(worker=dict(w, updated=iso(now)), gate=self.gate_line(d, r), pace=r and r['pace'], at=iso(now), tasks_warning=self.tasks_problem)
             self.save_state(st)
             try:
                 if st.get('run'):
@@ -352,13 +356,44 @@ class Service:
 
     # ---- backlog feeder (default off): one item at a time, only while no run is active ----
     def _todo_items(self):
-        ent = self.opts['todo_entity']
-        resp = self.ha.post('services/todo/get_items?return_response', {'entity_id': ent, 'status': 'needs_action'}, 20)
-        return ((resp or {}).get('service_response') or {}).get(ent, {}).get('items') or []
+        """The Approved tasks from IH Tasks. Raises when the API cannot be used: nothing is handed out then and there is no other list to fall back on."""
+        if not self.tasks:
+            raise TasksError('IH Tasks is not configured')
+        try:
+            items = self.tasks.approved()
+            self.tasks_problem = ''
+            return items
+        except TasksError as e:
+            if str(e) != self.tasks_problem:
+                self.log('WARNING: no tasks handed out: %s' % e)
+            self.tasks_problem = str(e)
+            raise
+
+    def _task_move(self, it, to, reason='', result=''):
+        """Keep the IH Tasks stage in step with the queue item (best effort: a refused move is only logged)."""
+        if not self.tasks or it.get('kind') != 'todo' or not str(it.get('ref', '')).isdigit():
+            return
+        why = self.tasks.move(int(it['ref']), to, reason, result)
+        if why:
+            self.log('IH Tasks: could not move task %s to %s (%s)' % (it['ref'], to, why))
+
+    def started(self, it):
+        self._task_move(it, 'implementing')
+
+    def finished(self, it, ok, text=''):
+        """A queue item ended. Done -> Verifying with the worker's result; a failure goes back to Planning so the owner decides (never silently retried)."""
+        if ok:
+            self._task_move(it, 'verifying', result=text or 'The worker finished this task.')
+        else:
+            self._task_move(it, 'planning', reason='The worker could not finish this: %s' % (text or 'no reason given'))
+
+    def waiting(self, it, kind, text=''):
+        """The worker stopped without finishing (needs an OK, needs the owner, progress, cannot): back to Planning with the reason, so the owner sees it."""
+        self._task_move(it, 'planning', reason='The worker stopped (%s): %s' % (kind, text or 'no details'))
 
     def feed_once(self, st, items, d, now):
         """Queue the next to-do item (option feed_backlog). A run feeds through run_step instead."""
-        if not self.opts.get('feed_backlog') or not self.ha or self.stopped():
+        if not self.opts.get('feed_backlog') or not self.tasks or self.stopped():
             return None
         if any(i['status'] in OPEN for i in items) or not d.ok:
             return None
@@ -373,7 +408,7 @@ class Service:
         if item:
             fed[item['uid']] = iso(now)
             if live:
-                self.store.enqueue('todo', item['uid'], str(item['summary'])[:200], feed.instruction(item), approved, 'claude')
+                self.store.enqueue('todo', item['uid'], str(item['summary'])[:200], feed.instruction(item), approved, 'claude', item.get('priority') or 'normal')
                 self.log('fed to-do item: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
             else:
                 self.log('[DRY] would feed: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
@@ -417,7 +452,7 @@ class Service:
     def run_step(self, st, items, d, now):
         """Advance the active run's phase. Called by tick after run_eval (so the run is not over). Caller has the lock. Saves st when it changes."""
         run = st.get('run')
-        if not run or not self.ha or self.stopped() or run.get('finishing'):
+        if not run or not self.tasks or self.stopped() or run.get('finishing'):
             return
         live = self.opts.get('mode') == 'live'
         byid = {i['id']: i for i in items}
@@ -498,7 +533,7 @@ class Service:
                 return self._end_run_save(st, now, 'backlog empty')
             ids = []
             for item, approved in picked:
-                it = self.store.enqueue('todo', item['uid'], str(item['summary'])[:200], feed.instruction(item), approved, 'claude')
+                it = self.store.enqueue('todo', item['uid'], str(item['summary'])[:200], feed.instruction(item), approved, 'claude', item.get('priority') or 'normal')
                 ids.append(it['id'])
                 self.log('fed to-do item: %s (%s)' % (str(item['summary'])[:80], 'approved' if approved else 'read-only'))
             run.update(block_ids=ids, block_no=run.get('block_no', 0) + 1, block_total=len(ids), fed=run['fed'] + len(ids), short=len(ids) < n,

@@ -68,7 +68,7 @@ def load_options(path=None, log=print):
     runs_options = {k: o[k] for k in o if re.match(r'^(night|day)_run_(enabled|start|stop_by|pace_target|max_items|block_size|review_batch_size)$', k)}
     return dict(runs_options=runs_options, mode='live' if o.get('mode') == 'live' else 'dry', api_token=text('api_token'), lease_s=int(_num(o, 'lease_minutes', 20, 1, 120) * 60),
                 stop=bool(o.get('stop')), bands=bands, tz=tz, feed_backlog=bool(o.get('feed_backlog')), feed_prefixes=prefixes,
-                todo_entity=text('todo_entity', 'todo.claude_to_do') or 'todo.claude_to_do', week_entity=text('week_usage_entity'),
+                tasks_api_url=text('tasks_api_url'), tasks_api_token=text('tasks_api_token'), week_entity=text('week_usage_entity'),
                 session_entity=text('session_usage_entity'), reset_entity=text('weekly_reset_entity'))
 
 
@@ -117,11 +117,17 @@ def make_handler(svc, token_of):
         if path == '/heartbeat':
             return s.heartbeat(str(d['id']), d['consumer'], lease_of(d) or svc.opts['lease_s'])
         if path == '/complete':
-            return s.finish(str(d['id']), d['consumer'], True, summary=d.get('summary'))
+            it = s.finish(str(d['id']), d['consumer'], True, summary=d.get('summary'))
+            svc.finished(it, True, d.get('summary') or '')
+            return it
         if path == '/fail':
-            return s.finish(str(d['id']), d['consumer'], False, error=d.get('error'))
+            it = s.finish(str(d['id']), d['consumer'], False, error=d.get('error'))
+            svc.finished(it, False, d.get('error') or '')
+            return it
         if path == '/wait':
-            return s.wait(str(d['id']), d['consumer'], d['kind'], summary=d.get('summary'))
+            it = s.wait(str(d['id']), d['consumer'], d['kind'], summary=d.get('summary'))
+            svc.waiting(it, d['kind'], d.get('summary') or '')
+            return it
         if path == '/requeue':
             return s.requeue(str(d['id']))
         if path == '/cancel':
@@ -210,7 +216,11 @@ def main():
     from ihlib.ha import HA
     from pace import PaceReader
     ha = HA()
-    svc = Service(DATA, opts, PaceReader(ha, opts['week_entity'], opts['session_entity'], opts['reset_entity']), ha, log=lg.info)
+    from tasks_client import TasksClient
+    tasks = TasksClient(opts['tasks_api_url'], opts['tasks_api_token'])
+    svc = Service(DATA, opts, PaceReader(ha, opts['week_entity'], opts['session_entity'], opts['reset_entity']), tasks if tasks.configured else None, log=lg.info)
+    if not tasks.configured:
+        lg.info('WARNING: tasks_api_url / tasks_api_token are not set: no task is handed out (IH Work takes its tasks only from IH Tasks)')
     lg.info('ih_work %s starting: %s, API %s, feed_backlog %s, bands day %g/%g night %g/%g (%s-%s)', VERSION,
             'LIVE' if opts['mode'] == 'live' else 'TEST MODE (nothing is handed out)', 'on' if opts['api_token'] else 'OFF (no api_token)',
             'on' if opts['feed_backlog'] else 'off', opts['bands'].day_start, opts['bands'].day_stop, opts['bands'].night_start,

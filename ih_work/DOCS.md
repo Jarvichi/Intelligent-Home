@@ -67,7 +67,8 @@ The top of the page has a **Working now** card: one row for each Claude worker t
 | `week_usage_entity`, `session_usage_entity`, `weekly_reset_entity` | No | The three usage sensors. Empty = find the one sensor whose id starts `sensor.claude_usage_` and ends `_week_usage`, `_session_usage`, `_weekly_reset_time`. |
 | `night_run_*`, `day_run_*` | No | Defaults for the two scheduled runs: `enabled`, `start`, `stop_by` (`HH:MM`), `pace_target`, `max_items` (empty = unlimited), `block_size` (1 to 20, default 5), `review_batch_size` (0 to 30, default 10). See "Runs". |
 | `feed_backlog` | No | Off by default. On = see "Backlog feeder". |
-| `todo_entity` | No | The to-do list to read. Default `todo.claude_to_do`. |
+| `tasks_api_url` | Yes, to hand out work | Address of the IH Tasks API (the worker port of the IH Tasks add-on). |
+| `tasks_api_token` | Yes, to hand out work | The IH Tasks `api_token` (the worker token, never the owner token). |
 | `feed_prefixes` | No | Titles that start with one of these are work for Claude. Default `IH:`, `Check:`, `Review:`. |
 
 ## The pace gate
@@ -122,3 +123,7 @@ Everything is in the add-on's `/data`: `items/` (one file per job), `state.json`
 ## Privacy
 
 Everything stays on your network. Nothing is sent out. The page shows job titles and counts only.
+
+## Where the work comes from
+
+IH Work takes its tasks **only** from IH Tasks, and only tasks in the stage **Approved** (the owner's approval is the gate). When work starts the task moves to Implementing; when the worker completes it, it moves to Verifying with the worker's result; if the worker stops or fails it goes back to Planning with the reason. If the IH Tasks API cannot be reached (or the url/token is not set) nothing is handed out and a warning is shown: there is no fallback to any other list.
