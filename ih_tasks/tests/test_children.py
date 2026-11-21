@@ -73,6 +73,19 @@ class Children(Case):
             self.s.create_child(p, 'c%d' % i, 'worker')
         self.refused('conflict', self.s.create_child, p, 'one too many', 'worker')
 
+    def test_duplicate_tools_ignore_child_tasks(self):
+        p = self.parent()
+        a = self.s.create_child(p, 'Database storage: ih_jobs_metoffice on its own SQLite file', 'worker')['id']
+        b = self.s.create_child(p, 'Database storage: ih_orchestration_inbox on its own SQLite file', 'worker')['id']
+        self.assertEqual(self.s.duplicates()['groups'], [])
+        # a new ordinary task is not auto-closed because it resembles a child's title
+        r = self.s.create('Database storage: ih_jobs_metoffice on its own SQLite file', 'worker')
+        self.assertIsNone(r['duplicate_of'])
+        # but two ordinary tasks still match
+        x = self.new('Fit a smoke alarm in the hall')
+        self.s.create('Fit a smoke alarm in the hall.', 'worker', allow_duplicate=True)
+        self.assertTrue(self.s.duplicates()['groups'])
+
     def test_old_database_gets_the_column(self):
         import sqlite3, store as S
         d = tempfile.mkdtemp()
