@@ -13,6 +13,7 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   POST /tasks/<n>/ask {questions, after}   POST /tasks/<n>/answer {answers, note?}   POST /tasks/<n>/withdraw {reason}
   POST /tasks/<n>/link {kind, url?, text?}   POST /tasks/<n>/legacy {legacy}   POST /import {item} (owner token)
   POST /tasks/<n>/children {title, description?}   a child task under an Approved/Implementing parent (inherits the approval; the parent waits for all children)
+  POST /tasks/<n>/remind {date, note?}   set a reminder for a future date and close the task ('Reminder set'); it returns to To do (high) that day and the Claude inbox is told   GET /reminders
   POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
 The ingress page (IHT_UI_PORT, Home Assistant sign-in, admin only) uses the same routes under /api/ and always acts as the owner.
 Unknown fields are refused. Task text is never logged. stdlib only."""
@@ -31,10 +32,11 @@ from urllib.parse import parse_qs, urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import mirror as MIRROR
+import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.6.1'
+VERSION = '0.7.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -57,9 +59,17 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'link': ({'kind', 'url', 'text'}, {'kind'}),
     'legacy': ({'legacy'}, {'legacy'}),
     'children': ({'title', 'description'}, {'title'}),
+    'remind': ({'date', 'note'}, {'date'}),
 }
 CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate', 'priority', 'labels'}, {'title'})
 TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z]+))?')
+
+
+def _hour(v):
+    try:
+        return max(0, min(23, int(v)))
+    except (TypeError, ValueError):
+        return 8
 
 
 def load_options(path=None):
@@ -79,7 +89,8 @@ def load_options(path=None):
     if owner and owner == api:
         owner = ''     # one token for both would let a worker approve its own plan
     return {'api_token': api, 'owner_token': owner, 'mirror': text('mirror', 'off') if text('mirror', 'off') in ('off', 'dry', 'live') else 'off',
-            'mirror_entity': text('mirror_entity'), 'mirror_minutes': minutes}
+            'mirror_entity': text('mirror_entity'), 'mirror_minutes': minutes,
+            'inbox_url': text('inbox_url'), 'inbox_token': text('inbox_token'), 'reminder_hour': _hour(o.get('reminder_hour'))}
 
 
 def check_fields(d, allowed, required):
@@ -126,6 +137,8 @@ def dispatch(store, status, method, path, query, body, role):
             return store.duplicates()
         if path == '/labels':
             return store.labels()
+        if path == '/reminders':
+            return {'reminders': store.reminders()}
         if path == '/legacy':
             q = parse_qs(query)
             kind, value = (q.get('kind') or [''])[0], (q.get('value') or [''])[0]
@@ -187,6 +200,8 @@ def dispatch(store, status, method, path, query, body, role):
         return store.answer(tid, actor, b('answers'), b('note', ''))
     if action == 'withdraw':
         return store.withdraw_question(tid, actor, b('reason'))
+    if action == 'remind':
+        return store.set_reminder(tid, actor, b('date'), b('note', ''))
     if action == 'children':
         return store.create_child(tid, b('title'), actor, b('description', ''))
     if action == 'link':
@@ -349,6 +364,7 @@ def main():
             if opts['mirror'] != 'off' and opts['mirror_entity']:
                 last_mirror['result'] = MIRROR.run(ha, first, opts['mirror_entity'], opts['mirror'], lg.info)
                 last_mirror['at'] = first.now()
+            RMD.run(first, opts, time.localtime().tm_hour, log=lg.info)
             today = time.strftime('%Y-%m-%d')
             if today != day:     # once a day: a snapshot of the database next to it
                 day = today

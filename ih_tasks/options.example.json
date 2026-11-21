@@ -3,5 +3,8 @@
   "owner_token": "",
   "mirror": "off",
   "mirror_entity": "",
-  "mirror_minutes": 5
+  "mirror_minutes": 5,
+  "inbox_url": "http://32c8114c-ih-orchestration-inbox:8800",
+  "inbox_token": "",
+  "reminder_hour": 8
 }

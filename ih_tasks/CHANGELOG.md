@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+- Reminders (schema 15, new `remind_at`). `POST /tasks/<n>/remind {date, note?}` (owner or worker; the date must be after today) sets a reminder and closes the task with the reason "Reminder set". On that date (from `reminder_hour`, default 08:00) the task returns to To do with high priority, its history says so, and one `task_reminder` event goes to the Claude inbox (`inbox_url`, `inbox_token`) so Claude messages the owner. If the inbox cannot be reached the task waits and is retried every pass, and is reopened anyway one day late. `GET /reminders` lists the waiting ones. A plain close can never use "Reminder set". Reopening the task cancels the reminder.
+- Page: a "Remind me later" card (date and note) on open tasks, and "Reminder on <date>" on a closed task and its card.
+
 ## 0.6.1
 - Find duplicates, and the duplicate check when a task is created, ignore child tasks: the children of one parent share a title stem on purpose, so they were offered as duplicates of each other.
 

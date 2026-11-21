@@ -7,6 +7,7 @@ Actors:
   worker  an AI worker (api_token).
   check   an automated check reporting its result (api_token).
   system  the add-on itself (duplicate auto-close, import)."""
+import datetime
 import difflib
 import re
 
@@ -16,7 +17,8 @@ STAGE_LABELS = {'todo': 'To do', 'planning': 'Planning', 'approved': 'Approved',
 OPEN_STAGES = ('todo', 'planning', 'approved', 'implementing', 'verifying')
 ACTORS = ('owner', 'worker', 'check', 'system')
 CLOSE_REASONS = ('wont_do', 'duplicate', 'already_done', 'dropped')
-CLOSE_LABELS = {'wont_do': "Won't do", 'duplicate': 'Duplicate', 'already_done': 'Already done', 'dropped': 'Dropped'}
+CLOSE_LABELS = {'wont_do': "Won't do", 'duplicate': 'Duplicate', 'already_done': 'Already done', 'dropped': 'Dropped',
+                'reminder': 'Reminder set'}   # 'reminder' is only ever set by set_reminder (it needs a date), never by a plain close
 VERIFY_BY = ('check', 'owner')
 QUESTION_TYPES = ('choice', 'multi', 'yesno', 'text')
 LEGACY_KINDS = ('todo_uid', 'queue_id', 'ok_number', 'wy_id')
@@ -30,7 +32,8 @@ REASON_MAX = 2000
 MAX_QUESTIONS = 12
 MAX_OPTIONS = 12
 DUPLICATE_THRESHOLD = 0.72
-MAX_CHILDREN = 12   # child tasks of one parent
+MAX_CHILDREN = 12
+NOTE_MAX = 500   # child tasks of one parent
 
 # (from, to) -> (actors allowed, what the move needs). Anything not listed is refused.
 #   plan    the task must have a plan (sent with the move or already stored)
@@ -377,3 +380,19 @@ def check_child(parent, actor, has_children_of_its_own=False):
         raise RuleError('conflict', 'child tasks inherit the parent\'s approval, so the parent must be Approved or Implementing (it is %s)' % STAGE_LABELS[parent['stage']])
     if parent.get('parent_id'):
         raise RuleError('conflict', 'task %d is itself a child task; child tasks have no children of their own' % parent['id'])
+
+
+def check_remind_date(date, today):
+    """A reminder date: YYYY-MM-DD, after `today` (a datetime.date). -> the cleaned string."""
+    if not isinstance(date, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', date.strip()):
+        raise RuleError('bad', 'date must be YYYY-MM-DD')
+    d = date.strip()
+    try:
+        when = datetime.date.fromisoformat(d)
+    except ValueError:
+        raise RuleError('bad', 'that is not a real date')
+    if when <= today:
+        raise RuleError('bad', 'the reminder date must be after today')
+    if (when - today).days > 800:
+        raise RuleError('bad', 'the reminder date is too far ahead')
+    return d
