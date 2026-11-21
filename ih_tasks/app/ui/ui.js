@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var state = { labels: [], board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
@@ -36,6 +36,8 @@
   /* ---- board ---- */
   function matches(t) {
     var q = $('f-search').value.trim().toLowerCase().replace(/^#/, ''), st = $('f-stage').value, w = $('f-waiting').value;
+    var lb = $('f-label').value;
+    if (lb && (t.labels || []).indexOf(lb) < 0) return false;
     if (st && t.stage !== st) return false;
     if (w === 'input' && !t.needs_input) return false;
     if (w && w !== 'input' && t.waiting_on !== w) return false;
@@ -51,7 +53,7 @@
     if (t.priority && t.priority !== 'normal') sub.push(t.priority === 'high' ? 'High priority' : 'Low priority');
     if (t.due) sub.push('Due ' + t.due);
     if (t.stage === 'closed' && t.closed_reason) sub.push(closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : ''));
-    var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null];
+    var body = [el('b', { text: '#' + t.id }), t.title, sub.length ? el('small', { text: sub.join(' · ') }) : null, flags.length ? el('span', { 'class': 't-flags' }, flags) : null, labelChips(t)];
     if (state.merging && isOpen(t)) {
       /* merge mode: the whole card is the tap target of its checkbox */
       var box = el('input', { type: 'checkbox', 'aria-label': 'Select task ' + t.id + ': ' + t.title, checked: !!state.picked[t.id], on: { change: function () {
@@ -63,6 +65,19 @@
       return lab;
     }
     return el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Task ' + t.id + ': ' + t.title, on: { click: function () { openTask(t.id); } } }, body);
+  }
+  function labelChips(t) {
+    return (t.labels || []).length ? el('span', { 'class': 't-labels' }, t.labels.map(function (x) { return el('span', { 'class': 't-label', text: x }); })) : null;
+  }
+  /* Label filter + suggestions come from the labels in use (GET /labels). The filter keeps its pick across a reload. */
+  function loadLabels() {
+    return api('GET', '/labels').then(function (d) {
+      state.labels = d.labels.map(function (x) { return x.label; });
+      var sel = $('f-label'), keep = sel.value;
+      clear(sel); sel.appendChild(el('option', { value: '', text: 'All' }));
+      state.labels.forEach(function (x) { sel.appendChild(el('option', { value: x, text: x, selected: x === keep })); });
+      $('f-label-row').hidden = !state.labels.length;
+    }).catch(function () {});
   }
   function closeLabel(id) {
     var r = (state.meta ? state.meta.close_reasons : []).filter(function (x) { return x.id === id; })[0];
@@ -197,7 +212,7 @@
       var s = $('service-status');
       s.setAttribute('status', b.needs_input ? 'warn' : 'ok');
       s.textContent = b.needs_input ? b.needs_input + ' need your input' : 'Up to date';
-      renderBoard(); renderMergeBar();
+      renderBoard(); renderMergeBar(); loadLabels();
     }).catch(function (e) {
       var s = $('service-status'); s.setAttribute('status', 'error'); s.textContent = 'Not reachable';
       $('f-count').textContent = e.message;
@@ -270,7 +285,7 @@
     var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
       el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', WAIT_TEXT[t.waiting_on] || '',
         t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
-    var root = el('div', { 'class': 't-detail' }, [el('div', {}, head)]);
+    var root = el('div', { 'class': 't-detail' }, [el('div', {}, head.concat([labelChips(t)]))]);
     if (t.question) root.appendChild(questionForm(t, msg));
 
     var actions = el('div', { 'class': 't-actions' });
@@ -293,6 +308,15 @@
       var pri = el('select', {}, ['high', 'normal', 'low'].map(function (p) { return el('option', { value: p, text: p.charAt(0).toUpperCase() + p.slice(1), selected: p === (t.priority || 'normal') }); }));
       actions.appendChild(field('Priority (workers take high first)', pri, 'd-priority'));
       actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save priority', on: { click: function () { act(msg, api('POST', '/tasks/' + t.id + '/edit', { priority: pri.value })); } } }));
+    }
+    if (isOpen(t)) {
+      /* a plain text box (comma-separated) with suggestions from the labels already in use; no dialogs */
+      var lab = el('input', { type: 'text', maxlength: '250', list: 'd-labels-list', autocomplete: 'off', value: (t.labels || []).join(', '), placeholder: 'for example ih, kindle' });
+      actions.appendChild(field('Labels (comma-separated; letters, digits and dashes; up to 8)', lab, 'd-labels'));
+      actions.appendChild(el('datalist', { id: 'd-labels-list' }, state.labels.map(function (x) { return el('option', { value: x }); })));
+      actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save labels', on: { click: function () {
+        act(msg, api('POST', '/tasks/' + t.id + '/edit', { labels: lab.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean) }));
+      } } }));
     }
     var card = el('ih-card', {}, [el('h3', { text: t.stage === 'planning' && !t.question ? 'Your decision' : 'Comment' }),
       t.stage === 'planning' && t.question ? el('p', { 'class': 'ih-metadata', text: 'Approve and Reject appear when no questions are open.' }) : null,
@@ -355,8 +379,8 @@
   $('back').addEventListener('click', closeTask);
   $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
   $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
-  ['f-search', 'f-stage', 'f-waiting'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
-  $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; renderBoard(); });
+  ['f-search', 'f-stage', 'f-waiting', 'f-label'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
+  $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; $('f-label').value = ''; renderBoard(); });
   $('add-form').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var title = $('add-title').value.trim(), m = $('add-msg');

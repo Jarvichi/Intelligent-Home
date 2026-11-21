@@ -25,6 +25,10 @@
 .t-card:hover{border-color:var(--ih-link)}
 .t-card b{color:var(--ih-muted);font-weight:700;margin-right:6px}
 .t-card small{display:block;margin-top:4px;color:var(--ih-muted);font-size:12px}
+.t-label-filter{margin-top:8px}
+.t-label-filter select{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit}
+.t-labels{display:block}
+.t-label{display:inline-block;margin:6px 6px 0 0;padding:2px 8px;border-radius:999px;border:1px solid var(--ih-line);font-size:12px}
 .t-flags{display:block}
 .t-flag{display:inline-block;margin:6px 6px 0 0;padding:2px 8px;border-radius:999px;background:var(--ih-surface-raised);font-size:12px;font-weight:700}
 .t-flag[data-tone=warn]{color:var(--ih-warn)}
