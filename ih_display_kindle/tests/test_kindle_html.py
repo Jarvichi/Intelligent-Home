@@ -133,6 +133,43 @@ class RendererTests(unittest.TestCase):
             out = path + '.t.png'; open(out, 'wb').write(b'not a png'); return out
         self.assertIsNone(self.renderer(grey=tiny)[0].png(data(), now=0))
 
+    def test_a_busy_slot_gives_up_after_the_wait_instead_of_blocking_forever(self):
+        renderer, calls = self.renderer()
+        renderer.queue_wait = 0.05
+        renderer.busy.acquire()
+        try:
+            self.assertIsNone(renderer.png(data(), now=0))
+        finally:
+            renderer.busy.release()
+        self.assertEqual(calls, [])
+        self.assertEqual(renderer.png(data(), now=0), PNG)   # the slot is usable again
+
+    def test_the_slot_is_released_after_a_failed_run(self):
+        def boom(cmd, **kw): raise subprocess.TimeoutExpired(cmd, 1)
+        renderer, _ = self.renderer(run=boom)
+        renderer.queue_wait = 0.05
+        self.assertIsNone(renderer.png(data(), now=0))
+        self.assertTrue(renderer.busy.acquire(timeout=0.05))
+        renderer.busy.release()
+
+class RunGroupTests(unittest.TestCase):
+    def test_a_timeout_kills_the_whole_process_group_including_children(self):
+        import os, tempfile, time
+        pidfile = tempfile.mktemp()
+        cmd = ['sh', '-c', 'sleep 60 & echo $! > %s; wait' % pidfile]
+        with self.assertRaises(subprocess.TimeoutExpired):
+            kindle_html.run_group(cmd, timeout=1)
+        child = int(open(pidfile).read())
+        time.sleep(0.3)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child, 0)
+        os.unlink(pidfile)
+
+    def test_a_failing_command_raises_and_a_good_one_returns(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            kindle_html.run_group(['sh', '-c', 'exit 3'], timeout=5)
+        self.assertEqual(kindle_html.run_group(['true'], timeout=5).returncode, 0)
+
 class SurfaceTests(unittest.TestCase):
     def surface(self, html):
         return device_surface.DeviceSurface(lambda: data(), lambda: None, lambda *a: None, None, None, lambda svg: b'SVG:' + svg[:5], None, lambda: {}, html=html)

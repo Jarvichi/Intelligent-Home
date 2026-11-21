@@ -8,6 +8,7 @@ import datetime
 import math
 import os
 import pathlib
+import signal
 import subprocess
 import sys
 import tempfile
@@ -230,14 +231,37 @@ def to_grey(path):
     return out
 
 
+def run_group(cmd, timeout=30, env=None, **_ignored):
+    """Run Chromium in its own process group and kill the WHOLE group on a timeout. subprocess.run only kills the main process, so
+    Chromium's helper processes (zygote, GPU, renderer) were left behind, piled up, and finally exhausted the add-on's threads."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except BaseException:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        proc.communicate()
+        raise
+    # Chromium may leave helpers behind even after a clean exit: sweep the group.
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, out, err)
+    return subprocess.CompletedProcess(cmd, 0, out, err)
+
+
 class Renderer:
     """Chromium is started per picture (about 200 MB while it runs), so nothing stays resident between renders."""
     ARGS = ('--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars', '--force-device-scale-factor=1',
             '--window-size=1072,1448', '--virtual-time-budget=3000', '--run-all-compositor-stages-before-draw')
 
-    def __init__(self, chromium=None, run=subprocess.run, grey=to_grey, timeout=30):
+    def __init__(self, chromium=None, run=run_group, grey=to_grey, timeout=30, queue_wait=20):
         self.chromium = chromium or next((c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser') if os.path.exists(c)), 'chromium')
-        self.run, self.grey, self.timeout = run, grey, timeout
+        self.run, self.grey, self.timeout, self.queue_wait = run, grey, timeout, queue_wait
         self.last_error = ''
         self.busy = threading.Lock()   # one Chromium at a time: quick taps ask for several pictures at once and parallel runs time out on the Pi
 
@@ -255,9 +279,15 @@ class Renderer:
                 with open(source, 'w', encoding='utf-8') as f:
                     f.write(html_text)
                 args = self.ARGS if not size else [a if not a.startswith('--window-size') else '--window-size=%d,%d' % size for a in self.ARGS]
-                with self.busy:
+                # Wait for the one Chromium slot for a limited time only: unlimited waiting piled up a blocked thread per request while
+                # Chromium hung, until the add-on could not start any thread. Giving up here means "use the SVG picture".
+                if not self.busy.acquire(timeout=self.queue_wait):
+                    raise TimeoutError('no free Chromium slot after %ss' % self.queue_wait)
+                try:
                     self.run([self.chromium, *args, '--screenshot=' + shot, 'file://' + source], capture_output=True, timeout=self.timeout, check=True,
                              env=dict(os.environ, HOME=folder))
+                finally:
+                    self.busy.release()
                 grey = self.grey(shot)
                 if not grey:
                     return None
