@@ -130,6 +130,23 @@ class TestHttpHelperAndPlugin(Base):
         self.assertEqual(B.http_overrides(self.plugin, 'POST', {'code': '12345', 'deck': 'unknown'})[0], 200)
         self.assertEqual(B.http_overrides(self.plugin, 'GET')[1]['overrides'], {})
 
+    def test_unknown_codes_from_the_promise_log(self):
+        rows = [{'date': '2026-11-10', 'vehicle': 'OP-111', 'deck': 'unknown', 'vehicle_type': None},
+                {'date': '2026-11-12', 'vehicle': 'OP-111', 'deck': 'unknown', 'vehicle_type': 'Odd bus'},
+                {'date': '2026-11-11', 'vehicle': 'OP-222', 'deck': 'double'},
+                {'date': '2026-11-09', 'vehicle': 'OP-333', 'deck': 'unknown'},
+                {'date': '2026-11-09', 'vehicle': None, 'deck': 'unknown'}]
+        with open(os.path.join(self.plugin, 'promise_log.jsonl'), 'w') as f:
+            f.write('\n'.join(json.dumps(r) for r in rows) + '\nnot json\n')
+        out = B.http_overrides(self.plugin, 'GET')[1]['unknown']
+        self.assertEqual([(e['code'], e['count'], e['last_seen'], e['vehicle_type']) for e in out],
+                         [('111', 2, '2026-11-12', 'Odd bus'), ('333', 1, '2026-11-09', None)])
+        B.http_overrides(self.plugin, 'POST', {'code': 'OP-111', 'deck': 'single'})
+        self.assertEqual([e['code'] for e in B.http_overrides(self.plugin, 'GET')[1]['unknown']], ['333'])
+
+    def test_unknown_codes_without_a_log(self):
+        self.assertEqual(B.http_overrides(self.plugin, 'GET')[1]['unknown'], [])
+
     def test_database_down_gives_503_not_a_false_saved(self):
         with open(os.path.join(self.data, jobsdb.DB_NAME), 'wb') as f:
             f.write(b'garbage' * 100)

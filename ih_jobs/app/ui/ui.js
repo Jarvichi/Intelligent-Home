@@ -202,6 +202,37 @@
     if (focused) { const again = document.querySelector('[data-job="' + CSS.escape(focused) + '"]'); if (again) again.focus(); }
   }
 
+  async function busTypes() {
+    const card = $('bus-card');
+    let j = null;
+    try { j = await getJson('api/bus-types'); } catch (e) { j = null; }
+    if (!j || !j.available) { card.hidden = true; return; }
+    card.hidden = false;
+    const rows = $('bus-rows');
+    const unk = Array.isArray(j.unknown) ? j.unknown : [];
+    $('bus-sub').textContent = j.db_ok === false ? 'The add-on database is not available, so answers cannot be saved.' : unk.length ? plural(unk.length, 'bus code needs a type', 'bus codes need a type') + '.' : 'No unknown bus codes in the promise log.';
+    rows.replaceChildren(...unk.map((u) => {
+      const row = el('div', 'ih-toolbar jb-bus');
+      const label = el('label', '', 'Bus ' + u.code + ' (seen ' + u.count + (u.count === 1 ? ' time' : ' times') + ', last ' + (u.last_seen || 'unknown') + ')');
+      const sel = el('select'); sel.setAttribute('aria-label', 'Type for bus ' + u.code);
+      for (const [v, t] of [['unknown', 'Unknown'], ['single', 'Single-decker'], ['double', 'Double-decker']]) { const o = el('option', '', t); o.value = v; sel.append(o); }
+      const msg = el('span', 'ih-metadata', ''); msg.setAttribute('role', 'status');
+      sel.disabled = j.db_ok === false;
+      sel.addEventListener('change', async () => {
+        sel.disabled = true; msg.textContent = 'Saving…';
+        try {
+          const r = await fetch(base + 'api/bus-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: u.code, deck: sel.value }) });
+          const out = await r.json().catch(() => ({}));
+          msg.textContent = r.ok && out.ok ? 'Saved.' : (out.msg || 'Could not save. Nothing was changed.');
+          if (r.ok && out.ok) setTimeout(busTypes, 1200);
+        } catch (e) { msg.textContent = 'Could not save. Nothing was changed.'; }
+        sel.disabled = false;
+      });
+      label.append(sel); row.append(label, msg);
+      return row;
+    }));
+  }
+
   function render() { health(); renderSummary(); renderFamily(); renderList(); }
 
   document.addEventListener('click', (e) => {
@@ -217,5 +248,6 @@
   $('check').addEventListener('click', refresh);
   render();
   refresh();
-  setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+  busTypes();
+  setInterval(() => { if (!document.hidden) { refresh(); busTypes(); } }, 30000);
 })();
