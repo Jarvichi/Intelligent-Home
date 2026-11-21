@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.2
+
+- Fixes the Kindle going "Offline" when the add-on ran out of threads (`can't start new thread`, 21 Nov). When a Chromium picture timed out only the main Chromium process was killed, so its helper processes piled up. Chromium now runs in its own process group and the whole group is killed on a timeout (and swept after every run).
+- A request waits at most 20 seconds for the single Chromium slot, then uses the plain picture, instead of waiting without limit. Before, every blocked request held a thread, so a hung Chromium soon stopped the add-on answering at all.
+
 ## 0.15.1
 
 - The COOK DINNER tile on the main screen is laid out like its neighbours: small bold heading at the top-left ("COOK DINNER") with "Pick a meal" beneath, instead of centred two-line text that sat low.
