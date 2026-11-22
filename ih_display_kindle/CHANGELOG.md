@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.4
+
+- Stops the add-on running out of threads (`can't start new thread`, 22 Nov) when several pictures are drawn at once. Every panel used to start its own pool of 8 to 12 threads inside the main drawing pool, so one busy draw could hold over 100 threads. All the per-entity lookups now share one pool capped at 16 threads.
+
 ## 0.15.3
 
 - Game art shows again while a PlayStation game is playing. A PlayStation's `entity_picture` is a full https address (Sony's image server), which the add-on refuses to fetch, so the "now playing" card had no picture. It now tries `entity_picture_local` (the same picture through Home Assistant's own proxy) first, then `entity_picture`.
