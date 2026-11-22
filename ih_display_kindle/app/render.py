@@ -96,8 +96,14 @@ class HA:
                 elif finite(oven):details.append('Oven '+str(oven)+'°'+(' / '+str(target)+'°' if finite(target) else ''))
                 detail=' · '.join(details)
             result={'available':True,'active':active,'label':label,'detail':detail,'kind':kind}
-            if kind in ('media','game') and active and attrs.get('entity_picture'):
-                art=self.artwork(attrs['entity_picture'])
+            if kind in ('media','game') and active:
+                # A PlayStation's entity_picture is a full https address (Sony CDN) that artwork() refuses; HA also offers
+                # entity_picture_local, the same picture through HA's own proxy (/api/media_player_proxy/...), which it accepts.
+                art=None
+                for key in ('entity_picture_local','entity_picture'):
+                    if attrs.get(key):
+                        art=self.artwork(attrs[key])
+                        if art:break
                 if art:result['art']=art
             return result
         except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return {'available':False}

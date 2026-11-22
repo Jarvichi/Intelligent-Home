@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.3
+
+- Game art shows again while a PlayStation game is playing. A PlayStation's `entity_picture` is a full https address (Sony's image server), which the add-on refuses to fetch, so the "now playing" card had no picture. It now tries `entity_picture_local` (the same picture through Home Assistant's own proxy) first, then `entity_picture`.
+
 ## 0.15.2
 
 - Fixes the Kindle going "Offline" when the add-on ran out of threads (`can't start new thread`, 21 Nov). When a Chromium picture timed out only the main Chromium process was killed, so its helper processes piled up. Chromium now runs in its own process group and the whole group is killed on a timeout (and swept after every run).
