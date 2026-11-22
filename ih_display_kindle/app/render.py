@@ -14,6 +14,10 @@ import urllib.request
 from urllib.parse import urlsplit,unquote
 import frames
 from concurrent.futures import ThreadPoolExecutor
+# One shared, capped pool for the per-entity lookups. Before each panel opened its own 8-12 thread pool inside the
+# snapshot pool, so a busy render held 100+ threads and the add-on hit its thread limit ("can't start new thread").
+# Leaf tasks never submit more work, so sharing the pool cannot deadlock.
+LEAF_POOL=ThreadPoolExecutor(max_workers=16,thread_name_prefix="leaf")
 
 ENTITY=re.compile(r'^[a-z][a-z0-9_]*\.[a-z0-9_]+$')
 MAX_RESPONSE=1024*1024
@@ -125,7 +129,7 @@ class HA:
         if len(presence)>10 or any(not isinstance(e,str) or not ENTITY.fullmatch(e) for e in entities):return {'available':False}
         if not alert.startswith('input_boolean.') or not log.startswith('input_text.') or any(not e.startswith('switch.') for e in presence):return {'available':False}
         try:
-            with ThreadPoolExecutor(max_workers=12) as pool:values=list(pool.map(self.optional_state,entities))
+            pool=LEAF_POOL;values=list(pool.map(self.optional_state,entities))
             states=[x.get('state') if isinstance(x,dict) else None for x in values]
             if states[0] not in ('on','off') or not isinstance(states[1],str) or states[1] in ('unknown','unavailable'):return {'available':False}
             incomplete=any(x not in ('on','off') for x in states[2:])
@@ -142,7 +146,7 @@ class HA:
         if any(not isinstance(e,str) or not ENTITY.fullmatch(e) for e in entities):return {'available':False}
         if not boiler.startswith('binary_sensor.') or any(not e.startswith('climate.') for e in [thermostat]+floors):return {'available':False}
         try:
-            with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
+            pool=LEAF_POOL;values=list(pool.map(self.optional_state,entities))
             incomplete=any(not isinstance(v,dict) or not isinstance(v.get('state'),str) or v.get('state') in ('unknown','unavailable') for v in values) or not isinstance(values[0],dict) or values[0].get('state') not in ('on','off')
             floor_names=[]
             for entity,value in zip(floors,values[2:]):
@@ -163,7 +167,7 @@ class HA:
             if any(not isinstance(door.get(k),str) or not ENTITY.fullmatch(door[k]) or not door[k].startswith(prefix) for k,prefix in (('lock','lock.'),('contact','binary_sensor.'))):return {'available':False}
         try:
             entities=[door[k] for door in doors for k in ('lock','contact')]
-            with ThreadPoolExecutor(max_workers=12) as pool:values=list(pool.map(self.optional_state,entities))
+            pool=LEAF_POOL;values=list(pool.map(self.optional_state,entities))
             states=[v.get('state') if isinstance(v,dict) else None for v in values]
             incomplete=any(states[i] not in ('locked','unlocked') or states[i+1] not in ('on','off') for i in range(0,len(states),2))
             bad=[(door,states[2*i+1]=='on') for i,door in enumerate(doors) if states[2*i]=='unlocked' or states[2*i+1]=='on']
@@ -270,7 +274,7 @@ class HA:
             if not isinstance(person,dict) or not isinstance(person.get('name'),str) or not person['name'].strip() or not isinstance(person.get('entity'),str) or not ENTITY.fullmatch(person['entity']) or not person['entity'].startswith('switch.'):return {'available':False}
         entities=[person['entity'] for person in people]
         try:
-            with ThreadPoolExecutor(max_workers=10) as pool:values=list(pool.map(self.optional_state,entities))
+            pool=LEAF_POOL;values=list(pool.map(self.optional_state,entities))
             incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values)
             home=[person for person,value in zip(people,values) if isinstance(value,dict) and value.get('state')=='on']
             members=[]
@@ -295,7 +299,7 @@ class HA:
             def fetch(entity):
                 try:return self.request('states/'+entity)
                 except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return None
-            with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(entities,pool.map(fetch,entities)))
+            pool=LEAF_POOL;values=dict(zip(entities,pool.map(fetch,entities)))
             incomplete=any(not isinstance(v,dict) or v.get('state') not in ('on','off') for v in values.values())
             active=[];is_on=[]
             for group in groups:
@@ -321,7 +325,7 @@ class HA:
             key,entity=item
             try:return key,self.request('states/'+entity)
             except (OSError,ValueError,TypeError,urllib.error.URLError,http.client.HTTPException):return key,None
-        with ThreadPoolExecutor(max_workers=8) as pool:values=dict(pool.map(fetch,enabled.items()))
+        pool=LEAF_POOL;values=dict(pool.map(fetch,enabled.items()))
         missing=any(not isinstance(v,dict) or not isinstance(v.get('state'),str) or v.get('state') in ('unknown','unavailable') for v in values.values())
         def attrs(key):
             value=values.get(key);return value.get('attributes',{}) if isinstance(value,dict) and isinstance(value.get('attributes'),dict) else {}
