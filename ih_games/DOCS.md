@@ -74,6 +74,8 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `destiny_reset_utc_hour` | No | Setting `destiny_reset_utc_hour`. Default: `17`. |
 | `todo_entity` | No | Setting `todo_entity`. Default: `todo.claude_to_do`. |
 | `todo_sync` | No | Setting `todo_sync`. Default: `true`. |
+| `tasks_api_url` | For game research | IH Tasks worker API address, including port. |
+| `tasks_api_token` | For game research | IH Tasks worker token. Without both options, new games remain queued and are retried. |
 
 ## Troubleshooting
 
