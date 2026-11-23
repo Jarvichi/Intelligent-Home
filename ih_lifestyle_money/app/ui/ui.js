@@ -7,6 +7,26 @@
   function group(c) { const k = c.kind.toLowerCase(); return k.includes('loan') || k.includes('mortgage') ? 'loans' : k.includes('lease') ? 'leases' : k.includes('insurance') ? 'insurance' : 'other'; }
   function text(tag, value, cls) { const el = document.createElement(tag); el.textContent = value; if (cls) el.className = cls; return el; }
   function metric(parent, label, value, hint) { const item=document.createElement('div'); item.append(text('div',label,'muted'),text('div',value,'amount')); if(hint)item.append(text('div',hint,'muted')); parent.append(item); }
+  const names = {leases:'lease', insurance:'insurance', loans:'loan', other:'record'};
+  function insuranceCard(c) {
+    const card=document.createElement('details');card.className='card insurance-card';
+    const summary=document.createElement('summary'), title=document.createElement('span');
+    title.className='insurance-title';title.append(text('span',c.name,'insurance-name'),text('span',c.kind+(c.end?' · renewal or end '+c.end:' · end date not recorded'),'muted'));
+    summary.append(title,text('span','Details','insurance-prompt'));card.append(summary);
+    const body=document.createElement('div');body.className='insurance-details';
+    const grid=document.createElement('div');grid.className='grid';
+    if(c.start)metric(grid,'Start date',c.start);
+    if(c.end)metric(grid,'End or renewal date',c.end);
+    if(c.monthly_payment!==undefined)metric(grid,'Monthly payment',money(c.monthly_payment));
+    if(c.payment_day!==undefined)metric(grid,'Payment day',String(c.payment_day));
+    if(c.provider)metric(grid,'Provider',String(c.provider));
+    if(c.policy_number)metric(grid,'Policy number',String(c.policy_number));
+    if(c.who?.length)metric(grid,'Reminder recipients',c.who.join(', '));
+    if(c.remind_months?.length)metric(grid,'Reminder timing',c.remind_months.join(', ')+' months before');
+    if(grid.childElementCount)body.append(grid);else body.append(text('p','No further details recorded.','muted'));
+    if(c.notes)body.append(text('p',String(c.notes)));
+    const edit=text('button','Edit insurance');edit.type='button';edit.onclick=()=>open(c);body.append(edit);card.append(body);return card;
+  }
   function graph(points, contract) {
     if (!Array.isArray(points) || points.length < 2 || !(points[0].balance > 0)) return null;
     const loan=group(contract)==='loans';
@@ -30,8 +50,10 @@
   }
   function render() {
     const list=$('#list'); list.replaceChildren(); const filtered=items.filter(c=>group(c)===tab);
+    $('#add').textContent='Add '+names[tab];
     if (!filtered.length) { const box=text('div','No '+tab+' recorded.','card empty');list.append(box);return; }
     for(const c of filtered) {
+      if(group(c)==='insurance'){list.append(insuranceCard(c));continue;}
       const p=projections.find(x=>x.id===c.id)||{}, card=document.createElement('article');card.className='card';
       const head=document.createElement('div');head.className='cardhead';const title=document.createElement('div');title.append(text('h2',c.name),text('p',c.kind+(c.end?' · '+(group(c)==='insurance'?'renewal or end ':'ends ')+c.end:' · end date not recorded')));
       const edit=text('button','Edit');edit.type='button';edit.setAttribute('aria-label','Edit '+c.name);edit.onclick=()=>open(c);head.append(title,edit);card.append(head);
@@ -47,9 +69,10 @@
     }
   }
   function open(c) {
-    current=c || null;form.reset();$('#form-status').textContent='';$('#edit-title').textContent=c?'Edit contract':'Add contract';
-    const v=c||{};for(const key of ['name','start','end','monthly_payment','payment_day','interest_rate_percent','interest_rate_until'])field(key).value=v[key]??'';
-    const known=Array.from(field('kind').options).some(option=>option.value===v.kind && option.value!=='__custom__');field('kind').value=known?v.kind:v.kind?'__custom__':'';field('kind_custom').value=known?'':v.kind||'';syncType();
+    current=c || null;form.reset();$('#form-status').textContent='';$('#edit-title').textContent=(c?'Edit ':'Add ')+names[c?group(c):tab];
+    const v=c||{};for(const key of ['name','start','end','monthly_payment','payment_day','interest_rate_percent','interest_rate_until','provider','policy_number','notes'])field(key).value=v[key]??'';
+    form.querySelector('[type="submit"]').textContent='Save '+names[c?group(c):tab];
+    const known=Array.from(field('kind').options).some(option=>option.value===v.kind && option.value!=='__custom__');field('kind').value=known?v.kind:v.kind?'__custom__':tab==='loans'?'loan':tab==='other'?'other contract':'';field('kind_custom').value=known?'':v.kind||'';syncType();
     field('balance').value=(v.observed_balance||v.balance_snapshot)?.amount??'';field('balance_date').value=(v.observed_balance||v.balance_snapshot)?.as_of??'';
     field('settlement').value=v.settlement_quote?.amount??'';field('settlement_date').value=v.settlement_quote?.as_of??'';
     field('remind_months').value=(v.remind_months||[]).join(', ');
@@ -62,13 +85,14 @@
     catch(e){$('#status').textContent='Could not load contracts. Please try again.';}
   }
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));editor.hidden=true;render();});
-  function syncType(){const custom=field('kind').value==='__custom__';$('#custom-type-label').hidden=!custom;field('kind_custom').required=custom;const k=(custom?field('kind_custom').value:field('kind').value).toLowerCase();const isLoan=k.includes('loan')||k.includes('mortgage');$('#rate-label').hidden=!isLoan;$('#rate-until-label').hidden=!isLoan;}
+  function syncType(){const custom=field('kind').value==='__custom__';$('#custom-type-label').hidden=!custom;field('kind_custom').required=custom;const k=(custom?field('kind_custom').value:field('kind').value).toLowerCase();const isLoan=k.includes('loan')||k.includes('mortgage');$('#rate-label').hidden=!isLoan;$('#rate-until-label').hidden=!isLoan;for(const id of ['provider-label','policy-label','notes-label'])$('#'+id).hidden=!k.includes('insurance');}
   field('kind').addEventListener('change',syncType);
   field('kind_custom').addEventListener('input',syncType);
   $('#add').onclick=()=>open(null);$('#close').onclick=$('#cancel').onclick=()=>{editor.hidden=true;};
   form.addEventListener('submit',async e=>{e.preventDefault();const v=current?JSON.parse(JSON.stringify(current)):{};
     for(const key of ['name','start','end'])v[key]=field(key).value.trim();v.kind=field('kind').value==='__custom__'?field('kind_custom').value.trim():field('kind').value;
     if(!v.kind){$('#form-status').textContent='Choose a contract type.';return;}
+    if(group(v)==='insurance')for(const key of ['provider','policy_number','notes']){const value=field(key).value.trim();if(value)v[key]=value;else delete v[key];}
     for(const key of ['monthly_payment','payment_day','interest_rate_percent']){const value=field(key).value;if(value==='')delete v[key];else v[key]=Number(value);}
     if(field('interest_rate_until').value)v.interest_rate_until=field('interest_rate_until').value;else delete v.interest_rate_until;
     const balance=field('balance').value, balanceDate=field('balance_date').value, settlement=field('settlement').value, settlementDate=field('settlement_date').value;
