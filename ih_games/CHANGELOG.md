@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.2] - 2026-11-23
+
+- A closed task that carries a game's key no longer counts as its research task: the add-on makes a new one (key suffix #2, #3 ...). 15 games had been marked against tasks IH Tasks had closed as near-duplicates and were never researched.
+
 ## [0.15.1] - 2026-11-23
 
 - Research tasks are created with `allow_duplicate`: IH Tasks was closing games with similar titles (Dawn of War, YOU DON'T KNOW JACK, Trove) as near-duplicates of each other, so 15 of 22 were never queued. The add-on's own per-game key still prevents real duplicates.
