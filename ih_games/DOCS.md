@@ -72,10 +72,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `ai_layer_art_token` | No | Scoped token accepted only for Games box-art search. It is configured by the owner and never shown in the UI. |
 | `arc_data_dir` | No | Setting `arc_data_dir`. |
 | `destiny_reset_utc_hour` | No | Setting `destiny_reset_utc_hour`. Default: `17`. |
-| `todo_entity` | No | Setting `todo_entity`. Default: `todo.claude_to_do`. |
-| `todo_sync` | No | Setting `todo_sync`. Default: `true`. |
+| `todo_entity` | No | Unused since 0.15.0 (research tasks go to IH Tasks). |
+| `todo_sync` | No | Create the research tasks. Default: `true`. |
 | `tasks_api_url` | For game research | IH Tasks worker API address, including port. |
-| `tasks_api_token` | For game research | IH Tasks worker token. Without both options, new games remain queued and are retried. |
+| `tasks_api_token` | For game research | IH Tasks worker token. Without both options, new games remain queued and are retried. One task per game; HIGH if played in the last 30 days, else LOW. |
 
 ## Troubleshooting
 
@@ -97,6 +97,7 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 ### Library API (bearer `admin_token`)
 - `GET /library?player=<key>`: the player's games. Each game has `card_stat`: `{"kind": "quests", "done", "total", "label"}`, `{"kind": "trophies", "earned", "total"}`, `{"kind": "playtime", "minutes", "tracked", "since"}` or `null`.
 - `POST /library/requeue` (admin token): body `{"player": "<key>", "titles": ["Game one", ...]}`. Clears the "handled" mark on those games (exact title, games with a tool are skipped) so the next research sync, or `POST /library/sync-todos`, lists them in IH Tasks again. Reply: `cleared`, `not_found`.
+- `POST /library/recheck` (admin token): body `{"player": "<key>", "title": "..."}`. Queues a re-check task now for a game that already has a research task. Reply: `task`. Games first seen in the last 90 days and still played are re-checked automatically every 3 weeks, up to 4 times.
 - `GET /games/<id>/details?player=<key>`: tool details plus `trophies` (totals and latest named trophies).
 - `GET /games/<id>/trophies?player=<key>`: every trophy of the game: `trophies` = `[{id, group, name, detail, tier, earned, earned_at, hidden}]` (earned first), `complete` (false = only locally recorded earned names), `source` (`psn` or `history`), `fetched`, `stale`, `missing` (`not_configured`, `lookup_failed`, `not_found` or null) and `note` (text shown to the user). The Web UI proxies it as `api/games/<id>/trophies`.
 

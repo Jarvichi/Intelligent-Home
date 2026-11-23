@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0] - 2026-11-23
+
+- Research is now **one IH Tasks task per game** (was one batch task). Games played in the last 30 days are HIGH priority (due in 7 days); the backlog is LOW (due in 60 days). A game is marked handled only after IH Tasks confirms its task; an existing task for the same game is reused, never duplicated.
+- **Re-checks for new releases.** A game first seen in the last 90 days and still being played gets a follow-up task every 3 weeks, up to 4 times ("re-check: guides and data now?"), because launch-day information is sparse. It stops when the game gets a tool, you stop playing it, or the 4 re-checks are used.
+- New `POST /library/recheck` (admin token) `{"player", "title"}` queues a re-check task straight away for a game that already has a research task.
+- Existing research marks keep working. `POST /library/requeue` also forgets the stored task id.
+
 ## [0.14.3] - 2026-11-23
 
 - New `POST /library/requeue` (admin token): `{"player": "...", "titles": ["..."]}` clears the "handled" mark on those games so the next research sync lists them in IH Tasks again. Games with a tool are never touched. Older versions marked games as handled even when the old to-do text skipped them (a title inside another title, or past the 60-game cap), so 22 games were never researched.
