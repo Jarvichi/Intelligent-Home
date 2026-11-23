@@ -109,7 +109,7 @@
     $('#status').textContent='Loading contracts…';try {const r=await fetch('api/contracts',{cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();items=data.contracts;projections=data.projections;series=data.series||{};baselines=data.series_without_overpayments||{};mortgageTerms=data.mortgage_terms||{};recipients=data.recipients;$('#status').textContent='';render();}
     catch(e){$('#status').textContent='Could not load contracts. Please try again.';}
   }
-  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));editor.hidden=true;render();});
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));editor.hidden=true;$('#planner').hidden=tab!=='planner';$('#list').hidden=tab==='planner';document.querySelector('.section-actions').hidden=tab==='planner';if(tab==='planner')window.IHMoneyPlanner.load();else render();});
   const changeNames={balance:'Recorded balance',rate:'Interest rate (%)',payment:'Monthly payment (£)',overpayment:'Planned one-off overpayment (£)',recurring_overpayment:'Planned monthly overpayment (£)',provider:'Provider',account:'Account number'};
   function addChange(value={}){
     const row=document.createElement('div');row.className='change-row';

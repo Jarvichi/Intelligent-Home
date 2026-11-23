@@ -25,6 +25,26 @@ class MoneyTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def test_planner_storage_and_concurrent_edits(self):
+        data = {'format':'ih-money-planner-v25', 'anchors':{'START_BALANCE':1000}, 'scenario':{'salePrice':2000}}
+        self.assertEqual(store.read_planner(self.db), {'revision':0,'data':None})
+        self.assertEqual(store.save_planner(self.db, data, 0), 1)
+        self.assertEqual(store.read_planner(self.db), {'revision':1,'data':data})
+        with self.assertRaises(RuntimeError): store.save_planner(self.db, data, 0)
+        self.assertEqual(store.read_planner(self.db)['data'], data)
+        with self.assertRaises(ValueError): store.save_planner(self.db, {'format':'unknown'}, 1)
+
+    def test_planner_ingress_import_and_conflict(self):
+        server = ui_server.make_server(self.db, [], host='127.0.0.1', port=0, peer='127.0.0.1')
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+        conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=2); self.addCleanup(conn.close)
+        data = {'format':'ih-money-planner-v25','anchors':{'START_BALANCE':1000},'scenario':{'salePrice':2000}}
+        body = json.dumps({'revision':0,'data':data}); headers={'Content-Type':'application/json'}
+        conn.request('POST','/api/planner',body,headers); response=conn.getresponse(); response.read(); self.assertEqual(response.status,200)
+        conn.request('POST','/api/planner',body,headers); response=conn.getresponse(); response.read(); self.assertEqual(response.status,409)
+        conn.request('GET','/api/planner'); response=conn.getresponse(); saved=json.loads(response.read()); self.assertEqual(saved,{'revision':1,'data':data})
+
     def test_insurance_details_survive_edits(self):
         policy = {'id': 'policy', 'name': 'House cover', 'kind': 'house insurance',
                   'provider': 'Example', 'policy_number': 'ABC123', 'notes': 'Buildings and contents'}
