@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+
+- Show the savings-pot monthly total and let planner spending be itemised as bills, loans, car payments or other costs, with optional start and end months.
+
 ## 0.6.1
 
 - Redesign the move planner around the target balance, mortgage journey, moving costs and grouped, interactive assumptions.

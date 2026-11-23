@@ -4,5 +4,12 @@ const start=2026*12, data={anchors:{START_MONTH:start,START_BALANCE:100000,CURRE
 const result=model(data);
 assert.equal(result.atMove,88000);assert.equal(result.equity,112000);assert.equal(result.tax,500);assert.equal(result.mortgage,38500);assert.ok(Math.abs(result.payment-38500/240)<1e-8);
 data.scenario.plannedOverpayment=100;const faster=model(data);assert.ok(faster.atMove<result.atMove);assert.ok(faster.fastMonth<=faster.finalMonth);assert.ok(faster.monthlyRelief>=0);
+data.scenario.misc=400;data.scenario.essentials=200;data.scenario.plannedOverpayment=5000;const before=model(data);
+data.scenario.expense_breakdown={other:[{name:'Unallocated',category:'other',amount:400}],essentials:[{name:'Bills',category:'bill',amount:200}]};
+assert.equal(model(data).headroom,before.headroom);assert.equal(model(data).atMove,before.atMove);
+data.scenario.expense_breakdown.other=[{name:'Loan',category:'loan',amount:400,end:start+2}];
+assert.equal(model(data).headroom,before.headroom);assert.ok(model(data).atMove<before.atMove);
+data.scenario.expense_breakdown.other[0].amount=-1;assert.throws(()=>model(data));
+data.scenario.expense_breakdown.other[0].amount=400;
 data.scenario.moveMonth=start+1000;assert.throws(()=>model(data));
 console.log('Planner model checks passed');

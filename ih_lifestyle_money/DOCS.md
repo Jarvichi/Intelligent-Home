@@ -4,6 +4,8 @@ The admin-only Money page in Home Assistant lets you add and edit contracts, lea
 
 The Move planner imports a private `ih-money-planner-v25` JSON file, stores the scenario and starting assumptions in the add-on's SQLite database, and lets you edit and save them. Download a backup before replacing an existing planner. An optimistic revision check refuses stale saves. Planner assumptions are independent of the live loan records: changing one does not update the other. Inputs and calculated outputs stay in the add-on and browser.
 
+The Savings pots heading shows their combined monthly contribution. Under Bills and other expenditure, either imported spending total can be split into named monthly entries with optional start and end months. Splitting begins with an unallocated entry equal to the original total; reduce it as other entries are added. The breakdown replaces that total in the model. Existing mortgage, vehicle, finance and phone payments remain separate, so do not enter them again in the breakdown.
+
 The planner replicates the earlier model's monthly repayment, affordability, equity and target-age calculations. Its early repayment charge and residential stamp-duty bands are fixed approximations inherited from the original planner; they are not guaranteed to match a lender, current legislation, location or eligibility. Verify assumptions and figures independently. The imported v25 file contains the embedded defaults, not any separate unsaved browser changes.
 
 Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
