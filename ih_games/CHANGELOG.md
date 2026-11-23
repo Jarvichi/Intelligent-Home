@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.14.3] - 2026-11-23
+
+- New `POST /library/requeue` (admin token): `{"player": "...", "titles": ["..."]}` clears the "handled" mark on those games so the next research sync lists them in IH Tasks again. Games with a tool are never touched. Older versions marked games as handled even when the old to-do text skipped them (a title inside another title, or past the 60-game cap), so 22 games were never researched.
+
 ## [0.14.2] - 2026-11-23
 
 - Queue newly discovered games for research in IH Tasks at normal priority, batching games in a single To do task. Set the IH Tasks worker API URL and token; unconfigured or failed requests leave games pending for retry. IH Work still requires owner approval before implementation.

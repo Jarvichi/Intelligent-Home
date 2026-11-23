@@ -11,7 +11,7 @@ import schedule_client, orchestrator, sensors as sensors_mod, library as library
 from jobs import common
 from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, psn_sessions, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
 
-VERSION = "0.14.1"
+VERSION = "0.14.3"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -158,6 +158,13 @@ class Module:
             lib.refresh()
             made, skipped = self.todo_sync()
             return 200, {"ok": True, "created": made, "skipped": skipped, "mode": self.mode()}
+        if parts == ["library", "requeue"] and method == "POST":
+            pk = who()
+            titles = (body or {}).get("titles")
+            if not pk or not isinstance(titles, list) or not titles:
+                return 400, {"ok": False, "why": "player and a titles list required"}
+            cleared = lib.requeue_todo(pk, [str(t) for t in titles])
+            return 200, {"ok": True, "cleared": cleared, "not_found": sorted(t for t in map(str, titles) if t not in cleared)}
         if parts == ["library", "add"] and method == "POST":
             pk = who()
             if not pk or not (body or {}).get("title"):
