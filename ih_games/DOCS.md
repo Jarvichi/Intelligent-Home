@@ -96,6 +96,7 @@ Set `mode: "live"` in options. By default, `ih_games` runs in `dry` mode (logs a
 
 ### Library API (bearer `admin_token`)
 - `GET /library?player=<key>`: the player's games. Each game has `card_stat`: `{"kind": "quests", "done", "total", "label"}`, `{"kind": "trophies", "earned", "total"}`, `{"kind": "playtime", "minutes", "tracked", "since"}` or `null`.
+- `POST /library/requeue` (admin token): body `{"player": "<key>", "titles": ["Game one", ...]}`. Clears the "handled" mark on those games (exact title, games with a tool are skipped) so the next research sync, or `POST /library/sync-todos`, lists them in IH Tasks again. Reply: `cleared`, `not_found`.
 - `GET /games/<id>/details?player=<key>`: tool details plus `trophies` (totals and latest named trophies).
 - `GET /games/<id>/trophies?player=<key>`: every trophy of the game: `trophies` = `[{id, group, name, detail, tier, earned, earned_at, hidden}]` (earned first), `complete` (false = only locally recorded earned names), `source` (`psn` or `history`), `fetched`, `stale`, `missing` (`not_configured`, `lookup_failed`, `not_found` or null) and `note` (text shown to the user). The Web UI proxies it as `api/games/<id>/trophies`.
 

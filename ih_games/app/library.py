@@ -162,6 +162,21 @@ class Library:
                 e["todo"] = True
                 _atomic(self.path, d)
 
+    def requeue_todo(self, player, titles):
+        """Clear the 'handled' mark on the named games (exact title match, case/punctuation-insensitive) so the next
+        research sync lists them again. Returns the titles cleared. Never touches games that have a tool."""
+        want = {norm(t) for t in titles if str(t).strip()}
+        cleared = []
+        with _LOCK:
+            d = self._load()
+            for e in d["entries"].get(player, {}).values():
+                if e.get("todo") and not e.get("tools") and norm(e["title"]) in want:
+                    e["todo"] = False
+                    cleared.append(e["title"])
+            if cleared:
+                _atomic(self.path, d)
+        return sorted(cleared)
+
     def refresh(self):
         """Rebuild from the feeds in /data/feeds. Adds and updates, never removes or unhides."""
         now = self._now()
