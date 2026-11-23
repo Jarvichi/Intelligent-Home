@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+
+- Apply the selected monthly overpayment in full before and after a move, and warn when the entered budget cannot support it.
+
 ## 0.6.2
 
 - Show the savings-pot monthly total and let planner spending be itemised as bills, loans, car payments or other costs, with optional start and end months.

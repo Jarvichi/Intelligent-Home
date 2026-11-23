@@ -6,7 +6,9 @@ The Move planner imports a private `ih-money-planner-v25` JSON file, stores the 
 
 The Savings pots heading shows their combined monthly contribution. Under Bills and other expenditure, either imported spending total can be split into named monthly entries with optional start and end months. Splitting begins with an unallocated entry equal to the original total; reduce it as other entries are added. The breakdown replaces that total in the model. Existing mortgage, vehicle, finance and phone payments remain separate, so do not enter them again in the breakdown.
 
-The planner replicates the earlier model's monthly repayment, affordability, equity and target-age calculations. Its early repayment charge and residential stamp-duty bands are fixed approximations inherited from the original planner; they are not guaranteed to match a lender, current legislation, location or eligibility. Verify assumptions and figures independently. The imported v25 file contains the embedded defaults, not any separate unsaved browser changes.
+The planner uses the earlier model's monthly repayment, affordability, equity and target-age approach, with overpayments handled as described below. Its early repayment charge and residential stamp-duty bands are fixed approximations inherited from the original planner; they are not guaranteed to match a lender, current legislation, location or eligibility. Verify assumptions and figures independently. The imported v25 file contains the embedded defaults, not any separate unsaved browser changes.
+
+The selected monthly overpayment is applied in full as a scenario assumption, even if it exceeds calculated budget headroom. After a move it is added on top of the greater of the current mortgage payment and the new contractual payment. The planner warns if the income and spending entered do not cover that assumption; it does not silently reduce the amount.
 
 Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
 
