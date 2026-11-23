@@ -34,6 +34,35 @@ class MoneyTests(unittest.TestCase):
         store.save_contract(self.db, saved)
         self.assertEqual(store.raw_records(self.db)[0], dict(policy, end='2027-05-01'))
 
+    def test_dated_loan_changes_and_overpayment_scenario(self):
+        c = {'id': 'loan', 'name': 'Loan', 'kind': 'mortgage', 'monthly_payment': 100,
+             'observed_balance': {'amount': 1000, 'as_of': '2026-12'}, 'interest_rate_percent': 0,
+             'account_number': 'example', 'loan_changes': [
+                 {'date': '2027-01-05', 'type': 'recurring_overpayment', 'value': 50},
+                 {'date': '2027-02-01', 'type': 'balance', 'value': 700},
+                 {'date': '2027-03-01', 'type': 'rate', 'value': 12},
+                 {'date': '2027-03-02', 'type': 'overpayment', 'value': 100},
+                 {'date': '2027-04-01', 'type': 'recurring_overpayment', 'value': 0},
+                 {'date': '2027-04-02', 'type': 'provider', 'value': 'New lender'}]}
+        store.save_contract(self.db, c)
+        points = store.projection_series(store.raw_records(self.db)[0])
+        self.assertEqual([p['balance'] for p in points[:5]], [1000, 850, 700, 455.5, 360.06])
+        self.assertTrue(points[2]['recorded'])
+        baseline = dict(c, loan_changes=[x for x in c['loan_changes'] if x['type'] not in ('overpayment', 'recurring_overpayment')])
+        self.assertGreater(store.projection_series(baseline)[3]['balance'], points[3]['balance'])
+        with self.assertRaises(ValueError):
+            store.validate(dict(c, loan_changes=[{'date':'2026-12-01', 'type':'balance', 'value':1000}]))
+
+    def test_new_deal_continues_after_original_end(self):
+        c = {'id':'loan', 'name':'Loan', 'kind':'mortgage', 'monthly_payment':100,
+             'observed_balance':{'amount':1000, 'as_of':'2027-04'}, 'interest_rate_percent':0,
+             'interest_rate_until':'2027-05-31', 'end':'2027-05-31',
+             'loan_changes':[{'date':'2027-06-01', 'type':'rate', 'value':12},
+                             {'date':'2027-06-01', 'type':'balance', 'value':850}]}
+        points = store.projection_series(c)
+        self.assertEqual([(p['date'], p['balance']) for p in points[:4]],
+                         [('2027-04',1000), ('2027-05',900), ('2027-06',850), ('2027-07',758.5)])
+
     def test_projection_and_short_month(self):
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 16))['remaining_payments'], 3)
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 30))['projected_balance'], 150)

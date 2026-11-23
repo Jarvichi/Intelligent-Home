@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Record account details and dated loan changes, and compare planned one-off or monthly overpayments against a projection without them.
+
 ## 0.4.1
 
 - Put the add action beside the selected section and name it for the kind of record.
