@@ -1,5 +1,12 @@
 'use strict';
 (function(root) {
+  function expensesAt(scenario, bucket, month) {
+    const breakdown=scenario.expense_breakdown;
+    if(!breakdown || !(bucket in breakdown)) return bucket==='essentials'?scenario.essentials:scenario.misc;
+    const entries=breakdown[bucket];
+    if(!Array.isArray(entries) || entries.some(e=>!e || typeof e.name!=='string' || !e.name.trim() || !['bill','loan','car','other'].includes(e.category) || !Number.isFinite(e.amount) || e.amount<0 || (e.start!=null && !Number.isInteger(e.start)) || (e.end!=null && !Number.isInteger(e.end)) || (e.start!=null && e.end!=null && e.end<e.start))) throw Error('Check the expenditure amounts and dates.');
+    return entries.reduce((sum,e)=>sum+((e.start==null||month>=e.start)&&(e.end==null||month<=e.end)?e.amount:0),0);
+  }
   function model(data) {
     const a=data.anchors, i=data.scenario, required=['START_MONTH','START_BALANCE','CURRENT_PAYMENT','FIXED_RATE','FIXED_ENDS','ERC_CAP','LISA_CURRENT','LISA_TARGET','VW_ENDS','KITCHEN_ENDS','BMW_ENDS','LEASE_VW','LEASE_KITCHEN','LEASE_BMW','LEASE_PHONES'];
     if(!required.every(k=>Number.isFinite(a[k])) || !Array.isArray(i.payHistory) || !i.payHistory.length) throw Error('The imported planner data is incomplete.');
@@ -10,7 +17,8 @@
     if(target<a.START_MONTH || target>a.START_MONTH+1200)throw Error('Check the target age.');
     const income=m=>{let p=i.payHistory[0];for(const x of i.payHistory)if(x.month<=m)p=x;const start=Math.floor((p.month-1)/12)+1;return p.income*Math.pow(1+i.growth,Math.max(0,Math.floor(m/12)-start+1));};
     const pots=Object.entries(i).filter(([k])=>k.startsWith('pot')).reduce((s,[,v])=>s+(Number(v)||0),0);
-    const headroom=m=>income(m)-(a.CURRENT_PAYMENT+a.LEASE_PHONES+(m<=a.VW_ENDS?a.LEASE_VW:0)+(m<=a.KITCHEN_ENDS?a.LEASE_KITCHEN:(i.polestar?i.polestarCost:0))+((i.replaceBMW||m<=a.BMW_ENDS)?a.LEASE_BMW:0)+i.essentials-(m>i.moveMonth?i.postMove:0)+i.family+i.groceries+i.misc+i.pensionNetCost+(i.lisaOn?a.LISA_TARGET:a.LISA_CURRENT)+pots);
+    expensesAt(i,'essentials',a.START_MONTH);expensesAt(i,'other',a.START_MONTH);
+    const headroom=m=>income(m)-(a.CURRENT_PAYMENT+a.LEASE_PHONES+(m<=a.VW_ENDS?a.LEASE_VW:0)+(m<=a.KITCHEN_ENDS?a.LEASE_KITCHEN:(i.polestar?i.polestarCost:0))+((i.replaceBMW||m<=a.BMW_ENDS)?a.LEASE_BMW:0)+expensesAt(i,'essentials',m)-(m>i.moveMonth?i.postMove:0)+i.family+i.groceries+expensesAt(i,'other',m)+i.pensionNetCost+(i.lisaOn?a.LISA_TARGET:a.LISA_CURRENT)+pots);
     const extra=m=>Math.max(Math.min(i.plannedOverpayment,headroom(m)),0), points=[{month:a.START_MONTH,balance:a.START_BALANCE,phase:'current'}];
     let balance=a.START_BALANCE;
     for(let m=a.START_MONTH+1;m<=i.moveMonth;m++){balance=Math.max(0,balance*(1+(m<=a.FIXED_ENDS?a.FIXED_RATE:i.svrRate)/12)-a.CURRENT_PAYMENT-extra(m));points.push({month:m,balance,phase:'current'});}
@@ -28,6 +36,6 @@
     if(!stalled)for(let n=0;balance>0 && n<600;n++){m++;balance=Math.max(0,balance*(1+rate)-payment);points.push({month:m,balance,phase:'tail'});}
     return {points, atMove, erc, selling, equity, tax, mortgage, payment, targetBalance, target, cleared, stalled, finalMonth:balance===0?m:null, fastMonth:fastBalance===0?fastMonth:null, pushPayment, monthlyRelief:Math.max(0,pushPayment-payment), headroom:headroom(a.START_MONTH)};
   }
-  root.IHMoneyPlannerModel={model};
-  if(typeof module!=='undefined')module.exports={model};
+  root.IHMoneyPlannerModel={model,expensesAt};
+  if(typeof module!=='undefined')module.exports={model,expensesAt};
 })(typeof window==='undefined'?globalThis:window);

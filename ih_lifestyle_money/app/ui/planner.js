@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $=s=>document.querySelector(s), content=$('#planner-content'), status=$('#planner-status');
-  let data=null, revision=0;
+  let data=null, revision=0, potTotal=null;
   const el=(tag,value,cls)=>{const e=document.createElement(tag);if(value!==undefined)e.textContent=value;if(cls)e.className=cls;return e;};
   const cash=n=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(n);
   const labels={moveMonth:'When will you move?',salePrice:'Sale price',buyPrice:'Purchase price',plannedOverpayment:'Monthly overpayment',targetAge:'Mortgage-free target age',anchor:'Whose age is the target?',porting:'Port the current mortgage',newRate:'New mortgage interest rate',newTerm:'New mortgage term (years)',svrRate:'Rate after current deal',sellCostPct:'Selling costs (%)',buyCosts:'Other buying costs',growth:'Annual income growth',essentials:'Essential household costs',postMove:'Monthly running costs saved after the move',family:'Family spending',groceries:'Groceries',misc:'Other monthly spending',pensionNetCost:'Additional pension cost',lisaOn:'Use target savings contribution',useShares:'Use shares towards the move',shareValue:'Value of shares used',polestar:'Include replacement vehicle',polestarCost:'Replacement vehicle monthly cost',replaceBMW:'Continue vehicle payment'};
@@ -29,6 +29,7 @@
     return svg;
   }
   function calculate(){const results=$('#planner-results');if(!results)return;try{
+    if(potTotal)potTotal.textContent=cash(Object.entries(data.scenario).filter(([k])=>k.startsWith('pot')).reduce((sum,[,v])=>sum+(Number(v)||0),0))+'/mo';
     const r=window.IHMoneyPlannerModel.model(data), age=data.scenario.targetAge;results.replaceChildren();
     const strip=el('div',undefined,'planner-strip');for(const [key,value] of [['Move',displayMonth(data.scenario.moveMonth)],['Sell',cash(data.scenario.salePrice)],['Buy',cash(data.scenario.buyPrice)],['Overpayment',cash(data.scenario.plannedOverpayment)+'/mo']]){const cell=el('div',undefined,'planner-strip-item');cell.append(el('span',key,'planner-kicker'),el('strong',value));strip.append(cell);}results.append(strip);
     const hero=el('section',undefined,'planner-card planner-hero');hero.append(el('p','Balance at '+age+' · '+displayMonth(r.target),'planner-kicker'),el('p',r.targetBalance<=0?'Clear':cash(r.targetBalance),'planner-hero-value'),el('p',r.targetBalance<=0?(r.cleared?'Estimated to clear in '+displayMonth(r.cleared):'No new mortgage needed'):'Estimated balance on a '+cash(r.mortgage)+' mortgage','planner-sub'));
@@ -52,11 +53,48 @@
     wrap.append(input);return wrap;
   }
   function group(title,keys,holder,open=true){const details=el('details',undefined,'planner-card planner-controls');details.open=open;details.append(el('summary',title));const grid=el('div',undefined,'planner-fields');for(const key of keys){if(!(key in holder))continue;const input=inputFor(holder,key,holder[key]);if(input)grid.append(input);}details.append(grid);return details;}
-  function render(){content.replaceChildren();if(!data){content.append(el('p','Import a planner to explore your move.','planner-empty'));return;}
+  function expenditureGroup(scenario, anchors){
+    const details=el('details',undefined,'planner-card planner-controls');details.append(el('summary','Bills and other expenditure'));
+    details.append(el('p','Split the existing totals into individual items. Amounts replace the corresponding total, so reduce the unallocated amount as you add items.','planner-sub'));
+    const fixed=el('p','The current mortgage and existing vehicle, finance and phone payments are already included separately in this plan. Do not add them again below. Edit those payments in Starting figures.','planner-footnote');details.append(fixed);
+    const table=el('table',undefined,'planner-table');
+    for(const [name,key] of [['Mortgage payment','CURRENT_PAYMENT'],['Vehicle lease','LEASE_VW'],['Vehicle payment','LEASE_BMW'],['Finance payment','LEASE_KITCHEN'],['Phone payments','LEASE_PHONES']])if(Number.isFinite(anchors[key]))row(table,name,cash(anchors[key])+'/mo');
+    details.append(table);
+    for(const [bucket,title,field] of [['essentials','Essential bills','essentials'],['other','Other expenditure','misc']]){
+      const area=el('section',undefined,'planner-expenses');details.append(area);
+      function draw(){
+        area.replaceChildren();const breakdown=scenario.expense_breakdown||{}, entries=breakdown[bucket];
+        const heading=el('div',undefined,'planner-expense-heading');heading.append(el('h3',title));const total=el('strong');heading.append(total);area.append(heading);
+        function totalNow(){try{total.textContent=cash(window.IHMoneyPlannerModel.expensesAt(scenario,bucket,anchors.START_MONTH))+'/mo at plan start';}catch{total.textContent='Check entries';}calculate();}
+        if(!entries){
+          const fallback=inputFor(scenario,field,scenario[field]);if(fallback){const input=fallback.querySelector('input'), update=input.oninput;input.oninput=()=>{update();totalNow();};area.append(fallback);}
+          const split=el('button','Break down this total');split.type='button';split.onclick=()=>{scenario.expense_breakdown??={};scenario.expense_breakdown[bucket]=[{name:'Unallocated',category:'other',amount:scenario[field]}];draw();};area.append(split);
+        }else{
+          area.append(el('p','Set optional start and end months for payments that change over time.','planner-sub'));
+          for(const [index,item] of entries.entries()){
+            const line=el('div',undefined,'planner-expense-row'),name=document.createElement('input'),kind=document.createElement('select'),amount=document.createElement('input'),start=document.createElement('input'),end=document.createElement('input'),remove=el('button','Remove');
+            name.value=item.name;name.placeholder='Name';name.setAttribute('aria-label',title+' item name');name.oninput=()=>{item.name=name.value;totalNow();};
+            for(const [value,caption] of [['bill','Bill'],['loan','Loan'],['car','Car'],['other','Other']]){const option=el('option',caption);option.value=value;kind.append(option);}kind.value=item.category;kind.setAttribute('aria-label',title+' category');kind.onchange=()=>{item.category=kind.value;totalNow();};
+            amount.type='number';amount.min='0';amount.step='0.01';amount.placeholder='£ / month';amount.value=item.amount;amount.setAttribute('aria-label',title+' monthly amount');amount.oninput=()=>{item.amount=amount.value===''?NaN:Number(amount.value);totalNow();};
+            start.type='month';start.value=item.start==null?'':asMonth(item.start);start.setAttribute('aria-label',title+' start month');start.onchange=()=>{item.start=start.value?fromMonth(start.value):null;totalNow();};
+            end.type='month';end.value=item.end==null?'':asMonth(item.end);end.setAttribute('aria-label',title+' end month');end.onchange=()=>{item.end=end.value?fromMonth(end.value):null;totalNow();};
+            const startLabel=el('label','From (optional)'),endLabel=el('label','Until (optional)');startLabel.append(start);endLabel.append(end);
+            remove.type='button';remove.onclick=()=>{entries.splice(index,1);draw();};line.append(name,kind,amount,startLabel,endLabel,remove);area.append(line);
+          }
+          const add=el('button','Add expenditure');add.type='button';add.onclick=()=>{entries.push({name:'New expense',category:'other',amount:0});draw();};area.append(add);
+        }
+        totalNow();
+      }
+      draw();
+    }
+    return details;
+  }
+  function render(){content.replaceChildren();potTotal=null;if(!data){content.append(el('p','Import a planner to explore your move.','planner-empty'));return;}
     const intro=el('header',undefined,'planner-intro');intro.append(el('p','Your move · Your plan','planner-kicker'),el('h2','What’s still owed at your target age?'),el('p','See how the move and your choices affect the mortgage, then adjust the assumptions below.','planner-sub'));content.append(intro);
     const results=el('div');results.id='planner-results';content.append(results);calculate();
-    const scenario=data.scenario,mainKeys=['moveMonth','salePrice','buyPrice','plannedOverpayment','targetAge','anchor','porting'],mortgageKeys=['newRate','newTerm','svrRate','sellCostPct','buyCosts'],budgetKeys=['growth','essentials','postMove','family','groceries','misc','pensionNetCost','lisaOn','useShares','shareValue','polestar','polestarCost','replaceBMW'];
-    content.append(group('Your plan',mainKeys,scenario),group('Mortgage and moving costs',mortgageKeys,scenario,false),group('Household budget',budgetKeys,scenario,false),group('Savings pots',Object.keys(scenario).filter(k=>k.startsWith('pot')),scenario,false),group('Starting figures',Object.keys(data.anchors),data.anchors,false));
+    const scenario=data.scenario,mainKeys=['moveMonth','salePrice','buyPrice','plannedOverpayment','targetAge','anchor','porting'],mortgageKeys=['newRate','newTerm','svrRate','sellCostPct','buyCosts'],budgetKeys=['growth','postMove','family','groceries','pensionNetCost','lisaOn','useShares','shareValue','polestar','polestarCost','replaceBMW'];
+    const pots=group('Savings pots',Object.keys(scenario).filter(k=>k.startsWith('pot')),scenario,false);potTotal=el('span','','planner-summary-total');pots.querySelector('summary').append(potTotal);
+    content.append(group('Your plan',mainKeys,scenario),group('Mortgage and moving costs',mortgageKeys,scenario,false),group('Household budget',budgetKeys,scenario,false),expenditureGroup(scenario,data.anchors),pots,group('Starting figures',Object.keys(data.anchors),data.anchors,false));calculate();
     const history=el('details',undefined,'planner-card planner-controls');history.append(el('summary','Income history'));const historyList=el('div');function drawHistory(){historyList.replaceChildren();for(const [idx,p] of scenario.payHistory.entries()){const row=el('div',undefined,'change-row'), date=document.createElement('input'),income=document.createElement('input'),remove=el('button','Remove');date.type='month';date.value=asMonth(p.month);date.setAttribute('aria-label','Income from month');income.type='number';income.step='0.01';income.value=p.income;income.setAttribute('aria-label','Monthly income');date.onchange=()=>{p.month=fromMonth(date.value);scenario.payHistory.sort((a,b)=>a.month-b.month);drawHistory();calculate();};income.oninput=()=>{if(income.value){p.income=Number(income.value);calculate();}};remove.type='button';remove.disabled=scenario.payHistory.length===1;remove.onclick=()=>{scenario.payHistory.splice(idx,1);drawHistory();calculate();};row.append(date,income,remove);historyList.append(row);}}
     const add=el('button','Add income change');add.type='button';add.onclick=()=>{const last=scenario.payHistory.at(-1);scenario.payHistory.push({month:last.month+1,income:last.income});drawHistory();};drawHistory();history.append(historyList,add);content.append(history);
     const saveButton=el('button','Save this plan','primary planner-save');saveButton.type='button';saveButton.onclick=async()=>{try{await save(data);}catch(e){status.textContent=e.message;}};content.append(saveButton,el('p','This is an illustration, not a lender quote or tax advice. The original planner’s repayment-charge estimate and stamp duty bands may not apply; check your lender’s terms and current rules. Changes here do not update your loan records.','planner-footnote'));
