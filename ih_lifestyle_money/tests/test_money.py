@@ -63,6 +63,18 @@ class MoneyTests(unittest.TestCase):
         self.assertEqual([(p['date'], p['balance']) for p in points[:4]],
                          [('2027-04',1000), ('2027-05',900), ('2027-06',850), ('2027-07',758.5)])
 
+    def test_mortgage_remaining_term_carries_rate_and_compares_overpayments(self):
+        c = {'id':'loan', 'name':'Mortgage', 'kind':'mortgage', 'monthly_payment':100,
+             'observed_balance':{'amount':1000, 'as_of':'2027-04'}, 'interest_rate_percent':0,
+             'interest_rate_until':'2027-05-31', 'mortgage_term_end':'2027-08-31',
+             'loan_changes':[{'date':'2027-06-01', 'type':'recurring_overpayment', 'value':50}]}
+        agreed = store.mortgage_term_series(c, False)
+        plan = store.mortgage_term_series(c, True)
+        self.assertEqual([p['date'] for p in agreed], ['2027-04','2027-05','2027-06','2027-07','2027-08'])
+        self.assertEqual([p['balance'] for p in agreed], [1000, 900, 800, 700, 600])
+        self.assertEqual([p['balance'] for p in plan], [1000, 900, 750, 600, 450])
+        self.assertEqual(store.mortgage_term_series(dict(c, mortgage_term_end=''), True), [])
+
     def test_projection_and_short_month(self):
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 16))['remaining_payments'], 3)
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 30))['projected_balance'], 150)

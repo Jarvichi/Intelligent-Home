@@ -61,6 +61,8 @@ def validate(c):
             raise ValueError('invalid interest rate') from None
     if c.get('interest_rate_until'):
         dt.date.fromisoformat(c['interest_rate_until'])
+    if c.get('mortgage_term_end'):
+        dt.date.fromisoformat(c['mortgage_term_end'])
     changes = c.get('loan_changes', [])
     if not isinstance(changes, list) or len(changes) > 500:
         raise ValueError('invalid loan changes')
@@ -286,6 +288,17 @@ def loan_changes_projection(c):
     except (ValueError, OverflowError, InvalidOperation):
         return []
     return points if len(points) > 1 else []
+
+
+def mortgage_term_series(c, include_overpayments=True):
+    """Illustrate the remaining term, carrying the last known rate forward."""
+    if 'mortgage' not in c['kind'].lower() or not c.get('mortgage_term_end') or not (c.get('interest_rate_until') or c.get('end')):
+        return []
+    scenario = dict(c)
+    scenario.pop('interest_rate_until', None)
+    scenario['end'] = c['mortgage_term_end']
+    scenario['loan_changes'] = [x for x in c.get('loan_changes', []) if x['date'] <= c['mortgage_term_end'] and (include_overpayments or x.get('type') not in ('overpayment', 'recurring_overpayment'))]
+    return projection_series(scenario)
 
 
 def markdown(rows):

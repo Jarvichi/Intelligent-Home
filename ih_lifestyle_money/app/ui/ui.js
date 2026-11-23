@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s), editor = $('#editor'), form = $('#form');
-  let items = [], projections = [], series = {}, baselines = {}, recipients = [], current = null, tab = 'leases';
+  let items = [], projections = [], series = {}, baselines = {}, mortgageTerms = {}, recipients = [], current = null, tab = 'leases';
   const field = name => form.elements.namedItem(name);
   const money = n => new Intl.NumberFormat('en-GB', {style:'currency', currency:'GBP'}).format(n);
   function group(c) { const k = c.kind.toLowerCase(); return k.includes('loan') || k.includes('mortgage') ? 'loans' : k.includes('lease') ? 'leases' : k.includes('insurance') ? 'insurance' : 'other'; }
@@ -28,6 +28,7 @@
     const edit=text('button','Edit insurance');edit.type='button';edit.onclick=()=>open(c);body.append(edit);card.append(body);return card;
   }
   function graph(points, contract) {
+    const term=mortgageTerms[contract.id];if(term?.agreed?.length>1)return mortgageGraph(term,contract);
     if (!Array.isArray(points) || points.length < 2 || !(points[0].balance > 0)) return null;
     const loan=group(contract)==='loans';
     const note=loan?(contract.loan_changes?.length?'Illustration: changes are applied in their recorded month, with annual interest divided monthly. A recorded balance replaces the calculation for its month. Payments are assumed, and fees and daily interest are not included; lender figures may differ.':'Illustration: '+contract.interest_rate_percent+'% annual interest divided monthly and the same monthly payment from the month after the recorded balance. Assumes payments were made, the rate stays unchanged and there are no fees; lender calculations may differ.'):'Based on scheduled payments, including past payments assumed to have been made.';
@@ -48,6 +49,24 @@
     box.append(svg,text('p',baseline.length>1?'Green: with planned overpayments · Grey: without planned overpayments':'● Recorded balance · · · Scheduled estimate','muted'));
     const details=document.createElement('details'),summary=text('summary','See payment estimates');details.append(summary);
     const list=document.createElement('ol');for(const [i,p] of points.entries())list.append(text('li',(i===0||p.recorded?'Recorded: ':'Estimated: ')+p.date+' — '+money(p.balance)));details.append(list);box.append(details);return box;
+  }
+  function mortgageGraph(term, contract) {
+    const agreed=term.agreed, plan=term.plan||[], expiry=(contract.interest_rate_until||contract.end).slice(0,7), ns='http://www.w3.org/2000/svg';
+    const box=document.createElement('section');box.className='balance-graph';box.append(text('h3','Mortgage balance'),text('p','Green shows the agreed deal; grey continues the estimate using the last known rate unless a later rate is recorded. Monthly estimates assume payments are made and exclude fees and daily interest.','muted'));
+    const svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 600 190');svg.setAttribute('role','img');svg.setAttribute('aria-label','Mortgage balance: agreed deal in green, remaining term estimate in grey; any planned overpayments shown in blue.');
+    function shape(tag,attrs,label){const node=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,String(v));if(label)node.textContent=label;svg.append(node);}
+    const max=Math.max(...agreed.map(p=>p.balance),...plan.map(p=>p.balance)), steps=Math.max(agreed.length,plan.length)-1;
+    if(!(max>0)||steps<1)return null;
+    for(const y of [20,85,150])shape('line',{x1:65,y1:y,x2:575,y2:y,class:'graph-grid'});
+    shape('text',{x:5,y:25,class:'graph-label'},money(max));shape('text',{x:5,y:155,class:'graph-label'},money(0));
+    const coords=agreed.map((p,i)=>[65+510*i/steps,150-130*p.balance/max]), split=Math.max(0,agreed.findLastIndex(p=>p.date.slice(0,7)<=expiry));
+    const xy=arr=>arr.map(p=>p.join(',')).join(' ');
+    shape('polyline',{points:xy(coords.slice(0,split+1)),class:'graph-agreed'});
+    shape('polyline',{points:xy(coords.slice(split)),class:'graph-baseline'});
+    if(plan.length>1 && JSON.stringify(plan)!==JSON.stringify(agreed))shape('polyline',{points:xy(plan.map((p,i)=>[65+510*i/steps,150-130*p.balance/max])),class:'graph-plan'});
+    shape('text',{x:65,y:178,class:'graph-label'},agreed[0].date);shape('text',{x:575,y:178,class:'graph-label','text-anchor':'end'},(plan.length>agreed.length?plan:agreed).at(-1).date);
+    box.append(svg,text('p','Green: agreed deal · Grey: remaining term estimate'+(plan.length>1 && JSON.stringify(plan)!==JSON.stringify(agreed)?' · Blue: planned overpayments':''),'muted'));
+    const details=document.createElement('details');details.append(text('summary','See balance estimates'));const list=document.createElement('ol');for(const p of agreed)list.append(text('li',p.date+' — '+money(p.balance)+(p.recorded?' (recorded)':'')));details.append(list);box.append(details);return box;
   }
   function render() {
     const list=$('#list'); list.replaceChildren(); const filtered=items.filter(c=>group(c)===tab);
@@ -75,7 +94,7 @@
   }
   function open(c) {
     current=c || null;form.reset();$('#form-status').textContent='';$('#edit-title').textContent=(c?'Edit ':'Add ')+names[c?group(c):tab];
-    const v=c||{};for(const key of ['name','start','end','monthly_payment','payment_day','interest_rate_percent','interest_rate_until','provider','policy_number','account_number','notes'])field(key).value=v[key]??'';
+    const v=c||{};for(const key of ['name','start','end','monthly_payment','payment_day','interest_rate_percent','interest_rate_until','provider','policy_number','account_number','notes','mortgage_term_end'])field(key).value=v[key]??'';
     $('#change-list').replaceChildren();for(const change of v.loan_changes||[])addChange(change);
     form.querySelector('[type="submit"]').textContent='Save '+names[c?group(c):tab];
     const known=Array.from(field('kind').options).some(option=>option.value===v.kind && option.value!=='__custom__');field('kind').value=known?v.kind:v.kind?'__custom__':tab==='loans'?'loan':tab==='other'?'other contract':'';field('kind_custom').value=known?'':v.kind||'';syncType();
@@ -87,7 +106,7 @@
     editor.hidden=false;editor.scrollIntoView({behavior:'smooth',block:'start'});field('name').focus();
   }
   async function load() {
-    $('#status').textContent='Loading contracts…';try {const r=await fetch('api/contracts',{cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();items=data.contracts;projections=data.projections;series=data.series||{};baselines=data.series_without_overpayments||{};recipients=data.recipients;$('#status').textContent='';render();}
+    $('#status').textContent='Loading contracts…';try {const r=await fetch('api/contracts',{cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();items=data.contracts;projections=data.projections;series=data.series||{};baselines=data.series_without_overpayments||{};mortgageTerms=data.mortgage_terms||{};recipients=data.recipients;$('#status').textContent='';render();}
     catch(e){$('#status').textContent='Could not load contracts. Please try again.';}
   }
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));editor.hidden=true;render();});
@@ -101,7 +120,7 @@
     const remove=text('button','Remove');remove.type='button';remove.onclick=()=>row.remove();row.append(kind,date,amount,remove);$('#change-list').append(row);
   }
   $('#add-change').onclick=()=>addChange();
-  function syncType(){const custom=field('kind').value==='__custom__';$('#custom-type-label').hidden=!custom;field('kind_custom').required=custom;const k=(custom?field('kind_custom').value:field('kind').value).toLowerCase();const isLoan=k.includes('loan')||k.includes('mortgage'), isInsurance=k.includes('insurance');$('#rate-label').hidden=!isLoan;$('#rate-until-label').hidden=!isLoan;$('#loan-changes').hidden=!isLoan;$('#account-label').hidden=!isLoan;$('#provider-label').hidden=!(isLoan||isInsurance);$('#notes-label').hidden=!(isLoan||isInsurance);$('#policy-label').hidden=!isInsurance;}
+  function syncType(){const custom=field('kind').value==='__custom__';$('#custom-type-label').hidden=!custom;field('kind_custom').required=custom;const k=(custom?field('kind_custom').value:field('kind').value).toLowerCase();const isLoan=k.includes('loan')||k.includes('mortgage'), isInsurance=k.includes('insurance');$('#rate-label').hidden=!isLoan;$('#rate-until-label').hidden=!isLoan;$('#loan-changes').hidden=!isLoan;$('#mortgage-term').hidden=!k.includes('mortgage');$('#account-label').hidden=!isLoan;$('#provider-label').hidden=!(isLoan||isInsurance);$('#notes-label').hidden=!(isLoan||isInsurance);$('#policy-label').hidden=!isInsurance;}
   field('kind').addEventListener('change',syncType);
   field('kind_custom').addEventListener('input',syncType);
   $('#add').onclick=()=>open(null);$('#close').onclick=$('#cancel').onclick=()=>{editor.hidden=true;};
@@ -115,6 +134,7 @@
     }
     for(const key of ['monthly_payment','payment_day','interest_rate_percent']){const value=field(key).value;if(value==='')delete v[key];else v[key]=Number(value);}
     if(field('interest_rate_until').value)v.interest_rate_until=field('interest_rate_until').value;else delete v.interest_rate_until;
+    if(group(v)==='loans' && field('mortgage_term_end').value)v.mortgage_term_end=field('mortgage_term_end').value;else delete v.mortgage_term_end;
     const balance=field('balance').value, balanceDate=field('balance_date').value, settlement=field('settlement').value, settlementDate=field('settlement_date').value;
     if((balance==='')!==(!balanceDate)||(settlement==='')!==(!settlementDate)){ $('#form-status').textContent='Enter both the amount and date, or leave both blank.';return; }
     if(group(v)==='loans'){delete v.balance_snapshot;if(balance!=='')v.observed_balance={amount:Number(balance),as_of:balanceDate};else delete v.observed_balance;}
