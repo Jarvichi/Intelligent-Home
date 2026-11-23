@@ -61,6 +61,33 @@ def validate(c):
             raise ValueError('invalid interest rate') from None
     if c.get('interest_rate_until'):
         dt.date.fromisoformat(c['interest_rate_until'])
+    changes = c.get('loan_changes', [])
+    if not isinstance(changes, list) or len(changes) > 500:
+        raise ValueError('invalid loan changes')
+    for change in changes:
+        if not isinstance(change, dict) or change.get('type') not in ('balance', 'rate', 'payment', 'overpayment', 'recurring_overpayment', 'provider', 'account'):
+            raise ValueError('invalid loan change')
+        dt.date.fromisoformat(change.get('date', ''))
+        if change['type'] in ('provider', 'account'):
+            if not isinstance(change.get('value'), str) or not change['value'].strip() or len(change['value']) > 160:
+                raise ValueError('invalid provider')
+        elif change['type'] == 'rate':
+            try:
+                rate = Decimal(str(change.get('value')))
+                if not rate.is_finite() or not 0 <= rate <= 1000:
+                    raise ValueError('invalid interest rate')
+            except (InvalidOperation, TypeError):
+                raise ValueError('invalid interest rate') from None
+        else:
+            amount = money(change.get('value'))
+            if change['type'] in ('payment', 'overpayment') and amount <= 0:
+                raise ValueError('invalid payment')
+    snapshot = c.get('observed_balance') or c.get('balance_snapshot')
+    if changes and snapshot:
+        label = snapshot['as_of']
+        anchor = dt.date.fromisoformat(label if len(label) == 10 else label + '-01')
+        if any(dt.date.fromisoformat(x['date']) <= anchor for x in changes):
+            raise ValueError('changes must be after the starting balance date')
     return c
 
 
@@ -180,6 +207,8 @@ def loan_projection_series(c):
     The snapshot is assumed to be after that month's payment. A monthly point
     is only included when its month end is within the known rate/term period.
     """
+    if c.get('loan_changes'):
+        return loan_changes_projection(c)
     snapshot = c.get('observed_balance') or c.get('balance_snapshot')
     if not snapshot or 'interest_rate_percent' not in c or not c.get('monthly_payment'):
         return []
@@ -204,6 +233,55 @@ def loan_projection_series(c):
             balance = max(Decimal(0), balance + interest - payment)
             points.append({'date': month.strftime('%Y-%m'), 'balance': float(balance)})
             if balance == 0 or (i >= 11 and points[1]['balance'] >= points[0]['balance']):
+                break
+    except (ValueError, OverflowError, InvalidOperation):
+        return []
+    return points if len(points) > 1 else []
+
+
+def loan_changes_projection(c):
+    """Illustrate monthly payments with dated changes; snapshot months replace the calculation."""
+    snapshot = c.get('observed_balance') or c.get('balance_snapshot')
+    if not snapshot or 'interest_rate_percent' not in c or not c.get('monthly_payment'):
+        return []
+    label = snapshot['as_of']
+    anchor = dt.date.fromisoformat(label if len(label) == 10 else label + '-01')
+    balance, rate, payment = money(snapshot['amount']), Decimal(str(c['interest_rate_percent'])), money(c['monthly_payment'])
+    changes = sorted(c['loan_changes'], key=lambda x: x['date'])
+    if any(dt.date.fromisoformat(x['date']) <= anchor for x in changes):
+        return []  # avoid silently ignoring entries before the initial snapshot
+    expiry = dt.date.fromisoformat(c['interest_rate_until']) if c.get('interest_rate_until') else None
+    end = dt.date.fromisoformat(c['end']) if c.get('end') else None
+    if end and any(x['type'] in ('rate', 'balance') and dt.date.fromisoformat(x['date']) >= end for x in changes):
+        end = None  # a later balance or rate explicitly continues the loan beyond this deal
+    points = [{'date': label, 'balance': float(balance)}]
+    month = anchor.replace(day=1)
+    idx = 0
+    recurring = Decimal(0)
+    try:
+        for _ in range(600):
+            month = (month.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+            month_end = month.replace(day=calendar.monthrange(month.year, month.month)[1])
+            if end and month_end > end:
+                break
+            batch = []
+            while idx < len(changes) and dt.date.fromisoformat(changes[idx]['date']) <= month_end:
+                batch.append(changes[idx]); idx += 1
+            if expiry and month_end > expiry and not any(x['type'] == 'rate' and dt.date.fromisoformat(x['date']) <= expiry + dt.timedelta(days=1) for x in batch):
+                break
+            recorded = False
+            for x in batch:
+                if x['type'] == 'balance': balance, recorded = money(x['value']), True
+                elif x['type'] == 'rate': rate, expiry = Decimal(str(x['value'])), None
+                elif x['type'] == 'payment': payment = money(x['value'])
+                elif x['type'] == 'overpayment': balance = max(Decimal(0), balance - money(x['value']))
+                elif x['type'] == 'recurring_overpayment': recurring = money(x['value'])
+            if not recorded:
+                balance = max(Decimal(0), balance - recurring)
+                interest = (balance * rate / Decimal(1200)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                balance = max(Decimal(0), balance + interest - payment)
+            points.append({'date': month.strftime('%Y-%m'), 'balance': float(balance), **({'recorded': True} if recorded else {})})
+            if balance == 0 and idx >= len(changes):
                 break
     except (ValueError, OverflowError, InvalidOperation):
         return []
