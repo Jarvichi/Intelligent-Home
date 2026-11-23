@@ -8,6 +8,8 @@ Lease cards with a recorded balance, monthly payment and payment day show that s
 
 Loan and mortgage records can include an account number, provider, notes and dated changes to the balance, interest rate, payment or provider. One-off and monthly overpayments can be planned; a later monthly amount of zero stops the plan. The graph compares the plan against the same loan without planned overpayments. The initial balance, rate and monthly payment are the starting point; dated changes must be after the starting balance date. A later balance is a new recorded snapshot, not an estimate.
 
+For mortgages, add a mortgage term end as well as the current rate or deal end to see the agreed period in green and an illustration for the remaining term in grey. The illustration carries the last known rate forward unless another rate is recorded; it is not a forecast of the future rate. Planned overpayments appear as a blue comparison line.
+
 The graph is illustrative: it applies dated changes within their month, calculates nominal annual interest divided by 12, and assumes scheduled payments. A recorded balance replaces the entire calculation for that month. It omits fees, daily accrual and exact payment dates, so figures can differ from the lender. It stops at a known rate end unless a replacement rate starts by the following day, at contract end or after 600 months. Dates on projected points indicate months, not actual payment days.
 
 This add-on stores private contract records in `/data/money.db`. Set a unique API token. Its internal port is not published to the LAN. The health endpoint exposes no financial data; all other endpoints require the token.

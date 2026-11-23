@@ -44,6 +44,7 @@ def make_server(db, recipients, port=8824, peer=INGRESS_PEER, host='0.0.0.0'):
                                          'projections': store.records(db, dt.date.today()),
                                          'series': {c['id']: store.projection_series(c) for c in contracts},
                                          'series_without_overpayments': {c['id']: store.projection_series(dict(c, loan_changes=[x for x in c.get('loan_changes', []) if x.get('type') not in ('overpayment', 'recurring_overpayment')])) for c in contracts if any(x.get('type') in ('overpayment', 'recurring_overpayment') for x in c.get('loan_changes', []))},
+                                         'mortgage_terms': {c['id']: {'agreed': store.mortgage_term_series(c, False), 'plan': store.mortgage_term_series(c, True)} for c in contracts if c.get('mortgage_term_end')},
                                          'recipients': recipients})
             if path in ASSETS:
                 name, content_type = ASSETS[path]

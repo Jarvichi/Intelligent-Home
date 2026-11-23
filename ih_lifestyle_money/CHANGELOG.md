@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Show the agreed mortgage deal in green and the remaining-term illustration in grey, with planned overpayments in blue.
+
 ## 0.5.0
 
 - Record account details and dated loan changes, and compare planned one-off or monthly overpayments against a projection without them.
