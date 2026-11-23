@@ -1,5 +1,11 @@
 'use strict';
 (function(root) {
+  function savingsTotal(scenario) {
+    const original=Object.entries(scenario).filter(([k])=>k.startsWith('pot')).map(([,v])=>v);
+    const extra=scenario.extra_pots??[];
+    if(!Array.isArray(extra) || original.some(v=>!Number.isFinite(v)||v<0) || extra.some(p=>!p || typeof p.name!=='string' || !p.name.trim() || !Number.isFinite(p.amount) || p.amount<0)) throw Error('Check the savings-pot names and amounts.');
+    return original.reduce((sum,v)=>sum+v,0)+extra.reduce((sum,p)=>sum+p.amount,0);
+  }
   function expensesAt(scenario, bucket, month) {
     const breakdown=scenario.expense_breakdown;
     if(!breakdown || !(bucket in breakdown)) return bucket==='essentials'?scenario.essentials:scenario.misc;
@@ -16,7 +22,7 @@
     const birth=a['BIRTH_'+String(i.anchor).toUpperCase()], target=birth+i.targetAge*12;
     if(target<a.START_MONTH || target>a.START_MONTH+1200)throw Error('Check the target age.');
     const income=m=>{let p=i.payHistory[0];for(const x of i.payHistory)if(x.month<=m)p=x;const start=Math.floor((p.month-1)/12)+1;return p.income*Math.pow(1+i.growth,Math.max(0,Math.floor(m/12)-start+1));};
-    const pots=Object.entries(i).filter(([k])=>k.startsWith('pot')).reduce((s,[,v])=>s+(Number(v)||0),0);
+    const pots=savingsTotal(i);
     expensesAt(i,'essentials',a.START_MONTH);expensesAt(i,'other',a.START_MONTH);
     const headroom=m=>income(m)-(a.CURRENT_PAYMENT+a.LEASE_PHONES+(m<=a.VW_ENDS?a.LEASE_VW:0)+(m<=a.KITCHEN_ENDS?a.LEASE_KITCHEN:(i.polestar?i.polestarCost:0))+((i.replaceBMW||m<=a.BMW_ENDS)?a.LEASE_BMW:0)+expensesAt(i,'essentials',m)-(m>i.moveMonth?i.postMove:0)+i.family+i.groceries+expensesAt(i,'other',m)+i.pensionNetCost+(i.lisaOn?a.LISA_TARGET:a.LISA_CURRENT)+pots);
     const extra=i.plannedOverpayment, points=[{month:a.START_MONTH,balance:a.START_BALANCE,phase:'current'}];
@@ -42,6 +48,6 @@
     }
     return {points, atMove, erc, selling, equity, tax, mortgage, payment, targetBalance, target, cleared, stalled, finalMonth:balance===0?m:null, fastMonth:fastBalance===0?fastMonth:null, pushPayment, monthlyRelief:Math.max(0,pushPayment-payment), headroom:headroom(a.START_MONTH), insufficientBudget};
   }
-  root.IHMoneyPlannerModel={model,expensesAt};
-  if(typeof module!=='undefined')module.exports={model,expensesAt};
+  root.IHMoneyPlannerModel={model,expensesAt,savingsTotal};
+  if(typeof module!=='undefined')module.exports={model,expensesAt,savingsTotal};
 })(typeof window==='undefined'?globalThis:window);

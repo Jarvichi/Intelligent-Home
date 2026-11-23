@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4
+
+- Group planner income, spending, savings and mortgage inputs by purpose, explain unfamiliar terms and allow new savings pots to be added.
+
 ## 0.6.3
 
 - Apply the selected monthly overpayment in full before and after a move, and warn when the entered budget cannot support it.
