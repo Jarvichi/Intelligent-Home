@@ -162,6 +162,34 @@ class Library:
                 e["todo"] = True
                 _atomic(self.path, d)
 
+    def set_research(self, player, gid, task_id, next_recheck=None):
+        """Record the IH Tasks task that researches this game (and when to look again)."""
+        with _LOCK:
+            d = self._load()
+            e = d["entries"].get(player, {}).get(gid)
+            if e:
+                e["todo"] = True
+                e["task"] = int(task_id) if task_id else None
+                e["rechecks"] = int(e.get("rechecks") or 0)
+                if next_recheck:
+                    e["next_recheck"] = str(next_recheck)
+                _atomic(self.path, d)
+
+    def bump_recheck(self, player, gid, next_recheck):
+        with _LOCK:
+            d = self._load()
+            e = d["entries"].get(player, {}).get(gid)
+            if e:
+                e["rechecks"] = int(e.get("rechecks") or 0) + 1
+                e["next_recheck"] = str(next_recheck) if next_recheck else None
+                _atomic(self.path, d)
+
+    def research_entries(self):
+        """(player, entry) for every game that has a research task."""
+        with _LOCK:
+            d = self._load()
+        return [(pk, dict(e)) for pk, ents in d["entries"].items() for e in ents.values() if e.get("task")]
+
     def requeue_todo(self, player, titles):
         """Clear the 'handled' mark on the named games (exact title match, case/punctuation-insensitive) so the next
         research sync lists them again. Returns the titles cleared. Never touches games that have a tool."""
@@ -172,6 +200,7 @@ class Library:
             for e in d["entries"].get(player, {}).values():
                 if e.get("todo") and not e.get("tools") and norm(e["title"]) in want:
                     e["todo"] = False
+                    e["task"] = None
                     cleared.append(e["title"])
             if cleared:
                 _atomic(self.path, d)
