@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Money"
-version: "0.6.2"
+version: "0.6.3"
 slug: ih_lifestyle_money
 image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_money"
 description: "Private contracts, leases and loan records with calculated balances."
