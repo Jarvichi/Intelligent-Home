@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- Add a move planner with private SQLite storage, JSON import and backup, editable assumptions and a mortgage/equity projection.
+
 ## 0.5.0
 
 - Record account details and dated loan changes, and compare planned one-off or monthly overpayments against a projection without them.

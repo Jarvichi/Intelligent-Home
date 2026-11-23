@@ -13,6 +13,8 @@ ASSETS = {'/': ('index.html', 'text/html; charset=utf-8'),
           '/ih-ui.css': ('ih-ui.css', 'text/css; charset=utf-8'),
           '/ih-ui.js': ('ih-ui.js', 'text/javascript; charset=utf-8'),
           '/ui.css': ('ui.css', 'text/css; charset=utf-8'),
+          '/planner-model.js': ('planner-model.js', 'text/javascript; charset=utf-8'),
+          '/planner.js': ('planner.js', 'text/javascript; charset=utf-8'),
           '/ui.js': ('ui.js', 'text/javascript; charset=utf-8')}
 
 
@@ -38,6 +40,8 @@ def make_server(db, recipients, port=8824, peer=INGRESS_PEER, host='0.0.0.0'):
         def do_GET(self):
             if not self.allowed(): return
             path = self.path.split('?', 1)[0]
+            if path == '/api/planner':
+                return self.output(200, store.read_planner(db))
             if path == '/api/contracts':
                 contracts = store.raw_records(db)
                 return self.output(200, {'contracts': contracts,
@@ -55,7 +59,8 @@ def make_server(db, recipients, port=8824, peer=INGRESS_PEER, host='0.0.0.0'):
 
         def do_POST(self):
             if not self.allowed(): return
-            if self.path.split('?', 1)[0] != '/api/contracts':
+            path = self.path.split('?', 1)[0]
+            if path not in ('/api/contracts', '/api/planner'):
                 return self.output(404, {'error': 'not found'})
             try:
                 if self.headers.get('Content-Type', '').split(';', 1)[0].strip().lower() != 'application/json':
@@ -63,6 +68,14 @@ def make_server(db, recipients, port=8824, peer=INGRESS_PEER, host='0.0.0.0'):
                 size = int(self.headers.get('Content-Length', '0'))
                 if not 1 <= size <= 65536: raise ValueError('invalid body')
                 body = json.loads(self.rfile.read(size))
+                if path == '/api/planner':
+                    if not isinstance(body, dict) or set(body) != {'data', 'revision'}:
+                        raise ValueError('invalid planner')
+                    try:
+                        revision = store.save_planner(db, body['data'], body['revision'])
+                    except RuntimeError:
+                        return self.output(409, {'error': 'Planner changed in another session. Reload before saving.'})
+                    return self.output(200, {'ok': True, 'revision': revision})
                 if not isinstance(body, dict): raise ValueError('invalid contract')
                 cid = body.get('id')
                 if cid:

@@ -2,6 +2,10 @@
 
 The admin-only Money page in Home Assistant lets you add and edit contracts, lease payments, balance snapshots, settlement quotes and reminders. The page talks to the add-on through Home Assistant ingress and never needs the API token. Existing fields and reminder history are retained when a record is edited. The dashboard sensor refreshes hourly.
 
+The Move planner imports a private `ih-money-planner-v25` JSON file, stores the scenario and starting assumptions in the add-on's SQLite database, and lets you edit and save them. Download a backup before replacing an existing planner. An optimistic revision check refuses stale saves. Planner assumptions are independent of the live loan records: changing one does not update the other. Inputs and calculated outputs stay in the add-on and browser.
+
+The planner replicates the earlier model's monthly repayment, affordability, equity and target-age calculations. Its early repayment charge and residential stamp-duty bands are fixed approximations inherited from the original planner; they are not guaranteed to match a lender, current legislation, location or eligibility. Verify assumptions and figures independently. The imported v25 file contains the embedded defaults, not any separate unsaved browser changes.
+
 Start and end dates can be left blank when they are not known. A contract without an end date has no scheduled end reminder. A loan balance date may specify a month (YYYY-MM) when the exact day is not known.
 
 Lease cards with a recorded balance, monthly payment and payment day show that snapshot and a dashed scheduled-payment estimate. Every point after the snapshot is an assumption, including any past payments; it is not payment history. The graph clamps the last estimate to zero, handles short months, and is omitted when information is missing or the estimate exceeds 600 payments. Payment estimates are also available as text. Settlement quotes are separate dated snapshots.
