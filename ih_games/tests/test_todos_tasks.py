@@ -46,7 +46,9 @@ class Ctx:
         self.calls.append((req.get_method(), req.full_url, body))
         if req.get_method() == 'GET':
             key = req.full_url.split('value=')[1].replace('%3A', ':')
-            if key in self.have: return io.BytesIO(json.dumps({'id': self.have[key]}).encode())
+            if key in self.have:
+                v = self.have[key]
+                return io.BytesIO(json.dumps(v if isinstance(v, dict) else {'id': v, 'stage': 'todo'}).encode())
             raise urllib.error.HTTPError(req.full_url, 404, 'missing', {}, None)
         self.next += 1
         return io.BytesIO(json.dumps({'task': {'id': self.next, 'stage': 'todo'}}).encode())
@@ -71,6 +73,13 @@ class PerGame(unittest.TestCase):
         lib = Lib({'a': game('a', 'Jack Vol. 1', '2026-11-20'), 'b': game('b', 'Jack Vol. 2', '2026-11-20')})
         ctx = Ctx(); todos.sync(lib, ctx, today=TODAY)
         self.assertTrue(all(p.get('allow_duplicate') is True for p in ctx.posts()))
+
+    def test_closed_task_with_the_key_is_skipped_and_a_new_one_made(self):
+        lib = Lib({'a': game('a', 'Closed Before', '2026-11-20')})
+        ctx = Ctx(have={'ihgames:p1:a': {'id': 9, 'stage': 'closed'}})
+        todos.sync(lib, ctx, today=TODAY)
+        self.assertEqual(ctx.posts()[0]['legacy'][0]['value'], 'ihgames:p1:a#2')
+        self.assertEqual(lib.marked['a'][0], 101)
 
     def test_existing_task_is_reused_not_duplicated(self):
         lib = Lib({'a': game('a', 'Known', '2026-11-20')})

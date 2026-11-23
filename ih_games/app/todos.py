@@ -60,25 +60,29 @@ def _facts(entry, player):
 
 
 def _create(ctx, title, desc, priority, due, key):
-    """Create (or find) the task carrying this legacy key. Returns its id."""
-    key = 'ihgames:' + key   # IH Tasks accepts only its own legacy kinds; todo_uid with a namespaced value is the free one
-    q = urllib.parse.urlencode({'kind': 'todo_uid', 'value': key})
-    try:
-        found = _call(ctx, '/legacy?' + q)   # the task itself; a 404 (HTTPError) means none carries the key
-        if found.get('id'):
-            return int(found['id'])
-    except RuntimeError:
-        raise
-    except Exception:
-        pass   # no task carries this key yet (404) or the lookup failed: try to create
-    result = _call(ctx, '/tasks', {'title': title[:200], 'description': desc, 'priority': priority, 'source': 'ih_games',
-                                   'labels': ['games', 'research'], 'due': due.isoformat(),
-                                   'legacy': [{'kind': 'todo_uid', 'value': key}],
-                                   'allow_duplicate': True})   # similar titles (Dawn of War ..., YOU DON'T KNOW JACK ...) are different games; our own legacy key does the dedupe
-    task = result.get('task')
-    if not isinstance(task, dict) or not task.get('id') or task.get('duplicate_of'):
-        raise RuntimeError('IH Tasks did not confirm creation of the research task')
-    return int(task['id'])
+    """Return the id of the OPEN task carrying this game's key, creating one when none exists. A closed task that carries the
+    key (a dropped or wrongly closed one) does not count: the next one gets the key with a #2, #3 ... suffix."""
+    for attempt in range(1, 6):
+        k = 'ihgames:' + key + ('' if attempt == 1 else '#%d' % attempt)   # IH Tasks accepts only its own legacy kinds; todo_uid with a namespaced value is the free one
+        try:
+            found = _call(ctx, '/legacy?' + urllib.parse.urlencode({'kind': 'todo_uid', 'value': k}))   # the task itself; 404 = none
+        except RuntimeError:
+            raise
+        except Exception:
+            found = None   # no task carries this key (404) or the lookup failed: create one
+        if found and found.get('id'):
+            if found.get('stage') != 'closed':
+                return int(found['id'])
+            continue
+        result = _call(ctx, '/tasks', {'title': title[:200], 'description': desc, 'priority': priority, 'source': 'ih_games',
+                                       'labels': ['games', 'research'], 'due': due.isoformat(),
+                                       'legacy': [{'kind': 'todo_uid', 'value': k}],
+                                       'allow_duplicate': True})   # similar titles are different games; our own key does the dedupe
+        task = result.get('task')
+        if not isinstance(task, dict) or not task.get('id') or task.get('duplicate_of'):
+            raise RuntimeError('IH Tasks did not confirm creation of the research task')
+        return int(task['id'])
+    raise RuntimeError('too many closed tasks carry this game key')
 
 
 def sync(lib, ctx, today=None, entity=None):
