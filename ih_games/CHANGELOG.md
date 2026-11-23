@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.1] - 2026-11-23
+
+- Research tasks are created with `allow_duplicate`: IH Tasks was closing games with similar titles (Dawn of War, YOU DON'T KNOW JACK, Trove) as near-duplicates of each other, so 15 of 22 were never queued. The add-on's own per-game key still prevents real duplicates.
+
 ## [0.15.0] - 2026-11-23
 
 - Research is now **one IH Tasks task per game** (was one batch task). Games played in the last 30 days are HIGH priority (due in 7 days); the backlog is LOW (due in 60 days). A game is marked handled only after IH Tasks confirms its task; an existing task for the same game is reused, never duplicated.
