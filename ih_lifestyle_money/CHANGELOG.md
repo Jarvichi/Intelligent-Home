@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Put the add action beside the selected section and name it for the kind of record.
+- Expand insurance cards to show recorded policy details, including optional provider, policy number and cover notes.
+
 ## 0.4.0
 
 - Add interest rates and illustrative loan and mortgage balance graphs.

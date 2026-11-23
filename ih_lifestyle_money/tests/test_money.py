@@ -25,6 +25,15 @@ class MoneyTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def test_insurance_details_survive_edits(self):
+        policy = {'id': 'policy', 'name': 'House cover', 'kind': 'house insurance',
+                  'provider': 'Example', 'policy_number': 'ABC123', 'notes': 'Buildings and contents'}
+        store.save_contract(self.db, policy)
+        saved = store.raw_records(self.db)[0]
+        saved['end'] = '2027-05-01'
+        store.save_contract(self.db, saved)
+        self.assertEqual(store.raw_records(self.db)[0], dict(policy, end='2027-05-01'))
+
     def test_projection_and_short_month(self):
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 16))['remaining_payments'], 3)
         self.assertEqual(store.project(self.c, dt.date(2026, 11, 30))['projected_balance'], 150)
