@@ -22,8 +22,11 @@
     balance=mortgage;let m=i.moveMonth, cleared=null;points.push({month:m,balance,phase:'move'});
     while(balance>0 && m<target){m++;balance=Math.max(0,balance*(1+rate)-Math.max(a.CURRENT_PAYMENT+extra(m),payment));points.push({month:m,balance,phase:'target'});if(!balance)cleared=m;}
     const targetBalance=balance, stalled=balance>0 && payment<=balance*rate;
+    const pushPayment=Math.max(a.CURRENT_PAYMENT+extra(target),payment);
+    let fastBalance=targetBalance, fastMonth=cleared || target;
+    if(fastBalance>0)for(let n=0;fastBalance>0 && n<600;n++){fastMonth++;fastBalance=Math.max(0,fastBalance*(1+rate)-Math.max(a.CURRENT_PAYMENT+extra(fastMonth),payment));}
     if(!stalled)for(let n=0;balance>0 && n<600;n++){m++;balance=Math.max(0,balance*(1+rate)-payment);points.push({month:m,balance,phase:'tail'});}
-    return {points, atMove, erc, selling, equity, tax, mortgage, payment, targetBalance, target, cleared, stalled, headroom:headroom(a.START_MONTH)};
+    return {points, atMove, erc, selling, equity, tax, mortgage, payment, targetBalance, target, cleared, stalled, finalMonth:balance===0?m:null, fastMonth:fastBalance===0?fastMonth:null, pushPayment, monthlyRelief:Math.max(0,pushPayment-payment), headroom:headroom(a.START_MONTH)};
   }
   root.IHMoneyPlannerModel={model};
   if(typeof module!=='undefined')module.exports={model};

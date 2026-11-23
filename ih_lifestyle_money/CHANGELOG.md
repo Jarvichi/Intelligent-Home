@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- Redesign the move planner around the target balance, mortgage journey, moving costs and grouped, interactive assumptions.
+
 ## 0.6.0
 
 - Add a move planner with private SQLite storage, JSON import and backup, editable assumptions and a mortgage/equity projection.
