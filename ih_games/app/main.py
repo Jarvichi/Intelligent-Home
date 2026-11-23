@@ -73,6 +73,8 @@ def load_options(path=None):
         "destiny_reset_utc_hour": int(o.get("destiny_reset_utc_hour") if o.get("destiny_reset_utc_hour") is not None else 17),
         "todo_entity": str(o.get("todo_entity") or "todo.claude_to_do").strip(),
         "todo_sync": o.get("todo_sync") is not False,
+        "tasks_api_url": str(o.get("tasks_api_url") or "").strip().rstrip("/"),
+        "tasks_api_token": str(o.get("tasks_api_token") or "").strip(),
     }
 
 def _snip(s, n=200):
@@ -269,7 +271,10 @@ class Module:
                             for player in self.opts.get("players", []):
                                 PROVIDERS[p_name].run(ctx, player)
                     self.library.refresh()
-                    self.todo_sync()
+                    try:
+                        self.todo_sync()
+                    except Exception as ex:
+                        self.log('IH Tasks research sync failed: ' + type(ex).__name__)
                     try:
                         sensors_mod.publish(self, ctx)
                     except Exception as ex:

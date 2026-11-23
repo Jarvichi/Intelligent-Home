@@ -1,6 +1,6 @@
 
 name: "Intelligent Home Games"
-version: "0.14.1"
+version: "0.14.2"
 slug: ih_games
 image: "ghcr.io/jarvichi/{arch}-ih_games"
 description: "Game activity facts feeds and chat message orchestrator. DRY-RUN by default."
@@ -66,6 +66,8 @@ options:
   destiny_reset_utc_hour: 17
   todo_entity: "todo.claude_to_do"
   todo_sync: true
+  tasks_api_url: ""
+  tasks_api_token: ""
 schema:
   log_payloads: bool?
   mode: list(dry|live)
@@ -117,3 +119,5 @@ schema:
   destiny_reset_utc_hour: int(0,23)?
   todo_entity: str?
   todo_sync: bool?
+  tasks_api_url: str?
+  tasks_api_token: password?

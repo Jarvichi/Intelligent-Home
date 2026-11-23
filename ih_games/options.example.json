@@ -53,5 +53,7 @@
   "arc_data_dir": "",
   "destiny_reset_utc_hour": 17,
   "todo_entity": "todo.claude_to_do",
-  "todo_sync": true
+  "todo_sync": true,
+  "tasks_api_url": "",
+  "tasks_api_token": ""
 }

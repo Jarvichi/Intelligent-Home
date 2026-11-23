@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.14.2] - 2026-11-23
+
+- Queue newly discovered games for research in IH Tasks at normal priority, batching games in a single To do task. Set the IH Tasks worker API URL and token; unconfigured or failed requests leave games pending for retry. IH Work still requires owner approval before implementation.
+
 ## [0.14.1] - 2026-11-20
 
 ### Changed

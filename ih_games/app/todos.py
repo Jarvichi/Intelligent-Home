@@ -1,66 +1,65 @@
-"""One standing 'Games: check for new games' to-do (owner request, 11 Nov 2026; replaces one to-do per game, which flooded the list with 100+ items).
-Created on todo.claude_to_do through the add-on's own HA access (homeassistant_api: true). New library games that have no tool and no
-to-do yet are listed in the description of the ONE open item (created when none is open, due in DUE_DAYS). Each game is marked once, so it is
-listed once. Games with a tool module never appear."""
+"""Batch newly discovered games into an IH Tasks research item."""
 import datetime
-import library as L
+import json
+import urllib.request
 
-ENTITY = "todo.claude_to_do"
+SUMMARY = 'Games: check for new games'
 DUE_DAYS = 7
-SUMMARY = "Games: check for new games"
-MAX_LISTED = 60
-HOW = ("Research and try ways to track progress/help/etc for each game listed below (check free APIs/data sets, community tools; "
-       "propose ONE option to the player via their assistant DM). How to add a tool once approved: brain note "
-       "projects/ih-games-hub-design, section 'Adding a game tool' (games_cli.py newtool). Tick the item when the list is dealt with; "
-       "a new item appears when more games arrive.")
+HOW = ('Research the listed games for useful progress trackers, including quest checklists where appropriate. '
+       'Check available APIs and reusable data sources, assess spoilers and propose an approach. '
+       'Preserve player progress and do not claim automatic quest tracking without verifying it.')
 
 
-def open_items(ha, entity=ENTITY):
-    r = ha("services/todo/get_items?return_response", {"entity_id": entity, "status": ["needs_action"]})
-    sr = (r or {}).get("service_response") or {}
-    return (sr.get(entity) or {}).get("items") or []
+def _call(ctx, path, body=None):
+    url = str(ctx.opts.get('tasks_api_url') or '').strip().rstrip('/')
+    token = str(ctx.opts.get('tasks_api_token') or '').strip()
+    if not url or not token:
+        raise RuntimeError('IH Tasks is not configured (tasks_api_url and tasks_api_token required)')
+    req = urllib.request.Request(url + path, data=None if body is None else json.dumps(body).encode(),
+                                 headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+                                 method='GET' if body is None else 'POST')
+    with ctx.open(req, timeout=10) as response:
+        result = json.load(response)
+    if not isinstance(result, dict):
+        raise RuntimeError('IH Tasks returned an invalid response')
+    return result
 
 
-def summary_for(title=None):
-    return SUMMARY
+def _line(row):
+    return '- %s (%s)' % (row['title'], ', '.join(row['players']))
 
 
-def standing_item(items):
-    """The open 'check for new games' item, or None."""
-    n = L.norm(SUMMARY)
-    for i in items:
-        if L.norm(i.get("summary") or "") == n:
-            return i
-    return None
-
-
-def _lines(rows):
-    return "\n".join("- %s (%s)" % (r["title"], ", ".join(r["players"])) for r in rows[:MAX_LISTED]) + (
-        "\n- ... and %d more" % (len(rows) - MAX_LISTED) if len(rows) > MAX_LISTED else "")
-
-
-def sync(lib, ctx, today=None, entity=ENTITY):
-    """Add new games to the standing to-do. Dry: only logs. Returns (listed titles, []). Second value kept for the API shape."""
-    today = today or datetime.date.today()
+def sync(lib, ctx, today=None, entity=None):
+    """Record candidates only after IH Tasks confirms the batch was saved."""
     cand = lib.games_without_todo()
     if not cand:
         return [], []
-    titles = [r["title"] for r in cand]
     if ctx.dry:
-        ctx.log("[DRY] would list %d new game(s) in the to-do '%s'" % (len(cand), SUMMARY))
+        ctx.log('[DRY] would queue new games in IH Tasks')
         return [], []
-    item = standing_item(open_items(ctx.ha, entity))
+    rows = _call(ctx, '/tasks?stage=todo&q=Games%3A%20check%20for%20new%20games').get('tasks')
+    if not isinstance(rows, list):
+        raise RuntimeError('IH Tasks returned an invalid task list')
+    item = next((t for t in rows if t.get('title') == SUMMARY and t.get('source') == 'ih_games'), None)
     if item:
-        old = item.get("description") or ""
-        fresh = [r for r in cand if L.norm(r["title"]) not in L.norm(old)]
-        if fresh:
-            ctx.ha("services/todo/update_item", {"entity_id": entity, "item": item.get("uid") or item.get("summary"),
-                                                  "description": old.rstrip() + "\n" + _lines(fresh)})
+        task = _call(ctx, '/tasks/%d' % int(item['id']))
+        if task.get('stage') != 'todo':
+            raise RuntimeError('IH Tasks research item changed stage; retry later')
+        old = task.get('description') or ''
+        existing = set(old.splitlines())
+        missing = [_line(r) for r in cand if _line(r) not in existing]
+        if missing:
+            _call(ctx, '/tasks/%d/edit' % int(item['id']), {'description': old.rstrip() + '\n' + '\n'.join(missing)})
     else:
-        due = (today + datetime.timedelta(days=DUE_DAYS)).isoformat()
-        ctx.ha("services/todo/add_item", {"entity_id": entity, "item": SUMMARY, "due_date": due,
-                                          "description": HOW + "\n\nNew games:\n" + _lines(cand)})
-    for r in cand:
-        for pk, gid in r["ids"].items():
-            lib.mark_todo(pk, gid)
-    return titles, []
+        body = {'title': SUMMARY, 'description': HOW + '\n\nNew games:\n' + '\n'.join(_line(r) for r in cand),
+                'priority': 'normal', 'source': 'ih_games', 'labels': ['games', 'research'],
+                'due': ((today or datetime.date.today()) + datetime.timedelta(days=DUE_DAYS)).isoformat(),
+                'allow_duplicate': True}
+        result = _call(ctx, '/tasks', body)
+        task = result.get('task')
+        if not isinstance(task, dict) or not task.get('id') or task.get('stage') != 'todo':
+            raise RuntimeError('IH Tasks did not confirm creation of the research task')
+    for row in cand:
+        for player, game_id in row['ids'].items():
+            lib.mark_todo(player, game_id)
+    return [r['title'] for r in cand], []

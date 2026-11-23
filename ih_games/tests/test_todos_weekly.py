@@ -1,70 +1,68 @@
-import os, sys, unittest
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 import datetime
+import io
+import json
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import todos
 
 
 class Lib:
-    def __init__(self, rows):
-        self.rows, self.marked = rows, []
+    def __init__(self, rows): self.rows, self.marked = rows, []
+    def games_without_todo(self): return self.rows
+    def mark_todo(self, player, gid): self.marked.append((player, gid))
 
-    def games_without_todo(self):
-        return self.rows
 
-    def mark_todo(self, pk, gid):
-        self.marked.append((pk, gid))
+def row(title):
+    return {'title': title, 'players': ['p1'], 'ids': {'p1': 'id-' + title}}
 
 
 class Ctx:
-    def __init__(self, items, dry=False):
-        self.dry, self.calls, self.items, self.logs = dry, [], items, []
-
-    def log(self, m):
-        self.logs.append(m)
-
-    def ha(self, path, data=None):
-        self.calls.append((path, data))
-        if path.startswith("services/todo/get_items"):
-            return {"service_response": {"todo.claude_to_do": {"items": self.items}}}
-        return {}
+    def __init__(self, responses=(), dry=False):
+        self.dry, self.opts, self.responses, self.calls = dry, {'tasks_api_url': 'http://tasks', 'tasks_api_token': 'test'}, list(responses), []
+    def log(self, text): pass
+    def open(self, req, timeout=10):
+        self.calls.append((req.get_method(), req.full_url, json.loads(req.data) if req.data else None))
+        value = self.responses.pop(0)
+        if isinstance(value, Exception): raise value
+        return io.BytesIO(json.dumps(value).encode())
 
 
-def row(t):
-    return {"title": t, "id": "i-" + t, "players": ["p1"], "ids": {"p1": "i-" + t}}
-
-
-class WeeklyTodo(unittest.TestCase):
-    def test_creates_one_item_for_many_games(self):
-        lib, ctx = Lib([row("A"), row("B"), row("C")]), Ctx([])
+class TasksQueue(unittest.TestCase):
+    def test_batch_creates_normal_priority_task(self):
+        lib, ctx = Lib([row('A'), row('B')]), Ctx([{'tasks': []}, {'task': {'id': 1, 'stage': 'todo'}}])
         made, _ = todos.sync(lib, ctx, today=datetime.date(2026, 11, 11))
-        adds = [c for c in ctx.calls if c[0] == "services/todo/add_item"]
-        self.assertEqual(len(adds), 1)
-        self.assertEqual(adds[0][1]["item"], "Games: check for new games")
-        self.assertEqual(adds[0][1]["due_date"], "2026-11-18")
-        self.assertIn("- B (p1)", adds[0][1]["description"])
-        self.assertEqual(len(lib.marked), 3)
-        self.assertEqual(made, ["A", "B", "C"])
+        data = ctx.calls[1][2]
+        self.assertEqual(data['priority'], 'normal')
+        self.assertEqual(data['due'], '2026-11-18')
+        self.assertIn('- B (p1)', data['description'])
+        self.assertEqual(made, ['A', 'B'])
+        self.assertEqual(len(lib.marked), 2)
 
-    def test_appends_to_open_item(self):
-        item = {"uid": "u1", "summary": "Games: check for new games", "description": "x\n- A (p1)"}
-        lib, ctx = Lib([row("A"), row("D")]), Ctx([item])
-        todos.sync(lib, ctx)
-        upd = [c for c in ctx.calls if c[0] == "services/todo/update_item"]
-        self.assertEqual(len(upd), 1)
-        self.assertTrue(upd[0][1]["description"].endswith("- D (p1)"))
-        self.assertNotIn("add_item", " ".join(c[0] for c in ctx.calls))
+    def test_append_to_existing_todo(self):
+        item = {'id': 2, 'title': todos.SUMMARY, 'source': 'ih_games'}
+        ctx = Ctx([{'tasks': [item]}, {'id': 2, 'stage': 'todo', 'description': 'Plan\n- A (p1)'}, {'id': 2}])
+        lib = Lib([row('A'), row('B')]); todos.sync(lib, ctx)
+        self.assertEqual(ctx.calls[-1][2]['description'], 'Plan\n- A (p1)\n- B (p1)')
+        self.assertEqual(len(lib.marked), 2)
 
-    def test_dry_changes_nothing(self):
-        lib, ctx = Lib([row("A")]), Ctx([], dry=True)
-        todos.sync(lib, ctx)
-        self.assertEqual(ctx.calls, [])
+    def test_failure_and_dry_do_not_mark(self):
+        for ctx in (Ctx(dry=True), Ctx([OSError('unavailable')]), Ctx()):
+            lib = Lib([row('A')])
+            if not ctx.dry and not ctx.responses: ctx.opts['tasks_api_token'] = ''
+            if ctx.dry: todos.sync(lib, ctx)
+            else:
+                with self.assertRaises((OSError, RuntimeError)): todos.sync(lib, ctx)
+            self.assertEqual(lib.marked, [])
+
+    def test_changed_stage_is_not_edited(self):
+        item = {'id': 2, 'title': todos.SUMMARY, 'source': 'ih_games'}
+        ctx = Ctx([{'tasks': [item]}, {'id': 2, 'stage': 'approved'}]); lib = Lib([row('A')])
+        with self.assertRaises(RuntimeError): todos.sync(lib, ctx)
         self.assertEqual(lib.marked, [])
-
-    def test_nothing_new(self):
-        lib, ctx = Lib([]), Ctx([])
-        self.assertEqual(todos.sync(lib, ctx), ([], []))
-        self.assertEqual(ctx.calls, [])
+        self.assertEqual(len(ctx.calls), 2)
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == '__main__': unittest.main()
