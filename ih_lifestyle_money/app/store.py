@@ -12,6 +12,7 @@ def open_store(path):
     db.execute("CREATE TABLE IF NOT EXISTS contracts (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS sent (key TEXT PRIMARY KEY, sent_date TEXT NOT NULL)")
     db.execute("CREATE TABLE IF NOT EXISTS deliveries (key TEXT NOT NULL, recipient TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY (key, recipient))")
+    db.execute("CREATE TABLE IF NOT EXISTS planner (id INTEGER PRIMARY KEY CHECK (id=1), revision INTEGER NOT NULL, data TEXT NOT NULL)")
     db.commit()
     return db
 
@@ -167,6 +168,27 @@ def records(db, today):
 
 def raw_records(db):
     return [json.loads(row[0]) for row in db.execute('SELECT data FROM contracts ORDER BY id')]
+
+
+def read_planner(db):
+    row = db.execute('SELECT revision, data FROM planner WHERE id=1').fetchone()
+    return {'revision': row[0], 'data': json.loads(row[1])} if row else {'revision': 0, 'data': None}
+
+
+def save_planner(db, data, revision):
+    if not isinstance(data, dict) or data.get('format') != 'ih-money-planner-v25' or not isinstance(data.get('anchors'), dict) or not isinstance(data.get('scenario'), dict):
+        raise ValueError('invalid planner data')
+    if type(revision) is not int or revision < 0:
+        raise ValueError('invalid revision')
+    encoded = json.dumps(data, allow_nan=False)
+    if len(encoded.encode()) > 60000:
+        raise ValueError('planner data too large')
+    with db:
+        current = db.execute('SELECT revision FROM planner WHERE id=1').fetchone()
+        if (current[0] if current else 0) != revision:
+            raise RuntimeError('planner changed')
+        db.execute('INSERT INTO planner (id,revision,data) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,data=excluded.data', (revision+1, encoded))
+    return revision+1
 
 
 def projection_series(c):

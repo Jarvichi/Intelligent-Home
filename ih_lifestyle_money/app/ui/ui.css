@@ -4,3 +4,4 @@
 .change-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.change-row button{align-self:end}
 .graph-baseline{fill:none;stroke:var(--ih-muted);stroke-width:3;stroke-dasharray:3 6}
 .graph-agreed{fill:none;stroke:var(--ih-ok);stroke-width:4}.graph-plan{fill:none;stroke:#3775d6;stroke-width:3;stroke-dasharray:8 5}
+#planner-results svg{display:block;width:100%;max-height:240px;margin:16px 0}#planner details{margin:16px 0}#planner summary{cursor:pointer;min-height:44px;padding-top:10px;font-weight:700}#planner label input[type=checkbox]{width:22px;min-height:22px}#planner-file{margin:8px 0}#planner-content .primary{margin-top:16px}

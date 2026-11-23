@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- Add a move planner with private SQLite storage, JSON import and backup, editable assumptions and a mortgage/equity projection.
+
 ## 0.5.1
 
 - Show the agreed mortgage deal in green and the remaining-term illustration in grey, with planned overpayments in blue.
