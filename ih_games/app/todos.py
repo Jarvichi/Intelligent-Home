@@ -73,7 +73,8 @@ def _create(ctx, title, desc, priority, due, key):
         pass   # no task carries this key yet (404) or the lookup failed: try to create
     result = _call(ctx, '/tasks', {'title': title[:200], 'description': desc, 'priority': priority, 'source': 'ih_games',
                                    'labels': ['games', 'research'], 'due': due.isoformat(),
-                                   'legacy': [{'kind': 'todo_uid', 'value': key}]})
+                                   'legacy': [{'kind': 'todo_uid', 'value': key}],
+                                   'allow_duplicate': True})   # similar titles (Dawn of War ..., YOU DON'T KNOW JACK ...) are different games; our own legacy key does the dedupe
     task = result.get('task')
     if not isinstance(task, dict) or not task.get('id') or task.get('duplicate_of'):
         raise RuntimeError('IH Tasks did not confirm creation of the research task')

@@ -67,6 +67,11 @@ class PerGame(unittest.TestCase):
         self.assertEqual(by['Games: research a tracker for Backlog']['due'], '2027-01-22')
         self.assertEqual(set(lib.marked), {'a', 'b'})
 
+    def test_similar_titles_are_not_treated_as_duplicates(self):
+        lib = Lib({'a': game('a', 'Jack Vol. 1', '2026-11-20'), 'b': game('b', 'Jack Vol. 2', '2026-11-20')})
+        ctx = Ctx(); todos.sync(lib, ctx, today=TODAY)
+        self.assertTrue(all(p.get('allow_duplicate') is True for p in ctx.posts()))
+
     def test_existing_task_is_reused_not_duplicated(self):
         lib = Lib({'a': game('a', 'Known', '2026-11-20')})
         ctx = Ctx(have={'ihgames:p1:a': 55})
