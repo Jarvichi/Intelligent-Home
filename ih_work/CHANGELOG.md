@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.1] - 2026-11-24
+
+### Changed
+- The weekly stop is 98% (was 90%). Under pace, a week at 90% or more only happens in the last ~17 hours before the weekly reset, so the old 90% stop kept the queue paused while pace was -3 and wasted the last ~6% of the week (24 Nov 2026: reset at 94% used). The pace gate and the 5-hour session limit still apply.
+
 ## [0.10.0] - 2026-11-21
 
 ### Changed
