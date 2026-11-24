@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.5
+
+- Stops dead Chromium helper processes piling up in the add-on (the add-on ran out of threads again on 24 Nov). The add-on had no init process, so Python was PID 1 and never cleaned up the helpers Chromium leaves behind after each picture; every refresh left a few more until nothing could start. `init: true` makes the add-on start with a tiny init that cleans them up.
+
 ## 0.15.4
 
 - Stops the add-on running out of threads (`can't start new thread`, 22 Nov) when several pictures are drawn at once. Every panel used to start its own pool of 8 to 12 threads inside the main drawing pool, so one busy draw could hold over 100 threads. All the per-entity lookups now share one pool capped at 16 threads.

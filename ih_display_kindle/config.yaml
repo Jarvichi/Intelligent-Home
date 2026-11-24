@@ -1,5 +1,5 @@
 name: "Intelligent Home - Kindle Display"
-version: "0.15.4"
+version: "0.15.5"
 slug: ih_display_kindle
 image: "ghcr.io/jarvichi/{arch}-ih_display_kindle"
 description: "Preview an existing Kindle display picture."
@@ -10,7 +10,7 @@ startup: application
 map:
   - addon_config:rw
 boot: manual
-init: false
+init: true
 homeassistant_api: true
 ingress: true
 ingress_port: 8840
