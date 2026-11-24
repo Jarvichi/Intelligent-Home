@@ -92,7 +92,7 @@ class Pure(unittest.TestCase):
         run['started'] = 0
         self.assertIn('stop-by', e(now=now + timedelta(hours=1)))
         self.assertIn('session', e(session=90.0))
-        self.assertIn('week', e(week=95.0))
+        self.assertIn('week', e(week=99.0))
         self.assertIn('STOP', e(stopped=True))
         self.assertEqual(e(pace=0.5), '')                    # scheduled run, nothing started yet: it waits
         run['started'] = 1

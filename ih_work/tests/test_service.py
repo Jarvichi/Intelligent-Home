@@ -165,7 +165,7 @@ class Claim(Base):
         self.make(); self.handoff(); self.pace(5.0)
         self.r.v['session'] = 90.0; self.svc._reading = (0, None, '')
         self.assertIn('session', self.svc.claim('w')['reason'])
-        self.r.v['session'] = 10.0; self.r.v['week'] = 95.0; self.svc._reading = (0, None, '')
+        self.r.v['session'] = 10.0; self.r.v['week'] = 99.0; self.svc._reading = (0, None, '')
         self.assertIn('week', self.svc.claim('w')['reason'])
         self.r.v['week'] = 40.0; self.svc._reading = (0, None, '')
         self.svc.URGENT_PER_DAY = 2

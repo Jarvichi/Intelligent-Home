@@ -6,11 +6,11 @@ Each band has a START and a STOP level (start < stop):
   DRAINING: keep taking work one item at a time while pace < STOP. At STOP or higher, stop (a running item finishes) and go IDLE.
 Day (default 06:00-23:00): start below -5.0, stop at -4.0.  Night (23:00-06:00): start below -1.0, stop at 0.0.
 When the clock moves from one band to the other, DRAINING is dropped at once, so the next item starts only if the NEW band allows a start.
-Other safeguards: 5-hour session < 85%, week < 90%, no item cap (pace is the limit), STOP switch, pace unreadable = nothing runs."""
+Other safeguards: 5-hour session < 85%, week < 98%, no item cap (pace is the limit), STOP switch, pace unreadable = nothing runs."""
 from collections import namedtuple
 
 SESSION_STOP = 85
-WEEK_STOP = 90
+WEEK_STOP = 98   # was 90: under pace, week >= 90% only happens in the last ~17 h before the reset, where 90 wasted the last tokens (24 Nov: 94% used, nothing ran overnight)
 PER_HOUR = 0    # no item cap: the pace levels are the only limit (0.1.1). Set a number here only for a hard hourly cap.
 PACE_PER_HOUR = 100 / 168     # pace falls this many points an hour with no more usage
 

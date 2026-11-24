@@ -92,7 +92,8 @@ class Switch(unittest.TestCase):
 class Limits(unittest.TestCase):
     def test_session_and_week(self):
         self.assertFalse(d('idle', -9, session=85).ok)
-        self.assertFalse(d('idle', -9, week=90).ok)
+        self.assertTrue(d('idle', -9, week=94).ok)    # 24 Nov 2026: 94% used and under pace must still work
+        self.assertFalse(d('idle', -9, week=98).ok)
         r = d('draining', -9, session=90)
         self.assertEqual(r.mode, 'draining')
         self.assertIn('5-hour session at 90%', r.reason)
