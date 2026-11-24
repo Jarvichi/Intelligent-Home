@@ -60,6 +60,10 @@ class Tests(unittest.TestCase):
             with self.subTest(kwargs=kwargs):
                 result=make(values,**kwargs).read()
                 self.assertFalse(result['complete']);self.assertEqual([x['kind'] for x in result['alerts']],['smoke'])
+    def test_offline_smoke_alarm_is_named(self):
+        values=base();values.update({SMOKE:state('unavailable',{'friendly_name':'Smoke alarm'})})
+        result=make(values).read();self.assertFalse(result['complete']);self.assertEqual(result['offline'],['Smoke alarm'])
+        values[SMOKE]=state('off');self.assertEqual(make(values).read()['offline'],[])
     def test_unavailable_sources_never_report_complete(self):
         values=base();values.update({SMOKE:state('on'),POWER:state('unavailable',{'events':[]})})
         result=make(values,power=POWER).read();self.assertFalse(result['complete']);self.assertEqual(result['alerts'][0]['kind'],'smoke')

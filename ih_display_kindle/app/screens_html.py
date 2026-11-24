@@ -75,7 +75,7 @@ def cooking(cook, alerts=None):
         if isinstance(row, dict) and line_y + 28 + i * 54 + 20 < 990:
             steps.append({'at': row.get('at', ''), 'text': ('✓ ' if row.get('done') else '') + str(row.get('text') or '')})
     life = [str(x.get('title') or '') for x in (alerts.get('alerts') or []) if isinstance(x, dict) and x.get('kind') in ('smoke', 'co')] if isinstance(alerts, dict) else []
-    status = 'Alert sources not configured' if isinstance(alerts, dict) and alerts.get('configured') is False else 'Alert sources unavailable' if alerts is None or (isinstance(alerts, dict) and not alerts.get('complete')) else ''
+    status = 'Alert sources not configured' if isinstance(alerts, dict) and alerts.get('configured') is False else (('Offline: '+', '.join(alerts['offline'][:2])) if isinstance(alerts,dict) and alerts.get('offline') else 'Alert sources unavailable') if alerts is None or (isinstance(alerts, dict) and not alerts.get('complete')) else ''
     return render('cooking.html', title=cook.get('title') or 'Cooking', eat=str(cook.get('eat') or '—'),
                   oven=(str(target) + '° target') if isinstance(target, (float, int)) and not isinstance(target, bool) else 'Unavailable',
                   next_h=next_h, next_rows=[str(r.get('at') or '') + ' ' + str(r.get('text') or '') for r in shown],

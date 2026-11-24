@@ -32,6 +32,9 @@ class Tests(unittest.TestCase):
     def test_unavailable_state_is_visible(self):
         image=kindle_render.svg({'tasks':None,'tasks_configured':True,'tasks_partial':True},None,now=0)
         self.assertIn(b'Weather not configured',image);self.assertIn(b'Task sources unavailable',image);self.assertIn(b'Alert sources unavailable',image)
+    def test_offline_alarm_is_named(self):
+        image=kindle_render.svg({},{'configured':True,'complete':False,'alerts':[],'offline':['Smoke alarm']},now=0)
+        self.assertIn(b'Offline: Smoke alarm',image);self.assertNotIn(b'Alert sources unavailable',image)
     def test_life_safety_alerts_survive_multiple_other_alerts(self):
         alerts={'configured':True,'complete':False,'alerts':[{'kind':'free','title':'Free power'},{'kind':'saving','title':'Saving session'},{'kind':'smoke','title':'SMOKE ALARM'},{'kind':'co','title':'CO ALARM'},{'kind':'robot','title':'Robot stopped'}]}
         for now in (0,300,600):

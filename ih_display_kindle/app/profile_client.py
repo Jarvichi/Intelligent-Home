@@ -64,5 +64,6 @@ class ProfileClient:
             for item in value['alerts']:
                 if not isinstance(item,dict) or item.get('kind') not in ('smoke','co','robot','free','saving') or not isinstance(item.get('title'),str) or not item['title'].strip() or not isinstance(item.get('short'),str) or type(item.get('dismissible')) is not bool:return None
                 if item['dismissible'] != (item['kind'] in ('free','saving')):return None
+            off=value.get('offline');value['offline']=[n.strip() for n in off[:4] if isinstance(n,str) and re.fullmatch(r"[A-Za-z0-9 ._'()-]{1,40}",n.strip())] if isinstance(off,list) else []
             return value
         except (OSError,ValueError,urllib.error.URLError,http.client.HTTPException):return None

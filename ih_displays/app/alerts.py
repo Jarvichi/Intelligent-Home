@@ -54,13 +54,21 @@ class Alerts:
         ids=list(dict.fromkeys(e for e in ids if e))
         with ThreadPoolExecutor(max_workers=12) as pool:values=dict(zip(ids,pool.map(self.get,ids)))
         now=self.clock();life=[];robot_alerts=[];energy=[]
+        offline=[]
+        def name_of(e):
+            v=values.get(e);n=v.get('attributes',{}).get('friendly_name') if isinstance(v,dict) and isinstance(v.get('attributes'),dict) else None
+            return (n if isinstance(n,str) and n.strip() else e.split('.',1)[-1].replace('_',' '))[:40]
         for entity in smoke:
             state=robot_tasks.state(values,entity)
-            if state not in ('on','off'):complete=False
+            if state not in ('on','off'):
+                complete=False
+                if state in ('unavailable','unknown'):offline.append(name_of(entity))
         if any(robot_tasks.state(values,e)=='on' for e in smoke):life.append(flag('smoke','SMOKE ALARM'))
         if sources['co']:
             state=robot_tasks.state(values,sources['co'])
-            if state not in ('on','off'):complete=False
+            if state not in ('on','off'):
+                complete=False
+                if state in ('unavailable','unknown'):offline.append(name_of(sources['co']))
             if state=='on':life.append(flag('co','CARBON MONOXIDE','CO ALARM'))
         mower_stored='stored' in invalid
         if sources['stored'] and any(r['kind']=='mower' for r in robots):
@@ -144,4 +152,4 @@ class Alerts:
                 raw=value.get('state');dismissed=iso(raw)
                 if not isinstance(raw,str) or (raw and dismissed is None):complete=False;energy=[]
                 elif dismissed is not None and 0<=now-dismissed<5400:energy=[]
-        return {'configured':True,'complete':complete,'alerts':energy+life+robot_alerts}
+        return {'configured':True,'complete':complete,'alerts':energy+life+robot_alerts,'offline':offline}
