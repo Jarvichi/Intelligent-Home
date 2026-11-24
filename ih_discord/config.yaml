@@ -1,5 +1,5 @@
 name: "Intelligent Home - Discord"
-version: "0.10.11"
+version: "0.11.0"
 slug: ih_discord
 image: "ghcr.io/jarvichi/{arch}-ih_discord"
 description: "Discord transport: holds the one bot token, reads each channel once (cursor + journal) and lets separate feature add-ons (ih_discord_house, ih_discord_shopping, ...) answer through a signed MQTT bus. No commands of its own since 0.7.0. Since 0.8.0 it can also administer channels for a module that is granted this (all off by default). DRY-RUN by default: a module writes to Discord only when dry_run is off and it is in live_modules. Maps no folders."
@@ -79,6 +79,11 @@ options:
   approvals_live: false
   giphy_api_key: ""
   personas: ""
+  inbox_events: "shadow"
+  inbox_url: "http://172.30.32.1:8800"
+  inbox_token: ""
+  inbox_user_id: ""
+  inbox_claude_channel: ""
 schema:
   log_payloads: bool?
   discord_token: password
@@ -169,3 +174,8 @@ schema:
   approvals_live: bool?
   giphy_api_key: password?
   personas: password?
+  inbox_events: list(shadow|live)?
+  inbox_url: str?
+  inbox_token: password?
+  inbox_user_id: str?
+  inbox_claude_channel: str?

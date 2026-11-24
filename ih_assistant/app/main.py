@@ -20,9 +20,10 @@ import dates as datesmod
 import reminders as remmod
 import gateway as gatewaymod
 import hearth as hearthmod
+import inbox_events as inboxmod
 import random
 
-VERSION = '0.23.0'
+VERSION = '0.24.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -184,6 +185,7 @@ def load_options(path):
             'max_per_day': max(0, mpd),
             'checkins': sorted({c for c in (p.get('checkins') or []) if isinstance(c, str) and HHMM.match(c)}),
             'can_tell': [k for k in (p.get('can_tell') or []) if valid_key(k) and k != p['key']],
+            'inbox_reactions': p.get('inbox_reactions') is True,   # 0.24.0: post this person's emoji reactions in the private chat to the orchestration inbox
             'live': p.get('live') is True})
     for uk, ak in (('usage_sensor_session', 'session'), ('usage_sensor_week', 'week'), ('usage_sensor_session_reset', 'session_reset'), ('usage_sensor_week_reset', 'week_reset'), ('usage_sensor_extra_enabled', 'extra_enabled'), ('usage_sensor_extra', 'extra_pct')):
         if isinstance(o.get(uk), str) and ENTITY_RE.match(o[uk].strip()):
@@ -196,6 +198,7 @@ def load_options(path):
             'presence_entities': parse_presence_entities(o.get('presence_entities')),
             'speaker_url': str(o.get('speaker_url') or '').strip().rstrip('/'), 'speaker_token': str(o.get('speaker_token') or '').strip(),
             'hearth': hearthmod.parse_options(o.get('hearth')),
+            'inbox_live': o.get('inbox_events') == 'live', 'inbox_url': str(o.get('inbox_url') or 'http://172.30.32.1:8800').strip().rstrip('/'), 'inbox_token': str(o.get('inbox_token') or '').strip(),
             'personas': personas}, problems
 
 
@@ -231,6 +234,10 @@ class Assistant:
                 self.discord[k] = Discord(p['bot_token'], opener, sleep)
         self.init_push()
         self.hearth = self.make_hearth()
+        self.inbox = None
+        if any(c.get('inbox_reactions') for c in self.cfg.values()) and (opts.get('inbox_token') or not opts.get('inbox_live')):
+            self.inbox = inboxmod.InboxEvents(opts.get('inbox_url'), opts.get('inbox_token'), opts.get('inbox_live'), data_dir, log, clock=clock)
+            self.inbox_at = {}
 
     def make_hearth(self):
         """0.23.0: Hearth, the shared household assistant, when its option is enabled and a household persona with its key exists."""
@@ -1460,7 +1467,7 @@ class Assistant:
                 n = self.tick_poll(key)
         except DiscordError as e:
             self.log('persona %s: poll failed (%s)' % (key, e))
-        for fn in (self.tick_reactions, self.tick_typing):
+        for fn in (self.tick_reactions, self.tick_inbox, self.tick_typing):
             try:
                 fn(key)
             except DiscordError as e:
@@ -2038,6 +2045,23 @@ class Assistant:
                         st.append_event({'type': 'reaction', 'msg_id': a['msg_id'], 'emoji': e['name']}); added += 1
         st.update_state(lambda s: s.__setitem__('react_seen', sorted(cur)[-100:]))
         return added
+
+    def tick_inbox(self, key):
+        """0.24.0: post the person's new emoji reactions on the persona bot's messages to the orchestration inbox (SHADOW = log only). -> number handled."""
+        if self.inbox is None or not self.cfg[key].get('inbox_reactions') or key not in self.discord:
+            return 0
+        now = self.clock()
+        if now - self.inbox_at.get(key, 0) < REACT_EVERY_S:
+            return 0
+        self.inbox_at[key] = now
+        d, uid = self.discord[key], self.cfg[key]['user_id']
+        try:
+            return self.inbox.step_reactions(key, lambda path: d.call('GET', path), self._channel(key), [uid], 'dm-' + key)
+        except DiscordError:
+            raise
+        except Exception as e:
+            self.log('persona %s: inbox events failed (%s)' % (key, type(e).__name__))
+            return 0
 
     def tick_typing(self, key):
         """Typing keepers: show typing every tick until the persona has posted after msg_id, or TYPING_MAX_S passes (then a still_waiting event)."""

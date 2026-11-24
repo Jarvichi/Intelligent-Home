@@ -38,7 +38,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `usage_sensor_session_reset` | No | Setting `usage_sensor_session_reset`. |
 | `usage_sensor_week_reset` | No | Setting `usage_sensor_week_reset`. |
 | `presence_entities` | No | List of `name=entity` texts: each person's home/away switch (read only), shared by every persona. See "Who is home". Default: empty. |
-| `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, and the optional planner settings... |
+| `inbox_events` | No | `shadow` (default) or `live`. Applies to personas with `inbox_reactions: true`: their person's emoji reactions on the persona bot's messages are posted to the orchestration inbox (`kind` `reaction`, source `dm-<key>`, ref = message id + emoji). Shadow only logs "would post" (no text). |
+| `inbox_url` | No | Orchestration inbox address. Default `http://172.30.32.1:8800`. |
+| `inbox_token` | Needed for live | The inbox add-on's `api_token` (secret). |
+| `personas` | No | One entry per person: `key`, `user_id`, `bot_token`, `quiet_start`, `quiet_end`, `max_per_day`, `checkins`, `can_tell`, `live`, `inbox_reactions` (post this person's reactions to the inbox), and the optional planner settings... |
 
 ## Usage auto-reply
 
