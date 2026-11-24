@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- The authenticated alert feed lists the smoke/CO alarms that are unavailable (`offline`), so displays can name the problem.
+
 ## 0.12.0
 
 - Include source identity with actionable household tasks on the authenticated shared display feed.

@@ -142,7 +142,7 @@ def context(data, alerts=None, now=None):
     life = [str(x['title']) for x in entries if x.get('kind') in ('smoke', 'co')]
     motion = [str(x.get('label')) + (': ' + str(x.get('detail')) if x.get('detail') else '') for x in active if x.get('label') == 'Motion while away' and x.get('urgent') is True]
     other = motion + [str(x['title']) for x in entries if x.get('kind') not in ('smoke', 'co')]
-    status = 'Alert sources not configured' if isinstance(alerts, dict) and alerts.get('configured') is False else 'Alert sources unavailable' if alerts is None or (isinstance(alerts, dict) and not alerts.get('complete')) else ''
+    status = 'Alert sources not configured' if isinstance(alerts, dict) and alerts.get('configured') is False else (('Offline: '+', '.join(alerts['offline'][:2])) if isinstance(alerts,dict) and alerts.get('offline') else 'Alert sources unavailable') if alerts is None or (isinstance(alerts, dict) and not alerts.get('complete')) else ''
     slots = max(0, 4 - min(len(life), 2) - (1 if status else 0))
     pages = max(1, (len(other) + slots - 1) // slots) if slots else 1
     page_no = int(stamp // 300) % pages

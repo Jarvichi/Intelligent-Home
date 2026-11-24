@@ -11,7 +11,7 @@ def svg(cooking,alerts=None):
     def pill(x,y,w,label):
         box(x,y,w,40,'white',20);text(x+w/2,y+27,label,18,True,'black','middle')
     life=[str(x.get('title') or '') for x in (alerts.get('alerts') or []) if isinstance(x,dict) and x.get('kind') in ('smoke','co')] if isinstance(alerts,dict) else []
-    status='Alert sources not configured' if isinstance(alerts,dict) and alerts.get('configured') is False else 'Alert sources unavailable' if alerts is None or (isinstance(alerts,dict) and not alerts.get('complete')) else ''
+    status='Alert sources not configured' if isinstance(alerts,dict) and alerts.get('configured') is False else (('Offline: '+', '.join(alerts['offline'][:2])) if isinstance(alerts,dict) and alerts.get('offline') else 'Alert sources unavailable') if alerts is None or (isinstance(alerts,dict) and not alerts.get('complete')) else ''
     warnings=life[:2]+([status] if status else [])
     text(48,100,cooking.get('title') or 'Cooking',46,True);text(48,152,'Eating at '+str(cooking.get('eat') or '—'),30,True);pill(360,122,232,'STOP COOKING')
     box(640,40,384,140);text(832,82,'OVEN',22,True,anchor='middle');target=cooking.get('oven_target');text(832,148,(str(target)+'° target') if isinstance(target,(float,int)) and not isinstance(target,bool) else 'Unavailable',30,True,anchor='middle')
