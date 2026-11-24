@@ -201,8 +201,8 @@ def end_reason(run, now, pace, session, week, stopped):
         return 'stop-by time reached'
     if session is not None and session >= G.SESSION_STOP:
         return '5-hour session limit (%d%%)' % G.SESSION_STOP
-    if week is not None and week >= G.WEEK_STOP:
-        return 'week limit (%d%%)' % G.WEEK_STOP
+    if week is not None and week >= G.week_stop(pace, week):
+        return 'week limit (%g%%)' % G.week_stop(pace, week)
     if pace is not None and pace >= run['pace_target']:
         if run['kind'] == 'now' or effective_started(run) > 0:
             return 'pace target reached (%+.1f)' % pace

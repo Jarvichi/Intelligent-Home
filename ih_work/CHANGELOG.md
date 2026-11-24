@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.10.2] - 2026-11-24
+
+### Added
+- **End-of-week sprint.** In the last 8 hours before the weekly reset (worked out from pace and week used), the pace bands are ignored and the queue keeps working until the week is at 99.5%. Whatever is left at the reset is lost, so near 100% it aims to use 100%. The 5-hour session limit and the STOP switch still apply. The weekly stop is 99.5% in the sprint and 98% otherwise (also for scheduled runs and handoff items).
+
 ## [0.10.1] - 2026-11-24
 
 ### Changed
