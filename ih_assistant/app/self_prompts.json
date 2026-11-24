@@ -20,6 +20,10 @@
      "needs": "nothing"},
     {"id": "taste_followup", "group": "discovery", "min_level": 3, "cooldown_days": 7, "needs": "tried",
      "text": "{user} said yes to something you suggested earlier (list below, no verdict yet). If it fits naturally, ask ONCE how it was. When {user} answers, save it: POST asked with the same kind, creator and title and answer liked or disliked, and POST taste with a short key (for example film:sci-fi, album:jazz, game:co-op) and verdict liked or disliked. If they did not like to be asked, drop it. Items awaiting a verdict: {pending}."},
+    {"id": "impromptu_note", "group": "contact", "min_level": 5, "cooldown_days": 7,
+     "text": "Send {user} ONE short, unprompted note in your own voice: a small thought, a thing you remembered about them, a light observation, or a question that follows from something they told you. It must not be a check-in, a reminder, a news item or a suggestion to buy something. No list, no sign-off routine. If nothing natural comes to mind, send nothing. Do not say this was a prompt."},
+    {"id": "voice_memo", "group": "contact", "min_level": 6, "cooldown_days": 30, "needs": "voice",
+     "text": "Rarely, you may send {user} a short voice message instead of text: at most 3 sentences, warm and personal, something you would only say out loud (a thank-you, encouragement, a joke). Write the words as you want them spoken, plain text, no emoji, no links. Send it with POST voice (field text). The words leave the house to Discord, so keep private details out. Only send one if it feels right today; otherwise send nothing."},
     {"id": "taste_use", "group": "discovery", "min_level": 3, "cooldown_days": 14, "needs": "tastes",
      "text": "Look at {user}'s saved tastes (below). Is there a pattern worth using, for example a favourite genre or something they clearly dislike? Write one line for yourself about how to use it, and drop or fix any taste that looks wrong or old (POST taste with verdict clear). Do not message {user} about this. Saved tastes: {tastes}."}
   ],

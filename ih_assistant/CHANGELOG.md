@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.28.0] - 2026-11-25
+
+### Added
+- Impromptu note and voice memo (slice 4 of the Assistant maintenance prompts). Two private prompts in `app/self_prompts.json` (group `contact`): `impromptu_note` (about weekly, autonomy level 5 and up: one short unprompted note in the persona's own voice, nothing if nothing natural comes to mind) and `voice_memo` (rare: 30 day cooldown, level 6 and up: a short spoken message).
+- `POST /persona/<key>/voice` `{text}` sends the voice memo as a Discord voice message through ih_speaker (`to: discord`, the text is rendered by the speaker's text-to-speech and delivered as a DM). It works only while the `voice_memo` prompt is open, text 1 to 400 characters, one real memo a week, and in dry mode (or for a persona that is not live) it asks ih_speaker for a dry run and sends nothing. The words are never logged, only the status.
+- Per-persona options `voice_memo_user` (the name in ih_speaker's `discord_users`; empty = no voice memos) and `voice_memo_voice` (a name in ih_speaker's `voices`; default the speaker's own). Uses the existing `speaker_url` and `speaker_token`. The `voice_memo` prompt is only offered when all of these are set.
+
 ## [0.27.0] - 2026-11-25
 
 ### Added

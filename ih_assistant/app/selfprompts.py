@@ -69,8 +69,19 @@ def summary_asked(asked, n=40):
     return '; '.join(rows) or 'nothing yet'
 
 
-def usable(p, state):
-    """Whether a prompt can be asked now given the saved discovery state."""
+VOICE_TEXT_MAX = 400
+VOICE_GAP_S = 7 * DAY_S    # 0.28.0: at most one voice memo a week, whatever the prompt does
+
+
+def voice_recent(state, now):
+    """True when a voice memo was really sent in the last VOICE_GAP_S."""
+    return any(isinstance(t, (int, float)) and now - t < VOICE_GAP_S for t in (state.get('voice_log') or []))
+
+
+def usable(p, state, caps=()):
+    """Whether a prompt can be asked now given the saved discovery state. caps = what this persona can do (0.28.0: 'voice' = a speaker and a Discord voice target are set)."""
+    if p.get('needs') == 'voice' and 'voice' not in caps:
+        return False
     if p.get('group') == 'discovery' and state.get('discovery_off'):
         return False
     need = p.get('needs')
