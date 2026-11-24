@@ -45,6 +45,31 @@ def _flat(v):
     return v if isinstance(v, (int, float, bool)) else str(v if v is not None else "")[:300]
 
 
+HOLD_FOR_NAME_MIN = 10
+
+
+def _names_enabled(opts, player):
+    return bool(player.get("psn_online_id")) and "psn_trophy_names" in (opts.get("providers_enabled") or [])
+
+
+def _awaiting_name(opts, player, events, now_dt):
+    """True while a plain trophy event is younger than HOLD_FOR_NAME_MIN and its name may still arrive."""
+    if not _names_enabled(opts, player):
+        return False
+    for e in events:
+        if e.get("kind") != "trophy":
+            continue
+        t = _dt(e.get("time"))
+        if t is None:
+            continue
+        try:
+            if now_dt - t < datetime.timedelta(minutes=HOLD_FOR_NAME_MIN):
+                return True
+        except TypeError:
+            continue
+    return False
+
+
 def send_event(ctx, url, token, persona, payload):
     """POST one event to the persona's inbox in ih_assistant. -> True on success. Never raises; logs only the error type."""
     req = urllib.request.Request(url.rstrip("/") + "/persona/" + urllib.parse.quote(str(persona), safe="") + "/event", data=json.dumps(payload).encode(), method="POST",
@@ -149,6 +174,11 @@ def run(ctx, now=None):
         if not valid_events:
             continue
 
+        # The plain sensor event arrives before the trophy name is looked up.
+        # Hold it up to HOLD_FOR_NAME_MIN minutes so the message can carry the name.
+        if _awaiting_name(opts, p, valid_events, now_dt):
+            continue
+
         has_big = any(e.get("big") for e in valid_events)
         in_quiet = _is_quiet(now_dt, p.get("quiet_start") or q_start, p.get("quiet_end") or q_end)   # per-player override
 
@@ -212,6 +242,9 @@ def run(ctx, now=None):
         elif a_url and sent_ok:
             facts = {"player": pkey, "kind": kind, "game": game, "events": len(valid_events), "big": has_big,
                      "summary": summary_str, "event_time": valid_events[-1]["time"]}
+            names = [str(e.get("achievement")) for e in valid_events if e.get("kind") == "trophy_named" and e.get("achievement")]
+            if names:
+                facts["trophies"] = "; ".join(names)
             payload = {"type": "game_session", "source": "ih_games", "facts": {k: _flat(v) for k, v in facts.items()}, "suggested_text": msg_text[:1000]}
             via_event = send_event(ctx, a_url, str(opts.get("assistant_token") or ""), speaker, payload)
         if sent_ok and not ctx.dry and not via_event:   # outbox: a sender on the host collects these (GET /outbox, POST /ack) and delivers them
