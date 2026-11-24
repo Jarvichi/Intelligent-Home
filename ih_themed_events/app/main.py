@@ -38,7 +38,7 @@ import model as M
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -50,6 +50,8 @@ ASSETS = {'/': 'index.html', '/index.html': 'index.html', '/ui.css': 'ui.css', '
           '/ih-patterns.css': 'ih-patterns.css'}
 EVENT = r'/events/([a-z][a-z0-9_]{1,19})'
 ROUTES = [('GET', r'/events', 'list'), ('POST', r'/events', 'create'), ('GET', EVENT, 'get'), ('POST', EVENT, 'update'), ('POST', EVENT + '/delete', 'delete'),
+          ('GET', r'/entities', 'entities'),
+          ('POST', r'/media', 'media'),
           ('GET', EVENT + '/generate', 'generate'), ('GET', EVENT + '/reviews', 'reviews'), ('POST', EVENT + '/items', 'add_item'),
           ('POST', EVENT + r'/items/(\d{1,9})', 'set_item'), ('POST', EVENT + r'/items/(\d{1,9})/delete', 'delete_item'),
           ('POST', EVENT + '/review', 'review'), ('POST', EVENT + '/mode', 'mode')]
@@ -93,6 +95,31 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
         if not hit:
             continue
         a = hit.groups()
+        if name == 'media':
+            if not ui:
+                raise M.RuleError('forbidden', 'available on the page only')
+            source = _only(body, ('source',)).get('source', 'media-source://media_source/local')
+            root = 'media-source://media_source/local'
+            if not isinstance(source, str) or not (source == root or source.startswith(root + '/')) or '..' in source or len(source) > 1024:
+                raise M.RuleError('bad', 'Choose a folder in local media')
+            try:
+                result = ha.ws({'type': 'media_source/browse_media', 'media_content_id': source})
+            except Exception:
+                raise M.RuleError('conflict', 'Media could not be loaded. Try again.')
+            return 200, {'items': [{'name': x.get('title', ''), 'id': x.get('media_content_id', ''),
+                                    'folder': bool(x.get('can_expand')), 'playable': bool(x.get('can_play'))}
+                                   for x in result.get('children', [])
+                                   if x.get('media_content_id', '') == root or x.get('media_content_id', '').startswith(root + '/')]}
+        if name == 'entities':
+            if not ui:
+                raise M.RuleError('forbidden', 'available on the page only')
+            try:
+                states = ha.get('states') if ha else []
+            except Exception:
+                raise M.RuleError('conflict', 'Home Assistant devices could not be loaded. Try again.')
+            domains = ('light', 'switch', 'media_player', 'automation')
+            return 200, {'entities': [{'id': s['entity_id'], 'name': (s.get('attributes') or {}).get('friendly_name') or s['entity_id']}
+                                      for s in states if s.get('entity_id', '').split('.')[0] in domains]}
         if name == 'list':
             events = store.list()
             for e in events:

@@ -114,7 +114,7 @@ def _effects(v):
         if not 1 <= lo <= hi <= 240:
             raise RuleError('bad', 'effect gaps need 1 <= min <= max <= 240')
         out.append({'id': eid, 'name': _text(e.get('name', eid), 'effect name', NAME_MAX, True), 'kind': kind,
-                    'sound': _text(e.get('sound', ''), 'effect sound', 120), 'min_gap_minutes': lo, 'max_gap_minutes': hi,
+                    'sound': _text(e.get('sound', ''), 'effect sound', 1024), 'min_gap_minutes': lo, 'max_gap_minutes': hi,
                     'from': _clock(e.get('from', ''), 'effect from'), 'to': _clock(e.get('to', ''), 'effect to'), 'at': _clock(e.get('at', ''), 'effect at')})
     return out
 
