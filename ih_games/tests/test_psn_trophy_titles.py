@@ -149,5 +149,15 @@ class TextTest(Base):
         self.assertNotIn("Trophies", played.text({"title": "Nothing"}, played.played(self.d, "player_a", {"title": "Nothing"})))
 
 
+class RefreshCadence(unittest.TestCase):
+    def test_titles_feed_is_refreshed_within_half_an_hour(self):
+        now = datetime.datetime(2026, 11, 24, 12, 0, 0)
+        recent = {"ok": True, "attempted_at": (now - datetime.timedelta(minutes=10)).isoformat()}
+        older = {"ok": True, "attempted_at": (now - datetime.timedelta(minutes=30)).isoformat()}
+        self.assertFalse(P._due(recent, now))
+        self.assertTrue(P._due(older, now))
+        self.assertLessEqual(P.PSN_TITLES_REFRESH_S, 30 * 60)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,7 +19,7 @@ The provider checks PSN only after the existing trophy-count sensors report an i
 
 ## Trophy library
 
-Add `psn_trophy_titles` to `providers_enabled` as well. Every 6 hours it makes one PSN call that lists the games with at least one earned trophy. Missing games are added to the library, and the Games page shows trophy counts in each game's details. Hidden games stay hidden.
+Add `psn_trophy_titles` to `providers_enabled` as well. Every 20 minutes it makes one PSN call that lists the games with at least one earned trophy. Missing games are added to the library, and the Games page shows trophy counts in each game's details. Hidden games stay hidden.
 
 ## Privacy and limits
 

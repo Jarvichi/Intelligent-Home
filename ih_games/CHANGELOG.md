@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.4] - 2026-11-24
+
+- The PSN trophy-titles list is refreshed every 20 minutes instead of every 6 hours. The tile counts (and the new-trophy events built from them) no longer lag behind the trophy list, so a game page no longer shows "2 / 46" above a list of 3 earned.
+
 ## [0.15.3] - 2026-11-24
 
 - Trophy messages now carry the trophy name. A plain "Earned 1 bronze trophy" event is held for up to 10 minutes (only when the player has `psn_online_id` and `psn_trophy_names` is enabled) so the named event can replace it; after 10 minutes it is sent as before. The assistant event also gets a `trophies` fact listing the names (separated by "; ").
