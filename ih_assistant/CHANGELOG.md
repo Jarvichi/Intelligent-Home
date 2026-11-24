@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.25.0] - 2026-11-24
+
+### Added
+- Private maintenance prompts (slice 1 of the Assistant maintenance prompts). New persona option `autonomy_level` 0-10 (default 3, 0 = off; about 1 prompt a week at 3, 3 at 5, 7 at 10). Once a day the add-on may queue ONE silent `self_prompt` event from `app/self_prompts.json`: style check, voice check, nickname check, picture check, profile review, memory tidy, quiet/chatty check. The persona answers privately, may act, and nothing goes to Discord unless the persona itself decides to write.
+- `POST /persona/<key>/selfdone` (prompt_id, action, outcome): closes the prompt and writes the audit line. `GET /persona/<key>/selflog`: time, prompt id, action kind and one short line, no other text. `/status` shows `autonomy_level`.
+- Identity: `avatar_file` (a .png/.jpg in the approved folder `/data/avatars`, no paths). While a private prompt is open, a picture must come from that folder and the nickname and the picture can each change once a month.
+- Rules in code, not in prompts: never in quiet hours; never within 2 h of a check-in or reminder; at least 12 h between prompts; weekly cap from the level; per-prompt cooldown; a day missed (add-on off) is dropped, not fired late; household personas and dry personas get none; the persona's fixed rule is repeated in the prompt.
+- Why: the persona stays a person with some autonomy over small things, and the owner can see everything it did.
+
 ## [0.24.0] - 2026-11-24
 
 ### Added

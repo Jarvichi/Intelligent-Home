@@ -21,9 +21,10 @@ import reminders as remmod
 import gateway as gatewaymod
 import hearth as hearthmod
 import inbox_events as inboxmod
+import selfprompts as selfmod
 import random
 
-VERSION = '0.24.0'
+VERSION = '0.25.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -40,6 +41,7 @@ NAME_CHANGES_PER_HOUR = 2
 NAME_WINDOW_S = 3600
 AVATAR_MAX = 1024 * 1024
 BAD_NAME = ('discord', '@', '#', ':', '```')
+AVATAR_FILE_RE = re.compile(r'^[A-Za-z0-9_.-]{1,80}\.(png|jpe?g)$', re.I)   # 0.25.0: a picture in the approved folder (IHP_AVATARS, default /data/avatars)
 TEXT_MAX = 4000
 TELL_MAX = 2000
 TELL_PER_DAY = 20
@@ -179,6 +181,7 @@ def load_options(path):
             'household': p.get('household') is True,   # 0.23.0: a shared household assistant (Hearth): no private chat, no bot needed
             'household_users': [u.strip().lower() for u in (p.get('household_users') or []) if isinstance(u, str) and PERSON_RE.match(u.strip().lower())][:10] if isinstance(p.get('household_users'), list) else [],
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
+            'autonomy_level': levels.clamp(p.get('autonomy_level'), selfmod.DEFAULT_LEVEL),   # 0.25.0: private maintenance prompts, 0 = off
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
             'quiet_start': hhmm(p.get('quiet_start'), '22:00'), 'quiet_end': hhmm(p.get('quiet_end'), '08:00'),
@@ -417,6 +420,123 @@ class Assistant:
         st.append_event(self._stamp_home(key, {'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]}))
         self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
         return True
+
+    # ---- 0.25.0: private maintenance prompts ----
+    def self_open(self, key):
+        """True while a private prompt is open (queued less than SELF_WINDOW_S ago and not yet closed by selfdone)."""
+        o = self.stores[key].state().get('self_open')
+        return bool(isinstance(o, dict) and self.clock() - float(o.get('at', 0)) < selfmod.SELF_WINDOW_S)
+
+    def approved_avatar(self, name):
+        """-> (bytes, '') for a picture inside the approved folder, or (None, why). No paths, no links, up to AVATAR_MAX."""
+        if not isinstance(name, str) or not AVATAR_FILE_RE.match(name):
+            return None, 'avatar_file: a plain file name ending .png, .jpg or .jpeg'
+        base = os.path.realpath(os.environ.get('IHP_AVATARS', '/data/avatars'))
+        p = os.path.join(base, name)
+        if os.path.islink(p) or os.path.dirname(os.path.realpath(p)) != base or not os.path.isfile(p):
+            return None, 'avatar_file: not in the approved folder'
+        try:
+            with open(p, 'rb') as f:
+                return f.read(AVATAR_MAX + 1), ''
+        except OSError:
+            return None, 'avatar_file: cannot be read'
+
+    def self_prompt_blocked(self, key):
+        """Why a private prompt may not start now (None = it may). Fixed rules, not prompt text."""
+        c, st, now = self.cfg[key], self.stores[key], self.now()
+        if c.get('household') or not self.is_live(key):
+            return 'not a live private persona'
+        if c['autonomy_level'] <= 0:
+            return 'autonomy off'
+        nm = now.hour * 60 + now.minute
+        if in_quiet(nm, c['quiet_start'], c['quiet_end']):
+            return 'quiet hours'
+        t = self.clock()
+        last = st.last_outbox_ts(('checkin', 'reminder', 'remind'))
+        if last is not None and t - last < selfmod.QUIET_AFTER_CONTACT_S:
+            return 'recent check-in or reminder'
+        s = st.state()
+        import calendar
+        for e in st.read_inbox(0, 500)[-30:]:   # a check-in or reminder handed to the persona in the last 2 h
+            try:
+                if e.get('type') in ('checkin_due', 'reminder_due') and t - calendar.timegm(time.strptime(e['ts'], '%Y-%m-%dT%H:%M:%SZ')) < selfmod.QUIET_AFTER_CONTACT_S:
+                    return 'recent check-in or reminder'
+            except (ValueError, KeyError, TypeError):
+                continue
+        log = s.get('self_log') or []
+        if selfmod.fired_in(log, t, selfmod.MIN_GAP_S):
+            return 'too soon after the last prompt'
+        if len(selfmod.fired_in(log, t, 7 * selfmod.DAY_S)) >= selfmod.week_cap(c['autonomy_level']):
+            return 'weekly cap reached'
+        return None
+
+    def tick_self(self, key):
+        """0.25.0: at most one private prompt a day, drawn from self_prompts.json. One roll per day (chance = weekly cap / 7), so a day
+        that is missed (add-on off, quiet hours all day) is dropped, never fired late. Queues a silent self_prompt event; nothing goes to Discord.
+        -> the prompt id queued, or None."""
+        c, st = self.cfg[key], self.stores[key]
+        if c['autonomy_level'] <= 0:
+            return None
+        day = self._day()
+        s = st.state()
+        if s.get('self_day') == day:
+            return None
+        if self.self_prompt_blocked(key):
+            return None   # quiet hours, a recent check-in, too soon...: try again on a later tick today; the day is not used up
+        st.update_state(lambda x: x.__setitem__('self_day', day))   # mark first: one roll a day, even if the hand-over below fails
+        if self.rng() >= selfmod.daily_chance(c['autonomy_level']):
+            return None
+        rules, prompts = selfmod.load()
+        t = self.clock()
+        pool = selfmod.eligible(prompts, c['autonomy_level'], s.get('self_log') or [], t)
+        if not pool:
+            return None
+        p = pool[0]
+        prof = st.profile()
+        user, persona = prof.get('person_name') or 'the person you chat with', prof.get('name') or key
+        text = selfmod.render(rules + ' ' + p['text'], user, persona)
+        if c.get('fixed_rule'):
+            text += ' Your fixed rule still applies: ' + c['fixed_rule']
+        def add(x):
+            lg = [e for e in (x.get('self_log') or []) if isinstance(e, dict)]
+            lg.append({'at': t, 'prompt_id': p['id'], 'status': 'asked'})
+            x['self_log'] = lg[-selfmod.LOG_KEEP:]
+            x['self_open'] = {'id': p['id'], 'at': t}
+        st.update_state(add)
+        st.append_event({'type': 'self_prompt', 'silent': True, 'source': 'self', 'prompt_id': p['id'], 'text': text[:2000], 'facts': {'group': p.get('group', '')}})
+        self.log('persona %s: private prompt queued (%s)' % (key, p['id']))
+        return p['id']
+
+    def selfdone(self, key, body):
+        """The persona closes a private prompt: writes the audit line (time, prompt id, action kind, one short line). No private text is kept beyond that line."""
+        pid, action = body.get('prompt_id'), body.get('action', 'none')
+        if not isinstance(pid, str) or not re.fullmatch(r'[a-z0-9_]{1,40}', pid):
+            return 400, {'ok': False, 'why': 'prompt_id: the id from the prompt'}
+        if action not in selfmod.ACTIONS:
+            return 400, {'ok': False, 'why': 'action is one of ' + ', '.join(selfmod.ACTIONS)}
+        outcome, st = selfmod.clean_outcome(body.get('outcome')), self.stores[key]
+        def done(x):
+            lg = x.get('self_log') or []
+            for e in reversed(lg):
+                if isinstance(e, dict) and e.get('prompt_id') == pid and e.get('status') == 'asked':
+                    e.update({'status': 'done', 'done_at': self.clock(), 'action': action, 'outcome': outcome})
+                    break
+            else:
+                return False
+            x['self_log'] = lg
+            if (x.get('self_open') or {}).get('id') == pid:
+                x.pop('self_open', None)
+            return True
+        if not st.update_state(done):
+            return 404, {'ok': False, 'why': 'no open prompt with that id'}
+        st.log_outbox({'kind': 'selfdone', 'prompt_id': pid, 'action': action})
+        return 200, {'ok': True}
+
+    def self_log_view(self, key):
+        s = self.stores[key].state()
+        rows = [{'time': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(e['at'])), 'prompt_id': e.get('prompt_id'), 'status': e.get('status'), 'action': e.get('action'), 'outcome': e.get('outcome')}
+                for e in (s.get('self_log') or []) if isinstance(e, dict) and isinstance(e.get('at'), (int, float))]
+        return 200, {'ok': True, 'autonomy_level': self.cfg[key]['autonomy_level'], 'log': rows[-50:]}
 
     def tick_bedtime(self, key):
         """0.21.0: bedtime nudge. Inside bedtime_start..bedtime_end, one slot every bedtime_every_min minutes, only while the
@@ -1485,6 +1605,10 @@ class Assistant:
         except Exception as e:
             self.log('persona %s: bedtime failed (%s)' % (key, type(e).__name__))
         try:
+            self.tick_self(key)
+        except Exception as e:
+            self.log('persona %s: self prompt failed (%s)' % (key, type(e).__name__))
+        try:
             self.tick_reminders(key)
         except Exception as e:
             self.log('persona %s: reminders failed (%s)' % (key, type(e).__name__))
@@ -2149,19 +2273,30 @@ class Assistant:
 
     def identity(self, key, body):
         """Change the persona's own username / avatar / server nickname. A username change is limited to 2 an hour (Discord's rule), counted per persona."""
-        un, av, nick = body.get('username'), body.get('avatar'), body.get('nickname')
-        if un is None and av is None and nick is None:
-            return 400, {'ok': False, 'why': 'give username, avatar or nickname'}
+        un, av, nick, af = body.get('username'), body.get('avatar'), body.get('nickname'), body.get('avatar_file')
+        if un is None and av is None and nick is None and af is None:
+            return 400, {'ok': False, 'why': 'give username, avatar, avatar_file or nickname'}
+        if af is not None and av is not None:
+            return 400, {'ok': False, 'why': 'give avatar or avatar_file, not both'}
+        selfwin = self.self_open(key)   # 0.25.0: inside a private self prompt: approved folder only, one nickname and one picture change a month
+        if selfwin and av is not None:
+            return 403, {'ok': False, 'why': 'during a private prompt the picture must come from the approved folder (avatar_file)'}
         if un is not None:
             un = un.strip() if isinstance(un, str) else None
             if not un or not 2 <= len(un) <= 32 or any(b in un.lower() for b in BAD_NAME):
                 return 400, {'ok': False, 'why': "username: 2..32 characters, without 'discord', '@', '#', ':' or ```"}
         raw = None
+        if af is not None:
+            raw, why = self.approved_avatar(af)
+            if raw is None:
+                return 400, {'ok': False, 'why': why}
+            av = True
         if av is not None:
             try:
-                if not isinstance(av, str):
-                    raise ValueError
-                raw = base64.b64decode(av.split(',', 1)[1] if av.startswith('data:') else av, validate=True)
+                if raw is None:
+                    if not isinstance(av, str):
+                        raise ValueError
+                    raw = base64.b64decode(av.split(',', 1)[1] if av.startswith('data:') else av, validate=True)
             except (ValueError, binascii.Error, IndexError):
                 return 400, {'ok': False, 'why': 'avatar: base64 PNG or JPEG data'}
             if len(raw) > AVATAR_MAX:
@@ -2181,6 +2316,11 @@ class Assistant:
         if un is not None and len(recent) >= NAME_CHANGES_PER_HOUR:
             wait = int(NAME_WINDOW_S - (now - min(recent))) + 1
             return 429, {'ok': False, 'why': 'username changes are limited to %d an hour' % NAME_CHANGES_PER_HOUR, 'retry_after': wait}
+        if selfwin:
+            ch = st.state().get('identity_changes') or {}
+            for what, given in (('nickname', nick is not None), ('avatar', raw is not None)):
+                if given and any(now - t < selfmod.CHANGE_WINDOW_S for t in ch.get(what, [])):
+                    return 429, {'ok': False, 'why': 'a private prompt may change the %s once a month' % what}
         if not self.is_live(key):
             st.log_outbox({'kind': 'identity', 'mode': 'dry', 'username': len(un) if un else 0, 'avatar': len(raw) if raw else 0, 'nickname': len(nick) if nick is not None else -1})
             self.log('persona %s: [DRY] would set username (%d chars) / avatar (%d bytes) / nickname (%d chars)' % (key, len(un or ''), len(raw or b''), len(nick or '')))
@@ -2210,7 +2350,14 @@ class Assistant:
         except (DiscordError, KeyError, TypeError) as e:
             self.log('persona %s: identity failed (%s)' % (key, type(e).__name__))
             return 502, {'ok': False, 'why': 'discord error', 'changed': changed}
-        st.log_outbox({'kind': 'identity', 'mode': 'live', 'changed': changed})
+        st.log_outbox({'kind': 'identity', 'mode': 'live', 'changed': changed, 'private_prompt': bool(selfwin)})
+        if selfwin:
+            def mark(s2):
+                ch2 = s2.setdefault('identity_changes', {})
+                for what, given in (('nickname', nick is not None), ('avatar', raw is not None)):
+                    if given:
+                        ch2[what] = [t for t in ch2.get(what, []) if now - t < selfmod.CHANGE_WINDOW_S] + [now]
+            st.update_state(mark)
         self.log('persona %s: identity changed (%s)' % (key, ', '.join(changed)))
         return 200, {'ok': True, 'dry': False, 'changed': changed}
 
@@ -2261,7 +2408,7 @@ class Assistant:
             s = self.stores[k]
             out[k] = {'live': self.is_live(k), 'household': c.get('household', False), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
-                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF, 'checkin_rules': self.checkin_rules(k)}
+                      'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'autonomy_level': c.get('autonomy_level', 0), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF, 'checkin_rules': self.checkin_rules(k)}
         return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
 
 
@@ -2313,6 +2460,8 @@ def make_handler(app):
                 return self._send(*app.where_view(key))
             if method == 'GET' and act == 'behaviour' and len(parts) == 3:
                 return self._send(200, app.behaviour(key))
+            if method == 'GET' and act == 'selflog' and len(parts) == 3:
+                return self._send(*app.self_log_view(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method == 'GET' and act == 'usage_texts' and len(parts) == 3:
@@ -2351,6 +2500,8 @@ def make_handler(app):
                 return self._send(*app.typing(key, body))
             if act == 'ask' and len(parts) == 3:
                 return self._send(*app.ask(key, body))
+            if act == 'selfdone' and len(parts) == 3:
+                return self._send(*app.selfdone(key, body))
             if act == 'identity' and len(parts) == 3:
                 return self._send(*app.identity(key, body))
             if act == 'event' and len(parts) == 3:
