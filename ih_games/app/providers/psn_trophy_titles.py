@@ -11,7 +11,7 @@ import os
 from providers.psn_trophy_names import _atomic_write, _trophy_user, _value
 
 NAME = "psn_trophy_titles"
-PSN_TITLES_REFRESH_S = 6 * 3600   # a full list is one API call; the trophy totals change slowly
+PSN_TITLES_REFRESH_S = 20 * 60    # a full list is one API call; short so the tile counts and new-trophy events do not lag the trophy list
 PSN_TITLES_RETRY_S = 3600         # wait this long after a failed call before trying again
 TIER_ORDER = ("bronze", "silver", "gold", "platinum")
 
