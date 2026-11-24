@@ -4,7 +4,7 @@
 
 One record per themed event. A record holds: name, dates (every year on a day, or fixed dates), the lights (and an optional light group), the speakers, the sounds folder, the automations to pause while the event runs, the effects, a look (colour) and an auto-off time. Each event also has a checklist (each item is due a number of days before the start) and a review (what worked, what to change) for each run.
 
-The **generator** turns a record into the standard Home Assistant pieces, as text on the page and at `GET /events/<slug>/generate`:
+The page can create and edit event plans using form controls, including choosing devices and browsing local media. Saving a plan does not apply it, and effect scripts still require separate implementation. The **generator** turns a record into standard Home Assistant pieces, available at `GET /events/<slug>/generate`:
 
 | File | Content |
 |---|---|

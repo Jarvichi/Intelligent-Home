@@ -240,6 +240,30 @@ class Api(unittest.TestCase):
         self.assertEqual((code, out['slug']), (201, 'bonfire_night'))
         self.assertEqual(self.call('POST', '/events', {'name': 'Bonfire Night'})[0], 409)
 
+    def test_entity_picker_is_ui_only_and_filters_domains(self):
+        self.ha.get = lambda path: [
+            {'entity_id': 'light.table', 'attributes': {'friendly_name': 'Table'}},
+            {'entity_id': 'sensor.secret', 'attributes': {'friendly_name': 'Sensor'}},
+            {'entity_id': 'switch.fan', 'attributes': {}},
+        ]
+        code, result = MAIN.dispatch(None, self.ha, self.opts, 'GET', '/entities', None, 'owner', True)
+        self.assertEqual(code, 200)
+        self.assertEqual(result['entities'], [{'id': 'light.table', 'name': 'Table'}, {'id': 'switch.fan', 'name': 'switch.fan'}])
+        with self.assertRaises(M.RuleError):
+            MAIN.dispatch(None, self.ha, self.opts, 'GET', '/entities', None, 'worker', False)
+
+    def test_media_browser_only_exposes_local_media_to_ui(self):
+        self.ha.ws = lambda request: {'children': [
+            {'title': 'Bell', 'media_content_id': 'media-source://media_source/local/bell.mp3', 'can_play': True},
+            {'title': 'Other', 'media_content_id': 'media-source://other/private', 'can_play': True},
+        ]}
+        code, result = MAIN.dispatch(None, self.ha, self.opts, 'POST', '/media', {}, 'owner', True)
+        self.assertEqual(code, 200)
+        self.assertEqual([x['name'] for x in result['items']], ['Bell'])
+        for source, ui in [('media-source://media_source/local/../secret', True), ('media-source://media_source/locality', True), ('media-source://media_source/local', False)]:
+            with self.assertRaises(M.RuleError):
+                MAIN.dispatch(None, self.ha, self.opts, 'POST', '/media', {'source': source}, 'owner', ui)
+
     def test_mode_switch_is_page_only_and_off_by_default(self):
         self.assertEqual(self.call('POST', '/events/nye/mode', {'on': True})[0], 403)     # API port never switches
         self.assertEqual(self.ha.calls, [])

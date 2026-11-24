@@ -16,3 +16,11 @@
 .e-form textarea,.e-form input[type=text],.e-form input[type=number]{min-height:44px;font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--ih-border,#8886);background:transparent;color:inherit;width:100%;box-sizing:border-box}
 .e-warn{border-left:4px solid #e6a100;padding:6px 10px}
 .e-msg{min-height:1.4em}
+.e-form[hidden]{display:none}
+.e-picker[hidden]{display:none}
+.e-form label{display:grid;gap:4px}
+.e-form select,.e-form input[type=date],.e-form input[type=time],.e-form input[type=color]{min-height:44px;font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--ih-border,#8886);background:transparent;color:inherit;max-width:100%;box-sizing:border-box}
+.e-form select option{color:CanvasText;background:Canvas}
+.e-form input[type=checkbox]{width:24px;height:24px}
+.e-subform,.e-picker{display:grid;gap:8px;padding:12px;border:1px solid var(--ih-border,#8884);border-radius:10px}
+.e-form h3{margin:18px 0 0}
