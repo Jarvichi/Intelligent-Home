@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.3] - 2026-11-24
+
+- Trophy messages now carry the trophy name. A plain "Earned 1 bronze trophy" event is held for up to 10 minutes (only when the player has `psn_online_id` and `psn_trophy_names` is enabled) so the named event can replace it; after 10 minutes it is sent as before. The assistant event also gets a `trophies` fact listing the names (separated by "; ").
+
 ## [0.15.2] - 2026-11-23
 
 - A closed task that carries a game's key no longer counts as its research task: the add-on makes a new one (key suffix #2, #3 ...). 15 games had been marked against tasks IH Tasks had closed as near-duplicates and were never researched.
