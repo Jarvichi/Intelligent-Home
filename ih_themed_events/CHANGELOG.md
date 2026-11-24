@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.4] - 2026-11-24
+
+### Changed
+- Replace the long event form with a guided planner, searchable device choices and a review step, using the shared IH design tokens.
+
 ## [0.1.3] - 2026-11-24
 
 ### Added

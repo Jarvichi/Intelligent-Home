@@ -47,12 +47,12 @@
       clear(box);
       $('events-empty').hidden = d.events.length > 0;
       d.events.forEach(function (ev) {
-        box.appendChild(el('div', { class: 'e-card' }, [
+        box.appendChild(el('article', { class: 'e-card' }, [
+          el('div', { class: 'e-card-top' }, [el('span', { class: 'e-card-icon', 'aria-hidden': 'true', text: '✦' }), el('span', { class: 'e-pill', text: STATUS_TEXT[ev.status] || ev.status })]),
           el('h2', { text: ev.name }),
-          el('div', { class: 'e-row' }, [el('span', { class: 'e-pill', text: STATUS_TEXT[ev.status] || ev.status }), modePill(ev)]),
-          el('div', { text: nextText(ev.next) }),
-          el('div', { class: 'ih-metadata', text: ev.open_items + ' checklist item' + (ev.open_items === 1 ? '' : 's') + ' open' }),
-          el('div', { class: 'e-row' }, [el('button', { class: 'e-button', type: 'button', text: 'Open', on: { click: function () { showEvent(ev.slug); } } })])
+          el('div', { class: 'e-card-date', text: nextText(ev.next) }),
+          el('div', { class: 'e-card-meta', text: ev.open_items + ' checklist item' + (ev.open_items === 1 ? '' : 's') + ' to do' }),
+          el('button', { class: 'e-card-link', type: 'button', text: 'View event →', on: { click: function () { showEvent(ev.slug); } } })
         ]));
       });
     }).catch(fail);
@@ -123,43 +123,57 @@
     ev = ev || {};
     $('list-view').hidden = true; $('detail-view').hidden = false;
     var root = $('detail'); clear(root); say('');
-    root.appendChild(el('h2', { text: ev.slug ? 'Edit event' : 'Create event' }));
-    var form = el('form', { class: 'e-form' }); root.appendChild(form);
-    function field(label, node) { form.appendChild(el('label', {}, [label, node])); return node; }
+    root.appendChild(el('div', { class: 'e-editor-intro' }, [el('span', { class: 'e-eyebrow', text: 'EVENT PLANNER' }), el('h2', { text: ev.slug ? 'Edit ' + ev.name : 'Create an event' }), el('p', { text: 'Bring your dates, devices and ideas together in one place.' })]));
+    var form = el('form', { class: 'e-form e-editor' }); root.appendChild(form);
+    var progress = el('nav', { class: 'e-steps', 'aria-label': 'Event setup steps' }); form.appendChild(progress);
+    var panels = [], stepButtons = [], step = 0, panel;
+    function heading(title, description) {
+      panel = el('section', { class: 'e-panel', 'aria-label': title });
+      panel.appendChild(el('div', { class: 'e-panel-heading' }, [el('h3', { text: title }), el('p', { text: description || '' })]));
+      panels.push(panel); form.appendChild(panel);
+      var index = panels.length - 1;
+      var button = el('button', { class: 'e-step', type: 'button', on: { click: function () { go(index); } } }, [el('span', { class: 'e-step-number', text: String(index + 1) }), el('span', { text: title })]);
+      stepButtons.push(button); progress.appendChild(button);
+    }
+    function field(label, node) { panel.appendChild(el('label', { class: 'e-field' }, [label, node])); return node; }
     function input(type, value, attrs) {
       attrs = attrs || {}; attrs.type = type; var n = el('input', attrs); n.value = value == null ? '' : value; return n;
     }
     function select(options, value) {
       var n = el('select'); options.forEach(function (o) { n.appendChild(el('option', { value: o[0], text: o[1] })); }); n.value = value; return n;
     }
-    function heading(text) { form.appendChild(el('h3', { text: text })); }
     function picker(label, domain, selected, single) {
       var chosen = (selected || []).slice(), box = el('div', { class: 'e-picker' });
       var choices = entities.filter(function (e) { return e.id.indexOf(domain + '.') === 0; });
-      chosen.forEach(function (id) { if (!choices.some(function (e) { return e.id === id; })) choices.push({ id: id, name: id + ' (unavailable)' }); });
+      chosen.forEach(function (id) { if (!choices.some(function (e) { return e.id === id; })) choices.push({ id: id, name: id.split('.').pop().replace(/_/g, ' ') + ' (unavailable)' }); });
       choices.sort(function (a, b) { return a.name.localeCompare(b.name); });
-      var pickerNode = select([['', 'Choose ' + label.toLowerCase()]].concat(choices.map(function (e) { return [e.id, e.name]; })), '');
-      var list = el('div');
+      var search = input('search', '', { placeholder: 'Search ' + label.toLowerCase(), 'aria-label': 'Search ' + label.toLowerCase() });
+      var list = el('div', { class: 'e-device-list' }), count = el('span', { class: 'e-device-count' });
       function draw() {
         clear(list);
-        chosen.forEach(function (id) {
-          var item = choices.find(function (e) { return e.id === id; });
-          list.appendChild(el('div', { class: 'e-row' }, [el('span', { text: item ? item.name : id }), el('button', { type: 'button', class: 'e-button', text: 'Remove', on: { click: function () { chosen = chosen.filter(function (x) { return x !== id; }); draw(); } } })]));
+        var shown = choices.filter(function (e) { return e.name.toLowerCase().indexOf(search.value.toLowerCase()) !== -1 || chosen.indexOf(e.id) !== -1; });
+        count.textContent = chosen.length ? chosen.length + ' selected' : 'None selected';
+        if (!shown.length) list.appendChild(el('p', { class: 'e-empty', text: 'No matching devices.' }));
+        shown.forEach(function (item) {
+          var check = input('checkbox', '', { 'aria-label': item.name }); check.checked = chosen.indexOf(item.id) !== -1;
+          check.addEventListener('change', function () { if (check.checked) { if (single) chosen = []; chosen.push(item.id); } else chosen = chosen.filter(function (x) { return x !== item.id; }); draw(); });
+          list.appendChild(el('label', { class: 'e-device' }, [check, el('span', { text: item.name })]));
         });
       }
-      pickerNode.addEventListener('change', function () { if (pickerNode.value && chosen.indexOf(pickerNode.value) < 0) { if (single) chosen = []; chosen.push(pickerNode.value); draw(); } pickerNode.value = ''; });
-      box.appendChild(pickerNode); box.appendChild(list); form.appendChild(el('div', {}, [el('strong', { text: label }), box])); draw();
+      search.addEventListener('input', draw);
+      box.appendChild(el('div', { class: 'e-picker-heading' }, [el('strong', { text: label }), count])); box.appendChild(search); box.appendChild(list); panel.appendChild(box); draw();
       return function () { return chosen.slice(); };
     }
+    heading('The basics', 'Give your event a name and choose when it happens.');
     var name = field('Event name', input('text', ev.name || '', { required: true, maxlength: '80' }));
-    var status = field('Progress', select([['planned', 'Planning'], ['built', 'Built'], ['live', 'Live']], ev.status || 'planned'));
-    heading('When');
+    name.placeholder = 'For example, Halloween';
+    var status = { value: ev.status || 'planned' };
     var when = ev.when || {}, annual = when.annual || {};
     var schedule = field('Schedule', select([['none', 'No date yet'], ['annual', 'Every year'], ['dates', 'Specific dates']], when.annual ? 'annual' : when.dates ? 'dates' : 'none'));
-    var annualBox = el('div', { class: 'e-form' }); form.appendChild(annualBox);
-    var month = input('number', annual.month || 1, { min: '1', max: '12' }), day = input('number', annual.day || 1, { min: '1', max: '31' }), duration = input('number', annual.days || 1, { min: '1', max: '31' });
-    [[ 'Month (1–12)', month ], [ 'Day of month', day ], [ 'Number of days', duration ]].forEach(function (p) { annualBox.appendChild(el('label', {}, [p[0], p[1]])); });
-    var dateBox = el('div', { class: 'e-form' }), dateRows = el('div', { class: 'e-form' }); form.appendChild(dateBox); dateBox.appendChild(dateRows);
+    var annualBox = el('div', { class: 'e-date-grid' }); panel.appendChild(annualBox);
+    var month = select(['January','February','March','April','May','June','July','August','September','October','November','December'].map(function (m, i) { return [String(i + 1), m]; }), String(annual.month || 1)), day = input('number', annual.day || 1, { min: '1', max: '31' }), duration = input('number', annual.days || 1, { min: '1', max: '31' });
+    [[ 'Month', month ], [ 'Day', day ], [ 'Lasts (days)', duration ]].forEach(function (p) { annualBox.appendChild(el('label', { class: 'e-field' }, [p[0], p[1]])); });
+    var dateBox = el('div', { class: 'e-form' }), dateRows = el('div', { class: 'e-form' }); panel.appendChild(dateBox); dateBox.appendChild(dateRows);
     function addDate(row) {
       var start = input('date', row.start || '', { required: true }), end = input('date', row.end || '');
       var line = el('div', { class: 'e-subform' }, [el('label', {}, ['Start date', start]), el('label', {}, ['End date (optional)', end])]);
@@ -170,18 +184,18 @@
     dateBox.appendChild(el('button', { type: 'button', class: 'e-button', text: 'Add dates', on: { click: function () { addDate({}); } } }));
     function scheduleChanged() { annualBox.hidden = schedule.value !== 'annual'; dateBox.hidden = schedule.value !== 'dates'; Array.prototype.forEach.call(dateRows.querySelectorAll('input'), function (n) { n.disabled = schedule.value !== 'dates'; }); }
     schedule.addEventListener('change', scheduleChanged); scheduleChanged();
-    heading('Devices');
+    heading('Devices', 'Choose the devices involved. You can leave these empty and come back later.');
     var group = picker('Light group', 'light', ev.light_group ? [ev.light_group] : [], true);
     var lights = picker('Lights', 'light', ev.lights), switches = picker('Switches', 'switch', ev.extra_switches), speakers = picker('Speakers', 'media_player', ev.speakers), pauses = picker('Automations to pause', 'automation', ev.pause_automations);
-    heading('Lighting');
+    heading('Lighting', 'Set the atmosphere for your event.');
     var look = ev.look || {}, hasColour = field('Set a lighting colour', input('checkbox', '', {})); hasColour.checked = !!look.rgb;
     var colour = field('Colour', input('color', look.rgb ? '#' + look.rgb.map(function (c) { return c.toString(16).padStart(2, '0'); }).join('') : '#ffffff'));
     var brightness = field('Brightness (1–255; leave blank for default)', input('number', look.brightness, { min: '1', max: '255' }));
     var transition = field('Fade time in seconds (leave blank for default)', input('number', look.transition, { min: '0', max: '30' }));
     var off = field('Turn off at (optional)', input('time', ev.auto_off == null ? '02:30' : ev.auto_off));
-    heading('Effects');
+    heading('Effects', 'Plan moments of sound or light for the event.');
     var folder = ev.sounds_folder || '';
-    var effectsBox = el('div', { class: 'e-form' }); form.appendChild(effectsBox);
+    var effectsBox = el('div', { class: 'e-form' }); panel.appendChild(effectsBox);
     function addEffect(effect) {
       var line = el('div', { class: 'e-subform' }); effectsBox.appendChild(line);
       function ef(label, node) { line.appendChild(el('label', {}, [label, node])); return node; }
@@ -215,12 +229,39 @@
       line._effectValues = function (i) { return { id: effect.id || ('effect_' + i), name: ename.value, kind: kind.value, sound: soundValue, min_gap_minutes: Number(min.value), max_gap_minutes: Number(max.value), from: from.value, to: to.value, at: at.value }; };
     }
     (ev.effects || []).forEach(addEffect);
-    form.appendChild(el('button', { type: 'button', class: 'e-button', text: 'Add effect', on: { click: function () { if (effectsBox.children.length < 12) addEffect({}); else say('You can add up to 12 effects.'); } } }));
+    panel.appendChild(el('button', { type: 'button', class: 'e-button e-add', text: '+ Add an effect', on: { click: function () { if (effectsBox.children.length < 12) addEffect({}); else say('You can add up to 12 effects.'); } } }));
+    heading('Review', 'Check the details before saving your event plan.');
+    var summary = el('div', { class: 'e-summary' }); panel.appendChild(summary);
     var notes = field('Notes', el('textarea', { rows: '3', maxlength: '2000' })); notes.value = ev.notes || '';
-    form.appendChild(el('p', { class: 'ih-metadata', text: 'Saving records your plan; it does not install or update Home Assistant automations.' }));
-    form.appendChild(el('button', { type: 'submit', class: 'e-button', text: 'Save event' }));
+    panel.appendChild(el('p', { class: 'e-notice', text: 'This saves your plan. Applying the rules to Home Assistant is not available yet.' }));
+    var controls = el('div', { class: 'e-actions' }); form.appendChild(controls);
+    var prev = el('button', { type: 'button', class: 'e-button', text: 'Back', on: { click: function () { go(step - 1); } } });
+    var next = el('button', { type: 'button', class: 'e-button e-primary', text: 'Continue', on: { click: function () { go(step + 1); } } });
+    var save = el('button', { type: 'submit', class: 'e-button e-primary', text: 'Save event' });
+    controls.appendChild(el('button', { type: 'button', class: 'e-button e-cancel', text: 'Cancel', on: { click: function () { if (ev.slug) showEvent(ev.slug); else showList(); } } }));
+    controls.appendChild(prev); controls.appendChild(next); controls.appendChild(save);
+    function go(index) {
+      if (index < 0 || index >= panels.length) return;
+      if (index > step) {
+        for (var i = 0; i < index; i++) {
+          var invalid = panels[i].querySelector(':invalid');
+          if (invalid) { go(i); invalid.reportValidity(); invalid.focus(); return; }
+        }
+      }
+      step = index;
+      panels.forEach(function (p, i) { p.hidden = i !== step; });
+      stepButtons.forEach(function (b, i) { b.setAttribute('aria-current', i === step ? 'step' : 'false'); b.setAttribute('data-done', i < step ? 'true' : 'false'); });
+      prev.hidden = step === 0; next.hidden = step === panels.length - 1; save.hidden = step !== panels.length - 1;
+      if (step === panels.length - 1) {
+        clear(summary);
+        [[ 'Event', name.value || 'Untitled' ], [ 'When', schedule.options[schedule.selectedIndex].text ], [ 'Devices', (lights().length + group().length + switches().length + speakers().length) + ' selected' ], [ 'Effects', String(effectsBox.children.length) ]].forEach(function (row) { summary.appendChild(el('div', {}, [el('span', { text: row[0] }), el('strong', { text: row[1] })])); });
+      }
+      say('');
+    }
+    go(0);
     form.addEventListener('submit', function (event) {
       event.preventDefault();
+      if (step !== panels.length - 1) { go(step + 1); return; }
       var result = { name: name.value, status: status.value, when: {}, light_group: group()[0] || '', lights: lights(), extra_switches: switches(), speakers: speakers(), pause_automations: pauses(), sounds_folder: folder, effects: [], look: {}, auto_off: off.value, notes: notes.value };
       if (ev.slug) result.slug = ev.slug;
       if (ev.icon) result.icon = ev.icon;

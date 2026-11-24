@@ -1,13 +1,13 @@
 {
   "title": "Themed events",
   "purpose": "Halloween, New Year's Eve and future events as one standard record: date, lights, speakers, checklist and a review after each run.",
-  "description": "Each event is data. The page shows when it happens next, a checklist, and the review (what worked, what to change). The add-on writes the standard Home Assistant helpers, scripts and automations as text for you to read; it never changes Home Assistant. Halloween is described only (it is live by hand). New Year's Eve is the first event built with the generator.",
+  "description": "Plan event dates, devices, lighting and effects, and keep a checklist and review. Saving records a plan; applying rules to Home Assistant is not yet available.",
   "health_port": 8819,
   "health_path": "/healthz",
   "navigation": [
     "Lists events with the next date and open checklist items",
     "Keeps a checklist and a review for each event",
-    "Shows the generated Home Assistant files as text",
+    "Guides event planning with device and sound selection",
     "Switches an event's mode only when the option control is live"
   ],
   "access": "Home Assistant authenticated ingress only"
