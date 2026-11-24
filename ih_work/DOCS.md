@@ -73,7 +73,7 @@ The top of the page has a **Working now** card: one row for each Claude worker t
 
 ## The pace gate
 
-Each level has a start and a stop. Idle: a job starts only when pace is below the start. Draining: jobs follow one at a time while pace stays below the stop; at the stop or higher, the running job finishes and nothing more starts. Safeguards in both: 5-hour session under 85%, week under 90%, STOP switch, and if the sensors cannot be read nothing runs.
+Each level has a start and a stop. Idle: a job starts only when pace is below the start. Draining: jobs follow one at a time while pace stays below the stop; at the stop or higher, the running job finishes and nothing more starts. Safeguards in both: 5-hour session under 85%, week under 98%, STOP switch, and if the sensors cannot be read nothing runs.
 
 When the clock moves between night and day, draining is dropped at once. The next job then starts only if the new level allows a start. The reason text always names the level, for example `day band: pace -3.2, above -4, nothing runs` or `day band: pace -4.5, waiting until it drops below -5`. The service keeps the mode current every 30 seconds, also when the line is empty.
 
