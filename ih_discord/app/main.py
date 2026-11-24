@@ -27,10 +27,12 @@ import busside
 import admin
 import identity
 import approvals
+import inbox_events
 
-VERSION = '0.10.6'
+VERSION = '0.11.0'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
+DEFAULT_INBOX_URL = 'http://172.30.32.1:8800'   # the orchestration inbox add-on (queue API) seen from an add-on
 DEFAULT_INGEST_URL = 'http://172.30.32.1:8790'   # the Supervisor gateway seen from an add-on; the orchestrator add-on listens there
 OPTIONS = os.environ.get('IHD_OPTIONS', '/data/options.json')
 DATA = os.environ.get('IHD_DATA', '/data')
@@ -39,6 +41,7 @@ PUSH_EVERY = 30
 SELFCHECK_JOB = 'selfcheck'
 CURSOR_TO_NOW = 'CURSOR_TO_NOW'   # create /data/CURSOR_TO_NOW: at the next start every cursor jumps to the newest message (cut-overs)
 ROUTER_EVERY = 4
+INBOX_EVERY = 20   # seconds between looks for new DMs / reactions to post to the orchestration inbox
 RESERVED_MODULES = ('shopping', 'house', 'braininbox', 'router', 'transport')   # names of the removed in-process claimants (and the transport itself): a bus module may not use them
 # options of the removed in-process features: still accepted by config.yaml so saved options validate, ignored since 0.7.0
 DEPRECATED_OPTIONS = ('live_features', 'retired_features', 'old_service_disabled', 'shopping_list_entity', 'meal_plan_script', 'shop_names', 'aisles',
@@ -96,6 +99,9 @@ def load_options(path=None):
             'live_modules': [str(x).strip() for x in (o.get('live_modules') or []) if str(x).strip()],
             'categories': admin.parse_categories(o.get('categories')),                 # S6: category key -> category id (optional)
             'permission_templates': admin.parse_templates(o.get('permission_templates')),   # S6: named templates (optional)
+            'inbox_live': o.get('inbox_events') == 'live', 'inbox_url': str(o.get('inbox_url') or DEFAULT_INBOX_URL).rstrip('/'),
+            'inbox_token': str(o.get('inbox_token') or '').strip(), 'inbox_user_id': _text(o.get('inbox_user_id')),
+            'inbox_claude_channel': _text(o.get('inbox_claude_channel')),
             'admin_token': str(o.get('admin_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(),
             'identity_live': o.get('identity_live') is True, 'approvals_live': o.get('approvals_live') is True, 'personas': o.get('personas') or [],
             'deprecated_set': sorted(k for k in DEPRECATED_OPTIONS if o.get(k) not in (None, '', [], {}, False))}
@@ -203,10 +209,61 @@ class Module:
                 time.sleep(30)
             time.sleep(ROUTER_EVERY)
 
+    # ---- DMs and reactions -> orchestration inbox (0.11.0) ----
+    def build_inbox(self):
+        """Posts the person's DMs to the House bot and their reactions on the bot's messages (the claude channel and the DM) to the inbox.
+        Needs inbox_user_id; SHADOW (log only) unless inbox_events is live. -> the InboxEvents or None."""
+        o = self.opts
+        if not o.get('inbox_user_id') or self.tdiscord is None or not (o.get('inbox_token') or not o.get('inbox_live')):
+            return None
+        self.inbox = inbox_events.InboxEvents(o['inbox_url'], o.get('inbox_token'), o.get('inbox_live'), self.data, core.log)
+        return self.inbox
+
+    def inbox_get(self, path):
+        st, d = self.tdiscord.req('GET', path)
+        if st != 200:
+            raise RuntimeError('discord %s' % st)
+        return d
+
+    def inbox_tick(self):
+        """One round. Each part is independent: a failure in one does not stop the others. -> events handled."""
+        ib, uid, n = self.inbox, self.opts['inbox_user_id'], 0
+        if not hasattr(self, '_inbox_dm'):
+            st, d = self.tdiscord.req('POST', '/users/@me/channels', {'recipient_id': uid})
+            if st != 200 or not d:
+                raise RuntimeError('discord %s opening the DM' % st)
+            self._inbox_dm = str(d['id'])
+        steps = [lambda: ib.step_dm('dm', self.inbox_get, self._inbox_dm, uid, 'dm-house'),
+                 lambda: ib.step_reactions('dm', self.inbox_get, self._inbox_dm, [uid], 'dm-house')]
+        if self.opts.get('inbox_claude_channel'):
+            steps.append(lambda: ib.step_reactions('claude', self.inbox_get, self.opts['inbox_claude_channel'], [uid], 'claude-channel'))
+        for fn in steps:
+            try:
+                n += fn()
+            except Exception as e:
+                self.errors['inbox'] += 1
+                self.err_last['inbox'] = type(e).__name__
+                core.log('inbox_events: step failed (%s)' % type(e).__name__)
+        return n
+
+    def run_inbox(self):
+        while True:
+            try:
+                self.inbox_tick()
+                self.beats['inbox'] = time.time()
+            except Exception as e:
+                self.errors['inbox'] += 1
+                core.log('inbox_events: round failed (%s)' % type(e).__name__)
+                time.sleep(30)
+            time.sleep(INBOX_EVERY)
+
     def start(self):
         if not self.build():
             return False
         t = threading.Thread(target=self.run_router, daemon=True, name='router'); t.start(); self.threads.append(t)
+        if self.build_inbox():
+            t = threading.Thread(target=self.run_inbox, daemon=True, name='inbox'); t.start(); self.threads.append(t)
+            core.log('inbox_events: %s' % ('LIVE' if self.inbox.live else 'SHADOW (log only)'))
         return True
 
     def healthy(self):
@@ -290,6 +347,7 @@ class Module:
                 'poller': {'alive': any(t.name == 'router' and t.is_alive() for t in self.threads),
                            'last_tick_s': None if 'router' not in self.beats else int(now - self.beats['router']),
                            'errors': self.errors['router'], 'last_error': self.err_last.get('router')},
+                'inbox_events': dict(getattr(getattr(self, 'inbox', None), 'status', lambda: {'mode': 'off'})(), errors=self.errors['inbox'], last_error=self.err_last.get('inbox')),
                 'scheduler': {'enabled': bool(self.opts.get('enable_scheduler')), 'active': self.sched is not None,
                               'reason': self.sched_reason if self.sched is None and self.opts.get('enable_scheduler') else '',
                               'rejected': self.sched.rejected if self.sched else 0},

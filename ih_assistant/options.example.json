@@ -6,6 +6,9 @@
   "facts_key": "",
   "trace_url": "",
   "ingest_token": "",
+  "inbox_events": "shadow",
+  "inbox_url": "http://172.30.32.1:8800",
+  "inbox_token": "",
   "giphy_api_key": "",
   "caldav_url": "https://caldav.icloud.com",
   "caldav_user": "",
@@ -75,6 +78,7 @@
       "presence_person": "",
       "quiet_if_messaged_h": 2,
       "live": false,
+      "inbox_reactions": true,
       "checkin_days": [
         "tue",
         "fri"

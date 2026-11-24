@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.24.0] - 2026-11-24
+
+### Added
+- Persona option `inbox_reactions`: that person's emoji reactions on the persona bot's messages are posted to the orchestration inbox `POST /events` (`inbox_events` shadow/live, default shadow = log only; `inbox_url`, `inbox_token`). Replaces the host script react_watch for the private chat once switched live.
+
 ## [0.23.0] - 2026-11-18
 
 ### Added

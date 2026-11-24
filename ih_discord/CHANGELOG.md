@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.0] - 2026-11-24
+
+### Added
+- Posts the configured person's direct messages to the bot and their reactions (in the bot's DM and one watched channel) to the orchestration inbox `POST /events` (`inbox_events` shadow/live, default shadow = log only; `inbox_url`, `inbox_token`, `inbox_user_id`, `inbox_claude_channel`). Replaces the host scripts dm_watch/react_watch once switched live.
+
 ## [0.10.11] - 2026-11-11
 
 ### Changed
