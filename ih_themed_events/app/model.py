@@ -98,7 +98,7 @@ def _effects(v):
         raise RuleError('bad', 'effects must be a list of at most 12')
     out, seen = [], set()
     for e in v:
-        if not isinstance(e, dict) or set(e) - {'id', 'name', 'kind', 'sound', 'min_gap_minutes', 'max_gap_minutes', 'from', 'to', 'at'}:
+        if not isinstance(e, dict) or set(e) - {'id', 'name', 'kind', 'sound', 'min_gap_minutes', 'max_gap_minutes', 'from', 'to', 'at', 'steps', 'repeat', 'restore'}:
             raise RuleError('bad', 'an effect takes id, name, kind, sound, min_gap_minutes, max_gap_minutes, from, to, at')
         eid = _text(e.get('id', ''), 'effect id', 20, True)
         if not SLUG_RE.match(eid) or eid in seen:
@@ -113,9 +113,43 @@ def _effects(v):
             raise RuleError('bad', 'effect gaps must be whole minutes')
         if not 1 <= lo <= hi <= 240:
             raise RuleError('bad', 'effect gaps need 1 <= min <= max <= 240')
-        out.append({'id': eid, 'name': _text(e.get('name', eid), 'effect name', NAME_MAX, True), 'kind': kind,
+        effect = {'id': eid, 'name': _text(e.get('name', eid), 'effect name', NAME_MAX, True), 'kind': kind,
                     'sound': _text(e.get('sound', ''), 'effect sound', 1024), 'min_gap_minutes': lo, 'max_gap_minutes': hi,
-                    'from': _clock(e.get('from', ''), 'effect from'), 'to': _clock(e.get('to', ''), 'effect to'), 'at': _clock(e.get('at', ''), 'effect at')})
+                    'from': _clock(e.get('from', ''), 'effect from'), 'to': _clock(e.get('to', ''), 'effect to'), 'at': _clock(e.get('at', ''), 'effect at')}
+        if 'steps' in e:
+            if eid in ('look', 'effect_sound'):
+                raise RuleError('bad', 'choose a different effect name')
+            steps = e['steps']
+            if not isinstance(steps, list) or not 1 <= len(steps) <= 20:
+                raise RuleError('bad', 'an effect needs between 1 and 20 steps')
+            cleaned = []
+            for step in steps:
+                if not isinstance(step, dict) or step.get('type') not in ('light', 'sound', 'wait'):
+                    raise RuleError('bad', 'choose a light, sound or wait step')
+                typ = step['type']
+                allowed = {'type', 'colour', 'brightness', 'seconds', 'targets'} if typ == 'light' else {'type', 'seconds'} if typ == 'wait' else {'type'}
+                if set(step) - allowed:
+                    raise RuleError('bad', 'unknown effect step setting')
+                row = {'type': typ}
+                if typ in ('light', 'wait'):
+                    seconds = step.get('seconds', 1)
+                    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 0.1 <= seconds <= 60:
+                        raise RuleError('bad', 'step duration must be between 0.1 and 60 seconds')
+                    row['seconds'] = seconds
+                if typ == 'light':
+                    colour, brightness = step.get('colour'), step.get('brightness')
+                    if not isinstance(colour, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', colour):
+                        raise RuleError('bad', 'choose a colour for the light step')
+                    if isinstance(brightness, bool) or not isinstance(brightness, int) or not 0 <= brightness <= 100:
+                        raise RuleError('bad', 'light brightness must be between 0 and 100')
+                    row.update(colour=colour.lower(), brightness=brightness)
+                    row['targets'] = _entities(step.get('targets', []), 'effect lights', 'light')
+                cleaned.append(row)
+            repeat, restore = e.get('repeat', 1), e.get('restore', True)
+            if isinstance(repeat, bool) or not isinstance(repeat, int) or not 1 <= repeat <= 10 or not isinstance(restore, bool):
+                raise RuleError('bad', 'repeat must be 1 to 10 and restore must be on or off')
+            effect.update(steps=cleaned, repeat=repeat, restore=restore)
+        out.append(effect)
     return out
 
 

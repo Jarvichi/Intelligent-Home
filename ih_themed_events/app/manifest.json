@@ -1,6 +1,6 @@
 {
  "name": "ih_themed_events",
- "version": "0.1.4",
+ "version": "0.1.5",
  "kind": "addon",
  "description": "Themed events (Halloween, NYE, ...) as data, with a checklist, a review and a generator for the standard Home Assistant pieces (text only). Own database, token-protected API, page.",
  "owner": "local add-on ih_themed_events",

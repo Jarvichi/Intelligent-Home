@@ -4,7 +4,7 @@
 
 One record per themed event. A record holds: name, dates (every year on a day, or fixed dates), the lights (and an optional light group), the speakers, the sounds folder, the automations to pause while the event runs, the effects, a look (colour) and an auto-off time. Each event also has a checklist (each item is due a number of days before the start) and a review (what worked, what to change) for each run.
 
-The page can create and edit event plans using form controls, including choosing devices and browsing local media. Saving a plan does not apply it, and effect scripts still require separate implementation. The **generator** turns a record into standard Home Assistant pieces, available at `GET /events/<slug>/generate`:
+The page can create and edit event plans using form controls, including choosing devices and browsing local media. Effects can use editable light, sound and wait steps, and can restore the lighting afterwards. Existing effects without steps retain their original hand-written behavior. Saving a plan does not apply it. The **generator** turns a record into standard Home Assistant pieces, available at `GET /events/<slug>/generate`:
 
 | File | Content |
 |---|---|
@@ -13,7 +13,7 @@ The page can create and edit event plans using form controls, including choosing
 | `scripts.yaml` | `<slug>_look` and `<slug>_effect_sound` |
 | `README.txt` | what to do first and how to install and roll back |
 
-**Nothing is installed by the add-on.** You read the text; installing it is a separate step with its own approval (back up, `ha core check`, reload). Effect scripts (the fun part, for example the power-cut scare or the midnight burst) are written by hand; the generator only calls them. The same record always produces the same text.
+**Nothing is installed by the add-on.** You read the text; installing it is a separate step with its own approval (back up, `ha core check`, reload). Effects with steps produce scripts; older effects without steps still call their existing hand-written scripts. The same record always produces the same text.
 
 ## Records added on first start
 

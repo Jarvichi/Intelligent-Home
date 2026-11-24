@@ -29,6 +29,16 @@ def ev(**kw):
 
 
 class Rules(unittest.TestCase):
+    def test_effect_steps_validate_and_preserve_legacy(self):
+        legacy = M.clean_event(SEED.HALLOWEEN)
+        self.assertNotIn('steps', legacy['effects'][0])
+        effect = {'id': 'flash', 'name': 'Flash', 'steps': [{'type': 'light', 'colour': '#FFAA00', 'brightness': 80, 'seconds': 0.2}, {'type': 'sound'}], 'repeat': 2, 'restore': True}
+        cleaned = ev(effects=[effect])['effects'][0]
+        self.assertEqual(cleaned['steps'][0]['colour'], '#ffaa00')
+        self.assertEqual(cleaned['repeat'], 2)
+        for invalid in ([], [{'type': 'light', 'colour': '#fff', 'brightness': 101, 'seconds': 1}], [{'type': 'wait', 'seconds': 0}], [{'type': 'unknown'}]):
+            with self.assertRaises(M.RuleError):
+                ev(effects=[dict(effect, steps=invalid)])
     def test_seed_records_are_valid(self):
         for rec in (SEED.HALLOWEEN, SEED.NYE):
             self.assertEqual(M.clean_event(rec)['slug'], rec['slug'])
@@ -58,6 +68,26 @@ class Rules(unittest.TestCase):
 
 
 class Generator(unittest.TestCase):
+    def test_built_effect_compiles_sequence_and_restores(self):
+        effect = {'id': 'storm', 'name': 'Storm', 'sound': 'media-source://media_source/local/thunder.mp3', 'repeat': 2, 'restore': True,
+                  'steps': [{'type': 'sound'}, {'type': 'light', 'colour': '#ffffff', 'brightness': 100, 'seconds': 0.2}, {'type': 'light', 'colour': '#ffffff', 'brightness': 0, 'seconds': 0.3}]}
+        event = ev(lights=['light.test'], speakers=['media_player.test'], effects=[effect])
+        script = G.built_effect_script(event, event['effects'][0])
+        self.assertEqual(script['sequence'][1]['action'], 'scene.create')
+        steps = script['sequence'][2]['repeat']
+        self.assertEqual(steps['count'], 2)
+        self.assertEqual(steps['sequence'][0]['data']['media_content_id'], effect['sound'])
+        self.assertTrue(any(a.get('action') == 'light.turn_off' for a in steps['sequence']))
+        self.assertEqual(script['sequence'][-2]['action'], 'scene.turn_on')
+        self.assertIn('nye_storm:', G.generate(event)['scripts.yaml'])
+        targeted = copy.deepcopy(effect)
+        targeted['steps'][1]['targets'] = ['light.other']
+        targeted['steps'][2]['targets'] = ['light.other']
+        specific = ev(lights=[], light_group='', speakers=['media_player.test'], effects=[targeted])
+        targeted_script = G.built_effect_script(specific, specific['effects'][0])
+        self.assertEqual(targeted_script['sequence'][1]['data']['snapshot_entities'], ['light.other'])
+        no_lights = ev(lights=[], light_group='', effects=[effect])
+        self.assertIsNone(G.built_effect_script(no_lights, no_lights['effects'][0]))
     def test_same_record_same_text(self):
         self.assertEqual(G.generate(ev()), G.generate(ev()))
 

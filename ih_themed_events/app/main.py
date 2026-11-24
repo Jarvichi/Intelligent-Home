@@ -38,7 +38,7 @@ import model as M
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.4'
+VERSION = '0.1.5'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
