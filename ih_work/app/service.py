@@ -242,8 +242,8 @@ class Service:
         """-> (ok, reason). Hard stops still apply to urgent items: STOP switch (checked by the caller), session and week limits, a daily cap."""
         if r is not None and r.get('session') is not None and r['session'] >= G.SESSION_STOP:
             return False, 'urgent item waits: 5-hour session at %g%% (limit %d%%)' % (r['session'], G.SESSION_STOP)
-        if r is not None and r.get('week') is not None and r['week'] >= G.WEEK_STOP:
-            return False, 'urgent item waits: week at %g%% (stop %d%%)' % (r['week'], G.WEEK_STOP)
+        if r is not None and r.get('week') is not None and r['week'] >= G.week_stop(r.get('pace'), r['week']):
+            return False, 'urgent item waits: week at %g%% (stop %g%%)' % (r['week'], G.week_stop(r.get('pace'), r['week']))
         cut = now - timedelta(hours=24)
         if len([t for t in st.get('urgent_claims', []) if (parse(t) or cut) > cut]) >= self.URGENT_PER_DAY:
             return False, 'urgent item waits: %d handoffs in the last 24 hours' % self.URGENT_PER_DAY

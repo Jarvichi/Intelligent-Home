@@ -89,11 +89,38 @@ class Switch(unittest.TestCase):
         self.assertEqual(r.mode, 'idle')
 
 
+class Sprint(unittest.TestCase):
+    def test_hours_to_reset(self):
+        self.assertAlmostEqual(G.hours_to_reset(-3, 94), 5.0, places=0)   # elapsed 97% -> 3% of 168 h
+        self.assertIsNone(G.hours_to_reset(None, 94))
+
+    def test_sprint_ignores_the_pace_bands(self):
+        # 94% used, 97% elapsed: pace -3 sits between the night start (-1)... below it, but even the day band start of -3 would wait; sprint runs
+        for when in (DAY, NIGHT):
+            r = d('idle', -2.5, when, week=94)
+            self.assertTrue(r.ok); self.assertIn('end-of-week sprint', r.reason)
+
+    def test_sprint_stops_when_full_or_session_high(self):
+        self.assertFalse(d('idle', -3, week=99.6).ok)
+        r = d('draining', -3, session=90, week=95)
+        self.assertFalse(r.ok); self.assertIn('5-hour session', r.reason)
+
+    def test_no_sprint_mid_week(self):
+        r = d('idle', -1.5, DAY, week=40)   # elapsed 41.5 -> about 98 h to go
+        self.assertFalse(G.in_sprint(-1.5, 40))
+        self.assertFalse(r.ok)   # day band start is -3: -1.5 waits
+
+    def test_week_stop_value(self):
+        self.assertEqual(G.week_stop(-3, 94), G.SPRINT_STOP)
+        self.assertEqual(G.week_stop(-3, 40), G.WEEK_STOP)
+
+
 class Limits(unittest.TestCase):
     def test_session_and_week(self):
         self.assertFalse(d('idle', -9, session=85).ok)
         self.assertTrue(d('idle', -9, week=94).ok)    # 24 Nov 2026: 94% used and under pace must still work
-        self.assertFalse(d('idle', -9, week=98).ok)
+        self.assertTrue(d('idle', -9, week=98).ok)     # sprint: under pace near the reset, 98% is not full
+        self.assertFalse(d('idle', -9, week=99.5).ok)
         r = d('draining', -9, session=90)
         self.assertEqual(r.mode, 'draining')
         self.assertIn('5-hour session at 90%', r.reason)

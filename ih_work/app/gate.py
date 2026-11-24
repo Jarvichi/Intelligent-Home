@@ -11,6 +11,8 @@ from collections import namedtuple
 
 SESSION_STOP = 85
 WEEK_STOP = 98   # was 90: under pace, week >= 90% only happens in the last ~17 h before the reset, where 90 wasted the last tokens (24 Nov: 94% used, nothing ran overnight)
+SPRINT_HOURS = 8      # end-of-week sprint: in the last 8 h before the weekly reset, unused budget is lost, so use it
+SPRINT_STOP = 99.5    # ... until the week is at 99.5% (not 100: leave a hair so an interactive message never hits the wall)
 PER_HOUR = 0    # no item cap: the pace levels are the only limit (0.1.1). Set a number here only for a hard hourly cap.
 PACE_PER_HOUR = 100 / 168     # pace falls this many points an hour with no more usage
 
@@ -47,9 +49,35 @@ def levels(band, bands=DEFAULT_BANDS):
     return start, (stop if stop > start else start + 1.0)
 
 
+def hours_to_reset(pace, week):
+    """Hours until the weekly reset, from pace (= used% - elapsed%): elapsed% = week - pace. None if unknown."""
+    if pace is None or week is None:
+        return None
+    return max(0.0, (100.0 - (week - pace)) / PACE_PER_HOUR)
+
+
+def in_sprint(pace, week):
+    h = hours_to_reset(pace, week)
+    return h is not None and h <= SPRINT_HOURS
+
+
+def week_stop(pace, week):
+    """The weekly stop: 98 normally, 99.5 in the end-of-week sprint."""
+    return SPRINT_STOP if in_sprint(pace, week) else WEEK_STOP
+
+
 def step(mode, pace, session, week, start, stop, band='day'):
     """-> (may_run, new_mode, reason). mode is 'idle' or 'draining'."""
     head = '%s band: pace %+.1f' % (band, pace)
+    if in_sprint(pace, week):
+        # 24 Nov 2026 (owner request: near 100% aim to use 100%): the pace bands are for spreading use across the week; with the reset
+        # hours away the rest is lost, so ignore pace and keep working until the week is full (session limit still applies).
+        h = hours_to_reset(pace, week)
+        if session is not None and session >= SESSION_STOP:
+            return False, 'draining', 'end-of-week sprint (%.1f h to reset), paused: 5-hour session at %g%% (limit %d%%)' % (h, session, SESSION_STOP)
+        if week >= SPRINT_STOP:
+            return False, 'idle', 'end-of-week sprint (%.1f h to reset): week at %g%%, full (stop %g%%)' % (h, week, SPRINT_STOP)
+        return True, 'draining', 'end-of-week sprint: %.1f h to reset, week at %g%%, using the rest (stop %g%%)' % (h, week, SPRINT_STOP)
     if pace >= stop:
         return False, 'idle', '%s, above %g, nothing runs' % (head, stop)
     if mode != 'draining':
