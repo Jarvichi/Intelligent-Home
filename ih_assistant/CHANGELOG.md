@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.26.0] - 2026-11-25
+
+### Added
+- Special days (slice 2 of the Assistant maintenance prompts). From the existing `dates` lines (no new option) the add-on finds the persona's OWN person (name or first name match; a line of kind `anniversary` is an anniversary, any other is a birthday) and queues three prompts: `special_day_ahead` (3 days before), `special_day_morning` (on the day: the persona sends ONE personal greeting) and `special_day_after` (the day after: ask once how it went). Each fires once per date, never in quiet hours, never for household or dry personas. The prompts live in `app/self_prompts.json` under `special`; they are not part of the random maintenance prompts.
+- `GET /persona/<key>/behaviour`: on the day itself the prompt gets one more line ("today is the person's birthday/anniversary: be warmer in every reply") and `special_day: true`.
+- Why: the persona notices the person's own big day without a new setting, and stays warmer the whole day, not only in one message.
+
 ## [0.25.0] - 2026-11-24
 
 ### Added

@@ -24,6 +24,14 @@ def load(path=None):
     return rules, prompts
 
 
+def load_special(path=None):
+    """0.26.0: the special-day prompts (id, when = days from the day itself: 3 = three days ahead, 0 = on the day, -1 = the day after, text)."""
+    path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'self_prompts.json')
+    with open(path, encoding='utf-8') as f:
+        d = json.load(f)
+    return [p for p in d.get('special', []) if isinstance(p, dict) and isinstance(p.get('id'), str) and isinstance(p.get('text'), str) and isinstance(p.get('when'), int)]
+
+
 def week_cap(level):
     try:
         lv = int(level)

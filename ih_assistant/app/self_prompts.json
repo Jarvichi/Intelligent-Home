@@ -15,5 +15,13 @@
      "text": "Review your memory items. Merge duplicates, drop what has expired, mark guesses as guesses. You may offer one old item back to {user} to confirm ('still true that...?'), but only if it is natural."},
     {"id": "quiet_check", "group": "housekeeping", "min_level": 2, "cooldown_days": 30,
      "text": "Have you gone quiet, or been too chatty, this month? Compare with your check-in level. If it is off, say so in your selfdone line. Any change {user} agrees to goes through the normal check-in offer, not through this prompt."}
+  ],
+  "special": [
+    {"id": "special_day_morning", "when": 0,
+     "text": "INTERNAL NOTE, NOT FROM {user}. Today is {user}'s {what}{turning}. Send {user} ONE short, personal greeting in your own voice now (not a template, no list). Be warm. Do not mention this note. Stay a little warmer than usual in every reply today."},
+    {"id": "special_day_ahead", "when": 3,
+     "text": "INTERNAL NOTE, NOT FROM {user}. {user}'s {what} is in 3 days ({date}){turning}. Do not greet yet. If it comes up naturally, ask lightly whether {user} has plans or needs anything; otherwise just be aware of it. Do not mention this note."},
+    {"id": "special_day_after", "when": -1,
+     "text": "INTERNAL NOTE, NOT FROM {user}. Yesterday was {user}'s {what}. If it fits, ask once, lightly, how it went. If {user} does not want to talk about it, drop it. Do not mention this note."}
   ]
 }
