@@ -14,7 +14,14 @@
     {"id": "memory_tidy", "group": "housekeeping", "min_level": 2, "cooldown_days": 30,
      "text": "Review your memory items. Merge duplicates, drop what has expired, mark guesses as guesses. You may offer one old item back to {user} to confirm ('still true that...?'), but only if it is natural."},
     {"id": "quiet_check", "group": "housekeeping", "min_level": 2, "cooldown_days": 30,
-     "text": "Have you gone quiet, or been too chatty, this month? Compare with your check-in level. If it is off, say so in your selfdone line. Any change {user} agrees to goes through the normal check-in offer, not through this prompt."}
+     "text": "Have you gone quiet, or been too chatty, this month? Compare with your check-in level. If it is off, say so in your selfdone line. Any change {user} agrees to goes through the normal check-in offer, not through this prompt."},
+    {"id": "new_releases", "group": "discovery", "min_level": 3, "cooldown_days": 7,
+     "text": "Weekly discovery. Search the web for films, albums and games released or announced this week. Compare them with {user}'s saved tastes and the items already asked about (both below). Pick AT MOST ONE that clearly fits, never one already asked about, and mention it to {user} lightly in your own voice: what it is, who made it, why it might suit them. Never give a purchase link or price. If nothing fits well, say nothing. Right after you mention it, call POST asked with kind (film, album or game), creator, title and the release date so it is never asked twice. Saved tastes: {tastes}. Already asked: {asked}.",
+     "needs": "nothing"},
+    {"id": "taste_followup", "group": "discovery", "min_level": 3, "cooldown_days": 7, "needs": "tried",
+     "text": "{user} said yes to something you suggested earlier (list below, no verdict yet). If it fits naturally, ask ONCE how it was. When {user} answers, save it: POST asked with the same kind, creator and title and answer liked or disliked, and POST taste with a short key (for example film:sci-fi, album:jazz, game:co-op) and verdict liked or disliked. If they did not like to be asked, drop it. Items awaiting a verdict: {pending}."},
+    {"id": "taste_use", "group": "discovery", "min_level": 3, "cooldown_days": 14, "needs": "tastes",
+     "text": "Look at {user}'s saved tastes (below). Is there a pattern worth using, for example a favourite genre or something they clearly dislike? Write one line for yourself about how to use it, and drop or fix any taste that looks wrong or old (POST taste with verdict clear). Do not message {user} about this. Saved tastes: {tastes}."}
   ],
   "special": [
     {"id": "special_day_morning", "when": 0,

@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.27.0] - 2026-11-25
+
+### Added
+- New releases and tastes (slice 3 of the Assistant maintenance prompts). Three more private prompts in `app/self_prompts.json` (group `discovery`, level 3 and up, weekly): `new_releases` (the persona searches this week's films, albums and games and suggests AT MOST ONE that fits the saved tastes, never one already asked about, never a purchase link or price, nothing if nothing fits), `taste_followup` (asks once how a suggestion went, only when one was said yes to and has no verdict) and `taste_use` (privately reviews the saved tastes, only when some exist).
+- Asked-items list in persona state: `POST /persona/<key>/asked` (kind film/album/game, creator, title, date, answer) so nothing is asked twice (same kind and title again returns `duplicate: true` and only updates the answer). `GET /persona/<key>/asked` returns the list and the saved tastes.
+- Taste saving: `POST /persona/<key>/taste` (`key` such as `film:sci-fi`, `verdict` liked, disliked or clear). The prompt text carries the saved tastes and the asked list.
+- `POST /persona/<key>/discovery` (`allowed` true/false): when the person said no, discovery prompts are never queued until it is switched back on.
+- Why: the persona can discover things for the person without nagging, repeating itself or selling anything.
+
 ## [0.26.0] - 2026-11-25
 
 ### Added

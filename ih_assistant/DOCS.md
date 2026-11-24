@@ -171,3 +171,7 @@ Fixed rules in code: not in quiet hours; not within 2 h of a check-in or reminde
 ## Special days (0.26.0)
 
 Uses the existing `dates` option. For the persona's own person (name or first-name match) the add-on queues a `self_prompt` event (`source: special_day`, not silent) with `prompt_id` `special_day_ahead` (3 days before), `special_day_morning` (the persona sends one personal greeting) or `special_day_after`. A `dates` line with kind `anniversary` (`MM-DD|Name|anniversary`) is an anniversary; every other kind is a birthday. Once per date, never in quiet hours. On the day `GET /persona/<key>/behaviour` returns `special_day: true` and one extra line in `prompt`.
+
+### New releases and tastes (0.27.0)
+
+Weekly private prompts `new_releases`, `taste_followup`, `taste_use` (group `discovery`, autonomy level 3 and up). The persona suggests at most one film, album or game that fits the saved tastes, never a purchase link, nothing if the person said no. State is kept per persona: `POST /persona/<key>/asked` `{"kind":"film|album|game","creator":"","title":"","date":"","answer":"yes|no|later|liked|disliked"}` (a repeat is `duplicate: true`), `POST /persona/<key>/taste` `{"key":"film:sci-fi","verdict":"liked|disliked|clear"}`, `POST /persona/<key>/discovery` `{"allowed":false}`, `GET /persona/<key>/asked` (list and tastes).

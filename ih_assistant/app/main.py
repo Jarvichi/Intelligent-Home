@@ -538,13 +538,15 @@ class Assistant:
             return None
         rules, prompts = selfmod.load()
         t = self.clock()
-        pool = selfmod.eligible(prompts, c['autonomy_level'], s.get('self_log') or [], t)
+        pool = [x for x in selfmod.eligible(prompts, c['autonomy_level'], s.get('self_log') or [], t) if selfmod.usable(x, s)]
         if not pool:
             return None
         p = pool[0]
         prof = st.profile()
         user, persona = prof.get('person_name') or 'the person you chat with', prof.get('name') or key
         text = selfmod.render(rules + ' ' + p['text'], user, persona)
+        if '{tastes}' in text or '{asked}' in text or '{pending}' in text:
+            text = text.replace('{tastes}', selfmod.summary_tastes(s.get('tastes') or {})).replace('{asked}', selfmod.summary_asked(s.get('asked') or [])).replace('{pending}', selfmod.summary_asked(selfmod.pending(s.get('asked') or [])))
         if c.get('fixed_rule'):
             text += ' Your fixed rule still applies: ' + c['fixed_rule']
         def add(x):
@@ -581,6 +583,73 @@ class Assistant:
             return 404, {'ok': False, 'why': 'no open prompt with that id'}
         st.log_outbox({'kind': 'selfdone', 'prompt_id': pid, 'action': action})
         return 200, {'ok': True}
+
+    # ---- 0.27.0: asked items and tastes (new releases, taste follow-up) ----
+    def asked_add(self, key, body):
+        """Record that a film, album or game was suggested (or answer an earlier one). The same kind+title is never added twice:
+        a repeat returns duplicate:true and only changes the answer if one is given."""
+        kind, title = body.get('kind'), ' '.join(str(body.get('title') or '').split())[:120]
+        creator = ' '.join(str(body.get('creator') or '').split())[:120]
+        answer = body.get('answer', None)
+        date = str(body.get('date') or '')[:10]
+        if kind not in selfmod.KINDS:
+            return 400, {'ok': False, 'why': 'kind is one of ' + ', '.join(selfmod.KINDS)}
+        if not title:
+            return 400, {'ok': False, 'why': 'title required'}
+        if answer is not None and answer not in selfmod.ANSWERS:
+            return 400, {'ok': False, 'why': 'answer is one of yes, no, later, liked, disliked or empty'}
+        if date and not re.fullmatch(r'\d{4}(-\d{2}(-\d{2})?)?', date):
+            return 400, {'ok': False, 'why': 'date: YYYY, YYYY-MM or YYYY-MM-DD'}
+        res = {}
+        def add(x):
+            lst = [e for e in (x.get('asked') or []) if isinstance(e, dict)]
+            e = selfmod.asked_find(lst, kind, creator, title)
+            if e:
+                res['dup'] = True
+                if answer is not None:
+                    e['answer'] = answer
+                    e['answered_at'] = time.strftime('%Y-%m-%d', time.gmtime(self.clock()))
+            else:
+                res['dup'] = False
+                lst.append({'kind': kind, 'creator': creator, 'title': title, 'date': date or time.strftime('%Y-%m-%d', time.gmtime(self.clock())), 'answer': answer or ''})
+            x['asked'] = lst[-selfmod.ASKED_KEEP:]
+            return True
+        self.stores[key].update_state(add)
+        return 200, {'ok': True, 'duplicate': res.get('dup', False)}
+
+    def asked_view(self, key):
+        s = self.stores[key].state()
+        return 200, {'ok': True, 'asked': (s.get('asked') or [])[-100:], 'tastes': s.get('tastes') or {}, 'discovery': not s.get('discovery_off')}
+
+    def taste_set(self, key, body):
+        """Save what the person likes or dislikes under a short key (for example film:sci-fi). verdict clear removes it."""
+        k, v = str(body.get('key') or '').strip().lower(), body.get('verdict')
+        if not re.fullmatch(r'[a-z0-9][a-z0-9 :_\-]{0,39}', k):
+            return 400, {'ok': False, 'why': 'key: short text such as film:sci-fi'}
+        if v not in selfmod.VERDICTS:
+            return 400, {'ok': False, 'why': 'verdict is liked, disliked or clear'}
+        def put(x):
+            t = dict(x.get('tastes') or {})
+            t.pop(k, None)
+            if v != 'clear':
+                t[k] = {'verdict': v, 'at': time.strftime('%Y-%m-%d', time.gmtime(self.clock()))}
+            x['tastes'] = dict(list(t.items())[-selfmod.TASTES_KEEP:])
+            return True
+        self.stores[key].update_state(put)
+        return 200, {'ok': True}
+
+    def discovery_set(self, key, body):
+        """The person said no (or yes again) to suggestions: while off, no discovery prompt is ever queued."""
+        if not isinstance(body.get('allowed'), bool):
+            return 400, {'ok': False, 'why': 'allowed: true or false'}
+        def put(x):
+            if body['allowed']:
+                x.pop('discovery_off', None)
+            else:
+                x['discovery_off'] = True
+            return True
+        self.stores[key].update_state(put)
+        return 200, {'ok': True, 'discovery': body['allowed']}
 
     def self_log_view(self, key):
         s = self.stores[key].state()
@@ -2520,6 +2589,8 @@ def make_handler(app):
                 return self._send(200, app.behaviour(key))
             if method == 'GET' and act == 'selflog' and len(parts) == 3:
                 return self._send(*app.self_log_view(key))
+            if method == 'GET' and act in ('asked', 'tastes') and len(parts) == 3:
+                return self._send(*app.asked_view(key))
             if method == 'GET' and act == 'profile' and len(parts) == 3:
                 return self._send(200, {'ok': True, 'profile': app.stores[key].profile()})
             if method == 'GET' and act == 'usage_texts' and len(parts) == 3:
@@ -2560,6 +2631,12 @@ def make_handler(app):
                 return self._send(*app.ask(key, body))
             if act == 'selfdone' and len(parts) == 3:
                 return self._send(*app.selfdone(key, body))
+            if act == 'asked' and len(parts) == 3:
+                return self._send(*app.asked_add(key, body))
+            if act == 'taste' and len(parts) == 3:
+                return self._send(*app.taste_set(key, body))
+            if act == 'discovery' and len(parts) == 3:
+                return self._send(*app.discovery_set(key, body))
             if act == 'identity' and len(parts) == 3:
                 return self._send(*app.identity(key, body))
             if act == 'event' and len(parts) == 3:
