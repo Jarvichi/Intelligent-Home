@@ -3,6 +3,14 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.6] - 2026-11-25
+
+### Added
+- Review and apply a new event from the administrator page when live control is enabled. Existing or partially installed items are not overwritten.
+
+### Fixed
+- Respect individual random-effect intervals and time windows, and snapshot a light group when it is the only lighting target.
+
 ## [0.1.5] - 2026-11-24
 
 ### Added

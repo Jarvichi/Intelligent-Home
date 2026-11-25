@@ -81,7 +81,9 @@
         .concat(ev.notes ? [el('p', { class: 'ih-metadata', text: ev.notes })] : [])));
       d.appendChild(checklistView(ev));
       d.appendChild(reviewView(ev));
-      d.appendChild(el('p', { class: 'ih-metadata', text: 'Saving an event records your plan. It does not install or update automations in Home Assistant.' }));
+      var applyBox = el('div', { class: 'e-apply' });
+      d.appendChild(section('Apply event', [el('p', { class: 'ih-metadata', text: 'Review the plan before adding its rules to Home Assistant.' }),
+        el('button', { class: 'e-button', type: 'button', text: 'Review and apply', on: { click: function () { previewApply(slug, applyBox); } } }), applyBox]));
     }).catch(fail);
   }
 
@@ -329,6 +331,24 @@
 
   function setMode(slug, on) {
     api('POST', '/events/' + slug + '/mode', { on: on }).then(function () { say('Mode switched ' + (on ? 'on' : 'off') + '.'); return showEvent(slug); }).catch(fail);
+  }
+
+  function previewApply(slug, box) {
+    clear(box); box.appendChild(el('p', { text: 'Checking your event…' }));
+    api('GET', '/events/' + slug + '/apply-preview').then(function (plan) {
+      clear(box);
+      box.appendChild(el('p', { text: 'This will create ' + plan.helper_count + ' helpers, ' + plan.script_count + ' scripts and ' + plan.automation_count + ' automations. Home Assistant will reload its scripts and automations as they are saved.' }));
+      box.appendChild(el('p', { text: 'You turn the event on manually. Event dates are for planning and do not start the event automatically.' }));
+      box.appendChild(el('p', { text: 'Existing custom rules are not replaced. Updating or removing an installed event from this page is not yet available.' }));
+      if (plan.issues.length) {
+        var issues = el('ul'); plan.issues.forEach(function (issue) { issues.appendChild(el('li', { text: issue })); }); box.appendChild(issues); return;
+      }
+      var button = el('button', { class: 'e-button e-primary', type: 'button', text: 'Apply event', on: { click: function () {
+        button.disabled = true;
+        api('POST', '/events/' + slug + '/apply', { confirm: true }).then(function () { say('Rules sent to Home Assistant. Check that they are available before turning the event on.'); showEvent(slug); }).catch(function (error) { button.disabled = false; fail(error); });
+      } } });
+      box.appendChild(button);
+    }).catch(fail);
   }
 
   $('back').addEventListener('click', function () { say(''); showList(); });

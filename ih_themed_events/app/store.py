@@ -17,6 +17,7 @@ MIGRATIONS = [
     (4, '''CREATE TABLE reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL REFERENCES events(slug) ON DELETE CASCADE,
             occurrence TEXT NOT NULL, worked TEXT NOT NULL DEFAULT '', change TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, UNIQUE(slug, occurrence))'''),
     (5, 'CREATE TABLE log(id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT \'\')'),
+    (6, 'CREATE TABLE installations(slug TEXT PRIMARY KEY REFERENCES events(slug) ON DELETE RESTRICT, status TEXT NOT NULL, journal TEXT NOT NULL)'),
 ]
 DEFAULT_CHECKLIST = [{'text': 'Check helpers, scripts and automations are installed and the test run worked', 'days_before': 7},
                      {'text': 'Check the sounds are in the sounds folder', 'days_before': 7},
@@ -98,6 +99,9 @@ class Store:
     def update(self, slug, raw, actor='owner'):
         """Replace the record (the slug stays). Send the whole record."""
         with self.db.tx() as con:
+            row = con.execute('SELECT status FROM installations WHERE slug = ?', (slug,)).fetchone()
+            if row and row[0] == 'installing':
+                raise M.RuleError('conflict', 'Wait until installation finishes before editing this event.')
             self._event(con, slug)
             ev = M.clean_event(raw, slug)
             con.execute('UPDATE events SET data = ?, updated_at = ? WHERE slug = ?', (json.dumps(ev), self.now(), slug))
@@ -105,6 +109,8 @@ class Store:
         return self.get(slug)
 
     def delete(self, slug, actor='owner'):
+        if self.installation(slug):
+            raise M.RuleError('conflict', 'This event has an installation record and cannot be deleted here.')
         with self.db.tx() as con:
             self._event(con, slug)
             con.execute('DELETE FROM events WHERE slug = ?', (slug,))
@@ -169,3 +175,12 @@ class Store:
     def record(self, slug):
         """The stored record without extras: the generator's input."""
         return self._event(self.db.con, slug)
+
+    def installation(self, slug):
+        row = self.db.con.execute('SELECT status, journal FROM installations WHERE slug = ?', (slug,)).fetchone()
+        return {'status': row[0], 'journal': json.loads(row[1])} if row else None
+
+    def save_installation(self, slug, status, journal):
+        with self.db.tx() as con:
+            con.execute('INSERT INTO installations(slug, status, journal) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET status=excluded.status, journal=excluded.journal',
+                        (slug, status, json.dumps(journal)))
