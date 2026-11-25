@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 DATA = os.environ.get("IHWR_DATA", "/data")
 PORT = int(os.environ.get("IHWR_PORT", "8847"))
+UI_PORT = int(os.environ.get("IHWR_UI_PORT", "8099"))
 WQ = os.environ.get("IHWR_WQ", "/homeassistant/claude_scripts/work_queue")
 HOME = os.path.join(DATA, "claude-home")
 STATE = {"started": time.time(), "last_pass": None, "last_result": "none yet", "mode": "dry", "paused": "", "problems": []}
@@ -107,8 +108,19 @@ class Health(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
 
+def start_ui():
+    """Read-only status page (ingress, own port). A failure here must never stop the runner."""
+    try:
+        import ui_server
+        srv = ui_server.make_server(UI_PORT, lambda: ui_server.build_status(read_options(), STATE, WQ))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    except Exception as e:
+        STATE["problems"] = STATE["problems"] + [f"status page not started: {type(e).__name__}"]
+
+
 def main():
     threading.Thread(target=lambda: HTTPServer(("0.0.0.0", PORT), Health).serve_forever(), daemon=True).start()
+    start_ui()
     while True:
         opts = read_options()
         mcp = install_mcp_config(opts)

@@ -13,6 +13,9 @@ Supervises the worker (`queue_worker.py`) in a loop: one pass (claim a job from 
 | `work_url` | Only if the Work add-on is not reachable at its usual addresses. |
 | `idle_max_s`, `idle_check_s` | Wait limits between passes. |
 
+## Status page
+Sidebar entry "IH · Work Runner" (read-only). It reads the Work add-on (`/workers`, `/runs`) with `work_token` and the worker log in the mapped `work_queue` folder. It shows task titles only, never tokens or task text. Runs are taken from `worker.log` (the worker writes one line per task start and end). Start/stop is not here: the STOP switch is on the Work page.
+
 ## Mapped folders
 `/homeassistant` and `/share`, read-write. The worker scripts are read from `/homeassistant/claude_scripts/work_queue`; they are not copied into the image.
 
