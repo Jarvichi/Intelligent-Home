@@ -77,3 +77,11 @@ body.t-merging main{padding-bottom:230px}
 .t-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:16px;background:rgba(0,0,0,.5);overflow-y:auto}
 .t-modal[hidden]{display:none}
 .t-modal-card{width:100%;max-width:480px;display:grid;gap:12px;padding:16px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-nested);background:var(--ih-surface);color:var(--ih-text)}
+.t-rels{gap:12px}
+.t-rel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center}
+.t-rel-kind{grid-column:1/-1;color:var(--ih-muted);font-size:12px;font-weight:700}
+.t-rel .t-button{align-self:stretch}
+.t-rel-add{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:12px}
+.t-rel-add .t-field{margin-bottom:0}
+.t-rel-add .t-button{height:44px}
+@media(max-width:760px){.t-rel-add{grid-template-columns:minmax(0,1fr)}}

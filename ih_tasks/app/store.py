@@ -108,8 +108,21 @@ class TaskStore:
             sql += ' AND parent_id IN (%s)' % ', '.join('?' * len(ids)); args = list(ids)
         return {r[0]: (r[1], r[2]) for r in con.execute(sql + ' GROUP BY parent_id', args)} if ids != [] else {}
 
-    def _view(self, con, t, open_ids=None, kids=None):
+    def _blockers(self, con, ids=None):
+        """{task id: [numbers of the open tasks it is blocked by / depends on, lowest first]}."""
+        sql = ("SELECT r.src, r.dst FROM relations r JOIN tasks o ON o.id = r.dst WHERE r.kind IN (?, ?) AND o.stage IN (%s)" % ', '.join('?' * len(M.OPEN_STAGES)))
+        args = list(WAITS_ON) + list(M.OPEN_STAGES)
+        if ids is not None:
+            sql += ' AND r.src IN (%s)' % ', '.join('?' * len(ids)); args += list(ids)
+        out = {}
+        for src, dst in con.execute(sql + ' ORDER BY r.dst', args):
+            out.setdefault(src, []).append(dst)
+        return out
+
+    def _view(self, con, t, open_ids=None, kids=None, blockers=None):
         t = dict(t)
+        b = (blockers if blockers is not None else self._blockers(con, [t['id']])).get(t['id'], [])
+        t['blocked'], t['blocked_by'] = bool(b), (b[0] if b else None)     # first open blocker, lowest number
         k = (kids if kids is not None else self._kids(con, [t['id']])).get(t['id'], (0, 0))
         t['children_open'], t['children_total'] = k
         t['revise'] = bool(t['revise'])
@@ -160,9 +173,10 @@ class TaskStore:
             args += list(stages)
         open_ids = {r[0] for r in con.execute("SELECT task_id FROM questions WHERE status = 'open'")}
         kids = self._kids(con)
+        blockers = self._blockers(con)
         out, needle = [], (q or '').strip().lower().lstrip('#')
         for r in con.execute(sql + ' ORDER BY id', args):
-            t = self._view(con, dict(zip(TASK_COLS, r)), open_ids, kids)
+            t = self._view(con, dict(zip(TASK_COLS, r)), open_ids, kids, blockers)
             if needs_input is not None and t['needs_input'] != bool(needs_input):
                 continue
             if waiting and t['waiting_on'] != waiting:
