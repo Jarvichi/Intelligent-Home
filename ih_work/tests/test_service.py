@@ -50,6 +50,7 @@ class Base(unittest.TestCase):
         self.r = Reader()
         self.logs = []
         self.svc = Service(self.dir, opts(**o), self.r, ha, self.c, self.logs.append)
+        self.addCleanup(self.svc.close)
         return self.svc
 
     def add(self, ref='1'):

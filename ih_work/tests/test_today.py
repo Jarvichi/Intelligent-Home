@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 import today
-from store import Store
+from workdb import WorkStore
+from store import FileStore
 
 NOW = datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc)
 SECRET = 'sk-SECRET-INSTRUCTION'
@@ -62,15 +63,34 @@ class T(unittest.TestCase):
         for bad in (SECRET, 'runner-secret-name', 'instruction', 'error', 'result'):
             self.assertNotIn(bad, out)
 
-    def test_fetch_from_files_and_corrupt(self):
-        d = tempfile.mkdtemp(); s = Store(d)
+    def test_fetch_from_database(self):
+        d = tempfile.mkdtemp(); s = WorkStore(d).open()
+        s.enqueue('other', 'a', 'Real job', 'do')
+        s.save_state({'snapshot': snap('idle', 'x')})
+        today._cache.update(t=0.0, v=None)
+        out = today.today(lambda: today.fetch(d), lambda: NOW.timestamp(), 'UTC')
+        s.close()
+        self.assertIn('Real job', [r['name'] for r in out['rows']])
+        self.assertEqual(out['footnote'], 'x')
+
+    def test_fetch_from_old_files_and_corrupt(self):
+        d = tempfile.mkdtemp(); s = FileStore(d)
         s.enqueue('other', 'a', 'Real job', 'do')
         with open(os.path.join(d, 'items', '000009-bad.json'), 'w') as f:
             f.write('{nope')
-        Store.write_json(os.path.join(d, 'state.json'), {'snapshot': snap('idle', 'x')})
+        FileStore.write_json(os.path.join(d, 'state.json'), {'snapshot': snap('idle', 'x')})
         today._cache.update(t=0.0, v=None)
         out = today.today(lambda: today.fetch(d), lambda: NOW.timestamp(), 'UTC')
         self.assertIn('Real job', [r['name'] for r in out['rows']])
+
+    def test_fetch_degraded_files_win(self):
+        d = tempfile.mkdtemp(); s = WorkStore(d).open()
+        it = s.enqueue('other', 'a', 'Old title', 'do')
+        s.close()
+        newer = dict(it, title='Newer title')
+        FileStore.write_json(os.path.join(d, 'degraded', 'items', '000001-%s.json' % it['id']), newer)
+        items, _ = today.fetch(d)
+        self.assertEqual([i['title'] for i in items], ['Newer title'])
 
     def test_failure_is_none_and_cached(self):
         today._cache.update(t=0.0, v=None)

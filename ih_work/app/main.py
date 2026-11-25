@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ih_work 0.6.1: the work queue, the pace gate and the task view. See DOCS.md.
+"""ih_work 0.11.0: the work queue (stored in /data/ih.db, see workdb.py), the pace gate and the task view. See DOCS.md.
 API (bearer api_token; an empty token refuses everything except /healthz):
   POST /enqueue {kind, ref, title, instruction, approved?, by?, priority? (high|normal|low)}   GET /list?status=a,b   GET /item/<id>
   POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}   POST /wait {id, consumer, kind, summary?}   POST /requeue {id}
@@ -225,6 +225,8 @@ def main():
             'LIVE' if opts['mode'] == 'live' else 'TEST MODE (nothing is handed out)', 'on' if opts['api_token'] else 'OFF (no api_token)',
             'on' if opts['feed_backlog'] else 'off', opts['bands'].day_start, opts['bands'].day_stop, opts['bands'].night_start,
             opts['bands'].night_stop, opts['bands'].night_from, opts['bands'].night_to)
+
+    svc.store.start_maintenance(opts['tz'])
 
     def ticker():
         while True:

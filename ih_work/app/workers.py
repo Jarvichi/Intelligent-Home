@@ -4,7 +4,7 @@ The server stamps its own clock on every update. Not updated for 5 minutes = 'st
 import json, os, re, threading
 from datetime import datetime, timedelta, timezone
 
-from store import Store, StoreError, iso, parse, utcnow
+from store import FileStore, StoreError, iso, parse, utcnow
 
 STAGES = ('starting', 'assessing', 'planning', 'implementing', 'reporting', 'reviewing', 'idle')
 STALLED_S = 300
@@ -36,7 +36,7 @@ class Workers:
 
     def _save(self):
         try:
-            Store.write_json(self.path, self.items)
+            FileStore.write_json(self.path, self.items)
         except OSError:
             pass   # the in-memory copy still works
 

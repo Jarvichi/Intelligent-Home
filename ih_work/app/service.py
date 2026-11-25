@@ -8,9 +8,10 @@ import gate as G
 import runs as R
 from tasks_client import TasksError
 from workers import Workers
-from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, Store, StoreError, iso, parse, utcnow, queue_order
+from store import ACTIVE, OPEN, STATUSES, CONSUMER_RE, FileStore, StoreError, iso, parse, utcnow, queue_order
+from workdb import WorkStore
 
-VERSION = '0.10.0'
+VERSION = '0.11.0'
 READING_TTL_S = 30
 FEED_CHECK_S = 300
 FED_KEEP_DAYS = 30
@@ -26,24 +27,21 @@ class Service:
         self.dir = data_dir
         self.opts = opts          # mode, lease_s, stop, bands, tz (tzinfo), feed_backlog, feed_prefixes
         self.reader, self.tasks, self.clock, self.log = reader, tasks, clock, log   # tasks: a TasksClient (IH Tasks API) or None
-        self.store = Store(data_dir, clock)
+        self.store = WorkStore(data_dir, clock, log=log).open()   # database (or degraded files): see workdb.py
         self.workers = Workers(data_dir, clock)
-        self.state_path = os.path.join(data_dir, 'state.json')
         self.lock = threading.RLock()
         self._reading = (0.0, None, '')
         self.tasks_problem = '' if tasks else 'IH Tasks is not configured (address or token missing)'
 
+    def close(self):
+        self.store.close()
+
     # ---- state ----
     def load_state(self):
-        try:
-            with open(self.state_path) as f:
-                d = json.load(f)
-            return d if isinstance(d, dict) else {}
-        except (OSError, ValueError):
-            return {}
+        return self.store.load_state()
 
     def save_state(self, st):
-        Store.write_json(self.state_path, st)
+        self.store.save_state(st)
 
     def stopped(self):
         return bool(self.opts.get('stop')) or os.path.exists(os.path.join(self.dir, 'STOP'))
@@ -114,7 +112,7 @@ class Service:
                 new = R.clean_all(patch, self.run_settings())
             except ValueError as e:
                 raise StoreError('bad', str(e))
-            Store.write_json(os.path.join(self.dir, 'run_settings.json'), new)
+            FileStore.write_json(os.path.join(self.dir, 'run_settings.json'), new)
             self.log('run settings saved')
             return new
 
@@ -319,13 +317,14 @@ class Service:
                 counts['running' if i['status'] in ACTIVE else i['status']] += 1
             fin = [i for i in items if i.get('finished_at') and i['status'] in ('done', 'failed')]
             w = self.worker_view(items, d, r)
+            db = self.store.health()
             return dict(version=VERSION, run_mode=self.opts.get('mode'), counts=counts,
                         next=brief(next(iter(queue_order(items)), None)),
                         running=brief(next((i for i in items if i['status'] in ACTIVE), None)),
                         last_finished=brief(max(fin, key=lambda i: i['finished_at'])) if fin else None,
                         worker=dict(state=w['state'], reason=w['reason'], mode=w['mode'], band=w['band'], updated=iso(now)),
                         gate=self.gate_line(d, r), tasks_warning=self.tasks_problem, gate_at=iso(now), pace=r and r['pace'], week=r and r['week'], session=r and r['session'],
-                        corrupt_files=list(self.store.corrupt))
+                        corrupt_files=list(self.store.corrupt), db=db, db_degraded=db['degraded'])
 
     # ---- ticker ----
     def tick(self):
