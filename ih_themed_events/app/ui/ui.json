@@ -1,7 +1,7 @@
 {
   "title": "Themed events",
   "purpose": "Halloween, New Year's Eve and future events as one standard record: date, lights, speakers, checklist and a review after each run.",
-  "description": "Plan event dates, devices, lighting and effects, and keep a checklist and review. Saving records a plan; applying rules to Home Assistant is not yet available.",
+  "description": "Plan event dates, devices, lighting and effects, and keep a checklist and review. Administrators can review and apply new events and edits to add-on-owned rules when live control is enabled.",
   "health_port": 8819,
   "health_path": "/healthz",
   "navigation": [

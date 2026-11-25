@@ -184,22 +184,41 @@ class InstallerTests(unittest.TestCase):
         def __init__(self):
             self.created = []
             self.fail_post = False
+            self.fail_after = False
+            self.configs = {}
+            self.helpers = {}
+            self.mode = 'off'
         def get(self, path):
             if path == 'states':
-                return []
+                return ([{'entity_id': domain + '.' + key, 'state': self.mode if key.endswith('_mode') else 'off'} for (domain, key) in self.helpers] +
+                        [{'entity_id': path.split('/')[1] + '.' + path.split('/')[-1], 'state': 'off'} for path in self.configs])
             if path.startswith('states/'):
-                return {'entity_id': path[len('states/'):], 'state': 'off'}
+                return {'entity_id': path[len('states/'):], 'state': self.mode}
+            if path in self.configs:
+                return copy.deepcopy(self.configs[path])
             raise urllib.error.HTTPError(path, 404, 'missing', {}, None)
         def ws(self, message):
             if message['type'] == 'config/entity_registry/list':
-                return []
+                return ([{'entity_id': domain + '.' + key, 'platform': domain, 'unique_id': key} for domain, key in self.helpers] +
+                        [{'entity_id': path.split('/')[1] + '.' + path.split('/')[-1], 'platform': path.split('/')[1], 'unique_id': path.split('/')[-1]} for path in self.configs])
             self.created.append(message)
+            self.helpers[(message['type'].split('/')[0], message['name'])] = copy.deepcopy(message)
             return {'id': message['name']}
+        def state(self, entity):
+            return self.mode if entity.startswith('input_boolean.') else None
         def post(self, path, data):
             self.created.append(path)
             if self.fail_post:
                 raise RuntimeError('network failure')
+            self.configs[path] = copy.deepcopy(data)
+            if self.fail_after:
+                self.fail_after = False
+                raise RuntimeError('response lost')
             return {'result': 'ok'}
+        def _rest(self, method, path):
+            self.created.append((method, path))
+            if method == 'DELETE':
+                del self.configs[path]
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -209,14 +228,53 @@ class InstallerTests(unittest.TestCase):
         self.store.create({'slug': 'party', 'name': 'Party', 'effects': []}, checklist=[])
         self.ha = self.HA()
 
-    def test_apply_creates_only_after_preview_and_blocks_retry(self):
+    def test_apply_creates_and_can_be_reviewed_for_update(self):
         self.assertFalse(installer.preview(self.store, self.ha, 'party')['issues'])
         self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
         self.assertEqual(self.store.installation('party')['status'], 'submitted')
-        before = len(self.ha.created)
+        self.assertEqual(installer.preview(self.store, self.ha, 'party')['operation'], 'update')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
+
+    def test_verify_checks_rules_before_allowing_mode_on(self):
+        installer.apply(self.store, self.ha, 'party')
         with self.assertRaises(M.RuleError):
-            installer.apply(self.store, self.ha, 'party')
-        self.assertEqual(before, len(self.ha.created))
+            MAIN.dispatch(self.store, self.ha, {'control': 'live'}, 'POST', '/events/party/mode', {'on': True}, 'owner', True)
+        self.assertEqual(installer.verify_available(self.store, self.ha, 'party')['status'], 'available')
+        self.assertEqual(self.store.installation('party')['status'], 'available')
+
+    def test_verify_rejects_changed_or_missing_rules(self):
+        installer.apply(self.store, self.ha, 'party')
+        self.ha.configs['config/automation/config/party_safety']['alias'] = 'Changed elsewhere'
+        with self.assertRaises(M.RuleError):
+            installer.verify_available(self.store, self.ha, 'party')
+        self.assertEqual(self.store.installation('party')['status'], 'submitted')
+
+    def test_edit_marks_rules_outdated_until_reapplied(self):
+        installer.apply(self.store, self.ha, 'party')
+        installer.verify_available(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['auto_off'] = '03:00'
+        self.store.update('party', event)
+        self.assertEqual(self.store.installation('party')['status'], 'needs_apply')
+        with self.assertRaises(M.RuleError):
+            MAIN.dispatch(self.store, self.ha, {'control': 'live'}, 'POST', '/events/party/mode', {'on': True}, 'owner', True)
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
+
+    def test_edit_during_availability_check_cannot_be_marked_current(self):
+        installer.apply(self.store, self.ha, 'party')
+        original_get = self.ha.get
+        edited = []
+        def racing_get(path):
+            if path == 'states' and not edited:
+                event = self.store.record('party')
+                event['notes'] = 'Changed during check'
+                self.store.update('party', event)
+                edited.append(True)
+            return original_get(path)
+        self.ha.get = racing_get
+        with self.assertRaises(M.RuleError):
+            installer.verify_available(self.store, self.ha, 'party')
+        self.assertEqual(self.store.installation('party')['status'], 'needs_apply')
 
     def test_partial_failure_is_recorded_and_never_retried_automatically(self):
         self.ha.fail_post = True
@@ -242,14 +300,194 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaises(M.RuleError):
             installer.apply(self.store, self.ha, 'party')
         journal = self.store.installation('party')['journal']
-        self.assertTrue(journal[0]['created_id'].endswith('_2'))
-        self.assertEqual(journal[0]['state'], 'starting')
+        helper = next(item for item in journal if item['kind'] == 'helper')
+        self.assertTrue(helper['created_id'].endswith('_2'))
+        self.assertEqual(helper['state'], 'starting')
+
+    def test_first_install_lost_response_can_resume(self):
+        self.ha.fail_after = True
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(installer.preview(self.store, self.ha, 'party')['operation'], 'resume_initial')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
 
     def test_apply_requires_ui_live_control_and_confirmation(self):
         for ui, control, body in ((False, 'live', {'confirm': True}), (True, 'off', {'confirm': True}), (True, 'live', {'confirm': False})):
             with self.assertRaises(M.RuleError):
                 MAIN.dispatch(self.store, self.ha, {'control': control}, 'POST', '/events/party/apply', body, 'owner', ui)
         self.assertFalse(self.ha.created)
+
+    def test_apply_preview_returns_human_readable_event_details(self):
+        code, response = MAIN.dispatch(self.store, self.ha, {'control': 'live'}, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        self.assertEqual(code, 200)
+        self.assertEqual(response['review']['name'], 'Party')
+        self.assertNotIn('automations', response)
+        self.assertEqual(response['operation'], 'install')
+
+    def test_update_preview_reports_changed_sections_and_effect_steps(self):
+        installer.apply(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['lights'] = ['light.test']
+        event['effects'] = [{'id': 'flash', 'name': 'Flash', 'steps': [{'type': 'light', 'colour': '#ff3300', 'brightness': 50, 'seconds': 2}]}]
+        self.store.update('party', event)
+        code, response = MAIN.dispatch(self.store, self.ha, {'control': 'live'}, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        self.assertEqual(code, 200)
+        self.assertIn('Effects', response['review']['changes'])
+        self.assertEqual(response['review']['effects'][0]['steps'][0]['text'], 'Set event lights to 50% for 2 seconds')
+        self.assertEqual(response['review']['effects'][0]['steps'][0]['colour'], '#ff3300')
+
+    def test_confirmation_expires_when_event_or_rules_change(self):
+        installer.apply(self.store, self.ha, 'party')
+        options = {'control': 'live'}
+        _, review = MAIN.dispatch(self.store, self.ha, options, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        event = self.store.record('party')
+        event['notes'] = 'A later edit'
+        self.store.update('party', event)
+        before = len(self.ha.created)
+        with self.assertRaises(M.RuleError):
+            MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/apply', {'confirm': True, 'review_token': review['review_token']}, 'owner', True)
+        self.assertEqual(before, len(self.ha.created))
+        _, review = MAIN.dispatch(self.store, self.ha, options, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        self.ha.configs['config/automation/config/party_safety']['alias'] = 'Changed elsewhere'
+        with self.assertRaises(M.RuleError):
+            MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/apply', {'confirm': True, 'acknowledge_unverified': True, 'review_token': review['review_token']}, 'owner', True)
+        self.assertEqual(before, len(self.ha.created))
+
+    def test_full_page_api_apply_edit_reapply_and_verify(self):
+        options = {'control': 'live'}
+        _, review = MAIN.dispatch(self.store, self.ha, options, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        code, _ = MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/apply', {'confirm': True, 'review_token': review['review_token']}, 'owner', True)
+        self.assertEqual(code, 200)
+        MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/verify', {}, 'owner', True)
+        event = self.store.record('party')
+        event['auto_off'] = '03:15'
+        MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party', event, 'owner', True)
+        _, review = MAIN.dispatch(self.store, self.ha, options, 'GET', '/events/party/apply-preview', None, 'owner', True)
+        self.assertEqual(review['operation'], 'update')
+        self.assertIn('Auto-off time', review['review']['changes'])
+        MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/apply', {'confirm': True, 'review_token': review['review_token']}, 'owner', True)
+        MAIN.dispatch(self.store, self.ha, options, 'POST', '/events/party/verify', {}, 'owner', True)
+        _, result = MAIN.dispatch(self.store, self.ha, options, 'GET', '/events/party', None, 'owner', True)
+        self.assertEqual(result['installation_status'], 'available')
+        self.assertEqual(self.ha.configs['config/automation/config/party_safety']['triggers'][0]['at'], '03:15:00')
+
+    def test_edit_add_and_remove_effects_reconciles_owned_rules(self):
+        installer.apply(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['lights'] = ['light.test']
+        event['effects'] = [{'id': 'flash', 'name': 'Flash', 'steps': [{'type': 'light', 'colour': '#ffffff', 'brightness': 100, 'seconds': 1}]}]
+        self.store.update('party', event)
+        result = installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(result['status'], 'submitted')
+        self.assertIn('config/script/config/party_flash', self.ha.configs)
+        self.assertIn('config/automation/config/party_random_effects', self.ha.configs)
+        event = self.store.record('party')
+        event['effects'] = []
+        self.store.update('party', event)
+        installer.apply(self.store, self.ha, 'party')
+        self.assertNotIn('config/script/config/party_flash', self.ha.configs)
+        self.assertNotIn('config/automation/config/party_random_effects', self.ha.configs)
+
+    def test_outside_changes_and_active_mode_block_updates(self):
+        installer.apply(self.store, self.ha, 'party')
+        self.ha.mode = 'on'
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.ha.mode = 'off'
+        self.ha.configs['config/automation/config/party_safety']['alias'] = 'Changed elsewhere'
+        plan = installer.preview(self.store, self.ha, 'party')
+        self.assertTrue(plan['unverified'])
+        self.assertTrue(any('outside' in issue for issue in plan['review_warnings']))
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party', True)['status'], 'submitted')
+
+    def test_owned_event_marked_live_can_be_updated_when_mode_is_off(self):
+        installer.apply(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['status'] = 'live'
+        event['auto_off'] = '03:00'
+        self.store.update('party', event)
+        self.assertFalse(installer.preview(self.store, self.ha, 'party')['issues'])
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
+
+    def test_lost_update_response_can_be_resumed_without_duplicate_writes(self):
+        installer.apply(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['auto_off'] = '03:00'
+        self.store.update('party', event)
+        self.ha.fail_after = True
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(self.store.installation('party')['status'], 'needs_review')
+        self.assertEqual(installer.preview(self.store, self.ha, 'party')['operation'], 'resume')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
+        self.assertEqual(self.ha.configs['config/automation/config/party_safety']['triggers'][0]['at'], '03:00:00')
+
+    def test_resume_refuses_outside_edit_of_completed_step(self):
+        installer.apply(self.store, self.ha, 'party')
+        event = self.store.record('party')
+        event['auto_off'] = '03:00'
+        event['lights'] = ['light.test']
+        event['look'] = {'rgb': [255, 0, 0]}
+        self.store.update('party', event)
+        original_post = self.ha.post
+        calls = []
+        def fail_second(path, data):
+            calls.append(path)
+            if len(calls) == 2:
+                raise RuntimeError('network failure')
+            return original_post(path, data)
+        self.ha.post = fail_second
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.ha.post = original_post
+        self.ha.configs[calls[0]]['alias'] = 'Changed elsewhere'
+        with self.assertRaises(M.RuleError) as failure:
+            installer.apply(self.store, self.ha, 'party')
+        self.assertIn('outside', str(failure.exception))
+        self.assertEqual(self.store.installation('party')['status'], 'needs_review')
+
+    def test_initial_recovery_refuses_ambiguous_helper(self):
+        original_ws = self.ha.ws
+        def lost_response(message):
+            result = original_ws(message)
+            if message['type'] != 'config/entity_registry/list':
+                raise RuntimeError('response lost')
+            return result
+        self.ha.ws = lost_response
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.ha.ws = original_ws
+        with self.assertRaises(M.RuleError) as failure:
+            installer.apply(self.store, self.ha, 'party')
+        self.assertIn('helper may have been created', str(failure.exception))
+
+    def test_older_interrupted_install_can_be_reviewed_and_resumed(self):
+        self.ha.fail_after = True
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        record = self.store.installation('party')
+        journal = [entry for entry in record['journal'] if entry['kind'] != 'initial_transaction']
+        for entry in journal:
+            entry.pop('config', None)
+        self.store.save_installation('party', 'needs_review', journal)
+        self.assertEqual(installer.preview(self.store, self.ha, 'party')['operation'], 'resume_legacy')
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party', True)['status'], 'submitted')
+        self.assertFalse(installer.preview(self.store, self.ha, 'party')['unverified'])
+
+    def test_legacy_installation_requires_explicit_review(self):
+        installer.apply(self.store, self.ha, 'party')
+        journal = self.store.installation('party')['journal']
+        for item in journal:
+            item.pop('config', None)
+        self.store.save_installation('party', 'submitted', journal)
+        self.assertTrue(installer.preview(self.store, self.ha, 'party')['unverified'])
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(installer.apply(self.store, self.ha, 'party', True)['status'], 'submitted')
 
 
 class StoreTests(unittest.TestCase):

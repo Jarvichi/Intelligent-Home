@@ -4,7 +4,7 @@
 
 One record per themed event. A record holds: name, dates (every year on a day, or fixed dates), the lights (and an optional light group), the speakers, the sounds folder, the automations to pause while the event runs, the effects, a look (colour) and an auto-off time. Each event also has a checklist (each item is due a number of days before the start) and a review (what worked, what to change) for each run.
 
-The page can create and edit event plans using form controls, including choosing devices and browsing local media. Effects can use editable light, sound and wait steps, and can restore the lighting afterwards. Saving a plan does not apply it. With live control enabled, the administrator page offers a review and first installation of new events. Existing live events, custom effects and conflicting Home Assistant items are not taken over. Installed or partially installed events cannot yet be updated, removed or retried through the page. Dates are planning information; mode starts manually. The **generator** also exposes standard Home Assistant pieces at `GET /events/<slug>/generate`:
+The page can create and edit event plans using form controls, including choosing devices and browsing local media. Effects can use editable light, sound and wait steps, and can restore the lighting afterwards. Saving a plan does not apply it. With live control enabled, the administrator page offers a review and installation of new events and updates to items it previously created. Existing live events, custom effects and conflicting Home Assistant items are not taken over. Dates are planning information; mode starts manually. Turn the mode off before updating an installed event. The **generator** also exposes standard Home Assistant pieces at `GET /events/<slug>/generate`:
 
 | File | Content |
 |---|---|
@@ -13,7 +13,7 @@ The page can create and edit event plans using form controls, including choosing
 | `scripts.yaml` | `<slug>_look` and `<slug>_effect_sound` |
 | `README.txt` | what to do first and how to install and roll back |
 
-Applying from the page creates helpers, scripts and automations in Home Assistant. The page shows a review first; Home Assistant reloads scripts and automations as they are saved. If installation stops partway through, the add-on keeps a journal and refuses automatic retries. Effects without steps still require their original hand-written scripts and cannot be installed through this flow.
+Applying from the page creates or updates owned helpers, scripts and automations in Home Assistant. The page shows a review first; Home Assistant reloads scripts and automations as they are saved. The add-on journals changes and can resume an interrupted operation when it can verify the affected items. An outside change to an owned rule requires explicit acknowledgement before it is replaced; ambiguous ownership stops the operation. An older installation without stored rule contents also requires explicit acknowledgement on its first update. Effects without steps still require their original hand-written scripts and cannot be installed through this flow.
 
 ## Records added on first start
 

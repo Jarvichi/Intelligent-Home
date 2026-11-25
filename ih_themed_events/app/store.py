@@ -99,12 +99,14 @@ class Store:
     def update(self, slug, raw, actor='owner'):
         """Replace the record (the slug stays). Send the whole record."""
         with self.db.tx() as con:
-            row = con.execute('SELECT status FROM installations WHERE slug = ?', (slug,)).fetchone()
-            if row and row[0] == 'installing':
+            row = con.execute('SELECT status, journal FROM installations WHERE slug = ?', (slug,)).fetchone()
+            if row and (row[0] in ('installing', 'updating') or (row[0] == 'needs_review' and any(x.get('kind') in ('initial_transaction', 'update_transaction') for x in json.loads(row[1])))):
                 raise M.RuleError('conflict', 'Wait until installation finishes before editing this event.')
-            self._event(con, slug)
+            original = self._event(con, slug)
             ev = M.clean_event(raw, slug)
             con.execute('UPDATE events SET data = ?, updated_at = ? WHERE slug = ?', (json.dumps(ev), self.now(), slug))
+            if row and row[0] in ('submitted', 'available', 'needs_apply') and ev != original:
+                con.execute('UPDATE installations SET status = ? WHERE slug = ?', ('needs_apply', slug))
             self._log(con, actor, slug, 'edited')
         return self.get(slug)
 
@@ -184,3 +186,21 @@ class Store:
         with self.db.tx() as con:
             con.execute('INSERT INTO installations(slug, status, journal) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET status=excluded.status, journal=excluded.journal',
                         (slug, status, json.dumps(journal)))
+
+    def mark_available(self, slug, expected_journal):
+        """Do not mark stale verification current if an edit or apply raced it."""
+        with self.db.tx() as con:
+            row = con.execute('SELECT status, journal FROM installations WHERE slug = ?', (slug,)).fetchone()
+            if not row or row[0] not in ('submitted', 'available') or json.loads(row[1]) != expected_journal:
+                raise M.RuleError('conflict', 'The event changed while checking. Review and apply it again.')
+            baseline = next((item.get('event') for item in reversed(expected_journal) if item.get('kind') == 'event_baseline'), None)
+            if baseline is None or M.clean_event(self._event(con, slug)) != baseline:
+                raise M.RuleError('conflict', 'The saved plan differs from the applied event. Review and apply it again.')
+            con.execute('UPDATE installations SET status = ? WHERE slug = ?', ('available', slug))
+
+    def discard_unstarted_installation(self, slug, expected_journal):
+        with self.db.tx() as con:
+            row = con.execute('SELECT status, journal FROM installations WHERE slug = ?', (slug,)).fetchone()
+            if not row or row[0] != 'installing' or json.loads(row[1]) != expected_journal:
+                raise M.RuleError('conflict', 'The installation changed while preparing it.')
+            con.execute('DELETE FROM installations WHERE slug = ?', (slug,))

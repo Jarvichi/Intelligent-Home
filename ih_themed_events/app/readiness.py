@@ -18,4 +18,4 @@ def inspect(event):
             issues.append('%s needs its lights, speakers and sound selected before it can be used.' % effect['name'])
         elif sum(step.get('seconds', 0) for step in effect['steps']) * effect['repeat'] >= 90:
             issues.append('%s may run longer than the current 90-second effect safety timeout.' % effect['name'])
-    return {'ready': False, 'issues': issues, 'message': 'Applying events from this page is not available yet.'}
+    return {'ready': False, 'issues': issues, 'message': 'Use Review and apply to check the current Home Assistant items.'}
