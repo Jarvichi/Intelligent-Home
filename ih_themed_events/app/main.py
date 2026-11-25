@@ -36,10 +36,11 @@ sys.path.insert(0, HERE)
 import generator as G
 import model as M
 import readiness
+import installer
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -52,6 +53,7 @@ ASSETS = {'/': 'index.html', '/index.html': 'index.html', '/ui.css': 'ui.css', '
 EVENT = r'/events/([a-z][a-z0-9_]{1,19})'
 ROUTES = [('GET', r'/events', 'list'), ('POST', r'/events', 'create'), ('GET', EVENT, 'get'), ('POST', EVENT, 'update'), ('POST', EVENT + '/delete', 'delete'),
           ('GET', EVENT + '/readiness', 'readiness'),
+          ('GET', EVENT + '/apply-preview', 'apply_preview'), ('POST', EVENT + '/apply', 'apply'),
           ('GET', r'/entities', 'entities'),
           ('POST', r'/media', 'media'),
           ('GET', EVENT + '/generate', 'generate'), ('GET', EVENT + '/reviews', 'reviews'), ('POST', EVENT + '/items', 'add_item'),
@@ -144,6 +146,21 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
             return 200, {'slug': a[0], 'files': G.generate(ev), 'warnings': G.warnings(ev), 'ids': G.ids(ev)}
         if name == 'readiness':
             return 200, readiness.inspect(store.record(a[0]))
+        if name == 'apply_preview':
+            if not ui:
+                raise M.RuleError('forbidden', 'available on the page only')
+            plan = installer.preview(store, ha, a[0])
+            if opts['control'] != 'live':
+                plan['issues'].append('Enable live control in the add-on options before applying an event.')
+            return 200, {'issues': plan['issues'], 'helper_count': sum(len(v) for v in plan['helpers'].values()),
+                         'script_count': len(plan['scripts']), 'automation_count': len(plan['automations']),
+                         'installation': store.installation(a[0])}
+        if name == 'apply':
+            if not ui or opts['control'] != 'live':
+                raise M.RuleError('forbidden', 'Applying is available on the page when live control is enabled.')
+            if _only(body, ('confirm',), ('confirm',))['confirm'] is not True:
+                raise M.RuleError('bad', 'Review and confirm the event first.')
+            return 200, installer.apply(store, ha, a[0])
         if name == 'reviews':
             return 200, {'reviews': store.reviews(a[0])}
         if name == 'add_item':

@@ -19,6 +19,8 @@ import generator as G
 import main as MAIN
 import model as M
 import readiness
+import install_plan
+import installer
 import seed as SEED
 from store import Store
 
@@ -69,6 +71,14 @@ class Rules(unittest.TestCase):
 
 
 class Generator(unittest.TestCase):
+    def test_install_plan_refuses_existing_entities_and_legacy_effects(self):
+        live = install_plan.build(M.clean_event(SEED.HALLOWEEN))
+        self.assertTrue(any('already live' in issue for issue in live['issues']))
+        event = ev(effects=[], light_group='', lights=[])
+        safe = install_plan.build(event)
+        self.assertFalse(safe['issues'])
+        self.assertTrue(install_plan.build(event, existing_entity_ids=['input_boolean.nye_mode'])['issues'])
+        self.assertTrue(install_plan.build(event, existing_automation_ids=['nye_mode_switch'])['issues'])
     def test_readiness_does_not_hide_existing_rule_or_timing_gaps(self):
         report = readiness.inspect(M.clean_event(SEED.HALLOWEEN))
         self.assertFalse(report['ready'])
@@ -167,6 +177,79 @@ class Generator(unittest.TestCase):
         text = G.generate(M.clean_event(SEED.HALLOWEEN))['automations.yaml']
         self.assertEqual(text.count('\n- id: '), 3)       # mode_switch, safety, random_effects
         self.assertEqual(text.count('\n  alias: '), 3)
+
+
+class InstallerTests(unittest.TestCase):
+    class HA:
+        def __init__(self):
+            self.created = []
+            self.fail_post = False
+        def get(self, path):
+            if path == 'states':
+                return []
+            if path.startswith('states/'):
+                return {'entity_id': path[len('states/'):], 'state': 'off'}
+            raise urllib.error.HTTPError(path, 404, 'missing', {}, None)
+        def ws(self, message):
+            if message['type'] == 'config/entity_registry/list':
+                return []
+            self.created.append(message)
+            return {'id': message['name']}
+        def post(self, path, data):
+            self.created.append(path)
+            if self.fail_post:
+                raise RuntimeError('network failure')
+            return {'result': 'ok'}
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.store = Store(self.temp.name)
+        self.addCleanup(self.store.close)
+        self.store.create({'slug': 'party', 'name': 'Party', 'effects': []}, checklist=[])
+        self.ha = self.HA()
+
+    def test_apply_creates_only_after_preview_and_blocks_retry(self):
+        self.assertFalse(installer.preview(self.store, self.ha, 'party')['issues'])
+        self.assertEqual(installer.apply(self.store, self.ha, 'party')['status'], 'submitted')
+        self.assertEqual(self.store.installation('party')['status'], 'submitted')
+        before = len(self.ha.created)
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertEqual(before, len(self.ha.created))
+
+    def test_partial_failure_is_recorded_and_never_retried_automatically(self):
+        self.ha.fail_post = True
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        record = self.store.installation('party')
+        self.assertEqual(record['status'], 'needs_review')
+        self.assertEqual(record['journal'][-1]['state'], 'starting')
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+
+    def test_collision_prevents_every_write(self):
+        original = self.ha.get
+        self.ha.get = lambda path: [{'entity_id': 'input_boolean.party_mode'}] if path == 'states' else original(path)
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        self.assertFalse(self.ha.created)
+        self.assertIsNone(self.store.installation('party'))
+
+    def test_helper_assigned_other_id_is_recorded_and_stops(self):
+        original = self.ha.ws
+        self.ha.ws = lambda msg: original(msg) if msg['type'] == 'config/entity_registry/list' else {'id': msg['name'] + '_2'}
+        with self.assertRaises(M.RuleError):
+            installer.apply(self.store, self.ha, 'party')
+        journal = self.store.installation('party')['journal']
+        self.assertTrue(journal[0]['created_id'].endswith('_2'))
+        self.assertEqual(journal[0]['state'], 'starting')
+
+    def test_apply_requires_ui_live_control_and_confirmation(self):
+        for ui, control, body in ((False, 'live', {'confirm': True}), (True, 'off', {'confirm': True}), (True, 'live', {'confirm': False})):
+            with self.assertRaises(M.RuleError):
+                MAIN.dispatch(self.store, self.ha, {'control': control}, 'POST', '/events/party/apply', body, 'owner', ui)
+        self.assertFalse(self.ha.created)
 
 
 class StoreTests(unittest.TestCase):
