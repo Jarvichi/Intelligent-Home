@@ -1,0 +1,24 @@
+/* Files page. Loads after ih-ui.css (tokens) and ih-patterns.css. */
+.files-app{width:min(1100px,100%);margin:0 auto;padding:20px clamp(16px,3vw,44px) 40px;background:var(--ih-bg)}
+.files-app ih-status{flex:0 0 auto;border:1px solid var(--ih-line);border-radius:999px;padding:8px 13px;background:var(--ih-surface);color:var(--ih-muted);font-size:12px;white-space:nowrap}
+.f-purpose{margin:0 0 16px;color:var(--ih-muted);font-size:14px;line-height:1.5}
+.f-card{display:block;margin-bottom:16px;padding:16px;border-radius:17px}
+.f-card h2{margin:0 0 10px;font-size:17px;letter-spacing:-.02em}
+.f-line{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.f-state{display:block;font-size:17px;font-weight:750;letter-spacing:-.02em}
+.f-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 0}
+.f-facts div{min-width:0}.f-facts dt{color:var(--ih-muted);font-size:12px}.f-facts dd{margin:2px 0 0;font-weight:650;overflow-wrap:anywhere}
+.f-bar{height:6px;margin-top:12px;border-radius:3px;background:var(--ih-surface-raised);overflow:hidden}.f-bar[hidden]{display:none}
+.f-bar i{display:block;height:100%;background:var(--ih-ok)}.f-bar i.full{background:var(--ih-warn)}
+.f-card .ih-metadata{margin-top:8px}.f-card .ih-metadata:empty{display:none}
+.f-card .ih-empty-inline[hidden]{display:none}
+.f-row{padding:10px 0;border-top:1px solid var(--ih-line)}.f-row:first-child{border-top:0}
+.f-name{font-weight:650;overflow-wrap:anywhere}
+.f-sub{margin-top:2px;color:var(--ih-muted);font-size:13px;overflow-wrap:anywhere}
+.f-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.f-chip{padding:2px 10px;border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-text);font-size:13px}
+.f-chip.rw{border:1px solid var(--ih-ok)}.f-chip.off{color:var(--ih-muted)}
+.ih-button{min-height:44px;padding:8px 16px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.ih-button:disabled{cursor:not-allowed;opacity:.65}
+.ih-button:focus-visible{outline:3px solid var(--ih-link);outline-offset:2px}
+@media(max-width:700px){.files-app{padding:14px 12px 32px}.ih-page-heading h1{font-size:27px}.files-app ih-status{padding:6px 9px;font-size:11px;white-space:normal}}

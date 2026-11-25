@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2] - 2026-11-25
+
+### Added
+- IH · Files page in the Home Assistant sidebar (read-only): running state and version, shares with their folders and read-only/read-write access by person, login names (never passwords or hashes), who is connected now (smbstatus), free space on the data volume and the SMB port.
+- Small threaded Python server (stdlib only) on ingress port 8826; it answers only the Supervisor gateway. `python3` added to the image.
+- Sharing itself is unchanged (same smb.conf, same users, same port mapping).
+
 ## [0.2.1] - 2026-11-14
 
 ### Fixed

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Files</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Files"></ih-nav>
+  <ih-app class="files-app">
+    <main>
+      <div class="ih-page-heading">
+        <h1 id="page-title">Files</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="f-purpose">Family and guest folders shared over the home network. This page only shows what is set up; it changes nothing.</p>
+      <ih-card class="f-card">
+        <div class="f-line">
+          <div><b id="state" class="f-state">Checking…</b><span id="checked" class="ih-freshness" data-state="unknown">Checking now</span></div>
+          <button id="check" class="ih-button" type="button">Check</button>
+        </div>
+        <dl class="f-facts">
+          <div><dt>Version</dt><dd id="version">–</dd></div>
+          <div><dt>File sharing port</dt><dd id="port">–</dd></div>
+          <div><dt>Free space</dt><dd id="free">–</dd></div>
+        </dl>
+        <div id="disk-bar" class="f-bar" role="progressbar" aria-label="Disk space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>
+        <p id="disk-note" class="ih-metadata"></p>
+      </ih-card>
+      <ih-card class="f-card">
+        <h2>Connected now</h2>
+        <div id="sessions"></div>
+        <p id="sessions-empty" class="ih-empty-inline" hidden>Nobody is connected.</p>
+      </ih-card>
+      <ih-card class="f-card">
+        <h2>Shares</h2>
+        <div id="shares"></div>
+        <p id="shares-empty" class="ih-empty-inline" hidden>No shares could be read.</p>
+      </ih-card>
+      <ih-card class="f-card">
+        <h2>Logins</h2>
+        <p class="ih-metadata">Names only. Passwords are set in the add-on settings and are never shown here.</p>
+        <ul id="logins" class="f-chips"></ul>
+        <p id="logins-empty" class="ih-empty-inline" hidden>No logins found.</p>
+      </ih-card>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
