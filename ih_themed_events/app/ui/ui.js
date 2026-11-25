@@ -200,7 +200,7 @@
       var line = el('div', { class: 'e-subform' }); effectsBox.appendChild(line);
       function ef(label, node) { line.appendChild(el('label', {}, [label, node])); return node; }
       var ename = ef('Effect name', input('text', effect.name || '', { required: true, maxlength: '80' }));
-      var kind = ef('What happens', select([['sound_and_lights', 'Sound and lights'], ['sound', 'Sound'], ['lights', 'Lights']], effect.kind || 'sound_and_lights'));
+      var kind = effect.kind || 'sound_and_lights';
       var soundValue = effect.sound || '', soundLabel = el('span', { text: soundValue ? soundValue.split('/').pop() : 'No sound selected' });
       var browser = el('div', { class: 'e-picker', hidden: true }), choices = el('div', { class: 'e-form' });
       var backStack = [];
@@ -222,11 +222,62 @@
       line.appendChild(el('div', {}, [el('strong', { text: 'Sound: ' }), soundLabel]));
       line.appendChild(el('button', { type: 'button', class: 'e-button', text: 'Choose sound', on: { click: function () { browser.hidden = false; backStack = []; browse('media-source://media_source/local'); } } }));
       browser.appendChild(choices); line.appendChild(browser);
+      var built = !!effect.steps || !effect.id;
+      var sequence = el('div', { class: 'e-sequence' });
+      var sequenceNotice = el('p', { class: 'e-notice', text: 'This existing effect uses its own custom behaviour. It stays unchanged until you choose a new sequence below.' });
+      if (!built) line.appendChild(sequenceNotice);
+      line.appendChild(el('h4', { text: 'What happens' }));
+      var preset = select([['', 'Choose a starting point'], ['lightning', 'Lightning flashes'], ['flicker', 'Flickering lights'], ['burst', 'Colour burst'], ['powercut', 'Power cut'], ['custom', 'Start from scratch']], '');
+      line.appendChild(el('label', {}, ['Start with a preset', preset]));
+      line.appendChild(el('p', { class: 'e-hint', text: 'Each preset is editable. Choosing one replaces the steps below.' }));
+      line.appendChild(sequence);
+      function addStep(item) {
+        var row = el('div', { class: 'e-effect-step' });
+        var type = select([['light', 'Set lights'], ['sound', 'Play selected sound'], ['wait', 'Wait']], item.type || 'light');
+        var colourInput = input('color', item.colour || '#ffffff');
+        var level = input('number', item.brightness == null ? 100 : item.brightness, { min: '0', max: '100', required: true });
+        var chosenTargets = (item.targets || []).slice();
+        var targetList = el('div', { class: 'e-device-list' });
+        var availableLights = entities.filter(function (e) { return e.id.indexOf('light.') === 0; });
+        chosenTargets.forEach(function (id) { if (!availableLights.some(function (x) { return x.id === id; })) availableLights.push({ id: id, name: id.split('.').pop().replace(/_/g, ' ') + ' (unavailable)' }); });
+        availableLights.sort(function (a, b) { return a.name.localeCompare(b.name); }).forEach(function (device) {
+          var check = input('checkbox', ''); check.checked = chosenTargets.indexOf(device.id) !== -1;
+          check.addEventListener('change', function () { if (check.checked) chosenTargets.push(device.id); else chosenTargets = chosenTargets.filter(function (id) { return id !== device.id; }); });
+          targetList.appendChild(el('label', { class: 'e-device' }, [check, el('span', { text: device.name })]));
+        });
+        var targetsDisclosure = el('details', {}, [el('summary', { text: 'Choose specific lights (otherwise use event lights)' }), targetList]);
+        var seconds = input('number', item.seconds == null ? 1 : item.seconds, { min: '0.1', max: '60', step: '0.1', required: true });
+        var lightFields = el('div', {}, [el('div', { class: 'e-step-fields' }, [el('label', {}, ['Colour', colourInput]), el('label', {}, ['Brightness % (0 = off)', level])]), targetsDisclosure]);
+        var durationField = el('label', {}, ['Hold for seconds', seconds]);
+        function visibility() { lightFields.hidden = type.value !== 'light'; durationField.hidden = type.value === 'sound'; level.disabled = type.value !== 'light'; seconds.disabled = type.value === 'sound'; }
+        type.addEventListener('change', visibility); visibility();
+        row.appendChild(el('label', {}, ['Action', type])); row.appendChild(lightFields); row.appendChild(durationField);
+        row.appendChild(el('div', { class: 'e-row' }, [
+          el('button', { type: 'button', class: 'e-button', text: '↑', 'aria-label': 'Move step up', on: { click: function () { if (row.previousElementSibling) sequence.insertBefore(row, row.previousElementSibling); } } }),
+          el('button', { type: 'button', class: 'e-button', text: '↓', 'aria-label': 'Move step down', on: { click: function () { if (row.nextElementSibling) sequence.insertBefore(row.nextElementSibling, row); } } }),
+          el('button', { type: 'button', class: 'e-button', text: 'Remove step', on: { click: function () { row.remove(); } } })]));
+        row._stepValues = function () { if (type.value === 'light') return { type: 'light', colour: colourInput.value, brightness: Number(level.value), seconds: Number(seconds.value), targets: chosenTargets.slice() }; if (type.value === 'wait') return { type: 'wait', seconds: Number(seconds.value) }; return { type: 'sound' }; };
+        sequence.appendChild(row);
+      }
+      var presets = {
+        lightning: [{type:'light',colour:'#ffffff',brightness:100,seconds:0.2},{type:'light',colour:'#ffffff',brightness:0,seconds:0.3},{type:'light',colour:'#ffffff',brightness:100,seconds:0.2}],
+        flicker: [{type:'light',colour:'#ff9b32',brightness:35,seconds:0.4},{type:'light',colour:'#ff9b32',brightness:80,seconds:0.4}],
+        burst: [{type:'light',colour:'#ffc83d',brightness:100,seconds:2},{type:'light',colour:'#a34dff',brightness:100,seconds:2}],
+        powercut: [{type:'light',colour:'#ffffff',brightness:20,seconds:1},{type:'light',colour:'#ffffff',brightness:100,seconds:0.5},{type:'light',colour:'#ffffff',brightness:0,seconds:2}],
+        custom: []
+      };
+      preset.addEventListener('change', function () { if (!preset.value) return; built = true; sequenceNotice.hidden = true; clear(sequence); presets[preset.value].forEach(addStep); });
+      (effect.steps || []).forEach(addStep);
+      if (!effect.id && !effect.steps) addStep({});
+      line.appendChild(el('button', { type: 'button', class: 'e-button e-add', text: '+ Add a step', on: { click: function () { if (sequence.children.length >= 20) return say('You can add up to 20 steps.'); built = true; sequenceNotice.hidden = true; addStep({}); } } }));
+      var repeat = ef('Repeat the sequence', input('number', effect.repeat || 1, { min: '1', max: '10', required: true }));
+      var restore = input('checkbox', ''); restore.checked = effect.restore !== false;
+      line.appendChild(el('label', { class: 'e-restore' }, [restore, 'Restore previous lighting when finished']));
       var min = ef('Minimum minutes between effects', input('number', effect.min_gap_minutes == null ? 10 : effect.min_gap_minutes, { min: '1', max: '240', required: true }));
       var max = ef('Maximum minutes between effects', input('number', effect.max_gap_minutes == null ? 15 : effect.max_gap_minutes, { min: '1', max: '240', required: true }));
       var from = ef('Start time (optional)', input('time', effect.from || '')), to = ef('End time (optional)', input('time', effect.to || '')), at = ef('Exact time (optional)', input('time', effect.at || ''));
       line.appendChild(el('button', { type: 'button', class: 'e-button', text: 'Remove effect', on: { click: function () { line.remove(); } } }));
-      line._effectValues = function (i) { return { id: effect.id || ('effect_' + i), name: ename.value, kind: kind.value, sound: soundValue, min_gap_minutes: Number(min.value), max_gap_minutes: Number(max.value), from: from.value, to: to.value, at: at.value }; };
+      line._effectValues = function (i) { var result = { id: effect.id || ('effect_' + i), name: ename.value, kind: kind, sound: soundValue, min_gap_minutes: Number(min.value), max_gap_minutes: Number(max.value), from: from.value, to: to.value, at: at.value }; if (built) { result.steps = Array.prototype.map.call(sequence.children, function (row) { return row._stepValues(); }); result.repeat = Number(repeat.value); result.restore = restore.checked; } return result; };
     }
     (ev.effects || []).forEach(addEffect);
     panel.appendChild(el('button', { type: 'button', class: 'e-button e-add', text: '+ Add an effect', on: { click: function () { if (effectsBox.children.length < 12) addEffect({}); else say('You can add up to 12 effects.'); } } }));
