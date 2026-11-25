@@ -32,6 +32,55 @@ def load_special(path=None):
     return [p for p in d.get('special', []) if isinstance(p, dict) and isinstance(p.get('id'), str) and isinstance(p.get('text'), str) and isinstance(p.get('when'), int)]
 
 
+# ---- 0.27.0: discovery (new releases and tastes) ----
+KINDS = ('film', 'album', 'game')
+ANSWERS = ('', 'yes', 'no', 'later', 'liked', 'disliked')
+VERDICTS = ('liked', 'disliked', 'clear')
+ASKED_KEEP = 300
+TASTES_KEEP = 100
+
+
+def norm(v):
+    return ' '.join(str(v or '').lower().split())
+
+
+def asked_find(asked, kind, creator, title):
+    """The entry already asked about (same kind and title; creator too when both have one), or None."""
+    for e in asked:
+        if isinstance(e, dict) and e.get('kind') == kind and norm(e.get('title')) == norm(title):
+            if not norm(creator) or not norm(e.get('creator')) or norm(e.get('creator')) == norm(creator):
+                return e
+    return None
+
+
+def pending(asked):
+    """Items the person said yes to (or later) that have no verdict yet."""
+    return [e for e in asked if isinstance(e, dict) and e.get('answer') in ('yes', 'later')]
+
+
+def summary_tastes(tastes):
+    if not tastes:
+        return 'none saved yet'
+    return '; '.join('%s=%s' % (k, v.get('verdict')) for k, v in list(tastes.items())[-40:] if isinstance(v, dict))
+
+
+def summary_asked(asked, n=40):
+    rows = ['%s "%s" by %s (%s)' % (e.get('kind'), e.get('title'), e.get('creator') or '?', e.get('answer') or 'no answer yet') for e in asked[-n:] if isinstance(e, dict)]
+    return '; '.join(rows) or 'nothing yet'
+
+
+def usable(p, state):
+    """Whether a prompt can be asked now given the saved discovery state."""
+    if p.get('group') == 'discovery' and state.get('discovery_off'):
+        return False
+    need = p.get('needs')
+    if need == 'tastes':
+        return bool(state.get('tastes'))
+    if need == 'tried':
+        return bool(pending(state.get('asked') or []))
+    return True
+
+
 def week_cap(level):
     try:
         lv = int(level)
