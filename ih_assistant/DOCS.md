@@ -161,3 +161,9 @@ Hearth belongs to the whole house, not to one person. Add a persona with `key: h
 - **Preview.** `GET /hearth/preview?event=armed` (bearer token) shows the text Hearth would say now and plays nothing.
 
 The Home Assistant script and automations that do this today stay on until each cut-over is approved; switch them off only after hearing the add-on path once.
+
+## Private maintenance prompts (0.25.0)
+
+Per persona option `autonomy_level` (0 to 10, default 3, 0 = off). Once a day the add-on may queue one silent `self_prompt` event (type `self_prompt`, `silent: true`, `prompt_id`, `text`) taken from `app/self_prompts.json`. Roughly 1 prompt a week at level 3, 3 at level 5, 7 at level 10. The event text starts "INTERNAL, NOT FROM <user>": the persona answers privately, may act (one setting, memory, one message) and nothing goes to Discord unless the persona itself writes. It then calls `POST /persona/<key>/selfdone` with `{"prompt_id": "...", "action": "none|setting|memory|message|identity|other", "outcome": "one short line"}`. `GET /persona/<key>/selflog` lists the audit (time, prompt id, status, action, line).
+
+Fixed rules in code: not in quiet hours; not within 2 h of a check-in or reminder; 12 h minimum between prompts; weekly cap from the level; per-prompt cooldown (7 to 90 days); a missed day is dropped, never fired late; none for dry or household personas. A persona cannot change its own add-on options, tokens or permissions (it has no call for it). `identity` takes `avatar_file` (file name inside `/data/avatars`); inside an open prompt the nickname and the picture can each change once in 30 days and a picture must come from that folder.
