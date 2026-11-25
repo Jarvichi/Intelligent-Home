@@ -3,7 +3,8 @@
 import json, os, time
 from datetime import datetime, timezone
 
-from store import ACTIVE, Store, parse, queue_order
+from store import ACTIVE, parse, queue_order
+import workdb
 
 TITLE = 'Today'
 SUBTITLE = 'What is running, what is waiting and why'
@@ -58,14 +59,8 @@ def build(items, snap, now, tz=timezone.utc):
 
 
 def fetch(data_dir=None):
-    d = data_dir or os.environ.get('IHW_DATA', '/data')
-    items = Store(d).peek()
-    try:
-        with open(os.path.join(d, 'state.json')) as f:
-            st = json.load(f)
-    except (OSError, ValueError):
-        st = {}
-    return items, st.get('snapshot')
+    """-> (items, snapshot) read-only from the database and the plain files (see workdb.peek). Opens nothing for writing."""
+    return workdb.peek(data_dir or os.environ.get('IHW_DATA', '/data'))
 
 
 def today(fetcher=fetch, clock=time.time, tz_name=None):

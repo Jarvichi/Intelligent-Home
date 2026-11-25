@@ -3,6 +3,19 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.0] - 2026-11-25
+
+### Changed
+- Storage moved from JSON files to the add-on's own SQLite database `/data/ih.db` (database storage plan, phase 3c, shared `ihlib/db.py`; same method as the pilot AI Trust Test 0.2.0). Jobs are rows of the table `work_items` (indexes on status and kind + ref), claim times and fed to-do ids are tables (`work_claims`, `work_fed`), and the gate state and the page snapshot are key-value rows. The API, its answers, the leases and the pace gate are unchanged.
+- Old files (`items/*.json`, `seq.counter`, `state.json`) are copied into the database and checked (rows compared) before they are moved to `/data/trash`, which is emptied after 30 days. A file that fails the check stays where it is and is listed in `corrupt_files` (`/list` and `/status`).
+- A nightly snapshot (from 04:00 local time) goes to `/data/backup` (newest 3 kept), followed by a restore check logged with counts only.
+- `/status` has a new `db` block (schema version, row counts, last snapshot, last restore check, trash size, import errors) and `db_degraded`. The page reads the database read-only.
+
+### Safety
+- If the database is damaged, newer than this add-on, or cannot be opened, the queue keeps working on plain files in `/data/degraded/` (the old file store) and status says so loudly. The database is never recreated by itself. See DOCS.md to restore; files in `/data/degraded/` are imported again after the restore.
+- A database error while the file is open (disk full, locked) returns an error for that call and is shown in status. It is never written to files, so the queue cannot split in two.
+- Rebuilt on top of 0.10.2: the database also stores `priority` and the `waiting` status (with `waiting_kind`), claims go high, normal, low, then oldest first, and `wait`/`requeue` work in both the database and the degraded file store.
+
 ## [0.10.2] - 2026-11-24
 
 ### Added

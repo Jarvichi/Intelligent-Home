@@ -109,16 +109,46 @@ Replaces the nightly worker's picking. When the line is empty and the gate would
 
 When this works and the owner approves going live, the old nightly worker is retired. Until then both exist; decide who owns each item first so they do not pick the same one.
 
-## Where things are kept
+## Where things are kept (database since 0.3.0)
 
-Everything is in the add-on's `/data`: `items/` (one file per job), `state.json` (mode, hour counters, fed list, last status), `seq.counter`. Uninstalling the add-on deletes the queue. No folders are mapped.
+The add-on keeps its data in one SQLite file, `/data/ih.db` (shared helper `ihlib/db.py`, WAL mode). Every file under `/data` was reviewed:
+
+| Old file under `/data` | Where it lives now | Why |
+|---|---|---|
+| `items/<seq>-<id>.json` (one per job, with the result summary and error) | Database: table `work_items` (id, seq, status, lease fields, result_summary, error ...), indexes on `(status, seq)` and `(kind, ref)` | Queue rows need status queries, one-transaction claims and no file lock |
+| `seq.counter` | Database: key-value row `work` / `seq` | One number, kept so a number is never reused |
+| `state.json` lists `claims`, `dry_claims`, `urgent_claims` (claim times) | Database: table `work_claims` (kind, at), index on `(kind, at)` | Rows are counted by time window |
+| `state.json` maps `fed`, `fed_dry` (to-do id to time) | Database: table `work_fed` (mode, uid, at) | One row per fed to-do |
+| `state.json` rest: `mode`, `band`, `mode_since`, `last_feed_check`, `snapshot` (page status) | Database: key-value row `work` / `gate` | Small whole-value state |
+| `.lock` (flock file) | Gone. One database thread and one write transaction per step replace the lock | |
+| `options.json` | Stays a file | Supervisor owns it; holds the secret `api_token`. Secrets are never stored in the database or its snapshots |
+| `run_settings.json` (run settings saved on the page) | Stays a file | Tiny, written only when you press save; not part of the queue |
+| `workers.json` (short copy of the worker list) | Stays a file | Tiny, only a restart copy of what is held in memory; the queue itself is in the database |
+| `STOP` | Stays a file | Kill switch: you create or delete it by hand |
+| Add-on log (container log) | Stays text | Logs stay text |
+| `trash/` | New folder | Old files, deleted after 30 days |
+| `backup/` | New folder | Nightly snapshots of `ih.db`, newest 3 |
+| `degraded/` | New folder, only used when the database cannot be used | The old file layout (`items/`, `seq.counter`, `state.json`); imported again after a restore |
+
+**Start-up:** the add-on opens `ih.db`, applies numbered migrations (a snapshot is taken first when the file already has data), copies each old file into the database, checks the rows inside the same transaction, and only then moves the file to `/data/trash`. It purges the trash at start and once a day. From 04:00 it takes one snapshot a night into `/data/backup`, opens the copy read-only, runs the integrity check and logs the row counts (counts only, no job text).
+
+**Status:** `/status` shows `db`: schema version, rows per table, last snapshot time, snapshots kept, last restore check, trash files and bytes, import errors, and `db_degraded`. `corrupt_files` lists old files that could not be imported (they stay in place).
+
+**If the database is damaged or too new:** the queue keeps working. Status shows `db_degraded: true`, a `WARNING` and the error, and the log says `DATABASE DEGRADED`. Jobs, claims and state go to `/data/degraded/`. Old files that were never imported are copied there at that moment (originals stay). Jobs that only lived in the damaged database are NOT visible in degraded mode: restore a snapshot to get them back. The damaged file is moved aside as `ih.db.corrupt-<time>`; nothing is recreated.
+
+**Database errors while it is open** (disk full, locked) return an error for that call (HTTP 500) and show in `db.error`; the next call tries again. They are not redirected to files, so the queue never splits in two.
+
+**Restore** (add-on stopped): copy the newest file in `/data/backup` to `/data/ih.db`, delete `ih.db-wal` and `ih.db-shm`, start the add-on. Files in `/data/degraded/` are then imported automatically (a job in both places takes the degraded copy, which is newer). To go back to the previous add-on version: install it, and copy the files from `/data/trash` back to their old places (`/data/items/`, `/data/seq.counter`, `/data/state.json`).
+
+Untested on the real device: power loss, a restore from a Home Assistant backup, running two copies at once.
 
 ## Troubleshooting
 
 - **Page says "Status is old".** The 30-second timer stopped. Restart the add-on and read the log.
 - **Reason says "usage sensors could not be read".** Check the three sensor options, or that the usage integration is running.
 - **Nothing is handed out.** Test mode (`mode: dry`), the STOP option or `/data/STOP`, or the gate reason on the page.
-- **A job shows in `corrupt_files`.** That file is not valid JSON; it is skipped, not deleted.
+- **A file shows in `corrupt_files`.** An old file could not be imported (not valid JSON, bad shape, or a number already used). It stays in place and is not deleted.
+- **`db_degraded` is true.** The database could not be used. See "If the database is damaged or too new" above.
 
 ## Privacy
 

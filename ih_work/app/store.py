@@ -1,4 +1,5 @@
-"""Work queue store: one JSON file per item under <dir>/items, FIFO by a monotonic seq inside each priority (high, normal, low), with leases.
+"""Work queue FILE store (the old layout, used since 0.3.0 only in DEGRADED mode under /data/degraded; the normal store is workdb.py).
+One JSON file per item under <dir>/items, FIFO by a monotonic seq, with leases.
 
 Item statuses: queued, claimed (handed to a consumer, lease running), running (consumer sent a heartbeat), done, failed, cancelled, waiting (worker stopped without finishing: waiting_kind needs_ok | needs_you | progress | cannot; a person or a requeue moves it on).
 A consumer holds an item only while its lease is valid. `heartbeat` renews it. A lease that runs out puts the item back in the queue
@@ -61,7 +62,32 @@ def clean(value, field):
     return value
 
 
-class Store:
+def check_consumer(consumer):
+    if not isinstance(consumer, str) or not CONSUMER_RE.match(consumer):
+        raise StoreError('bad', 'consumer must be 1-40 letters, digits, . _ -')
+
+
+def check_enqueue(kind, ref, title, instruction, approved, by, priority='normal'):
+    """Shared input rules of both stores -> cleaned (ref, title, instruction)."""
+    if kind not in KINDS:
+        raise StoreError('bad', 'kind must be one of ' + ', '.join(KINDS))
+    if not isinstance(by, str) or not CONSUMER_RE.match(by):
+        raise StoreError('bad', 'by must be 1-40 letters, digits, . _ -')
+    if not isinstance(approved, bool):
+        raise StoreError('bad', 'approved must be true or false')
+    if priority not in PRIORITIES:
+        raise StoreError('bad', 'priority must be one of ' + ', '.join(PRIORITIES))
+    ref, title, instruction = clean(str(ref) if isinstance(ref, int) else ref, 'ref'), clean(title, 'title'), clean(instruction, 'instruction')
+    if not ref or not title or not instruction:
+        raise StoreError('bad', 'ref, title and instruction are needed')
+    return ref, title, instruction
+
+
+def check_finish(summary, error):
+    return (clean(summary, 'summary') if summary is not None else None), (clean(error, 'error') if error is not None else None)
+
+
+class FileStore:
     def __init__(self, directory, clock=utcnow):
         self.dir = directory
         self.items = os.path.join(directory, 'items')
@@ -89,10 +115,11 @@ class Store:
             self.s._tl.release()
 
     def lock(self):
-        return Store._Lock(self)
+        return FileStore._Lock(self)
 
     @staticmethod
     def write_json(path, obj):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix='.tmp-')
         with os.fdopen(fd, 'w') as f:
             json.dump(obj, f, indent=1)
@@ -171,17 +198,7 @@ class Store:
 
     # ---- writes ----
     def enqueue(self, kind, ref, title, instruction, approved=False, by='claude', priority='normal'):
-        if kind not in KINDS:
-            raise StoreError('bad', 'kind must be one of ' + ', '.join(KINDS))
-        if not isinstance(by, str) or not CONSUMER_RE.match(by):
-            raise StoreError('bad', 'by must be 1-40 letters, digits, . _ -')
-        if not isinstance(approved, bool):
-            raise StoreError('bad', 'approved must be true or false')
-        if priority not in PRIORITIES:
-            raise StoreError('bad', 'priority must be one of ' + ', '.join(PRIORITIES))
-        ref, title, instruction = clean(str(ref) if isinstance(ref, int) else ref, 'ref'), clean(title, 'title'), clean(instruction, 'instruction')
-        if not ref or not title or not instruction:
-            raise StoreError('bad', 'ref, title and instruction are needed')
+        ref, title, instruction = check_enqueue(kind, ref, title, instruction, approved, by, priority)
         with self.lock():
             items, now = self._fresh()
             for i in items:
@@ -202,8 +219,7 @@ class Store:
     def claim(self, consumer, lease_s, iid=None):
         """Give the first queued item (highest priority, then lowest seq) (or the queued item `iid`) to `consumer` with a lease. Returns the item, or None when the queue is empty.
         Raises conflict when another item is still held (one at a time)."""
-        if not isinstance(consumer, str) or not CONSUMER_RE.match(consumer):
-            raise StoreError('bad', 'consumer must be 1-40 letters, digits, . _ -')
+        check_consumer(consumer)
         with self.lock():
             items, now = self._fresh()
             held = next((i for i in items if i['status'] in ACTIVE), None)
@@ -233,8 +249,7 @@ class Store:
             return it
 
     def finish(self, iid, consumer, ok, summary=None, error=None):
-        summary = clean(summary, 'summary') if summary is not None else None
-        error = clean(error, 'error') if error is not None else None
+        summary, error = check_finish(summary, error)
         with self.lock():
             items, now = self._fresh()
             it = self._holder(items, iid, consumer)

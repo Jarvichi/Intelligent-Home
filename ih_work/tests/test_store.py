@@ -1,9 +1,11 @@
-"""Queue store: FIFO, dedupe, leases, expiry, acknowledgement, cancel, retry, corrupt files, concurrency."""
-import json, os, sys, tempfile, threading, unittest
+"""Queue store: FIFO, dedupe, leases, expiry, acknowledgement, cancel, retry, corrupt files, concurrency.
+The same behaviour tests run against the database store (normal) and the file store (degraded mode)."""
+import json, os, sqlite3, sys, tempfile, threading, unittest
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
-from store import Store, StoreError
+from store import FileStore, StoreError
+from workdb import WorkStore
 
 T0 = datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc)
 
@@ -19,11 +21,13 @@ class Clock:
         self.t += timedelta(**kw)
 
 
-class T(unittest.TestCase):
+class Common:
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         self.c = Clock()
-        self.s = Store(self.dir, self.c)
+        self.stores = []
+        self.s = self.make()
+        self.addCleanup(lambda: [getattr(x, 'close', lambda: None)() for x in self.stores])
 
     def add(self, ref, **k):
         return self.s.enqueue('other', ref, 't' + str(ref), 'do it', **k)
@@ -49,6 +53,8 @@ class T(unittest.TestCase):
         self.assertEqual(order, [c['id'], d['id'], a['id'], b['id']])
 
     def test_item_without_priority_counts_as_normal(self):
+        if isinstance(self.s, WorkStore):
+            return   # the table column is NOT NULL DEFAULT 'normal': an item cannot lack it
         a, b = self.add('1'), self.add('2', priority='low')
         del a['priority']; self.s._save(a)
         self.assertEqual(self.s.claim('w1', 600)['id'], a['id'])
@@ -131,7 +137,7 @@ class T(unittest.TestCase):
         self.assertEqual((r['status'], r['attempts'], r['error']), ('queued', 0, None))
         self.assertEqual([i['id'] for i in self.s.list(('queued',))], [b['id'], a['id']])
         self.assertEqual(self.code(self.s.retry, b['id']), 'conflict')
-        self.assertEqual(len(os.listdir(self.s.items)), 2)    # old file removed
+        self.assertEqual(len(self.s.list()), 2)
 
     def test_validation(self):
         self.assertEqual(self.code(self.s.enqueue, 'nope', 'r', 't', 'i'), 'bad')
@@ -145,6 +151,22 @@ class T(unittest.TestCase):
         a = self.add('1'); self.s.claim('w', 60)
         self.assertEqual(self.code(self.s.finish, a['id'], 'w', True, 's' * 2001), 'bad')
 
+    def test_concurrent_enqueue(self):
+        res = []
+        ts = [threading.Thread(target=lambda n=n: res.append(self.add(str(n))['seq'])) for n in range(20)]
+        [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(sorted(res), list(range(1, 21)))
+
+    def test_survives_restart(self):
+        a = self.add('1'); self.s.claim('w', 600)
+        s2 = self.make()
+        self.assertEqual(s2.get(a['id'])['claimed_by'], 'w')
+
+
+class FileCase(Common, unittest.TestCase):
+    def make(self):
+        return FileStore(self.dir, self.c)
+
     def test_corrupt_file_skipped(self):
         self.add('1')
         with open(os.path.join(self.s.items, '000099-bad.json'), 'w') as f:
@@ -157,16 +179,47 @@ class T(unittest.TestCase):
         os.remove(self.s.counter)
         self.assertEqual(self.add('3')['seq'], 3)      # counter rebuilt from the files
 
-    def test_concurrent_enqueue(self):
-        res = []
-        ts = [threading.Thread(target=lambda n=n: res.append(self.add(str(n))['seq'])) for n in range(20)]
-        [t.start() for t in ts]; [t.join() for t in ts]
-        self.assertEqual(sorted(res), list(range(1, 21)))
 
-    def test_survives_restart(self):
-        a = self.add('1'); self.s.claim('w', 600)
-        s2 = Store(self.dir, self.c)
-        self.assertEqual(s2.get(a['id'])['claimed_by'], 'w')
+class DbCase(Common, unittest.TestCase):
+    def make(self):
+        s = WorkStore(self.dir, self.c).open()
+        self.stores.append(s)
+        return s
+
+    def test_status_index_and_columns_exist(self):
+        con = sqlite3.connect(os.path.join(self.dir, 'ih.db'))
+        idx = {r[1] for r in con.execute("PRAGMA index_list('work_items')")}
+        con.close()
+        self.assertIn('work_items_status', idx)
+
+    def test_seq_never_reused_after_retry(self):
+        a, b = self.add('1'), self.add('2')
+        self.s.claim('w', 600); self.s.finish(a['id'], 'w', False, error='x')
+        r = self.s.retry(a['id'])
+        self.assertEqual(r['seq'], 3)
+        self.assertEqual(self.add('9')['seq'], 4)
+
+    def test_item_shape_same_as_files(self):
+        a = self.add('1', approved=True, by='owner')
+        keys = ['id', 'seq', 'kind', 'ref', 'title', 'instruction', 'approved', 'status', 'queued_at', 'claimed_by', 'lease_expires_at',
+                'heartbeat_at', 'started_at', 'finished_at', 'attempts', 'result_summary', 'error', 'by', 'priority', 'waiting_kind']
+        self.assertEqual(list(a)[:len(keys)], keys)
+        self.assertEqual((a['approved'], a['by']), (True, 'owner'))
+
+    def test_two_threads_never_get_same_job(self):
+        for n in range(6):
+            self.add(str(n))
+        got = []
+
+        def go(name):
+            try:
+                it = self.s.claim(name, 600)
+                got.append(it['id'] if it else None)
+            except StoreError as e:
+                got.append(e.code)
+        ts = [threading.Thread(target=go, args=('w%d' % n,)) for n in range(5)]
+        [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(len([g for g in got if g not in ('conflict', None)]), 1)
 
     def test_wait_is_not_done_and_requeue_goes_to_the_back(self):
         a = self.add('1'); b = self.add('2'); self.s.claim('w', 600)
