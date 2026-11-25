@@ -24,7 +24,7 @@ import inbox_events as inboxmod
 import selfprompts as selfmod
 import random
 
-VERSION = '0.25.0'
+VERSION = '0.26.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -420,6 +420,56 @@ class Assistant:
         st.append_event(self._stamp_home(key, {'type': 'reminder_due', 'source': 'dates', 'facts': r[1], 'suggested_text': r[0][:900]}))
         self.log('persona %s: dates reminder queued (%s)' % (key, r[1]['days_ahead']))
         return True
+
+    # ---- 0.26.0: special days (the person's own birthday / anniversary) ----
+    def special_today(self, key):
+        """-> [(word, name, year)] for the persona's own person on today's date (from the same `dates` lines the reminders use). No new option."""
+        c = self.cfg[key]
+        if c.get('household') or not c['dates']:
+            return []
+        person = self.stores[key].profile().get('person_name')
+        return datesmod.own(self.now().date(), datesmod.parse(c['dates']), person)
+
+    def special_line(self, key):
+        """The sentence added to GET /behaviour on the day itself ('' on any other day)."""
+        items = self.special_today(key)
+        if not items:
+            return ''
+        word = ' and '.join(sorted({w for w, n, y in items}))
+        return "Today is the person's %s: be a little warmer and more personal than usual in every reply today (and send one personal greeting if you have not yet)." % word
+
+    def tick_special(self, key):
+        """0.26.0: three silent-to-the-user hand-overs per special day: 3 days ahead, on the day (the persona sends ONE personal greeting) and the day after.
+        Only the persona's own person; never in quiet hours; each fires once per date (state special_done). -> list of prompt ids queued."""
+        c, st, now = self.cfg[key], self.stores[key], self.now()
+        if c.get('household') or not c['dates'] or not self.is_live(key):
+            return []
+        if in_quiet(now.hour * 60 + now.minute, c['quiet_start'], c['quiet_end']):
+            return []
+        people = datesmod.parse(c['dates'])
+        person = st.profile().get('person_name')
+        done = st.state().get('special_done') or {}
+        queued = []
+        for p in selfmod.load_special():
+            target = now.date() + datetime.timedelta(days=p['when'])
+            items = datesmod.own(target, people, person)
+            if not items:
+                continue
+            mark = '%s:%s' % (p['id'], target.isoformat())
+            if mark in done:
+                continue
+            st.update_state(lambda s, m=mark: s.__setitem__('special_done', dict(list((s.get('special_done') or {}).items())[-19:] + [(m, 1)])))   # mark first: once per date
+            word = ' and '.join(sorted({w for w, n, y in items}))
+            turning = ''.join(' (turning %d)' % (target.year - y) for w, n, y in items[:1] if y and w == 'birthday')
+            user = person or 'the person you chat with'
+            text = p['text'].replace('{user}', user).replace('{what}', word).replace('{turning}', turning).replace('{date}', target.strftime('%A %-d %B'))
+            if c.get('fixed_rule'):
+                text += ' Your fixed rule still applies: ' + c['fixed_rule']
+            self.maybe_intro(key)
+            st.append_event({'type': 'self_prompt', 'source': 'special_day', 'prompt_id': p['id'], 'text': text[:1200], 'facts': {'group': 'special_day', 'days_from': p['when']}})
+            self.log('persona %s: special day prompt queued (%s)' % (key, p['id']))
+            queued.append(p['id'])
+        return queued
 
     # ---- 0.25.0: private maintenance prompts ----
     def self_open(self, key):
@@ -950,6 +1000,10 @@ class Assistant:
         roll = self.rng()
         out = {'ok': True, 'levels': dict(lv), 'prompt': levels.prompt_block(lv, key, self.cfg[key].get('fixed_rule')), 'gif_ok': levels.gif_allowed(lv['gif_level'], roll),
                 'emoji_max': levels.emoji_cap(lv['emoji_level']), 'checkins_per_day_cap': self.checkin_cap(key), 'checkin_rules': self.checkin_rules_view(key)[1]}
+        sp = self.special_line(key)
+        if sp:
+            out['special_day'] = True
+            out['prompt'] = out['prompt'] + '\n- ' + sp
         return self._with_offer(key, dict(out, **self._offer_part(key, lv)))
 
     def _offer_part(self, key, lv):
@@ -1604,6 +1658,10 @@ class Assistant:
             self.tick_bedtime(key)
         except Exception as e:
             self.log('persona %s: bedtime failed (%s)' % (key, type(e).__name__))
+        try:
+            self.tick_special(key)
+        except Exception as e:
+            self.log('persona %s: special day failed (%s)' % (key, type(e).__name__))
         try:
             self.tick_self(key)
         except Exception as e:

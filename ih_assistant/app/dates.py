@@ -62,3 +62,14 @@ def due(today, people, lead_days):
     if not parts:
         return None
     return '\n\n'.join(parts), {'kind': 'birthday', 'names': ', '.join(names)[:280], 'days_ahead': ','.join(str(g) for g in sorted(set(got)))}
+
+
+def _same_person(name, person):
+    a, b = ' '.join(str(name).lower().split()), ' '.join(str(person or '').lower().split())
+    return bool(a and b and (a == b or a.split()[0] == b.split()[0]))
+
+
+def own(day, people, person):
+    """0.26.0: the special days of the persona's own person that fall on `day`: [(kind_word, name, year or None)].
+    A line whose kind is 'anniversary' is an anniversary; every other line is a birthday. Name match: whole name or first name, any case."""
+    return [('anniversary' if k == 'anniversary' else 'birthday', n, y) for n, y, k in on(day, people) if _same_person(n, person)]
