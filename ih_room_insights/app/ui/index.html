@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Room Insights · Intelligent Home</title>
+  <link rel="stylesheet" href="ih-ui.css?v=nav1">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator"></ih-nav>
+  <ih-app class="ri-app">
+    <main class="ri-main">
+      <div class="ih-page-heading">
+        <h1 id="page-title">Room Insights</h1>
+        <ih-status id="mode-pill" class="livepill" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="ri-purpose">How fast each room warms up, which radiator valves look stuck, and where mould could form. Read-only.</p>
+      <ih-card class="ri-card">
+        <div id="summary" class="ri-summary"></div>
+        <p id="empty" class="ih-empty-inline" hidden>The engine has not run yet. The first results appear after its first run.</p>
+        <p id="error" class="ih-empty-inline" hidden>Could not load the insights. Try again in a minute.</p>
+      </ih-card>
+      <ih-card class="ri-card">
+        <h2>Rooms</h2>
+        <div class="ri-scroll"><table class="ri-table" id="rooms">
+          <thead><tr><th>Room</th><th class="n">Now</th><th class="n">Target</th><th>Minutes per degree</th><th class="n">Runs</th><th class="n">To target</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <p id="rooms-empty" class="ih-empty-inline" hidden>No rooms analysed yet.</p>
+      </ih-card>
+      <ih-card class="ri-card">
+        <h2>Suspect valves</h2>
+        <ul id="frozen" class="ri-list"></ul>
+        <p id="frozen-empty" class="ih-empty-inline" hidden>No suspect valves.</p>
+      </ih-card>
+      <ih-card class="ri-card">
+        <h2>Mould risk</h2>
+        <div class="ri-scroll"><table class="ri-table" id="mould">
+          <thead><tr><th>Sensor</th><th>Level</th><th class="n">Humidity</th><th class="n">Time above limit</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <p id="mould-note" class="ih-metadata"></p>
+        <p id="mould-empty" class="ih-empty-inline" hidden>No humidity sensors analysed yet.</p>
+      </ih-card>
+      <footer class="ri-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator" target="_top">Operations console</a></footer>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js?v=nav1"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

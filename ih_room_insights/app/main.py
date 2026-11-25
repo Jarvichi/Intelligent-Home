@@ -5,9 +5,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ihlib import db as ihdb
 from ihlib.ha import HA
 import engine as E
+import ui_server
 
 DATA = os.environ.get('IHRI_DATA', '/data')
 PORT = int(os.environ.get('IHRI_PORT', '8812'))
+UI_PORT = int(os.environ.get('IHRI_UI_PORT', '8813'))
 
 
 def load_options():
@@ -73,6 +75,7 @@ def main():
                 lg.info('run failed (%s)', type(e).__name__)
             time.sleep(max(5, int(opts.get('interval_min', 15))) * 60)
     threading.Thread(target=ticker, daemon=True).start()
+    threading.Thread(target=ui_server.make_server(eng, E.VERSION, UI_PORT).serve_forever, daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0', PORT), make_handler(eng, lambda: opts.get('api_token', ''))).serve_forever()
 
 

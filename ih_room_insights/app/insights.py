@@ -84,6 +84,20 @@ def minutes_to_target(cur, target, mpd):
     return 0 if cur >= target else int(round((target - cur) * mpd))
 
 
+def reading_since(samples):
+    """ISO time the latest state/reading last changed (start of the trailing run of the same value), or None."""
+    if not samples:
+        return None
+    last = samples[-1]
+    since = last['t']
+    for s in reversed(samples):
+        if s['state'] == last['state'] and s['cur'] == last['cur']:
+            since = s['t']
+        else:
+            break
+    return since.isoformat()
+
+
 def frozen_check(samples, now, hours=FROZEN_HOURS):
     """-> (suspect bool, reason). Suspect = the reading has not changed for `hours` while the valve is calling for heat
     (or is well below its target), or the valve has been unavailable that long."""

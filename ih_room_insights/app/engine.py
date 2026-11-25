@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import insights as I
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 MIGRATIONS = [
     (1, 'CREATE TABLE runs(room TEXT NOT NULL, start TEXT NOT NULL, minutes REAL, rise REAL, min_per_deg REAL, PRIMARY KEY(room,start))'),
 ]
@@ -71,7 +71,7 @@ class Engine:
             rooms[ent] = {'room': I.slug(ent), 'current': cur, 'target': tgt, 'min_per_deg': mpd, 'runs': n,
                           'minutes_to_target': I.minutes_to_target(cur, tgt, mpd), 'frozen': sus, 'frozen_why': why}
             if sus:
-                frozen.append({'room': I.slug(ent), 'entity': ent, 'why': why})
+                frozen.append({'room': I.slug(ent), 'entity': ent, 'why': why, 'since': I.reading_since(samples)})
         mould = {}
         pct, hrs = float(self.opts.get('mould_pct', I.MOULD_PCT)), float(self.opts.get('mould_hours', I.MOULD_HOURS))
         for ent in self.humidity_entities():
