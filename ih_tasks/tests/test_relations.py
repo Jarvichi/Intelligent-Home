@@ -23,6 +23,22 @@ class Relations(Case):
         self.s.close_task(b, 'owner', 'wont_do', 'not needed')
         self.assertFalse(self.s.get(a)['blocked'])          # the other task is no longer open
 
+    def test_summary_carries_blocked_and_first_open_blocker(self):
+        a, b, c, d = self.mk('Paint'), self.mk('Buy paint'), self.mk('Buy brush'), self.mk('Other')
+        self.s.relate(a, 'worker', 'depends_on', c)
+        self.s.relate(a, 'worker', 'blocked_by', b)
+        self.s.relate(d, 'worker', 'relates_to', a)
+        row = {t['id']: t for t in self.s.list()}
+        self.assertEqual((row[a]['blocked'], row[a]['blocked_by']), (True, min(b, c)))
+        self.assertEqual((row[b]['blocked'], row[b]['blocked_by']), (False, None))
+        self.assertEqual((row[d]['blocked'], row[d]['blocked_by']), (False, None))       # relates_to never blocks
+        self.assertEqual({t['id']: t['blocked_by'] for t in sum((c_['tasks'] for c_ in self.s.board()['columns']), [])}[a], min(b, c))
+        self.s.close_task(min(b, c), 'owner', 'wont_do', 'not needed')
+        self.assertEqual({t['id']: t['blocked_by'] for t in self.s.list()}[a], max(b, c))
+        self.assertEqual(self.s.get(a)['blocked_by'], max(b, c))
+        self.s.close_task(max(b, c), 'owner', 'wont_do', 'not needed')
+        self.assertEqual((self.s.list()[0]['blocked'], self.s.get(a)['blocked_by']), (False, None))
+
     def test_depends_on_inverse_and_relates_to_is_symmetric(self):
         a, b, c = self.mk('One'), self.mk('Two'), self.mk('Three')
         self.s.relate(a, 'owner', 'depends_on', b)

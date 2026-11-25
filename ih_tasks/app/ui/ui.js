@@ -4,10 +4,11 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = { labels: [], board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var REL_TEXT = { blocked_by: 'Blocked by', depends_on: 'Depends on', relates_to: 'Relates to', blocks: 'Blocks', needed_by: 'Needed by' };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
-    reminder_set: 'Reminder set', reminder_fired: 'Reminder fired', child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate' };
+    reminder_set: 'Reminder set', reminder_fired: 'Reminder fired', child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate', related: 'Link added', unrelated: 'Link removed' };
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -40,7 +41,8 @@
     if (lb && (t.labels || []).indexOf(lb) < 0) return false;
     if (st && t.stage !== st) return false;
     if (w === 'input' && !t.needs_input) return false;
-    if (w && w !== 'input' && t.waiting_on !== w) return false;
+    if (w === 'blocked' && !t.blocked) return false;
+    if (w && w !== 'input' && w !== 'blocked' && t.waiting_on !== w) return false;
     if (q && t.title.toLowerCase().indexOf(q) < 0 && String(t.id) !== q) return false;
     return true;
   }
@@ -48,6 +50,7 @@
     var flags = [];
     if (t.needs_input) flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: 'Needs your input' }));
     else if (t.waiting_on === 'owner') flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: t.stage === 'planning' ? 'Plan ready for you' : 'Waiting for you' }));
+    if (t.blocked && t.blocked_by) flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: 'Blocked by #' + t.blocked_by }));
     if (t.stage === 'planning' && t.revise) flags.push(el('span', { 'class': 't-flag', text: 'Plan being revised' }));
     var sub = [];
     if (t.priority && t.priority !== 'normal') sub.push(t.priority === 'high' ? 'High priority' : 'Low priority');
@@ -244,6 +247,28 @@
     control.id = id;
     return el('div', { 'class': 't-field' }, [el('label', { 'for': id, text: label }), control]);
   }
+  /* Links to other tasks: list with a two-tap Remove (blocked by / depends on / relates to; the inverse rows are read-only here: remove them from the other task) and an Add form. */
+  function linksCard(t) {
+    var msg = msgLine(), rels = t.relations || [];
+    var rows = rels.map(function (r) {
+      var own = r.kind === 'blocked_by' || r.kind === 'depends_on' || r.kind === 'relates_to';
+      var open = el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + r.task + ': ' + r.title, on: { click: function () { openTask(r.task); } } },
+        [el('b', { text: '#' + r.task }), r.title, el('small', { text: stageLabel(r.stage) + (r.waiting ? ' · still open, so this task is blocked' : '') })]);
+      var rm = own ? confirmButton('Remove', '', function () { act(msg, api('POST', '/tasks/' + t.id + '/unrelate', { kind: r.kind, task: r.task })); }) : null;
+      if (rm) rm.setAttribute('aria-label', 'Remove link: ' + REL_TEXT[r.kind] + ' #' + r.task);
+      return el('li', { 'class': 't-rel' }, [el('span', { 'class': 't-rel-kind', text: REL_TEXT[r.kind] || r.kind }), open, rm]);
+    });
+    var kind = el('select', {}, ['blocked_by', 'depends_on', 'relates_to'].map(function (k) { return el('option', { value: k, text: REL_TEXT[k] }); }));
+    var num = el('input', { type: 'number', min: '1', step: '1', inputmode: 'numeric', placeholder: 'task number' });
+    var add = el('button', { 'class': 't-button', type: 'button', text: 'Add link', on: { click: function () {
+      var n = parseInt(num.value, 10);
+      if (!n || n < 1) { msg.setAttribute('data-tone', 'error'); msg.textContent = 'Give the number of the other task.'; num.focus(); return; }
+      act(msg, api('POST', '/tasks/' + t.id + '/relate', { kind: kind.value, task: n }));
+    } } });
+    return el('ih-card', { id: 'links-card' }, [el('h3', { text: 'Links to other tasks' + (t.blocked ? ' (blocked)' : '') }),
+      rows.length ? el('ul', { 'class': 't-history t-rels' }, rows) : el('p', { 'class': 't-empty', text: 'No links yet.' }),
+      el('div', { 'class': 't-rel-add' }, [field('Kind', kind, 'd-rel-kind'), field('Other task number', num, 'd-rel-task'), add]), msg]);
+  }
   function questionForm(t, msg) {
     var q = t.question, inputs = {};
     var box = el('ih-card', {}, [el('h3', { text: 'Needs your input' })]);
@@ -338,6 +363,7 @@
     if ((t.children || []).length) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Child tasks (' + (t.children_total - t.children_open) + ' of ' + t.children_total + ' finished)' }), el('ul', { 'class': 't-history' }, t.children.map(function (c) {
       return el('li', {}, [el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + c.id + ': ' + c.title, on: { click: function () { openTask(c.id); } } }, [el('b', { text: '#' + c.id }), c.title, el('small', { text: c.stage_label })])]);
     }))]));
+    root.appendChild(linksCard(t));
     if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), el('p', { 'class': 't-text', text: t.plan })]));
     if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
     if (t.description) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));

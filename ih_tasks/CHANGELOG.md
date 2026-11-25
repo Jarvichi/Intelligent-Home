@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0
+- Page: a "Links to other tasks" card on every task (kind, other task number, title and stage; open it with a tap; two-tap Remove for blocked by / depends on / relates to; Add form with kind and task number; API errors such as a loop or a missing task show in the card). Links seen from the other end (Blocks, Needed by) are listed too and are removed from the task that owns them.
+- Board cards show "Blocked by #n" (the lowest open blocker), and the Waiting-for filter has a new "Blocked by another task" option.
+- Every task summary (`GET /tasks`, the board, and `GET /tasks/<n>`) now has `blocked` (true while a blocked-by / depends-on task is open) and `blocked_by` (that first open task's number, or null).
+
 ## 0.8.0
 - Task links: a task can be **blocked by** another task, **depend on** another task, or **relate to** another task (new table, schema 16-17). `POST /tasks/<n>/relate {kind, task}` and `POST /tasks/<n>/unrelate {kind, task}`; owner, worker or check. `GET /tasks/<n>` now has `relations` (each with the other task's number, title, stage, and `waiting`) and `blocked` (true while a blocked-by / depends-on task is still open). The other task sees the inverse (`blocks`, `needed_by`); `relates_to` is the same both ways.
 - Refused: linking a task to itself, a missing task, the same link twice, and a loop (A waits on B waits on A, also through other tasks). Both tasks get a history line.
