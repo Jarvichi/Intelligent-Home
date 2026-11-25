@@ -181,6 +181,8 @@ def load_options(path):
             'household': p.get('household') is True,   # 0.23.0: a shared household assistant (Hearth): no private chat, no bot needed
             'household_users': [u.strip().lower() for u in (p.get('household_users') or []) if isinstance(u, str) and PERSON_RE.match(u.strip().lower())][:10] if isinstance(p.get('household_users'), list) else [],
             'quiet_if_messaged_h': num(p.get('quiet_if_messaged_h'), 0, 24, 2.0),
+            'voice_memo_user': p.get('voice_memo_user').strip().lower() if isinstance(p.get('voice_memo_user'), str) and PERSON_RE.match(p['voice_memo_user'].strip().lower()) else '',   # 0.28.0: the name in ih_speaker's discord_users
+            'voice_memo_voice': p.get('voice_memo_voice').strip().lower() if isinstance(p.get('voice_memo_voice'), str) and PERSON_RE.match(p['voice_memo_voice'].strip().lower()) else '',
             'autonomy_level': levels.clamp(p.get('autonomy_level'), selfmod.DEFAULT_LEVEL),   # 0.25.0: private maintenance prompts, 0 = off
             'levels': levels.resolve(p['key'], p), 'fixed_rule': (p.get('fixed_rule').strip()[:300] if isinstance(p.get('fixed_rule'), str) else ''),
             'key': p['key'], 'user_id': str(p.get('user_id') or ''), 'bot_token': str(p.get('bot_token') or ''),
@@ -213,7 +215,8 @@ def in_quiet(now_min, start, end):
 
 
 class Assistant:
-    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None, caldav_factory=None):
+    def __init__(self, opts, data_dir='/data', log=print, opener=None, sleep=time.sleep, clock=time.time, tz=None, ha=None, facts_opener=None, rng=None, gif_opener=None, caldav_factory=None, speaker_opener=None):
+        self.speaker_opener = speaker_opener   # urlopen-like for ih_speaker voice memos (tests inject a fake)
         self.opts, self.log, self.clock, self.sleep = opts, log, clock, sleep
         self.data_dir = data_dir
         self._caldav = None
@@ -520,6 +523,41 @@ class Assistant:
             return 'weekly cap reached'
         return None
 
+    def voice_caps(self, key):
+        """0.28.0: what a persona can do beyond text: 'voice' when ih_speaker (url and token) and a Discord voice target are set and no memo went out this week."""
+        c, o = self.cfg[key], getattr(self, 'opts', None) or {}
+        if o.get('speaker_url') and o.get('speaker_token') and c.get('voice_memo_user') and not selfmod.voice_recent(self.stores[key].state(), self.clock()):
+            return ('voice',)
+        return ()
+
+    def voice_memo(self, key, body):
+        """0.28.0: the persona sends the person a Discord voice message through ih_speaker (to=discord). Only while the voice_memo private prompt is open,
+        one a week at most, up to VOICE_TEXT_MAX characters. In dry mode (or a dry persona) the speaker is asked for a dry run: nothing is sent.
+        The words are never logged, only the status."""
+        c, st = self.cfg[key], self.stores[key]
+        text = ' '.join(str(body.get('text') or '').split())
+        if not text or len(text) > selfmod.VOICE_TEXT_MAX:
+            return 400, {'ok': False, 'why': 'text: 1 to %d characters' % selfmod.VOICE_TEXT_MAX}
+        if not (self.opts.get('speaker_url') and self.opts.get('speaker_token') and c.get('voice_memo_user')):
+            return 409, {'ok': False, 'why': 'voice memos are not set up (speaker_url, speaker_token, voice_memo_user)'}
+        if not self.self_open(key) or (st.state().get('self_open') or {}).get('id') != 'voice_memo':
+            return 409, {'ok': False, 'why': 'a voice memo can only be sent while the voice_memo prompt is open'}
+        if selfmod.voice_recent(st.state(), self.clock()):
+            return 429, {'ok': False, 'why': 'one voice memo a week'}
+        dry = not self.is_live(key)
+        req = {'text': text, 'persona': key, 'to': 'discord', 'discord_user': c['voice_memo_user'], 'dry_run': dry}
+        if c.get('voice_memo_voice'):
+            req['voice'] = c['voice_memo_voice']
+        res = hearthmod.make_speaker_client(self.opts.get('speaker_url'), self.opts.get('speaker_token'), opener=self.speaker_opener)(req)
+        status = str(res.get('status') or 'error')
+        st.log_outbox({'kind': 'voice_memo', 'status': status, 'dry': dry})
+        if status == 'sent' and not dry:
+            t = self.clock()
+            st.update_state(lambda x: x.__setitem__('voice_log', [v for v in (x.get('voice_log') or []) if isinstance(v, (int, float))][-9:] + [t]))
+        if status in ('sent', 'dry'):
+            return 200, {'ok': True, 'status': status, 'dry': dry}
+        return 502, {'ok': False, 'status': status, 'why': str(res.get('reason') or 'ih_speaker did not send it')[:200]}
+
     def tick_self(self, key):
         """0.25.0: at most one private prompt a day, drawn from self_prompts.json. One roll per day (chance = weekly cap / 7), so a day
         that is missed (add-on off, quiet hours all day) is dropped, never fired late. Queues a silent self_prompt event; nothing goes to Discord.
@@ -538,7 +576,7 @@ class Assistant:
             return None
         rules, prompts = selfmod.load()
         t = self.clock()
-        pool = [x for x in selfmod.eligible(prompts, c['autonomy_level'], s.get('self_log') or [], t) if selfmod.usable(x, s)]
+        pool = [x for x in selfmod.eligible(prompts, c['autonomy_level'], s.get('self_log') or [], t) if selfmod.usable(x, s, self.voice_caps(key))]
         if not pool:
             return None
         p = pool[0]
@@ -2631,6 +2669,8 @@ def make_handler(app):
                 return self._send(*app.ask(key, body))
             if act == 'selfdone' and len(parts) == 3:
                 return self._send(*app.selfdone(key, body))
+            if act == 'voice' and len(parts) == 3:
+                return self._send(*app.voice_memo(key, body))
             if act == 'asked' and len(parts) == 3:
                 return self._send(*app.asked_add(key, body))
             if act == 'taste' and len(parts) == 3:

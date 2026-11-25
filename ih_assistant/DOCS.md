@@ -175,3 +175,7 @@ Uses the existing `dates` option. For the persona's own person (name or first-na
 ### New releases and tastes (0.27.0)
 
 Weekly private prompts `new_releases`, `taste_followup`, `taste_use` (group `discovery`, autonomy level 3 and up). The persona suggests at most one film, album or game that fits the saved tastes, never a purchase link, nothing if the person said no. State is kept per persona: `POST /persona/<key>/asked` `{"kind":"film|album|game","creator":"","title":"","date":"","answer":"yes|no|later|liked|disliked"}` (a repeat is `duplicate: true`), `POST /persona/<key>/taste` `{"key":"film:sci-fi","verdict":"liked|disliked|clear"}`, `POST /persona/<key>/discovery` `{"allowed":false}`, `GET /persona/<key>/asked` (list and tastes).
+
+### Impromptu note and voice memo (0.28.0)
+
+Private prompts `impromptu_note` (about weekly, autonomy level 5 and up) and `voice_memo` (rare, 30 day cooldown, level 6 and up). The note is an ordinary message the persona chooses to send. The voice memo uses ih_speaker's Discord voice clip: set `speaker_url` and `speaker_token` (shared options) and, per persona, `voice_memo_user` (name from ih_speaker `discord_users`, and ih_speaker's `discord_permissions` must allow this persona to send to that name) and optionally `voice_memo_voice`. `POST /persona/<key>/voice` `{"text":"..."}`: only while the `voice_memo` prompt is open, 1 to 400 characters, one real memo a week; in dry mode a dry run only. The spoken words leave the house to Discord, so the prompt tells the persona to keep private details out.
