@@ -18,6 +18,7 @@ sys.path.insert(0, str(ADDON / 'app'))
 import generator as G
 import main as MAIN
 import model as M
+import readiness
 import seed as SEED
 from store import Store
 
@@ -68,6 +69,27 @@ class Rules(unittest.TestCase):
 
 
 class Generator(unittest.TestCase):
+    def test_readiness_does_not_hide_existing_rule_or_timing_gaps(self):
+        report = readiness.inspect(M.clean_event(SEED.HALLOWEEN))
+        self.assertFalse(report['ready'])
+        self.assertTrue(any('independently managed' in item for item in report['issues']))
+        self.assertTrue(any('custom behaviour' in item for item in report['issues']))
+        event = ev(effects=[{'id': 'test_effect', 'name': 'Test', 'from': '18:00', 'to': '22:00', 'steps': [{'type': 'wait', 'seconds': 60}], 'repeat': 2}])
+        issues = readiness.inspect(event)['issues']
+        self.assertTrue(any('90-second' in item for item in issues))
+
+    def test_effect_windows_and_individual_intervals_are_generated(self):
+        event = ev(effects=[{'id': 'first', 'name': 'First', 'from': '20:00', 'to': '02:00', 'min_gap_minutes': 3, 'max_gap_minutes': 7},
+                            {'id': 'second', 'name': 'Second', 'min_gap_minutes': 10, 'max_gap_minutes': 20},
+                            {'id': 'fixed', 'name': 'Fixed', 'at': '21:00', 'from': '20:00', 'to': '23:00'}])
+        auto = G.random_effects(event)
+        template = auto['actions'][0]['variables']['chosen_effect']
+        self.assertIn("clock >= '20:00' or clock < '02:00'", template)
+        self.assertIn('age >= 3', template)
+        self.assertIn('age >= 7', template)
+        self.assertIn('age >= 10', template)
+        self.assertIn('age >= 20', template)
+        self.assertEqual(G.timed_effects(event)[0]['conditions'][1], {'condition': 'time', 'after': '20:00:00', 'before': '23:00:00'})
     def test_built_effect_compiles_sequence_and_restores(self):
         effect = {'id': 'storm', 'name': 'Storm', 'sound': 'media-source://media_source/local/thunder.mp3', 'repeat': 2, 'restore': True,
                   'steps': [{'type': 'sound'}, {'type': 'light', 'colour': '#ffffff', 'brightness': 100, 'seconds': 0.2}, {'type': 'light', 'colour': '#ffffff', 'brightness': 0, 'seconds': 0.3}]}
@@ -127,6 +149,12 @@ class Generator(unittest.TestCase):
         self.assertNotIn('scene.create', text)
         self.assertNotIn('script.nye_look', text)       # no look script exists, so nothing may call it
         self.assertTrue(any('No lights' in w for w in G.warnings(e)))
+
+    def test_group_only_lighting_is_snapshotted_for_restoration(self):
+        event = ev(lights=[], light_group='light.event_group')
+        actions = G.mode_switch(event)['actions'][0]['choose'][0]['sequence']
+        snapshot = next(action for action in actions if action.get('action') == 'scene.create')
+        self.assertIn('light.event_group', snapshot['data']['snapshot_entities'])
 
     def test_scripts_called_exist_or_are_flagged(self):
         e = ev(light_group='light.nye_group')

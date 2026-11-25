@@ -35,6 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import generator as G
 import model as M
+import readiness
 import seed as SEED
 from store import Store
 
@@ -50,6 +51,7 @@ ASSETS = {'/': 'index.html', '/index.html': 'index.html', '/ui.css': 'ui.css', '
           '/ih-patterns.css': 'ih-patterns.css'}
 EVENT = r'/events/([a-z][a-z0-9_]{1,19})'
 ROUTES = [('GET', r'/events', 'list'), ('POST', r'/events', 'create'), ('GET', EVENT, 'get'), ('POST', EVENT, 'update'), ('POST', EVENT + '/delete', 'delete'),
+          ('GET', EVENT + '/readiness', 'readiness'),
           ('GET', r'/entities', 'entities'),
           ('POST', r'/media', 'media'),
           ('GET', EVENT + '/generate', 'generate'), ('GET', EVENT + '/reviews', 'reviews'), ('POST', EVENT + '/items', 'add_item'),
@@ -140,6 +142,8 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
         if name == 'generate':
             ev = store.record(a[0])
             return 200, {'slug': a[0], 'files': G.generate(ev), 'warnings': G.warnings(ev), 'ids': G.ids(ev)}
+        if name == 'readiness':
+            return 200, readiness.inspect(store.record(a[0]))
         if name == 'reviews':
             return 200, {'reviews': store.reviews(a[0])}
         if name == 'add_item':
