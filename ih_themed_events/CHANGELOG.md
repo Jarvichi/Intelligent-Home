@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.7] - 2026-11-25
+
+### Added
+- Edit installed event plans and review and apply the changes. Detect outside changes to owned rules and resume journalled interrupted updates when ownership can be verified.
+
 ## [0.1.6] - 2026-11-25
 
 ### Added

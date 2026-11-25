@@ -3,7 +3,7 @@ import generator as G
 import model as M
 
 
-def build(event, existing_entity_ids=(), existing_automation_ids=()):
+def build(event, existing_entity_ids=(), existing_automation_ids=(), existing_owned=False):
     """Return a plan and blocking issues; never adopt an existing Home Assistant object."""
     event = M.clean_event(event)
     ids = G.ids(event)
@@ -13,7 +13,7 @@ def build(event, existing_entity_ids=(), existing_automation_ids=()):
     scripts = {name: value for name, value in scripts.items() if value is not None}
     automations = [x for x in (G.mode_switch(event), G.safety(event), G.random_effects(event)) if x] + G.timed_effects(event)
     issues = []
-    if event['status'] == 'live':
+    if event['status'] == 'live' and not existing_owned:
         issues.append('This event is already live. Existing custom rules cannot be safely taken over automatically.')
     if any(not effect.get('steps') for effect in event['effects']):
         issues.append('Each effect needs a visual sequence before it can be installed.')

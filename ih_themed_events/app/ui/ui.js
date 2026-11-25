@@ -70,7 +70,16 @@
       d.appendChild(el('h2', { text: ev.name }));
       d.appendChild(el('button', { class: 'e-button', type: 'button', text: 'Edit event', on: { click: function () { editEvent(ev); } } }));
       d.appendChild(el('div', { class: 'e-row' }, [el('span', { class: 'e-pill', text: STATUS_TEXT[ev.status] || ev.status }), modePill(ev), el('span', { text: nextText(ev.next) })]));
-      if (ev.mode_state) {
+      if (ev.installation_status === 'submitted') {
+        d.appendChild(el('p', { class: 'e-notice', text: 'Rules were sent to Home Assistant. Check that they are available before turning the event on.' }));
+        d.appendChild(el('button', { class: 'e-button', type: 'button', text: 'Check rules', on: { click: function () {
+          api('POST', '/events/' + slug + '/verify', {}).then(function () { say('Event rules are available.'); showEvent(slug); }).catch(fail);
+        } } }));
+      }
+      if (ev.installation_status === 'needs_apply') {
+        d.appendChild(el('p', { class: 'e-notice', text: 'This plan has changes that have not been applied. Review and apply them before turning the event on.' }));
+      }
+      if (ev.mode_state && (ev.mode_state === 'on' || !ev.installation_status || ev.installation_status === 'available')) {
         d.appendChild(el('div', { class: 'e-row' }, [
           el('button', { class: 'e-button', type: 'button', text: 'Switch mode ' + (ev.mode_state === 'on' ? 'off' : 'on'), on: { click: function () { setMode(slug, ev.mode_state !== 'on'); } } })]));
       }
@@ -286,7 +295,7 @@
     heading('Review', 'Check the details before saving your event plan.');
     var summary = el('div', { class: 'e-summary' }); panel.appendChild(summary);
     var notes = field('Notes', el('textarea', { rows: '3', maxlength: '2000' })); notes.value = ev.notes || '';
-    panel.appendChild(el('p', { class: 'e-notice', text: 'This saves your plan. Applying the rules to Home Assistant is not available yet.' }));
+    panel.appendChild(el('p', { class: 'e-notice', text: 'Saving updates your plan. Review and apply it from the event page when you are ready.' }));
     var controls = el('div', { class: 'e-actions' }); form.appendChild(controls);
     var prev = el('button', { type: 'button', class: 'e-button', text: 'Back', on: { click: function () { go(step - 1); } } });
     var next = el('button', { type: 'button', class: 'e-button e-primary', text: 'Continue', on: { click: function () { go(step + 1); } } });
@@ -337,15 +346,37 @@
     clear(box); box.appendChild(el('p', { text: 'Checking your event…' }));
     api('GET', '/events/' + slug + '/apply-preview').then(function (plan) {
       clear(box);
-      box.appendChild(el('p', { text: 'This will create ' + plan.helper_count + ' helpers, ' + plan.script_count + ' scripts and ' + plan.automation_count + ' automations. Home Assistant will reload its scripts and automations as they are saved.' }));
+      box.appendChild(el('p', { text: plan.operation === 'resume' || plan.operation === 'resume_initial' || plan.operation === 'resume_legacy' ? plan.message : 'This will ' + (plan.operation === 'update' ? 'check and update' : 'create') + ' up to ' + plan.helper_count + ' helpers, ' + plan.script_count + ' scripts and ' + plan.automation_count + ' automations. Home Assistant will reload its scripts and automations as they are saved.' }));
       box.appendChild(el('p', { text: 'You turn the event on manually. Event dates are for planning and do not start the event automatically.' }));
-      box.appendChild(el('p', { text: 'Existing custom rules are not replaced. Updating or removing an installed event from this page is not yet available.' }));
+      box.appendChild(el('p', { text: 'Existing custom rules are not replaced. Turn the event off before applying changes.' }));
+      if (plan.review) {
+        var review = el('div', { class: 'e-apply-review' });
+        review.appendChild(el('h4', { text: plan.review.name }));
+        review.appendChild(el('p', { text: plan.review.light_count + ' lights or groups · ' + plan.review.speaker_count + ' speakers' }));
+        if (plan.review.changes.length) review.appendChild(el('p', { text: 'Changed: ' + plan.review.changes.join(', ') }));
+        plan.review.effects.forEach(function (effect) {
+          review.appendChild(el('strong', { text: effect.name + (effect.repeat > 1 ? ' · repeat ' + effect.repeat + ' times' : '') }));
+          var list = el('ol');
+          effect.steps.forEach(function (step) {
+            var row = el('li');
+            if (step.colour) { var swatch = el('span', { class: 'e-colour-swatch', 'aria-label': 'Selected colour' }); swatch.style.backgroundColor = step.colour; row.appendChild(swatch); }
+            row.appendChild(document.createTextNode(step.text)); list.appendChild(row);
+          });
+          review.appendChild(list);
+          if (effect.restore && effect.steps.some(function (step) { return !!step.colour; })) review.appendChild(el('p', { class: 'ih-metadata', text: 'Restore previous lighting afterwards.' }));
+        });
+        box.appendChild(review);
+      }
       if (plan.issues.length) {
         var issues = el('ul'); plan.issues.forEach(function (issue) { issues.appendChild(el('li', { text: issue })); }); box.appendChild(issues); return;
       }
-      var button = el('button', { class: 'e-button e-primary', type: 'button', text: 'Apply event', on: { click: function () {
+      (plan.review_warnings || []).forEach(function (warning) { box.appendChild(el('p', { class: 'e-notice', text: warning })); });
+      var acknowledgement = el('input', { type: 'checkbox' });
+      if (plan.unverified) box.appendChild(el('label', { class: 'e-check' }, [acknowledgement, el('span', { text: plan.review_warnings && plan.review_warnings.length ? 'I understand that applying will replace the outside changes described above.' : 'I understand this older installation has no saved baseline, so changes made outside this add-on cannot be detected for this update.' })]));
+      var button = el('button', { class: 'e-button e-primary', type: 'button', text: plan.operation === 'resume' || plan.operation === 'resume_initial' || plan.operation === 'resume_legacy' ? 'Resume applying' : 'Apply event', on: { click: function () {
+        if (plan.unverified && !acknowledgement.checked) { say('Confirm that you have reviewed the existing installation first.'); return; }
         button.disabled = true;
-        api('POST', '/events/' + slug + '/apply', { confirm: true }).then(function () { say('Rules sent to Home Assistant. Check that they are available before turning the event on.'); showEvent(slug); }).catch(function (error) { button.disabled = false; fail(error); });
+        api('POST', '/events/' + slug + '/apply', { confirm: true, acknowledge_unverified: acknowledgement.checked, review_token: plan.review_token }).then(function () { say('Rules sent to Home Assistant. Check that they are available before turning the event on.'); showEvent(slug); }).catch(function (error) { button.disabled = false; fail(error); });
       } } });
       box.appendChild(button);
     }).catch(fail);

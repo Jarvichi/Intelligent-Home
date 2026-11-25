@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""ih_themed_events: themed events (Halloween, NYE, ...) kept as data, with a checklist, a review and a generator that writes
-the standard Home Assistant helpers, scripts and automations as text for review. See DOCS.md. It never edits Home Assistant config.
+"""ih_themed_events: themed event plans, checklists, reviews and administrator-reviewed Home Assistant rules.
 
 API on IHE_PORT (bearer api_token; an empty token refuses everything except /healthz):
   GET /healthz (open)   GET /status   GET /events   GET /events/<slug>   GET /events/<slug>/generate   GET /events/<slug>/reviews
@@ -40,7 +39,7 @@ import installer
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.6'
+VERSION = '0.1.7'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -54,6 +53,7 @@ EVENT = r'/events/([a-z][a-z0-9_]{1,19})'
 ROUTES = [('GET', r'/events', 'list'), ('POST', r'/events', 'create'), ('GET', EVENT, 'get'), ('POST', EVENT, 'update'), ('POST', EVENT + '/delete', 'delete'),
           ('GET', EVENT + '/readiness', 'readiness'),
           ('GET', EVENT + '/apply-preview', 'apply_preview'), ('POST', EVENT + '/apply', 'apply'),
+          ('POST', EVENT + '/verify', 'verify'),
           ('GET', r'/entities', 'entities'),
           ('POST', r'/media', 'media'),
           ('GET', EVENT + '/generate', 'generate'), ('GET', EVENT + '/reviews', 'reviews'), ('POST', EVENT + '/items', 'add_item'),
@@ -90,6 +90,28 @@ def mode_state(ha, slug):
         return None
     s = ha.state('input_boolean.%s_mode' % slug)
     return s if s in ('on', 'off') else None
+
+
+def event_review(event, previous=None):
+    """Human-readable event details for the apply confirmation; no configuration text."""
+    labels = {'name': 'Name', 'when': 'Dates', 'light_group': 'Light group', 'lights': 'Lights',
+              'extra_switches': 'Switches', 'speakers': 'Speakers', 'pause_automations': 'Paused automations',
+              'look': 'Lighting', 'auto_off': 'Auto-off time', 'effects': 'Effects', 'notes': 'Notes'}
+    changes = [label for key, label in labels.items() if previous is not None and previous.get(key) != event.get(key)]
+    effects = []
+    for effect in event.get('effects', []):
+        steps = []
+        for step in effect.get('steps', []):
+            if step['type'] == 'light':
+                count = len(step.get('targets', []))
+                steps.append({'text': 'Set %s to %d%% for %g seconds' % ((str(count) + ' selected lights') if count else 'event lights', step['brightness'], step['seconds']), 'colour': step['colour']})
+            elif step['type'] == 'sound':
+                steps.append({'text': 'Play the chosen sound on the event speakers'})
+            else:
+                steps.append({'text': 'Wait %g seconds' % step['seconds']})
+        effects.append({'name': effect['name'], 'steps': steps, 'repeat': effect.get('repeat', 1), 'restore': effect.get('restore', True)})
+    return {'name': event['name'], 'light_count': len(event['lights']) + bool(event['light_group']),
+            'speaker_count': len(event['speakers']), 'effects': effects, 'changes': changes}
 
 
 def dispatch(store, ha, opts, method, path, body, actor, ui):
@@ -136,6 +158,8 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
         if name == 'get':
             ev = store.get(a[0])
             ev['mode_state'] = mode_state(ha, a[0])
+            installation = store.installation(a[0])
+            ev['installation_status'] = installation['status'] if installation else None
             return 200, ev
         if name == 'update':
             return 200, store.update(a[0], body, actor)
@@ -154,13 +178,25 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
                 plan['issues'].append('Enable live control in the add-on options before applying an event.')
             return 200, {'issues': plan['issues'], 'helper_count': sum(len(v) for v in plan['helpers'].values()),
                          'script_count': len(plan['scripts']), 'automation_count': len(plan['automations']),
-                         'installation': store.installation(a[0])}
+                         'operation': plan.get('operation', 'install'), 'unverified': plan.get('unverified', False),
+                         'message': plan.get('message', ''), 'review': event_review(plan['event'], plan.get('previous_event')),
+                         'review_warnings': plan.get('review_warnings', []), 'review_token': installer.review_token(plan, store.installation(a[0]))}
         if name == 'apply':
             if not ui or opts['control'] != 'live':
                 raise M.RuleError('forbidden', 'Applying is available on the page when live control is enabled.')
-            if _only(body, ('confirm',), ('confirm',))['confirm'] is not True:
+            data = _only(body, ('confirm', 'acknowledge_unverified', 'review_token'), ('confirm', 'review_token'))
+            if data['confirm'] is not True:
                 raise M.RuleError('bad', 'Review and confirm the event first.')
-            return 200, installer.apply(store, ha, a[0])
+            if 'acknowledge_unverified' in data and not isinstance(data['acknowledge_unverified'], bool):
+                raise M.RuleError('bad', 'Confirmation must be true or false.')
+            if not isinstance(data['review_token'], str) or len(data['review_token']) != 64:
+                raise M.RuleError('bad', 'Review the event again before applying.')
+            return 200, installer.apply(store, ha, a[0], data.get('acknowledge_unverified', False), data['review_token'])
+        if name == 'verify':
+            if not ui or opts['control'] != 'live':
+                raise M.RuleError('forbidden', 'Checking is available on the page when live control is enabled.')
+            _only(body, ())
+            return 200, installer.verify_available(store, ha, a[0])
         if name == 'reviews':
             return 200, {'reviews': store.reviews(a[0])}
         if name == 'add_item':
@@ -181,6 +217,11 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
             if not isinstance(on, bool):
                 raise M.RuleError('bad', 'on must be true or false')
             store.record(a[0])
+            installation = store.installation(a[0])
+            if on and installation and installation['status'] in ('installing', 'updating', 'needs_review'):
+                raise M.RuleError('conflict', 'Finish or review the installation before switching this event.')
+            if on and installation and installation['status'] != 'available':
+                raise M.RuleError('conflict', 'Check that the applied rules are available before switching the event on.')
             if mode_state(ha, a[0]) is None:
                 raise M.RuleError('conflict', 'input_boolean.%s_mode does not exist yet' % a[0])
             ha.call_service('input_boolean', 'turn_on' if on else 'turn_off', {'entity_id': 'input_boolean.%s_mode' % a[0]})
