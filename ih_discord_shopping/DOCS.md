@@ -42,6 +42,9 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `shortcut_dry` | No | Setting `shortcut_dry`. Default: `true`. |
 | `shortcut_base_url` | No | Setting `shortcut_base_url`. |
 | `meal_plan_script` | No | Script (name without `script.`) run quietly before a list is built. Empty = none |
+| `meal_plan_source` | No | `script` (default) = run `meal_plan_script`. `cooking` = ask the ih_cooking add-on (`POST /shop/merge`) which meal-plan and staple lines are missing and add them to the list (by name, ticked items never come back). If the cooking add-on cannot be reached, `meal_plan_script` is used. Staple wording is edited in ih_cooking only. |
+| `cooking_url` | No | Address of the ih_cooking API, e.g. `http://<host>:8809`. Needed for `meal_plan_source: cooking`. |
+| `cooking_token` | No | The ih_cooking `api_token` (bearer). Needed for `meal_plan_source: cooking`. |
 | `shop_names` | No | Extra shop names for "I'm at <shop>", words separated by `\ |
 | `aisles` | No | Departments (`name`, `words` separated by `\ |
 | `aisle_order` | No | Departments (`name`, `words` separated by `\ |

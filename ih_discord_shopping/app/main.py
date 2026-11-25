@@ -49,7 +49,9 @@ def _text(v):
 def settings_from_options(o):
     over = {'shopping_list_entity': _text(o.get('shopping_list_entity')) or 'todo.shopping_list',
             'meal_plan_script': _text(o.get('meal_plan_script')), 'shop_names': _text(o.get('shop_names')),
-            'command_event': _text(o.get('command_event'))}
+            'command_event': _text(o.get('command_event')),
+            'meal_plan_source': 'cooking' if _text(o.get('meal_plan_source')) == 'cooking' else 'script',
+            'cooking_url': _text(o.get('cooking_url')), 'cooking_token': _text(o.get('cooking_token'))}
     aisles = [[_text(a.get('name')), _text(a.get('words'))] for a in (o.get('aisles') or []) if _text(a.get('name')) and _text(a.get('words'))]
     if aisles:
         over['aisles'] = aisles

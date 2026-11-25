@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import settings as ST
+import mealplan
 
 CHAT_RE = re.compile(r"(done|ok|okay|all ok|all good|thanks|thank you|cheers|ta|yes|no|hi|hello|hey|finished|great|nice|cool|lol)")
 GOT_RE = re.compile(r"(got|bought|done)\s+(.+)", re.S | re.I)
@@ -179,6 +180,12 @@ class Feature:
         return learned(self.root, self.cfg['aisle_order_file'], self.base_order)
 
     def add_meal_plan(self):
+        if self.cfg.get('meal_plan_source') == 'cooking':
+            try:
+                mealplan.add_from_cooking(self.c.ha, self.list, self.cfg['cooking_url'], self.cfg['cooking_token'], quiet=True)
+                return
+            except Exception as e:   # cooking add-on unreachable or bad answer: use the old script below (rollback path)
+                print('cooking meal plan failed, using the script:', e)
         if not self.cfg['meal_plan_script']:
             return
         try:
