@@ -54,6 +54,27 @@
       toastTimer = setTimeout(function () { bar.remove(); }, isError ? TOAST_ERROR_MS : TOAST_MS);
     }
 
+    // Ask before ticking earlier quests too. Resolves 'all', 'one' or 'cancel'. Nothing is ticked without a button press.
+    function askChain(q) {
+      return new Promise(function (resolve) {
+        const dialog = api.el('div', null, 'cyberpunk-chain');
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-label', 'Also tick earlier quests?');
+        const list = api.el('ul');
+        q.chain.forEach(function (c) { list.appendChild(api.el('li', c.name + (c.one_of ? ' (one of several ways in)' : ''))); });
+        const buttons = api.el('div', null, 'cyberpunk-views');
+        function end(choice) { dialog.remove(); resolve(choice); }
+        [['Tick all', 'all'], ['Just this one', 'one'], ['Cancel', 'cancel']].forEach(function (b) {
+          const button = api.el('button', b[0], 'ih-button'); button.type = 'button';
+          button.addEventListener('click', function () { end(b[1]); });
+          buttons.appendChild(button);
+        });
+        dialog.append(api.el('p', 'Also tick these ' + q.chain.length + ' earlier quest' + (q.chain.length === 1 ? '' : 's') + '?'), list, buttons);
+        wrap.appendChild(dialog);
+        const first = buttons.querySelector('button'); if (first) first.focus();
+      });
+    }
+
     function questRow(q) {
       const li = api.el('li', null, 'arc-row');
       li.dataset.name = (q.name || '').toLowerCase();
@@ -62,8 +83,15 @@
       box.disabled = !canEdit || !q.id;
       box.addEventListener('change', async function () {
         box.disabled = true;
-        const answer = await save(q.done ? 'undone' : 'done', [q.id], li);
-        if (answer) notice(answer, false);
+        let args = [q.id];
+        if (!q.done && (q.chain || []).length) {
+          const choice = await askChain(q);
+          if (choice === 'cancel') { box.checked = false; box.disabled = false; return; }
+          if (choice === 'all') args = ['all', q.id];
+        }
+        const answer = await save(q.done ? 'undone' : 'done', args, li);
+        // The add-on adds an "Also tick" offer for chat; the dialog already made it.
+        if (answer) notice(answer.split(' Also tick:')[0], false);
         else { box.checked = !!q.done; box.disabled = false; }
       });
       const title = api.el('div', null, 'arc-row-title');
