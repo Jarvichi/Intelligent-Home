@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""ih_orchestration_inbox 0.1.0: a durable INBOX for chosen Discord channel keys, as a signed bus MODULE of the ih_discord transport.
+"""ih_orchestration_inbox 0.3.0: a durable INBOX for chosen Discord channel keys, as a signed bus MODULE of the ih_discord transport.
 GENERIC: the channel keys, the emoji, the retention and the token all come from the add-on options, none from code.
-It claims (catch-all) every channel key in the option `channel_keys`, appends each delivered message to a queue under /data (JSONL segments, rotation,
-retention_days, default 7) and puts one emoji (default eyes) on the message so the sender knows it arrived. It NEVER answers in the channel.
+It claims (catch-all) every channel key in the option `channel_keys`, stores each delivered message in its own SQLite database /data/ih.db (inboxdb.py; before 0.3.0: JSONL segments; retention_days, default 7) and puts one emoji (default eyes) on the message so the sender knows it arrived. It NEVER answers in the channel.
 Read API on its own port for Claude and workers (bearer `api_token`; empty token = the API refuses everything):
   GET  /queue?since=<seq>&channel=<key>[&consumer=<name>][&limit=N][&all=1]   records with seq > since (since omitted = the consumer's cursor)
   POST /ack {"seq": N, "consumer": "name"}                                     move that consumer's cursor (never backwards)
@@ -23,9 +22,11 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import bus_client
+import bus_client, inboxdb
+import filequeue
+from filequeue import CONSUMER_RE
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 DATA = os.environ.get('IHI_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHI_PORT', '8800'))
@@ -35,13 +36,10 @@ STOP_FILE = 'STOP_LIVE'
 DEFAULT_MODULE = 'ih_orchestration_inbox'
 DEFAULT_EMOJI = '\U0001F440'
 OPS_NEEDED = ['react']
-SEGMENT_MAX_BYTES = 256 * 1024
 MAX_TEXT = 2000
 MAX_LIMIT = 200
 RETENTION_EVERY_S = 3600
-SEEN_MAX = 1000
-CONSUMER_RE = re.compile(r'^[A-Za-z0-9_.-]{1,40}$')
-KIND_MESSAGE = 'message'                           # a record without `kind` is a Discord message from the bus
+KIND_MESSAGE = filequeue.KIND_MESSAGE              # a record without `kind` is a Discord message from the bus
 KIND_RE = re.compile(r'^[a-z][a-z0-9_]{0,23}$')
 SOURCE_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,40}$')
 REF_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,80}$')
@@ -50,8 +48,7 @@ MAX_WAIT_S = 25                                    # longest long poll; below th
 EVENT_ID_PREFIX = 'ev:'                            # keeps event refs apart from Discord message ids in the duplicate check
 
 
-def kind_of(rec):
-    return rec.get('kind') or KIND_MESSAGE
+kind_of = filequeue.kind_of
 
 
 def _text(v):
@@ -60,7 +57,8 @@ def _text(v):
 
 def load_options(path=None):
     try:
-        o = json.load(open(path or OPTIONS))
+        with open(path or OPTIONS) as f:
+            o = json.load(f)
     except (OSError, ValueError):
         o = {}
     name = _text(o.get('module_name')) or DEFAULT_MODULE
@@ -99,132 +97,6 @@ class Ring(logging.Handler):
             self.would_lines.append(time.strftime('%H:%M:%S ') + t[:300])
 
 
-class Queue:
-    """Append-only JSONL segments q-<first seq, 12 digits>.jsonl in <data>/queue, plus cursors.json. One lock; small and boring on purpose."""
-    def __init__(self, data, retention_days=7, clock=time.time, segment_max=SEGMENT_MAX_BYTES):
-        self.dir = os.path.join(data, 'queue')
-        self.cursor_path = os.path.join(data, 'cursors.json')
-        self.retention_s, self.clock, self.segment_max = retention_days * 86400, clock, segment_max
-        self.lock = threading.RLock()
-        self.arrived = threading.Condition(self.lock)   # told on every add: long polls wait on it
-        self.seq = 0
-        self.cursors = {}
-        self.seen = collections.OrderedDict()   # msg ids already stored (survives restart: rebuilt from the newest records)
-        self.dropped = 0
-        os.makedirs(self.dir, exist_ok=True)
-        self._load()
-
-    def segments(self):
-        return sorted(f for f in os.listdir(self.dir) if re.fullmatch(r'q-\d{12}\.jsonl', f))
-
-    def _records(self, fname):
-        out = []
-        try:
-            with open(os.path.join(self.dir, fname)) as fh:
-                for line in fh:
-                    try:
-                        r = json.loads(line)
-                        if isinstance(r, dict) and isinstance(r.get('seq'), int):
-                            out.append(r)
-                    except ValueError:
-                        pass   # a torn last line after a crash: skip it
-        except OSError:
-            pass
-        return out
-
-    def _load(self):
-        try:
-            self.cursors = {k: int(v) for k, v in json.load(open(self.cursor_path)).items() if CONSUMER_RE.match(str(k))}
-        except (OSError, ValueError, AttributeError, TypeError):
-            self.cursors = {}
-        for f in self.segments():
-            for r in self._records(f):
-                self.seq = max(self.seq, r['seq'])
-                if r.get('msg_id'):
-                    self.seen[r['msg_id']] = True
-        while len(self.seen) > SEEN_MAX:
-            self.seen.popitem(last=False)
-
-    def add(self, rec):
-        """Store one record (a dict without seq). -> the stored record, or None when this msg_id is already in the queue."""
-        with self.lock:
-            mid = rec.get('msg_id')
-            if mid and mid in self.seen:
-                return None
-            self.seq += 1
-            rec = dict(rec, seq=self.seq)
-            segs = self.segments()
-            path = os.path.join(self.dir, segs[-1]) if segs else None
-            if path is None or os.path.getsize(path) >= self.segment_max:
-                path = os.path.join(self.dir, 'q-%012d.jsonl' % rec['seq'])
-            with open(path, 'a') as fh:
-                fh.write(json.dumps(rec, ensure_ascii=False) + '\n')
-            if mid:
-                self.seen[mid] = True
-                while len(self.seen) > SEEN_MAX:
-                    self.seen.popitem(last=False)
-            self.arrived.notify_all()
-            return rec
-
-    def wait_beyond(self, seq, timeout):
-        """Block until a record newer than `seq` is stored, or `timeout` seconds pass. -> True when one arrived."""
-        with self.arrived:
-            return self.arrived.wait_for(lambda: self.seq > seq, timeout)
-
-    def read(self, since=0, channel=None, limit=100, allowed_only=True, kind=None):
-        now = self.clock()
-        out = []
-        with self.lock:
-            segs = self.segments()
-            for i, f in enumerate(segs):
-                if i + 1 < len(segs) and int(segs[i + 1][2:14]) <= since + 1:
-                    continue   # the whole segment is older than `since`
-                for r in self._records(f):
-                    if r['seq'] <= since or now - (r.get('received') or 0) > self.retention_s:
-                        continue
-                    if channel and r.get('channel_key') != channel:
-                        continue
-                    if kind and kind_of(r) != kind:
-                        continue
-                    if allowed_only and not r.get('allowed'):
-                        continue
-                    out.append(r)
-                    if len(out) >= limit:
-                        return out
-        return out
-
-    def ack(self, consumer, seq):
-        with self.lock:
-            seq = max(0, min(int(seq), self.seq))
-            self.cursors[consumer] = max(self.cursors.get(consumer, 0), seq)   # never backwards
-            tmp = self.cursor_path + '.tmp'
-            with open(tmp, 'w') as fh:
-                json.dump(self.cursors, fh)
-            os.replace(tmp, self.cursor_path)
-            return self.cursors[consumer]
-
-    def retain(self):
-        """Delete whole segments whose newest record is older than the retention. The newest segment is kept. -> number removed."""
-        now, gone = self.clock(), 0
-        with self.lock:
-            for f in self.segments()[:-1]:
-                recs = self._records(f)
-                newest = max([r.get('received') or 0 for r in recs] or [0])
-                if now - newest > self.retention_s:
-                    try:
-                        os.remove(os.path.join(self.dir, f)); gone += 1
-                    except OSError:
-                        pass
-            self.dropped += gone
-        return gone
-
-    def stats(self):
-        with self.lock:
-            segs = self.segments()
-            size = sum(os.path.getsize(os.path.join(self.dir, f)) for f in segs)
-            return {'seq': self.seq, 'segments': len(segs), 'bytes': size, 'cursors': dict(self.cursors), 'segments_dropped': self.dropped}
-
-
 class Module:
     def __init__(self, opts, bus=None, ring=None, data=None, clock=time.time, threaded=True):
         self.opts, self.started, self.ring, self.data, self.clock = opts, clock(), ring or Ring(), data or DATA, clock
@@ -237,7 +109,7 @@ class Module:
         self.events = self.event_dup = 0
         self.last_in = None
         self.last_retention = 0.0
-        self.queue = Queue(self.data, opts['retention_days'], clock)
+        self.queue = inboxdb.InboxStore(self.data, opts['retention_days'], clock, log=lambda m: self.lg.info(m)).open()   # database, or degraded files; never raises
 
     # ---- mode ----
     def dry_now(self):
@@ -336,7 +208,7 @@ class Module:
     def digest(self, consumer):
         """What is new for this consumer, per kind, WITHOUT any text (safe to show or to type into a terminal)."""
         with self.lock:
-            cursor = self.queue.cursors.get(consumer, 0)
+            cursor = self.queue.cursor(consumer)
             recs = self.queue.read(cursor, None, MAX_LIMIT)
             kinds = {}
             for r in recs:
@@ -367,7 +239,7 @@ class Module:
                         'reason': self.bus_reason, 'last_heartbeat_s': None if hb is None else int(now - hb)},
                 'counts': {'in': self.in_count, 'queued': self.queued, 'duplicates': self.dup, 'skipped': self.skipped, 'reactions': self.reacts,
                            'reactions_failed': self.react_failed, 'events': self.events, 'event_duplicates': self.event_dup, 'rejected': sum((self.client.rejected if self.client else {}).values())},
-                'queue': self.queue.stats(),
+                'queue': self.queue.stats(), 'db': self.queue.health(), 'db_degraded': self.queue.degraded is not None,
                 'last_in_s': None if self.last_in is None else int(now - self.last_in),
                 'would_total': self.ring.would, 'last_would': list(self.ring.would_lines)[-10:]}
 
@@ -424,7 +296,7 @@ def make_handler(mod):
                 if not CONSUMER_RE.match(consumer):
                     return self._send(400, {'error': 'bad consumer'})
                 try:
-                    since = int(one('since')) if one('since') != '' else mod.queue.cursors.get(consumer, 0)
+                    since = int(one('since')) if one('since') != '' else mod.queue.cursor(consumer)
                     limit = max(1, min(MAX_LIMIT, int(one('limit') or 100)))
                     wait = max(0.0, min(MAX_WAIT_S, float(one('wait') or 0)))
                 except ValueError:
@@ -518,6 +390,7 @@ def main():
             time.sleep(5)
     threading.Thread(target=pusher, daemon=True).start()
     threading.Thread(target=ticker, daemon=True).start()
+    mod.queue.start_maintenance()   # nightly snapshot + restore check, daily trash purge
     ThreadingHTTPServer(('0.0.0.0', PORT), make_handler(mod)).serve_forever()
 
 

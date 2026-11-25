@@ -3,6 +3,20 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-11-25
+
+### Changed
+- Storage moved from JSON files to the add-on's own SQLite database `/data/ih.db` (database storage plan, phase 3d; shared `ihlib/db.py`, same layout as the AI trust test 0.2.0). The queue (`queue/q-*.jsonl`) is now the table `queue_messages` and the consumer cursors (`cursors.json`) are the table `queue_cursors` (schema version 1).
+- Old files are copied into the database and checked (rows compared) before they are moved to `/data/trash`, which is emptied after 30 days. A file that fails the check stays where it is and is reported in status.
+- A nightly snapshot (from 04:00 local time, UTC when the container has no time zone data) goes to `/data/backup` (newest 3 kept), followed by a restore check logged with counts only.
+- `/status` has a new `db` block (schema version, row counts, last snapshot, last restore check, trash size, import errors) and `db_degraded`. The ingress status page also shows `db` in `/api/status`. In `queue`, `segments` is now always 0, `bytes` is the database file size, `segments_dropped` counts rows removed by retention, and `rows` is new. All other API fields are unchanged.
+- Message numbers (`seq`) now never repeat, even after retention removed every message.
+- Tests added (`python3 -m unittest discover -s tests`).
+
+### Safety
+- If the database is damaged, newer than this add-on, or cannot be opened, the inbox keeps working on plain files in `/data/degraded/` and status says so loudly (`/healthz` stays 200: a restart would not help). The database is never recreated by itself. See DOCS.md to restore.
+- Events (`POST /events`), `/digest`, long poll and the `kind` filter from 0.2.0 work unchanged on the database (kind, source and ref are columns of `queue_messages`).
+
 ## [0.2.0] - 2026-11-12
 
 ### Added
