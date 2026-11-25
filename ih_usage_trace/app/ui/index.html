@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Usage Trace</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Usage Trace"></ih-nav>
+  <ih-app>
+    <main>
+      <div class="ih-page-heading">
+        <h1 id="page-title">Usage Trace</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p id="purpose" class="ih-metadata"></p>
+
+      <div class="t-filter" role="search">
+        <div class="t-search-row">
+          <label class="t-visually-hidden" for="f-search">Search events</label>
+          <input id="f-search" type="search" placeholder="Search by label or reference">
+          <span id="f-count" class="ih-metadata" role="status" aria-live="polite"></span>
+        </div>
+        <div class="t-filter-grid">
+          <label for="f-source">Source</label>
+          <label for="f-period">Period</label>
+          <span aria-hidden="true"></span>
+          <select id="f-source"><option value="">All</option></select>
+          <select id="f-period">
+            <option value="86400">Last 24 hours</option>
+            <option value="259200">Last 3 days</option>
+            <option value="604800">Last 7 days</option>
+            <option value="2592000">Last 30 days</option>
+            <option value="0">All kept</option>
+          </select>
+          <button id="f-clear" class="t-button" type="button">Clear</button>
+        </div>
+      </div>
+
+      <section class="u-chart" aria-labelledby="chart-h">
+        <h2 id="chart-h">Usage and events</h2>
+        <ul id="legend" class="u-legend" aria-label="Legend"></ul>
+        <div id="plot" class="u-plot"></div>
+        <div id="tip" class="u-tip" role="status" hidden></div>
+        <p id="chart-note" class="ih-metadata"></p>
+      </section>
+
+      <section aria-labelledby="jumps-h">
+        <h2 id="jumps-h">Unattributed jumps</h2>
+        <p id="jumps-empty" class="ih-empty-inline" hidden>No jumps without an event in this period.</p>
+        <div class="u-scroll"><table id="jumps" class="u-table" hidden>
+          <thead><tr><th scope="col">Time</th><th scope="col">Measure</th><th scope="col">Rise (points)</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <section aria-labelledby="events-h">
+        <h2 id="events-h">Events</h2>
+        <p id="events-empty" class="ih-empty-inline" hidden>No events match.</p>
+        <div class="u-scroll"><table id="events" class="u-table" hidden>
+          <thead><tr><th scope="col">Start</th><th scope="col">Source</th><th scope="col">Label</th><th scope="col">Reference</th><th scope="col">Length</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <p id="access" class="ih-metadata"></p>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "title": "Usage Trace",
+  "purpose": "Charts Claude usage and shows which assistant, worker or channel used it.",
+  "description": "Every 5 minutes the add-on records the session and week usage percentages. Callers post labelled events (who or what called Claude). The chart shows both, with each event as a band in its own lane. A rise of two points or more that no event explains is flagged as unattributed. Only labels and times are stored, never message text.",
+  "health_port": 8848,
+  "health_path": "/healthz",
+  "navigation": [
+    "Shows session and week usage as a line chart with event bands",
+    "Filters events by source, period and search text",
+    "Lists events and unattributed jumps in tables"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

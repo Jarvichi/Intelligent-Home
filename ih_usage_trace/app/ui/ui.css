@@ -1,0 +1,40 @@
+/* ih_usage_trace page. Colours and radii come from ih-ui.css tokens. Chart colours: validated reference categorical palette, light and dark. Filter block follows the standard filter UI: search + count, labelled selects, Clear. */
+:root{--u-line-session:#2a78d6;--u-line-week:#c24a1a;--u-src-assistant:#e87ba4;--u-src-worker:#6250d6;--u-src-task-channel:#eda100;--u-src-inbox-sort:#1baf7a;--u-src-other:#e34948;--u-src-other2:#008300;--u-jump:#9a650e}
+@media (prefers-color-scheme:dark){:root{--u-line-session:#3987e5;--u-line-week:#e8825a;--u-src-assistant:#d55181;--u-src-worker:#9085e9;--u-src-task-channel:#c98500;--u-src-inbox-sort:#199e70;--u-src-other:#e66767;--u-src-other2:#0ca30c;--u-jump:#ffd17e}}
+[hidden]{display:none!important}
+.t-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.t-button{min-height:44px;padding:8px 14px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit;cursor:pointer}
+.t-button:hover{background:var(--ih-surface-raised)}
+.t-search-row input,.t-filter-grid select{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit}
+.t-filter{margin:16px 0}
+.t-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:8px}
+.t-filter-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;grid-template-rows:auto 44px;column-gap:8px;row-gap:4px}
+.t-filter-grid label{color:var(--ih-muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-filter-grid select,.t-filter-grid .t-button{height:44px;text-overflow:ellipsis}
+section h2{font-size:18px;margin:24px 0 8px}
+.u-chart{position:relative}
+.u-plot{position:relative;width:100%;border:1px solid var(--ih-line);border-radius:var(--ih-radius-panel);background:var(--ih-surface);overflow:hidden}
+.u-plot svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.u-plot text{fill:var(--ih-muted);font:11px var(--ih-font)}
+.u-grid{stroke:var(--ih-line);stroke-width:1}
+.u-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.u-line[data-k=session]{stroke:var(--u-line-session)}
+.u-line[data-k=week]{stroke:var(--u-line-week);stroke-dasharray:6 4}
+.u-band{stroke:var(--ih-surface);stroke-width:1}
+.u-shade{opacity:.14}
+.u-band:focus-visible{outline:3px solid var(--ih-link)}
+.u-jump{fill:var(--u-jump);stroke:var(--ih-surface);stroke-width:2}
+.u-cross{stroke:var(--ih-muted);stroke-width:1;stroke-dasharray:3 3}
+.u-dot{stroke:var(--ih-surface);stroke-width:2}
+.u-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 8px;padding:0;list-style:none;font-size:13px}
+.u-legend li{display:inline-flex;align-items:center;gap:6px}
+.u-swatch{display:inline-block;width:18px;height:10px;border-radius:3px}
+.u-swatch[data-k=session]{height:0;border-top:3px solid var(--u-line-session);border-radius:0}
+.u-swatch[data-k=week]{height:0;border-top:3px dashed var(--u-line-week);border-radius:0}
+.u-swatch[data-k=jump]{width:10px;height:10px;border-radius:50%;background:var(--u-jump)}
+.u-tip{position:absolute;z-index:5;max-width:260px;padding:8px 10px;border:1px solid var(--ih-line);border-radius:8px;background:var(--ih-surface);color:var(--ih-text);box-shadow:var(--ih-shadow);font-size:12px;line-height:1.4;pointer-events:none}
+.u-scroll{overflow-x:auto}
+.u-table{width:100%;border-collapse:collapse;font-size:13px}
+.u-table th,.u-table td{padding:8px 10px;border-bottom:1px solid var(--ih-line);text-align:left;white-space:nowrap}
+.u-table th{color:var(--ih-muted);font-weight:600}
+.u-table td:nth-child(3){white-space:normal;overflow-wrap:anywhere}

@@ -1,0 +1,25 @@
+{
+ "name": "ih_usage_trace",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Records Claude usage (session and week percent) every 5 minutes and labelled events (who or what used it), shows both on one chart and flags unattributed jumps. Own database, token-protected API, page.",
+ "owner": "local add-on ih_usage_trace",
+ "start": "Supervisor add-on 32c8114c_ih_usage_trace (boot auto)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8848/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8848,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token"
+ ],
+ "restore": "Stop the add-on. The series and events live in the add-on's own database (/data/ih.db, daily snapshots in /data/backup) and are lost on uninstall; they are only a convenience record.",
+ "requires": []
+}

@@ -1,0 +1,38 @@
+name: "Intelligent Home - Usage Trace"
+version: "0.1.0"
+slug: ih_usage_trace
+image: "ghcr.io/jarvichi/{arch}-ih_usage_trace"
+description: "Shows what used your Claude allowance. Every 5 minutes it records the session and week usage percentages from Home Assistant, and callers post labelled events (for example an assistant, a worker run, a task channel) over a token-protected local API. One page draws both on a chart and flags any jump that no event explains. Only labels and times are stored, never message text. SHADOW mode by default: the series is recorded, events are only logged."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+init: false
+watchdog: "http://[HOST]:[PORT:8848]/healthz"
+ingress: true
+ingress_port: 8849
+panel_title: "IH · Usage Trace"
+panel_icon: mdi:chart-timeline-variant
+panel_admin: true
+homeassistant_api: true
+ports:
+  8848/tcp: 8848
+ports_description:
+  8848/tcp: "Events API (bearer api_token); /healthz is open"
+options:
+  api_token: ""
+  mode: "shadow"
+  session_entity: "sensor.claude_usage_session_usage"
+  week_entity: "sensor.claude_usage_week_usage"
+  pace_entity: "sensor.claude_usage_week_usage_pace"
+  retention_days: 60
+  jump_threshold: 2.0
+schema:
+  api_token: password
+  mode: list(shadow|live)
+  session_entity: str
+  week_entity: str
+  pace_entity: str?
+  retention_days: int(1,365)
+  jump_threshold: float(0.1,100)

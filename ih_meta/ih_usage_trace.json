@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Usage Trace",
+  "purpose": "Charts Claude usage and shows which assistant, worker or channel used it."
+ }
+}

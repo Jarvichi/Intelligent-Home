@@ -1,0 +1,9 @@
+{
+  "api_token": "",
+  "mode": "shadow",
+  "session_entity": "sensor.claude_usage_session_usage",
+  "week_entity": "sensor.claude_usage_week_usage",
+  "pace_entity": "sensor.claude_usage_week_usage_pace",
+  "retention_days": 60,
+  "jump_threshold": 2.0
+}
