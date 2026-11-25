@@ -273,6 +273,7 @@ class JobRun(Base):
     def test_degraded_db_still_sets_sensors(self):
         with open(self.p('ih.db'), 'wb') as f:
             f.write(b'garbage' * 200)
+        self.clock.t = __import__('time').time()   # the cache must look fresh now, not at the fixed START date
         raw = self.fresh_cache()
         put(self.p('metoffice_cache.json'), raw)
         ctx = self.ctx()
