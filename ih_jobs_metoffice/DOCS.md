@@ -45,6 +45,32 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 
 The forecast request to the Met Office includes the location of your home zone and your own API key. Nothing else leaves your network.
 
+## Data storage (database since 0.2.0)
+
+The add-on keeps its data in one SQLite file, `/data/ih.db` (shared helper `ihlib/db.py`, WAL mode). Every file under `/data` was reviewed:
+
+| File under `/data` | Where it lives now | Why |
+|---|---|---|
+| `metoffice_cache.json` (the last Met Office answer: for each weather value the hours, the percentiles and the numbers) | Database: tables `forecast_fetch` (one row per fetch, primary key = fetch time) and `forecast_series` (one row per weather value per fetch, primary key = fetch time + name) | Time series. The fetch time is the primary key, so "newest" and "older than 3 days" use its index. The last 3 days of answers are kept (a few MB at most); older rows are deleted with their series rows. The newest answer is always kept, even if old |
+| `options.json` | Stays a file | Supervisor owns it; holds the secrets (`met_office_key`, `register_key`). Secrets are never stored in the database or its snapshots |
+| `STOP`, `STOP_LIVE` | Stay files | Kill switches: you create or delete them by hand |
+| Add-on log (container log) | Stays text | Logs stay text |
+| `trash/` | New folder | The old cache file, deleted after 30 days |
+| `backup/` | New folder | Nightly snapshots of `ih.db`, newest 3 |
+| `degraded/` | New folder, only used when the database cannot be used | The cache as a plain file, imported again after a restore |
+
+The sensors are never held back by the database: if the database is damaged, too new or fails during a call, the forecast cache goes to a plain file and the job carries on (and it can always fetch the forecast again).
+
+**Start-up:** the add-on opens `ih.db`, applies numbered migrations (a snapshot is taken first when the file already has data), copies the old cache file into the database, reads it back and compares it inside the same transaction, and only then moves the file to `/data/trash`. It purges the trash at start and once a day. From 04:00 it takes one snapshot a night into `/data/backup`, opens the copy read-only, runs the integrity check and logs the row counts (counts only, no forecast values).
+
+**Status:** `/status` (and `/api/status` on the ingress page) shows `db`: schema version, rows per table, last snapshot time, snapshots kept, last restore check, trash files and bytes, import errors, and `degraded`.
+
+**If the database is damaged or too new:** status shows `db_degraded: true`, a `WARNING` and the error, and the log says `DATABASE DEGRADED`. The cache goes to `/data/degraded/`. The damaged file is moved aside as `ih.db.corrupt-<time>`; nothing is recreated.
+
+**Restore** (add-on stopped): copy the newest file in `/data/backup` to `/data/ih.db`, delete `ih.db-wal` and `ih.db-shm`, start the add-on. The file in `/data/degraded/` is then imported automatically. To go back to the previous add-on version: install it and copy `/data/trash/metoffice_cache.json` back to `/data/metoffice_cache.json` (the old version re-fetches anyway if it is missing).
+
+Untested on the real device: power loss, a restore from a Home Assistant backup, running two copies at once.
+
 ## More details
 
 ### How it joins the parent

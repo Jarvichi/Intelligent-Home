@@ -1,12 +1,12 @@
 """Job metoffice: Met Office DataHub forecast -> sensor.met_office_forecast and sensor.weather_forecast_best (Met Office, or met.no when
 the cache is older than STALE_HOURS or missing). Settings are add-on options: the API key (met_office_key, never logged), timezone (day boundaries), zone_entity (location; its latitude and
-longitude are used) and fallback_weather_entity (the weather entity used when the Met Office data is missing or stale). The cache lives in
-<data_dir>/metoffice_cache.json; HA writes go through ctx.set_state (dry = log only). The API fetch and the met.no read are real in dry mode.
+longitude are used) and fallback_weather_entity (the weather entity used when the Met Office data is missing or stale). The cache lives in the add-on database (metodb.py: tables forecast_fetch and forecast_series, a few days of history; the old <data_dir>/metoffice_cache.json is imported once); HA writes go through ctx.set_state (dry = log only). The API fetch and the met.no read are real in dry mode.
 Never call the API more often than MIN_AGE_MIN (the cache is shared by the scheduled and the start-up run)."""
-import json, os, time, urllib.parse, urllib.request
+import json, time, urllib.parse, urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+import metodb
 
 MIN_AGE_MIN = 55        # never call the API more often than this
 STALE_HOURS = 3         # Met Office data older than this -> fall back to met.no
@@ -25,13 +25,13 @@ def tz_of(ctx):
         return ZoneInfo(DEFAULT_TZ)
 
 
-def cache_path(ctx):
-    return os.path.join(ctx.data_dir, 'metoffice_cache.json')
-
-
 def load(ctx):
-    p = cache_path(ctx)
-    return json.load(open(p)) if os.path.exists(p) else None
+    """The newest stored API answer or None. A database problem falls back to a plain file inside metodb; it never raises."""
+    try:
+        return metodb.get(ctx.data_dir, log=ctx.log).load()
+    except Exception as e:
+        ctx.log('metoffice: cache read failed (%s: %s); fetching again' % (type(e).__name__, str(e)[:100]))
+        return None
 
 
 # Met Office significant weather code -> Home Assistant condition
@@ -64,7 +64,10 @@ def fetch(ctx):
             out['series'][name] = {'t': times, 'pc': pc, 'v': [[vals[P * i + j] for i in range(n)] for j in range(P)]}
         else:
             out['series'][name] = {'t': times, 'pc': None, 'v': [vals]}
-    json.dump(out, open(cache_path(ctx), 'w'))
+    try:
+        metodb.get(ctx.data_dir, log=ctx.log).save(out)      # never stops the sensors: a failed save is logged and this run still uses `out`
+    except Exception as e:
+        ctx.log('metoffice: cache save failed (%s: %s)' % (type(e).__name__, str(e)[:100]))
     return out
 
 
