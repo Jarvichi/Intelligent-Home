@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Assets",
+  "purpose": "Things you own with a low and high resale value each, and their total value over time."
+ }
+}

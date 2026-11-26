@@ -1,0 +1,25 @@
+{
+ "name": "ih_assets",
+ "version": "0.2.0",
+ "kind": "addon",
+ "description": "Things you own (games, DVDs, toys, devices, books) with a low and high resale value each, totals and a value-over-time history. Own database, token-protected API, page. Publishes sensor.assets_low and sensor.assets_high only in live mode.",
+ "owner": "local add-on ih_assets",
+ "start": "Supervisor add-on 32c8114c_ih_assets (boot auto)",
+ "health": [
+  {
+   "type": "http",
+   "url": "http://172.30.32.1:8852/healthz",
+   "timeout": 3,
+   "ok_status": [
+    200
+   ]
+  }
+ ],
+ "port": 8852,
+ "schedules": [],
+ "declares_secrets": [
+  "api_token"
+ ],
+ "restore": "Stop the add-on. The list and history live in the add-on's own database (/data/ih.db, daily snapshots in /data/backup) and are lost on uninstall. In dry mode nothing in Home Assistant depends on it; in live mode the two sensors stop updating.",
+ "requires": []
+}

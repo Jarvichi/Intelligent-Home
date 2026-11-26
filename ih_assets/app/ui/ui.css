@@ -1,0 +1,28 @@
+.a-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:8px}
+.a-tile{border:1px solid var(--ih-line);background:var(--ih-surface);border-radius:var(--ih-radius-panel,16px);padding:14px 16px;display:grid;gap:2px}
+.a-tile b{font-size:1.6rem;letter-spacing:-.03em}
+.a-tile span{color:var(--ih-muted);font-size:12px}
+.a-legend{display:flex;align-items:center;gap:8px;color:var(--ih-muted);font-size:12px;margin-bottom:6px}
+.a-key{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:8px}
+.a-lo{background:var(--ih-link);opacity:.55}.a-hi{background:var(--ih-link)}
+.a-chart{display:block;width:100%;height:220px;background:var(--ih-surface);border:1px solid var(--ih-line);border-radius:12px;color:var(--ih-text)}
+.a-chart .lo{fill:var(--ih-link);opacity:.55}.a-chart .hi{fill:var(--ih-link)}.a-chart text{fill:var(--ih-muted);font-size:11px}
+.a-scroll{overflow-x:auto;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-surface)}
+.a-table{width:100%;border-collapse:collapse}
+.a-table th,.a-table td{padding:8px 10px;border-bottom:1px solid var(--ih-line);text-align:left;vertical-align:middle}
+.a-table .a-n{text-align:right}
+.a-table .a-sub{display:block;color:var(--ih-muted);font-size:12px}
+.a-table .a-un{color:var(--ih-warn)}
+.a-sort{min-height:44px;background:transparent;border:0;color:var(--ih-muted);font:inherit;font-weight:650;cursor:pointer;padding:0 2px}
+.a-sort[aria-sort]{color:var(--ih-text)}
+.a-button{min-height:44px;padding:0 16px;border-radius:var(--ih-radius-control,8px);border:1px solid var(--ih-line);background:var(--ih-surface);color:var(--ih-text);font:inherit;cursor:pointer}
+.a-button:focus-visible,.a-sort:focus-visible{outline:3px solid var(--ih-link);outline-offset:2px}
+.a-button:disabled{opacity:.5;cursor:default}
+.a-primary{background:var(--ih-accent);color:var(--ih-accent-ink);border-color:transparent}
+.a-actions{display:flex;gap:6px;flex-wrap:wrap}
+.a-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end}
+.a-form label{display:grid;gap:4px;color:var(--ih-muted);font-size:12px;min-width:0}
+.a-form input,.a-form select{min-height:44px;padding:8px 10px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-control,8px);background:var(--ih-surface);color:var(--ih-text);font:inherit;max-width:100%;box-sizing:border-box}
+.a-price{display:flex;gap:8px;flex-wrap:wrap;align-items:end;padding:8px 0}
+.a-price label{display:grid;gap:4px;color:var(--ih-muted);font-size:12px}
+.a-price input{min-height:44px;width:110px;padding:8px 10px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-control,8px);background:var(--ih-surface);color:var(--ih-text);font:inherit}

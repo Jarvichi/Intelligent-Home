@@ -78,6 +78,7 @@ Nothing is copied by hand between add-ons.
 |---|---|---|---|
 | **Intelligent Home - Tasks** (`ih_tasks`) | One list of tasks with stages, one approval step by the owner, questions as a flag on the task, and a full history (board page, token API, own database). | nothing else | [DOCS](ih_tasks/DOCS.md) |
 | **Intelligent Home - Themed Events** (`ih_themed_events`) | Halloween, New Year's Eve and future events as data: date, lights, speakers, checklist, a review after each run, and a generator for the standard Home Assistant pieces (text only; own database, token API, page). | nothing else | [DOCS](ih_themed_events/DOCS.md) |
+| **Intelligent Home - Assets** (`ih_assets`) | Things you own with a low and high resale value each, totals, and a low/high value-over-time chart (own database, token API, page). Publishes `sensor.assets_low` and `sensor.assets_high` only in live mode. | nothing else | [DOCS](ih_assets/DOCS.md) |
 
 ### Cooking
 
