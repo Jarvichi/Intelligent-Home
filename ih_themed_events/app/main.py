@@ -36,10 +36,11 @@ import generator as G
 import model as M
 import readiness
 import installer
+import effect_test
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.7'
+VERSION = '0.1.8'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -56,6 +57,7 @@ ROUTES = [('GET', r'/events', 'list'), ('POST', r'/events', 'create'), ('GET', E
           ('POST', EVENT + '/verify', 'verify'),
           ('GET', r'/entities', 'entities'),
           ('POST', r'/media', 'media'),
+          ('POST', r'/effect-tests', 'effect_test_start'), ('GET', r'/effect-tests/([a-f0-9]{32})', 'effect_test_status'),
           ('GET', EVENT + '/generate', 'generate'), ('GET', EVENT + '/reviews', 'reviews'), ('POST', EVENT + '/items', 'add_item'),
           ('POST', EVENT + r'/items/(\d{1,9})', 'set_item'), ('POST', EVENT + r'/items/(\d{1,9})/delete', 'delete_item'),
           ('POST', EVENT + '/review', 'review'), ('POST', EVENT + '/mode', 'mode')]
@@ -121,6 +123,27 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
         if not hit:
             continue
         a = hit.groups()
+        if name == 'effect_test_start':
+            if not ui or opts['control'] != 'live':
+                raise M.RuleError('forbidden', 'Effect tests are available on the page when live control is enabled.')
+            b = _only(body, ('event', 'event_slug'), ('event',))
+            event = M.clean_event(b['event'])
+            slug = b.get('event_slug')
+            existing = False
+            if slug is not None:
+                if not isinstance(slug, str) or slug != event['slug']:
+                    raise M.RuleError('bad', 'The event does not match this effect.')
+                store.record(slug)
+                existing = True
+                installation = store.installation(slug)
+                if installation and installation['status'] in ('installing', 'updating', 'needs_review', 'submitted'):
+                    raise M.RuleError('conflict', 'Finish applying and checking this event before testing an effect.')
+            job = effect_test.start(ha, event, existing=existing)
+            return 202, {'id': job}
+        if name == 'effect_test_status':
+            if not ui:
+                raise M.RuleError('forbidden', 'Effect tests are available on the page only.')
+            return 200, effect_test.status(a[0])
         if name == 'media':
             if not ui:
                 raise M.RuleError('forbidden', 'available on the page only')
@@ -191,7 +214,8 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
                 raise M.RuleError('bad', 'Confirmation must be true or false.')
             if not isinstance(data['review_token'], str) or len(data['review_token']) != 64:
                 raise M.RuleError('bad', 'Review the event again before applying.')
-            return 200, installer.apply(store, ha, a[0], data.get('acknowledge_unverified', False), data['review_token'])
+            with effect_test.event_change(a[0]):
+                return 200, installer.apply(store, ha, a[0], data.get('acknowledge_unverified', False), data['review_token'])
         if name == 'verify':
             if not ui or opts['control'] != 'live':
                 raise M.RuleError('forbidden', 'Checking is available on the page when live control is enabled.')
@@ -224,7 +248,11 @@ def dispatch(store, ha, opts, method, path, body, actor, ui):
                 raise M.RuleError('conflict', 'Check that the applied rules are available before switching the event on.')
             if mode_state(ha, a[0]) is None:
                 raise M.RuleError('conflict', 'input_boolean.%s_mode does not exist yet' % a[0])
-            ha.call_service('input_boolean', 'turn_on' if on else 'turn_off', {'entity_id': 'input_boolean.%s_mode' % a[0]})
+            if on:
+                with effect_test.event_change(a[0]):
+                    ha.call_service('input_boolean', 'turn_on', {'entity_id': 'input_boolean.%s_mode' % a[0]})
+            else:
+                ha.call_service('input_boolean', 'turn_off', {'entity_id': 'input_boolean.%s_mode' % a[0]})
             store._log(store.db.con, actor, a[0], 'mode_on' if on else 'mode_off')
             return 200, {'slug': a[0], 'mode_state': 'on' if on else 'off'}
     raise M.RuleError('missing', 'no such route')

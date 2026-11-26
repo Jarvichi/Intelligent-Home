@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.1.8] - 2026-11-26
+
+### Added
+- Test the current effect sequence on selected devices from the editor, including unsaved changes. Testing requires live control and an inactive event mode.
+
 ## [0.1.7] - 2026-11-25
 
 ### Added

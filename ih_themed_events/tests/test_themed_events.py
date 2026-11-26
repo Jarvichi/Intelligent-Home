@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.request
 from datetime import date
@@ -21,6 +22,7 @@ import model as M
 import readiness
 import install_plan
 import installer
+import effect_test
 import seed as SEED
 from store import Store
 
@@ -177,6 +179,134 @@ class Generator(unittest.TestCase):
         text = G.generate(M.clean_event(SEED.HALLOWEEN))['automations.yaml']
         self.assertEqual(text.count('\n- id: '), 3)       # mode_switch, safety, random_effects
         self.assertEqual(text.count('\n  alias: '), 3)
+
+
+class EffectTestTests(unittest.TestCase):
+    class HA:
+        def __init__(self):
+            self.calls = []
+            self.mode = 'off'
+            self.scene = ''
+        def get(self, path):
+            if path == 'states':
+                return [{'entity_id': 'light.test', 'state': 'on'}, {'entity_id': 'media_player.test', 'state': 'idle'}]
+            if path.startswith('states/scene.'):
+                return {'entity_id': path[len('states/'):], 'state': 'scening'}
+            if path.startswith('states/input_boolean.'):
+                return {'entity_id': path[len('states/'):], 'state': self.mode}
+            raise AssertionError(path)
+        def call_service(self, domain, service, data):
+            self.calls.append((domain, service, data))
+
+    def setUp(self):
+        self.event = M.clean_event({'slug': 'party', 'name': 'Party', 'lights': ['light.test'], 'speakers': ['media_player.test'],
+                                    'effects': [{'id': 'flash', 'name': 'Flash', 'sound': 'media-source://media_source/local/bell.mp3',
+                                                 'steps': [{'type': 'light', 'colour': '#ffffff', 'brightness': 100, 'seconds': 1}, {'type': 'sound'}], 'restore': True}]})
+        self.ha = self.HA()
+        self.addCleanup(self.reset_jobs)
+    def reset_jobs(self):
+        with effect_test._LOCK:
+            effect_test._JOBS.clear()
+            effect_test._EVENT_CHANGES.clear()
+            effect_test._COOLDOWN_UNTIL = 0
+    def run_job(self, event=None, existing=True, error=None):
+        event, actions, snapshot = effect_test.prepare(event or self.event)
+        effect_test._JOBS['test'] = {'status': 'running'}
+        with mock.patch.object(effect_test, '_execute', side_effect=error) as execute:
+            effect_test._run('test', self.ha, event, actions, snapshot, existing)
+        return effect_test.status('test'), execute
+
+    def test_runs_compiled_draft_and_restores_lights(self):
+        result, execute = self.run_job()
+        self.assertEqual(result['status'], 'done')
+        self.assertEqual(execute.call_args.args[1][0]['repeat']['sequence'][0]['action'], 'light.turn_on')
+        self.assertEqual(execute.call_args.args[1][-1]['action'], 'scene.turn_on')
+        self.assertEqual([(x[0], x[1]) for x in self.ha.calls], [('scene', 'create'), ('scene', 'delete')])
+        self.assertEqual(self.ha.calls[0][2]['snapshot_entities'], ['light.test'])
+
+    def test_restore_is_attempted_after_failed_execution(self):
+        result, _ = self.run_job(error=RuntimeError('connection lost'))
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('may still be running', result['message'])
+        self.assertIn(('scene', 'turn_on'), [(x[0], x[1]) for x in self.ha.calls])
+        self.assertNotIn(('scene', 'delete'), [(x[0], x[1]) for x in self.ha.calls])
+
+    def test_reported_execution_failure_restores_and_cleans_up(self):
+        result, _ = self.run_job(error=effect_test.ExecutionFailed('refused'))
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('could not complete', result['message'])
+        self.assertEqual([(x[0], x[1]) for x in self.ha.calls], [('scene', 'create'), ('scene', 'turn_on'), ('scene', 'delete')])
+
+    def test_active_mode_refuses_without_running(self):
+        self.ha.mode = 'on'
+        result, execute = self.run_job()
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('mode off', result['message'])
+        execute.assert_not_called()
+        self.assertEqual(self.ha.calls, [])
+
+    def test_unavailable_light_refuses_without_running(self):
+        self.ha.get = lambda path: [{'entity_id': 'light.test', 'state': 'unavailable'}, {'entity_id': 'media_player.test', 'state': 'idle'}] if path == 'states' else None
+        result, execute = self.run_job()
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('unavailable', result['message'])
+        execute.assert_not_called()
+        self.assertEqual(self.ha.calls, [])
+
+    def test_failed_restore_keeps_snapshot(self):
+        original = self.ha.call_service
+        def fail_restore(domain, service, data):
+            if (domain, service) == ('scene', 'turn_on'):
+                raise RuntimeError('offline')
+            original(domain, service, data)
+        self.ha.call_service = fail_restore
+        result, _ = self.run_job(error=effect_test.ExecutionFailed('failed'))
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('snapshot was kept', result['message'])
+        self.assertNotIn(('scene', 'delete'), [(x[0], x[1]) for x in self.ha.calls])
+
+    def test_execute_uses_home_assistant_script_command_and_closes_socket(self):
+        ws = mock.Mock()
+        ws.recv.return_value = {'id': 1, 'type': 'result', 'success': True}
+        ha = mock.Mock()
+        ha._open.return_value = ws
+        actions = [{'delay': 1}]
+        effect_test._execute(ha, actions)
+        ws.send.assert_called_once_with({'id': 1, 'type': 'execute_script', 'sequence': actions})
+        ws.s.settimeout.assert_called_once_with(150)
+        ws.close.assert_called_once()
+
+    def test_no_restore_does_not_change_or_create_a_scene(self):
+        event = copy.deepcopy(self.event)
+        event['effects'][0]['restore'] = False
+        result, _ = self.run_job(event)
+        self.assertEqual(result['status'], 'done')
+        self.assertEqual(self.ha.calls, [])
+
+    def test_rejects_unsafe_or_incomplete_drafts(self):
+        for changes in ({'steps': []}, {'sound': 'https://example.com/sound.mp3'}, {'repeat': 10, 'steps': [{'type': 'wait', 'seconds': 10}]}):
+            event = copy.deepcopy(self.event)
+            event['effects'][0].update(changes)
+            with self.assertRaises(M.RuleError):
+                effect_test.prepare(event)
+
+    def test_test_routes_require_admin_page_and_live_control(self):
+        for ui, control in ((False, 'live'), (True, 'off')):
+            with self.assertRaises(M.RuleError):
+                MAIN.dispatch(None, self.ha, {'control': control}, 'POST', '/effect-tests', {'event': self.event}, 'owner', ui)
+        with mock.patch.object(effect_test, 'start', return_value='a' * 32) as start:
+            code, body = MAIN.dispatch(None, self.ha, {'control': 'live'}, 'POST', '/effect-tests', {'event': self.event}, 'owner', True)
+        self.assertEqual((code, body['id']), (202, 'a' * 32))
+        start.assert_called_once()
+
+    def test_changes_and_tests_for_same_event_are_serialized(self):
+        with effect_test.event_change('party'):
+            with self.assertRaises(M.RuleError):
+                effect_test.start(self.ha, self.event, existing=True)
+        effect_test._JOBS['test'] = {'status': 'running', 'slug': 'party'}
+        with self.assertRaises(M.RuleError):
+            with effect_test.event_change('party'):
+                pass
 
 
 class InstallerTests(unittest.TestCase):

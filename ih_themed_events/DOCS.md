@@ -15,6 +15,8 @@ The page can create and edit event plans using form controls, including choosing
 
 Applying from the page creates or updates owned helpers, scripts and automations in Home Assistant. The page shows a review first; Home Assistant reloads scripts and automations as they are saved. The add-on journals changes and can resume an interrupted operation when it can verify the affected items. An outside change to an owned rule requires explicit acknowledgement before it is replaced; ambiguous ownership stops the operation. An older installation without stored rule contents also requires explicit acknowledgement on its first update. Effects without steps still require their original hand-written scripts and cannot be installed through this flow.
 
+In the effect editor, **Test now** runs the current sequence, including unsaved edits, on the selected devices. It requires live control, an inactive event mode and available devices. If lighting restoration is selected, the current lighting is snapshotted and restored after the test. Audio can interrupt current playback; the test does not restore audio. Effects must be shorter than 90 seconds. No event rules are installed by a test.
+
 ## Records added on first start
 
 - **Halloween**: described only. It is live in Home Assistant by hand. Moving it onto the generator is a separate task.
