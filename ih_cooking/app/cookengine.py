@@ -307,14 +307,21 @@ class Engine:
         try: self.discord_send(self.cfg.get('channel'), '🍳 ' + intro + '\n' + '\n'.join('- ' + i for i in items) + '\n' + outro)
         except Exception as e: self.log('discord failed ' + str(e))
 
-        def run():
+        def speak_all(_):
+            v = self.state(self.PLAYER).get('attributes', {}).get('volume_level')
+            self.call('/services/media_player/volume_set', {'entity_id': self.PLAYER, 'volume_level': 0.5})
             try:
-                v = self.state(self.PLAYER).get('attributes', {}).get('volume_level')
-                self.call('/services/media_player/volume_set', {'entity_id': self.PLAYER, 'volume_level': 0.5})
                 for i, t in enumerate([intro] + items + [outro]):
                     self.call('/services/tts/speak', {'entity_id': self.cfg.get('tts_entity') or 'tts.google_translate_en_com', 'media_player_entity_id': self.PLAYER, 'message': t, 'language': 'en-uk'})
                     self.sleep(max(3, len(t) // 12 + 2) + (4 if 0 < i <= len(items) else 0))
-                if isinstance(v, (int, float)): self.call('/services/media_player/volume_set', {'entity_id': self.PLAYER, 'volume_level': v})
+            finally:
+                if isinstance(v, (int, float)):
+                    try: self.call('/services/media_player/volume_set', {'entity_id': self.PLAYER, 'volume_level': v})
+                    except Exception as e: self.log('volume restore failed ' + str(e))
+
+        def run():
+            # task #7: pause the music ONCE, read the whole list, resume (like every other spoken message); resume is unconditional
+            try: speak_with_music(self.call, self.state, speak_all, self.GROUP, self.PLAYER, intro, self.log, sleep=self.sleep, now=self.ts, marker=self.p('music.json'))
             except Exception as e: self.log('voice failed ' + str(e))
         if voice and self.PLAYER: self.spawn(run)
         self.log('told list: ' + intro + ' ' + ', '.join(items))
@@ -689,7 +696,7 @@ class Engine:
         finally:
             self.log('loop ended')
 
-    def start_cook(self, recipe_obj, name, eat, allow_replace=True, lock_timeout=None):
+    def start_cook(self, recipe_obj, name, eat, allow_replace=True, lock_timeout=None, resume=False):
         """Start one cook; existing callers may explicitly retain replacement behaviour."""
         if self.cfg.get('mode') == 'off':return {'ok':False,'why':'cook_mode is off'}
         if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d',str(eat)):return {'ok':False,'why':'eat must be HH:MM'}
@@ -710,7 +717,16 @@ class Engine:
                 finally:self.oven_dispatch_lock.release()
                 if os.path.exists(self.p('plan.json')):os.replace(self.p('plan.json'),self.p('plan.replaced.json'))
                 plan=build_plan(recipe_obj,name,eat,self.now().date(),self.cfg.get('child_name') or 'Child')
-                self.dump('plan.json',plan,indent=1,ensure_ascii=False);self.dump('state.json',{'done':[],'told':[],'oven':False})
+                self.dump('plan.json',plan,indent=1,ensure_ascii=False)
+                st0={'done':[],'told':[],'oven':False}
+                if resume:
+                    # task #7 "cook earlier / start later": restarting mid-cook must not slide the plan. Steps already past count as done and
+                    # announced (oven NOT fired for them); the get-everything-out gate is released; later steps keep their real times.
+                    hm=self.now().strftime('%H:%M')
+                    past=[x['at']+' '+x['text'] for x in plan['steps'] if x['at']<=hm and not x.get('auto')]
+                    st0['done']=list(past);st0['told']=list(past);st0['gate_released']=True;st0['resumed']=True
+                    self.log('resume: %d steps already past at %s are treated as done; plan keeps its times'%(len(past),hm))
+                self.dump('state.json',st0)
                 self.stop_flag=threading.Event();self.thread=threading.Thread(target=self._loop,daemon=True);self.thread.start()
             finally:self.lock.release()
         ok,why=self.guard(force=True);self.log('started %s for %s (%s)'%(name,eat,'LIVE' if ok else 'dry: '+why))
@@ -757,6 +773,9 @@ class Engine:
 
     SNAP_S = 90   # 0.6.11: for this long after a DONE, row N refers to the earlier displayed list, not the re-ordered list
 
+    LATE_ASK_MIN = 15   # task #7: an anchor DONE this many minutes after its time asks first (it would move the whole plan)
+    LATE_CONFIRM_S = 120
+
     def done(self, row=0, did=False):
         with self.lock:
             p = self.load('plan.json', None)
@@ -773,6 +792,19 @@ class Engine:
                 s0 = next((x for x in p['steps'] if x['at'] + ' ' + x['text'] == k), None)
                 if not (s0 and s0.get('gate')) and k not in st.get('told', []):
                     self.log('DONE blocked (not announced yet): ' + k); return {'ok': False, 'why': 'not announced yet'}
+                if s0 and s0.get('anchor') and not did and not s0.get('gate'):
+                    nw = self.now().replace(second=0, microsecond=0)
+                    late = int((nw - datetime.datetime.combine(nw.date(), datetime.time.fromisoformat(s0['at']))).total_seconds() // 60)
+                    ask = st.get('late_ask') or {}
+                    if late >= self.LATE_ASK_MIN and not (ask.get('key') == k and self.ts() - ask.get('ts', 0) <= self.LATE_CONFIRM_S):
+                        st['late_ask'] = {'key': k, 'ts': self.ts()}; self.dump('state.json', st)
+                        q = 'Did you really finish "%s"? It was due at %s, %d min ago. Tap DONE again within %d s to confirm (the rest of the plan moves %d min later), or tap DID IT if it happened on time.' % (
+                            s0.get('short') or s0['text'], s0['at'], late, self.LATE_CONFIRM_S, late)
+                        try: self.discord_send(self.cfg.get('channel'), '🍳 ' + q)
+                        except Exception as e: self.log('discord failed ' + str(e))
+                        self.log('DONE asks first (late %d min): %s' % (late, k))
+                        return {'ok': False, 'why': 'confirm late', 'ask': q, 'late_min': late}
+                    st.pop('late_ask', None)
                 st.setdefault('done_rows', {})[str(row)] = self.ts()
                 st['snap'] = {'keys': keys, 'ts': self.ts()}
                 st['done'].append(k); st['last_done_ts'] = self.ts(); self.log('done (wall display, did it): ' + k if did else 'done (wall display): ' + k)

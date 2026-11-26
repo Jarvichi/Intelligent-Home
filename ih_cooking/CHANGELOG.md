@@ -3,6 +3,13 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.11.1] - 2026-11-26
+### Fixed
+- Reading the ingredient list aloud (`say_list`) pauses the music once, speaks the whole list, then resumes.
+- A late DONE (15+ min after the step was announced) on an anchor step asks on Discord first; a second DONE within 120 s confirms. DID IT never asks.
+### Added
+- `POST /cook {"resume": true}`: restarting mid-cook counts past steps as done, releases the gate and keeps the plan's times (no sliding).
+
 ## [0.11.0] - 2026-11-20
 ### Added
 - `POST /cook/display-actions`: several row taps made on one displayed picture (up to 12) are checked against that picture once and applied in order, so ticking several items off the Kindle's cooking screen in a row works. STOP is not allowed in a batch.
