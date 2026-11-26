@@ -1,0 +1,18 @@
+.metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--ih-space-4); }
+.panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 8px 6px; border-bottom: 1px solid var(--ih-line); text-align: left; vertical-align: top; }
+th { color: var(--ih-muted); font-size: 12px; font-weight: 700; }
+.num { text-align: right; white-space: nowrap; }
+td.empty { color: var(--ih-muted); text-align: center; padding: var(--ih-space-5); }
+.up { color: var(--ih-danger); }
+.down { color: var(--ih-ok); }
+.overdue { color: var(--ih-warn); }
+#q { width: min(100%, 360px); }
+@media (max-width: 760px) {
+  .panels { grid-template-columns: minmax(0, 1fr); }
+  .metrics { gap: var(--ih-space-2); }
+  .metrics ih-card { padding: 12px; }
+  .metrics ih-metric { font-size: 22px; }
+}

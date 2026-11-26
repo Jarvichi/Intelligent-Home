@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.0] - 2026-11-26
+### Added
+- Read-only "IH · Groceries" page in the Home Assistant sidebar (ingress, port 8802, admin only): mode (test mode or live), counts (library items, receipts, price changes), latest receipts, price changes, due-again list and an item library search. GET only: no buttons that write, nothing can add to or tick the shopping list. Served by a threaded server that answers only the Supervisor ingress gateway. The API on 8801 is unchanged.
+
 ## [0.4.0] - 2026-11-13
 ### Added
 - Publishes `sensor.lifestyle_spend`, `sensor.lifestyle_due_soon` and `sensor.lifestyle_price_rises` to Home Assistant (needs `homeassistant_api`): at start, after every stored receipt or alias, and every hour. Dashboards read the sensors live, so no page is rebuilt after a receipt.
