@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Assets</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Assets"></ih-nav>
+  <ih-app>
+    <main>
+      <div class="ih-page-heading">
+        <h1 id="page-title">Assets</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="ih-metadata">Things you own, each with a low and a high resale value. Values are for planning only.</p>
+      <section aria-label="Totals"><div id="tiles" class="a-tiles"></div></section>
+      <section aria-labelledby="chart-h">
+        <h2 id="chart-h">Value over time</h2>
+        <div class="a-legend"><span class="a-key a-lo"></span> Low total <span class="a-key a-hi"></span> High total</div>
+        <svg id="chart" class="a-chart" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-labelledby="chart-h chart-sum"></svg>
+        <p id="chart-sum" class="ih-metadata">Loading…</p>
+      </section>
+      <section aria-labelledby="items-h">
+        <h2 id="items-h">Items</h2>
+        <div class="ih-toolbar">
+          <label>Search<input id="q" type="search" autocomplete="off"></label>
+          <label>Category<select id="cat"><option value="">All categories</option></select></label>
+          <label>Priced<select id="st"><option value="">All</option><option value="p">Priced</option><option value="u">Not priced</option></select></label>
+          <button id="clear" class="a-button" type="button">Clear</button>
+        </div>
+        <p id="count" class="ih-metadata" role="status" aria-live="polite"></p>
+        <div class="a-scroll"><table class="a-table">
+          <thead><tr>
+            <th scope="col"><button class="a-sort" data-k="name" type="button">Item</button></th>
+            <th scope="col"><button class="a-sort" data-k="category" type="button">Category</button></th>
+            <th scope="col" class="a-n"><button class="a-sort" data-k="qty" type="button">Qty</button></th>
+            <th scope="col" class="a-n"><button class="a-sort" data-k="low" type="button">Low</button></th>
+            <th scope="col" class="a-n"><button class="a-sort" data-k="high" type="button">High</button></th>
+            <th scope="col">Actions</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table></div>
+        <p id="empty" class="ih-empty-inline" hidden></p>
+      </section>
+      <section aria-labelledby="add-h">
+        <h2 id="add-h">Add item</h2>
+        <form id="add" class="a-form">
+          <label>Name<input name="name" required maxlength="200"></label>
+          <label>Category<select name="category" id="addcat"></select></label>
+          <label>Platform or brand<input name="platform" maxlength="300"></label>
+          <label>Quantity<input name="qty" type="number" min="1" max="999" value="1"></label>
+          <label>Cost paid (GBP)<input name="cost" type="number" min="0" step="0.01"></label>
+          <label>Low value (GBP each)<input name="low" type="number" min="0" step="0.01"></label>
+          <label>High value (GBP each)<input name="high" type="number" min="0" step="0.01"></label>
+          <label>Bought on<input name="bought_date" type="date"></label>
+          <button class="a-button a-primary" type="submit">Add</button>
+        </form>
+      </section>
+      <section aria-labelledby="bc-h">
+        <h2 id="bc-h">Barcode</h2>
+        <div class="ih-toolbar">
+          <label>ISBN, EAN or UPC<input id="bc" inputmode="numeric" autocomplete="off"></label>
+          <label>Category<select id="bcat"></select></label>
+          <button id="bc-find" class="a-button" type="button">Look up</button>
+          <button id="bc-add" class="a-button" type="button">Look up and add</button>
+        </div>
+        <p class="ih-metadata">Only the number is sent to Open Library or UPCitemdb. New items from a barcode have no price until you set one.</p>
+      </section>
+      <p id="msg" class="ih-metadata" role="status" aria-live="polite"></p>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
