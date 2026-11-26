@@ -57,6 +57,11 @@ class Engine:
         w('polestar_charging', rd['charging'], {'friendly_name': 'Polestar charging', 'charger_connected': rd['charger_connected'], 'minutes_to_full': rd['eta_full_min']})
         o = rd['odometer_km']
         w('polestar_odometer', 'unknown' if o is None else round(o / KM_PER_MILE), {'friendly_name': 'Polestar odometer', 'unit_of_measurement': 'mi', 'state_class': 'total_increasing'})
+        rows = [{'id': 'battery', 'item': 'Battery', 'value': 'unknown' if rd['battery_pct'] is None else '%s %%' % round(rd['battery_pct'])},
+                {'id': 'range', 'item': 'Range', 'value': 'unknown' if km is None else '%d mi' % round(km / KM_PER_MILE)},
+                {'id': 'charging', 'item': 'Charging', 'value': rd['charging']},
+                {'id': 'updated', 'item': 'Last update', 'value': self.last['reading']['at'].replace('T', ' ').replace('Z', ' UTC')}]
+        w('polestar_summary', 'unknown' if rd['battery_pct'] is None else rd['battery_pct'], {'friendly_name': 'Polestar summary', 'unit_of_measurement': '%', 'rows': rows})
         w('polestar_last_update', self.last['reading']['at'], {'friendly_name': 'Polestar last update', 'device_class': 'timestamp'})
 
     def readings(self, limit=200):

@@ -1,7 +1,7 @@
 # Polestar
 
 ## What it does
-Every `interval_min` minutes it reads the Polestar 2 (battery %, range, charging state, odometer) and stores each reading in `/data/ih.db` (kept `keep_days` days). In `live` and `fixture` mode it publishes plain sensors: `sensor.polestar_battery` (%), `sensor.polestar_range` (mi, km in an attribute), `sensor.polestar_charging` (charging / idle / full / scheduled / error / unknown), `sensor.polestar_odometer` (mi), `sensor.polestar_last_update`.
+Every `interval_min` minutes it reads the Polestar 2 (battery %, range, charging state, odometer) and stores each reading in `/data/ih.db` (kept `keep_days` days). In `live` and `fixture` mode it publishes plain sensors: `sensor.polestar_battery` (%), `sensor.polestar_range` (mi, km in an attribute), `sensor.polestar_charging` (charging / idle / full / scheduled / error / unknown), `sensor.polestar_odometer` (mi), `sensor.polestar_summary` (battery %; attribute `rows` feeds the Cars-tab table), `sensor.polestar_last_update`.
 
 ## Modes
 - `dry` (default): reads if a login is set, stores, logs, publishes nothing.

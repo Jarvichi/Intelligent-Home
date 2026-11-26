@@ -72,7 +72,7 @@ class Fixture(unittest.TestCase):
         eng, ha = mk({'mode': 'fixture'})
         eng.publish(eng.run_once())
         names = [p[0] for p in ha.posts]
-        self.assertEqual(names, ['states/sensor.polestar_' + n for n in ('battery', 'range', 'charging', 'odometer', 'last_update')])
+        self.assertEqual(names, ['states/sensor.polestar_' + n for n in ('battery', 'range', 'charging', 'odometer', 'summary', 'last_update')])
         self.assertTrue(all(p[1]['attributes']['fixture'] for p in ha.posts))
 
 
@@ -91,6 +91,8 @@ class Engine(unittest.TestCase):
         self.assertEqual(d['states/sensor.polestar_range']['state'], 193)
         self.assertEqual(d['states/sensor.polestar_charging']['state'], 'charging')
         self.assertFalse(d['states/sensor.polestar_battery']['attributes']['fixture'])
+        rows = d['states/sensor.polestar_summary']['attributes']['rows']
+        self.assertEqual([r['item'] for r in rows], ['Battery', 'Range', 'Charging', 'Last update']); self.assertEqual(rows[0]['value'], '72 %' if False else '%d %%' % round(72.5))
 
     def test_error_never_leaks_password(self):
         eng, ha = mk({'mode': 'live'}, FakeSource(exc=RuntimeError('login failed for hunter2')))
