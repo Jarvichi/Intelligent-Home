@@ -2,7 +2,7 @@
 
 ## What it does
 
-Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing. Also the iPhone shopping Shortcut endpoint (dry by default). Module of the `ih_discord` transport.
+Shopping list commands for Discord as a bus module of ih_discord (add items, shop checklist by aisle with tick reactions, got ...). Shadow mode by default: logs what it would post, posts nothing. Also the iPhone shopping Shortcut endpoint (dry by default). Module of the `ih_discord` transport. On `shop` the bot clears its own old checklist and "Which list?" messages straight away.
 
 ## Requires
 

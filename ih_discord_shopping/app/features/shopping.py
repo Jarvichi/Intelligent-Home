@@ -293,7 +293,9 @@ class Feature:
             if t == 'help':
                 reply = HELP
             else:
-                if self.pend:
+                if hasattr(self, 'clear_old'):
+                    self.clear_old()
+                elif self.pend:
                     d.req('DELETE', f"/channels/{self.schan}/messages/{self.pend['id']}")
                 self.pend = self.ask_scope(a.get('id'))
                 if self.pend is None:

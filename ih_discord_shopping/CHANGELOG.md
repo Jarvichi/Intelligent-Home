@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.5.1] - 2026-11-26
+
+### Changed
+- On `shop`, the old checklist and old "Which list?" messages (the bot's own tagged ones only) are deleted at once, before the new question, instead of after the answer. Delete errors are ignored; the new list is still posted.
+
 ## [0.5.0] - 2026-11-20
 
 ### Added
