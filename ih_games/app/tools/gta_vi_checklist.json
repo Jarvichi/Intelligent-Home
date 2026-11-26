@@ -1,0 +1,335 @@
+{
+ "verified": false,
+ "source": "PowerPyx GTA 6 100% completion checklist guide, dated 2026-11-18, read 2026-11-26. Names written in our own words. Counts NOT checked in game; the in-game list (Progress > Stats > 100% Completion) appears only after the story. Correct with the 'target' and 'rename' commands.",
+ "groups": [
+  {
+   "id": "story",
+   "label": "Story and tasks"
+  },
+  {
+   "id": "explore",
+   "label": "Exploration and activities"
+  },
+  {
+   "id": "discover",
+   "label": "Discovery"
+  }
+ ],
+ "items": [
+  {
+   "id": "story",
+   "name": "Finish the story",
+   "group": "story",
+   "target": 1,
+   "total": null,
+   "unit": "flag",
+   "alias": "story"
+  },
+  {
+   "id": "tasks",
+   "name": "Optional tasks completed",
+   "group": "story",
+   "target": 100,
+   "total": null,
+   "unit": "count",
+   "alias": "tasks"
+  },
+  {
+   "id": "gang_ops",
+   "name": "Gang operations cleared",
+   "group": "story",
+   "target": 39,
+   "total": 39,
+   "unit": "count",
+   "alias": "gang"
+  },
+  {
+   "id": "bank_jobs",
+   "name": "Bank jobs fully completed",
+   "group": "story",
+   "target": 22,
+   "total": 22,
+   "unit": "count",
+   "alias": "bank"
+  },
+  {
+   "id": "payday",
+   "name": "Payday loan jobs fully completed",
+   "group": "story",
+   "target": 7,
+   "total": 7,
+   "unit": "count",
+   "alias": "payday"
+  },
+  {
+   "id": "smash_grabs",
+   "name": "Smash and grabs fully completed",
+   "group": "story",
+   "target": 34,
+   "total": 35,
+   "unit": "count",
+   "alias": "smash"
+  },
+  {
+   "id": "stick_ups",
+   "name": "Stick ups fully completed",
+   "group": "story",
+   "target": 50,
+   "total": 91,
+   "unit": "count",
+   "alias": "stickups"
+  },
+  {
+   "id": "fence_narcotics",
+   "name": "Narcotics fenced (dollars)",
+   "group": "story",
+   "target": 100000,
+   "total": null,
+   "unit": "money",
+   "alias": "narcotics"
+  },
+  {
+   "id": "fence_jewelry",
+   "name": "Jewelry fenced (dollars)",
+   "group": "story",
+   "target": 100000,
+   "total": null,
+   "unit": "money",
+   "alias": "jewelry"
+  },
+  {
+   "id": "fence_bills",
+   "name": "Marked bills fenced (dollars)",
+   "group": "story",
+   "target": 250000,
+   "total": null,
+   "unit": "money",
+   "alias": "bills"
+  },
+  {
+   "id": "vaults",
+   "name": "Vaults hit",
+   "group": "story",
+   "target": 8,
+   "total": 8,
+   "unit": "count",
+   "alias": "vaults"
+  },
+  {
+   "id": "fence_vehicles",
+   "name": "Vehicles fenced (dollars)",
+   "group": "story",
+   "target": 200000,
+   "total": null,
+   "unit": "money",
+   "alias": "fencedcars"
+  },
+  {
+   "id": "kenton",
+   "name": "Kenton sets completed",
+   "group": "explore",
+   "target": 5,
+   "total": 7,
+   "unit": "count",
+   "alias": "kenton"
+  },
+  {
+   "id": "cards",
+   "name": "Collectible card sets found",
+   "group": "explore",
+   "target": 15,
+   "total": 18,
+   "unit": "count",
+   "alias": "cards"
+  },
+  {
+   "id": "wink",
+   "name": "WAiNK locations scanned",
+   "group": "explore",
+   "target": 100,
+   "total": 108,
+   "unit": "count",
+   "alias": "wink"
+  },
+  {
+   "id": "underwater",
+   "name": "Underwater discoveries found",
+   "group": "explore",
+   "target": 33,
+   "total": 33,
+   "unit": "count",
+   "alias": "underwater"
+  },
+  {
+   "id": "reading",
+   "name": "Magazines, books and comics found",
+   "group": "explore",
+   "target": 30,
+   "total": 34,
+   "unit": "count",
+   "alias": "reading"
+  },
+  {
+   "id": "meditation",
+   "name": "Meditation spots completed",
+   "group": "explore",
+   "target": 15,
+   "total": 18,
+   "unit": "count",
+   "alias": "meditation"
+  },
+  {
+   "id": "flamingos",
+   "name": "Cocaine flamingos destroyed",
+   "group": "explore",
+   "target": 100,
+   "total": 125,
+   "unit": "count",
+   "alias": "flamingos"
+  },
+  {
+   "id": "playlists",
+   "name": "Unique playlists completed",
+   "group": "explore",
+   "target": 2,
+   "total": 2,
+   "unit": "count",
+   "alias": "playlists"
+  },
+  {
+   "id": "styles",
+   "name": "Discovered styles",
+   "group": "explore",
+   "target": 70,
+   "total": 79,
+   "unit": "count",
+   "alias": "styles"
+  },
+  {
+   "id": "races",
+   "name": "Unique races won",
+   "group": "explore",
+   "target": 30,
+   "total": 40,
+   "unit": "count",
+   "alias": "races"
+  },
+  {
+   "id": "race_gold",
+   "name": "Race challenge gold medals",
+   "group": "explore",
+   "target": 10,
+   "total": 13,
+   "unit": "count",
+   "alias": "racegold"
+  },
+  {
+   "id": "range_gold",
+   "name": "Shooting range gold medals",
+   "group": "explore",
+   "target": 42,
+   "total": 42,
+   "unit": "count",
+   "alias": "range"
+  },
+  {
+   "id": "video_games",
+   "name": "Video games played",
+   "group": "explore",
+   "target": 4,
+   "total": 4,
+   "unit": "count",
+   "alias": "videogames"
+  },
+  {
+   "id": "pool",
+   "name": "Pool opponents defeated",
+   "group": "explore",
+   "target": 5,
+   "total": 7,
+   "unit": "count",
+   "alias": "pool"
+  },
+  {
+   "id": "mini_golf",
+   "name": "Mini golf locations played",
+   "group": "explore",
+   "target": 2,
+   "total": 3,
+   "unit": "count",
+   "alias": "golf"
+  },
+  {
+   "id": "hoops",
+   "name": "Basketball hoops",
+   "group": "explore",
+   "target": 90,
+   "total": 100,
+   "unit": "count",
+   "alias": "hoops"
+  },
+  {
+   "id": "drone",
+   "name": "Drone time trials completed",
+   "group": "explore",
+   "target": 42,
+   "total": 42,
+   "unit": "count",
+   "alias": "drone"
+  },
+  {
+   "id": "stunts",
+   "name": "Stunts completed (any mix)",
+   "group": "explore",
+   "target": 300,
+   "total": 397,
+   "unit": "count",
+   "alias": "stunts"
+  },
+  {
+   "id": "challenges",
+   "name": "Challenges completed",
+   "group": "explore",
+   "target": 70,
+   "total": 80,
+   "unit": "count",
+   "alias": "challenges"
+  },
+  {
+   "id": "bret_decks",
+   "name": "Bret's target decks",
+   "group": "explore",
+   "target": 15,
+   "total": 15,
+   "unit": "count",
+   "alias": "decks"
+  },
+  {
+   "id": "vehicle_scans",
+   "name": "Base model vehicles scanned",
+   "group": "discover",
+   "target": 200,
+   "total": 277,
+   "unit": "count",
+   "alias": "vehicles"
+  },
+  {
+   "id": "weapons",
+   "name": "Standard issue weapons found",
+   "group": "discover",
+   "target": 50,
+   "total": 66,
+   "unit": "count",
+   "alias": "weapons"
+  },
+  {
+   "id": "animals",
+   "name": "Animals studied",
+   "group": "discover",
+   "target": 100,
+   "total": 255,
+   "unit": "count",
+   "alias": "animals"
+  }
+ ]
+}
