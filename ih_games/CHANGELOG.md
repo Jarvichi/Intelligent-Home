@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.16.0] - 2026-11-26
+
+### Added
+- Grand Theft Auto VI checklist tool (`app/tools/gta_vi.py`). The game has no player API, so the player ticks by hand. The list has 35 completion requirements in our own words, each with a counter. Story missions are not named. The list comes from one guide site and is marked "not verified in game" until the player checks it against Progress > Stats > 100% Completion. Commands: `done <requirement> [number]`, `add <requirement> <number>`, `undone`, `target <requirement> <number>` (fix a count), `status`, `left`. Counts are kept in `/data/gta_vi/state_<player>.json`. Trophies and play time stay automatic (PlayStation feeds).
+
 ## [0.15.5] - 2026-11-26
 
 ### Added
