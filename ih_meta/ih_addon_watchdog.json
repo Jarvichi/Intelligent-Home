@@ -1,0 +1,9 @@
+{
+ "requires": [
+  "ih_tasks"
+ ],
+ "ui": {
+  "title": "Watchdog",
+  "purpose": "Shows add-on health, restarts hung add-ons safely and keeps the log lines of every failure."
+ }
+}
