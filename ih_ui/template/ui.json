@@ -1,0 +1,13 @@
+{
+  "title": "Example",
+  "purpose": "One plain sentence: what this add-on does for the house.",
+  "description": "A few sentences on how it works and what it does not do.",
+  "health_port": 8800,
+  "health_path": "/healthz",
+  "navigation": [
+    "First thing it does",
+    "Second thing it does"
+  ],
+  "access": "Home Assistant authenticated ingress only",
+  "page": "status"
+}
