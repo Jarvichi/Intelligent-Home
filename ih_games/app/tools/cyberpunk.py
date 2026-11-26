@@ -190,6 +190,37 @@ def classify(done):
     return out
 
 
+def prereq_chain(done, quest_id):
+    """Unticked earlier quests that quest_id needs, back through the whole chain, earliest first: [{id, name, one_of}].
+    A 'requires_any' gives only its first listed way in that is not missed (one_of True): it never guesses. A quest
+    marked requires_unknown, a missed quest and a quest that is already ticked are never offered. Nothing is ticked here."""
+    by = {q["id"]: q for q in quests()}
+    if quest_id not in by:
+        return []
+    missed = blockers(done)
+    out, seen = [], {quest_id}
+
+    def visit(i, one_of):
+        q = by[i]
+        if q["requires_unknown"]:
+            return
+        for r in q["requires"]:
+            if r not in done and r not in seen and r not in missed:
+                seen.add(r)
+                visit(r, False)
+                out.append({"id": r, "name": by[r]["name"], "one_of": one_of or False})
+        if q["requires_any"] and not any(r in done for r in q["requires_any"]):
+            pick = next((r for r in q["requires_any"] if r not in missed), None)
+            if pick and pick not in seen:
+                seen.add(pick)
+                visit(pick, True)
+                out.append({"id": pick, "name": by[pick]["name"], "one_of": True})
+
+    if quest_id not in done and quest_id not in missed:
+        visit(quest_id, False)
+    return out
+
+
 def _reason(q, c, by):
     """Plain text for a locked or missed quest: what it needs, or what ruled it out and by which choice."""
     name = lambda i: by[i]["name"]
@@ -233,7 +264,8 @@ def quest_rows(tc, player, group=None, state=None):
                      "done": c["state"] == DONE, "state": c["state"], "reason": _reason(q, c, by), "hint": " ".join(hints),
                      "requires_unknown": q["requires_unknown"],
                      "blocked_by": by[c["blocked_by"]]["name"] if c["blocked_by"] else "",
-                     "blocks": _would_block(q, done, missed_now, by)})
+                     "blocks": _would_block(q, done, missed_now, by),
+                     "chain": prereq_chain(done, q["id"]) if c["state"] == LOCKED else []})
     return rows
 
 
@@ -329,12 +361,15 @@ def _pick(args):
     return None, "%d quests match: %s%s. Use the full name." % (len(m), names, ", ..." if len(m) > MAX_MATCHES_SHOWN else "")
 
 
-def _set(tc, player, args, tick):
+def _set(tc, player, args, tick, with_chain=False):
+    if with_chain and args and str(args[0]).lower() == "all":
+        return _set_all(tc, player, args[1:])
     q, why = _pick(args)
     if not q:
         return why
     s = load_state(tc, player)
     has = q["id"] in s[STATE_KEY]
+    chain = prereq_chain(done_ids(tc, player), q["id"]) if with_chain and tick and not has else []
     before = set(blockers(done_ids(tc, player)))
     if tick and not has:
         s[STATE_KEY].append(q["id"])
@@ -348,7 +383,21 @@ def _set(tc, player, args, tick):
         names = [x["name"] for x in quests() if x["id"] in ids]
         if names:
             text += " %s: %s." % (label, _listed(names))
+    if chain:
+        text += " Also tick: %s? Reply: done all %s" % (_listed([c["name"] + (" (one of)" if c["one_of"] else "") for c in chain]), q["name"])
     return text
+
+
+def _set_all(tc, player, args):
+    """'done all <quest>': tick the quest and the unticked quests it needs (the offer made by 'done <quest>')."""
+    q, why = _pick(args)
+    if not q:
+        return why
+    s = load_state(tc, player)
+    ids = [c["id"] for c in prereq_chain(done_ids(tc, player) - {q["id"]}, q["id"])] + [q["id"]]
+    s[STATE_KEY] += [i for i in ids if i not in s[STATE_KEY]]
+    save_state(tc, player, s)
+    return "Marked done: %s. Also ticked %d earlier quest%s." % (q["name"], len(ids) - 1, "" if len(ids) == 2 else "s")
 
 
 def _listed(names):
@@ -356,7 +405,7 @@ def _listed(names):
 
 
 def cmd_done(tc, player, args):
-    return _set(tc, player, args, True)
+    return _set(tc, player, args, True, with_chain=True)
 
 
 def cmd_undone(tc, player, args):

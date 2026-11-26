@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.5] - 2026-11-26
+
+### Added
+- Cyberpunk 2077 quest tracker: when you tick a locked quest, a dialog offers to tick its unticked earlier quests too ("Tick all", "Just this one", "Cancel"). Nothing is ticked without your answer. A quest with several ways in (`requires_any`) offers only the first way in that is not missed. Quests marked `requires_unknown` and missed quests are never offered.
+- Chat command: `done <quest>` ticks the quest as before and adds "Also tick: A, B? Reply: done all <quest>"; `done all <quest>` ticks the quest and those earlier quests.
+
 ## [0.15.4] - 2026-11-24
 
 - The PSN trophy-titles list is refreshed every 20 minutes instead of every 6 hours. The tile counts (and the new-trophy events built from them) no longer lag behind the trophy list, so a game page no longer shows "2 / 46" above a list of 3 earned.

@@ -258,8 +258,8 @@ class ToolTests(unittest.TestCase):
         self.assertFalse(os.path.exists(C.state_path(self.tc, PLAYER)))
 
     def test_done_undone_roundtrip_by_id_and_name(self):
-        self.assertEqual(self.run_cmd("done", MAIN_ID), "Marked done: %s." % MAIN_NAME)
-        self.assertEqual(self.run_cmd("done", MAIN_ID), "Marked done: %s." % MAIN_NAME)
+        self.assertTrue(self.run_cmd("done", MAIN_ID).startswith("Marked done: %s." % MAIN_NAME))
+        self.assertTrue(self.run_cmd("done", MAIN_ID).startswith("Marked done: %s." % MAIN_NAME))
         self.assertEqual(C.progress(self.tc, PLAYER)["done"], 1)
         row = next(q for q in C.details(self.tc, PLAYER)["groups"][0]["quests"] if q["id"] == MAIN_ID)
         self.assertEqual((row["done"], row["type"], row["type_label"]), (True, "main", "Main jobs"))
@@ -322,6 +322,73 @@ class ToolTests(unittest.TestCase):
                          {"kind": card_stat.KIND_QUESTS, "done": 1, "total": TOTAL, "label": C.PROGRESS_LABEL})
 
 
+class PrereqChainTests(unittest.TestCase):
+    """prereq_chain offers the unticked earlier quests; it never ticks anything."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tc = ToolCtx(self.tmp.name, {})
+        saved = dict(C._cache)
+        self.addCleanup(lambda: (C._cache.clear(), C._cache.update(saved)))
+
+    def graph(self, rows):
+        base = {"group": "base", "type": "main", "requires": [], "requires_any": [], "excludes": [],
+                "requires_unknown": False, "choice": "", "note": ""}
+        C._cache[C.QUESTS_FILE] = [dict(base, id=i, name=i.upper(), **kw) for i, kw in rows]
+
+    def chain(self, done, qid):
+        return [(c["id"], c["one_of"]) for c in C.prereq_chain(set(done), qid)]
+
+    def test_chain_of_three_in_order(self):
+        self.graph([("a", {}), ("b", {"requires": ["a"]}), ("c", {"requires": ["b"]}), ("d", {"requires": ["c"]})])
+        self.assertEqual(self.chain([], "d"), [("a", False), ("b", False), ("c", False)])
+
+    def test_already_ticked_are_left_out(self):
+        self.graph([("a", {}), ("b", {"requires": ["a"]}), ("c", {"requires": ["b"]})])
+        self.assertEqual(self.chain(["a"], "c"), [("b", False)])
+        self.assertEqual(self.chain(["a", "b"], "c"), [])
+        self.assertEqual(self.chain([], "a"), [])
+
+    def test_requires_any_offers_first_option_only(self):
+        self.graph([("x", {}), ("y", {}), ("c", {"requires_any": ["x", "y"]})])
+        self.assertEqual(self.chain([], "c"), [("x", True)])
+        self.assertEqual(self.chain(["y"], "c"), [])
+
+    def test_requires_any_skips_a_missed_option(self):
+        self.graph([("x", {"excludes": ["y"]}), ("y", {}), ("z", {}), ("c", {"requires_any": ["y", "z"]})])
+        self.assertEqual(self.chain(["x"], "c"), [("z", True)])
+
+    def test_unknown_prerequisite_is_not_followed(self):
+        self.graph([("a", {}), ("u", {"requires": ["a"], "requires_unknown": True})])
+        self.assertEqual(self.chain([], "u"), [])
+
+    def test_missed_quest_gets_no_offer(self):
+        self.graph([("a", {"excludes": ["b"]}), ("b", {}), ("c", {"requires": ["b"]})])
+        self.assertEqual(self.chain(["a"], "b"), [])
+        self.assertEqual(self.chain(["a"], "c"), [])
+
+    def test_cycle_does_not_loop(self):
+        self.graph([("a", {"requires": ["b"]}), ("b", {"requires": ["a"]})])
+        self.assertEqual(self.chain([], "a"), [("b", False)])
+
+    def test_done_command_offers_and_done_all_ticks(self):
+        self.graph([("a", {}), ("b", {"requires": ["a"]}), ("c", {"requires": ["b"]})])
+        text = C.commands["done"](self.tc, PLAYER, ["c"])
+        self.assertIn("Also tick: A, B?", text)
+        self.assertIn("done all C", text)
+        self.assertEqual(C.load_state(self.tc, PLAYER)[C.STATE_KEY], ["c"])
+        text = C.commands["done"](self.tc, PLAYER, ["all", "c"])
+        self.assertEqual(text, "Marked done: C. Also ticked 2 earlier quests.")
+        self.assertEqual(set(C.load_state(self.tc, PLAYER)[C.STATE_KEY]), {"a", "b", "c"})
+
+    def test_rows_carry_the_chain_for_locked_quests_only(self):
+        self.graph([("a", {}), ("b", {"requires": ["a"]})])
+        rows = {r["id"]: r for r in C.quest_rows(self.tc, PLAYER)}
+        self.assertEqual([c["id"] for c in rows["b"]["chain"]], ["a"])
+        self.assertEqual(rows["a"]["chain"], [])
+
+
 class ApiTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -333,7 +400,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.game["tools"], ["cyberpunk"])
         gid = self.game["id"]
         code, obj = self.mod.api("POST", "/games/%s/cmd" % gid, {"player": PLAYER}, {"cmd": "done", "args": [MAIN_ID]})
-        self.assertEqual((code, obj["text"]), (200, "Marked done: %s." % MAIN_NAME))
+        self.assertEqual(code, 200)
+        self.assertTrue(obj["text"].startswith("Marked done: %s." % MAIN_NAME))
         code, obj = self.mod.api("GET", "/games/%s/details" % gid, {"player": PLAYER}, None)
         self.assertEqual((code, obj["ui_component"], obj["details"]["done"], obj["details"]["total"]), (200, "cyberpunk", 1, TOTAL))
         code, obj = self.mod.api("GET", "/library", {"player": PLAYER}, None)
