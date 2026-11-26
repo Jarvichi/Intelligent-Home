@@ -61,12 +61,12 @@ The old House Bot feature (`claude_scripts/house_bot/commands_service/features/u
 
 ## Privacy
 
-Private messages are read from and sent to Discord through the bot of each persona. Each persona keeps its own folder in the add-on data; message text is stored there only in its inbox and is never written to the log (lengths only). Nothing is shared between personas except messages one persona is explicitly allowed to send another.
+Private messages are read from and sent to Discord through the bot of each persona. Each persona keeps its own folder in the add-on data; message text is stored only in that persona's inbox file (and in reminders the person asks for) and is never written to the log or to `/status` (lengths only). Nothing is shared between personas except messages one persona is explicitly allowed to send another.
 
 ## More details
 
 ### Separate datastores
-Every persona has its own folder `/data/personas/<key>/` with `profile.json`, `state.json`, `inbox.jsonl` and `outbox.jsonl`. Code that touches a persona's files goes through one store object bound to that folder. No call takes a file path, no call reads another persona's folder, and links are refused.
+Every persona has its own rows in the database (its own key-value namespace and its own outbox rows) and its own folder `/data/personas/<key>/` for its inbox file. Code that touches a persona's data goes through one store object bound to that persona. No call takes a file path, no call reads another persona's data, and links are refused. See "Data storage" below.
 
 ### Nameless start
 A new persona has an empty profile (no name, no tone). Before its first outgoing action it queues an `intro_due` event; your engine writes the introduction. Seed a profile with `POST /persona/<key>/profile` (fields `name`, `person_name`, `tone`, `notes`, `seeded_from`, `introduced`; unknown fields are ignored and long text is refused).
@@ -145,6 +145,34 @@ Each persona bot keeps one connection to the Discord Gateway (a websocket; code 
 - **Dry-run:** the connection is read-only, so it runs in dry-run too (as polling does).
 - **Log lines** (no content, ids or token): `gateway ready`, `gateway closed (code N)`, `gateway reconnect in N s`, `gateway connect failed (ErrorType)`.
 - The bot shows as online in Discord while connected.
+
+### Data storage (database since 0.18.0)
+
+The add-on keeps its own working data in one SQLite file, `/data/ih.db` (shared helper `ihlib/db.py`, numbered migrations, schema version 1). Nothing is encrypted at rest, before or after: the old files were plain files in `/data` (mode 0600) and the database file is plain too, in the same volume, with the same access. Private chats of the people live elsewhere (Claude's private brain, encrypted) and are not part of this add-on.
+
+| Old file | Now | Why |
+|---|---|---|
+| `personas/<key>/state.json` (reminders, check-in plans and agreed times, dates already sent, last-seen ids, usage notice texts and counters, rate counters, reply-progress watermarks) | Database: key-value row, namespace `<key>`, name `state` | Small state, one writer at a time per persona. Always read and rewritten whole, as before |
+| `personas/<key>/profile.json` | Database: key-value row, namespace `<key>`, name `profile` | Small state |
+| `personas/<key>/outbox.jsonl` (kind, time, lengths: no text) | Database: table `outbox_log` (newest 1000 rows per persona) | Growing log with a count and a "newest of kind" query |
+| `personas/<key>/inbox.jsonl` (the people's message text) | **Stays a file** | Holds private message text. Moving it adds no protection and no feature, and the reply-progress check compares it with the state row. Left alone on purpose in this step |
+| `options.json` (tokens, passwords, keys) | Stays a file | Supervisor owns it. Secrets are never stored in the database or its snapshots |
+| `STOP`, `STOP_AUTOREPLY` | Stay files | Kill switches you create by hand |
+| `gif_cache.json`, `gifs/` | Stay files | Rebuildable cache and pictures |
+| add-on log | Stays text | Human readable |
+| `trash/<key>/` | New folder | Old JSON files wait here 30 days, then are deleted |
+| `backup/` | New folder | Nightly snapshots of `ih.db`, newest 3 |
+| `degraded/` | New folder, only used when the database cannot be used | Plain files, imported again after a restore |
+
+**Start-up:** the add-on opens `ih.db`, applies numbered migrations (a snapshot is taken first when the file already holds data), and for each persona copies the old JSON files into the database, checks the rows inside the same transaction, and only then moves the file to `/data/trash/<key>/`. A file that fails the check (for example it is not valid JSON) stays where it is and is named in `/status` under `db.legacy_import_errors`. The trash is purged at start and once a day. From 04:00 local time one snapshot a night goes to `/data/backup`; the copy is opened read-only, checked, and logged with row counts only.
+
+**Threads:** the database is used by one long-lived worker thread; the persona workers and HTTP threads hand their calls to it. Each persona keeps its own lock around read-change-write, so two requests cannot lose each other's change.
+
+**Status:** `/status` has `db` (schema version, rows per table, last snapshot, snapshots kept, last restore check, trash files and bytes, import errors, error) and `db_degraded`. Counts only: never message or reminder text.
+
+**If the database is damaged or too new:** the add-on keeps running. `/status` shows `db_degraded: true` and a `WARNING`, and the log says `DATABASE DEGRADED`. State goes to plain files in `/data/degraded/personas/<key>/`, first filled from the newest snapshot. The damaged file is moved aside as `ih.db.corrupt-<time>`; a new empty database is never made by itself (a too-new file is left untouched). In this mode the outbox log starts empty. **If a single database call fails while the file is open** (disk full, locked), the call fails and the error shows in `db.error`; it is not redirected to files, so the data is never split in two.
+
+**Restore** (add-on stopped): copy the newest file in `/data/backup` to `/data/ih.db`, delete `ih.db-wal` and `ih.db-shm`, start the add-on. Files in `/data/degraded/` are imported automatically. To go back to version 0.17.0: install it, then copy the files in `/data/trash/<key>/` back to `/data/personas/<key>/`.
 
 ### Dry-run
 A persona sends only when `mode` is `live` **and** its own `live` is true. Reading is not gated: in dry-run the add-on still polls the person's private messages (read-only) into the inbox. Posting, reactions and typing are logged only. Message text is never written to the log, only lengths. File `/data/STOP` makes the API answer 503.

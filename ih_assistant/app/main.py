@@ -8,6 +8,7 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import store as storemod
+import assistantdb
 from store import PersonaStore, StoreError, valid_key
 from discord_io import Discord, DiscordError
 from ihlib import log as ihlog
@@ -24,7 +25,7 @@ import inbox_events as inboxmod
 import selfprompts as selfmod
 import random
 
-VERSION = '0.26.0'
+VERSION = '0.28.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -224,6 +225,7 @@ class Assistant:
         self.tz = tz
         self.rng = rng or random.random
         self.progress_publish_at = {}
+        self.adb = assistantdb.get(data_dir)
         self.cfg, self.stores, self.discord = {}, {}, {}
         for p in opts['personas']:
             k = p['key']
@@ -231,7 +233,7 @@ class Assistant:
                 p.setdefault(dk, list(dv) if isinstance(dv, list) else dv)
             p.setdefault('levels', levels.resolve(k, p))
             self.cfg[k] = p
-            self.stores[k] = PersonaStore(data_dir, k, clock)
+            self.stores[k] = PersonaStore(data_dir, k, clock, self.adb)
             self.stores[k].ensure_reply_progress()
             if p['bot_token'] and p['user_id']:
                 self.discord[k] = Discord(p['bot_token'], opener, sleep)
@@ -2536,7 +2538,7 @@ class Assistant:
             out[k] = {'live': self.is_live(k), 'household': c.get('household', False), 'bot': k in self.discord, 'inbox': s.inbox_count(), 'outbox': s.outbox_count(),
                       'out_today': self.out_today(k), 'checkins': len(c['checkins']), 'introduced': s.profile()['introduced'],
                       'can_tell': len(c['can_tell']), 'plan': c['checkin_plan'], 'levels': dict(c['levels']), 'autonomy_level': c.get('autonomy_level', 0), 'push': self.gateways[k].state if k in self.gateways else gatewaymod.STATE_OFF, 'checkin_rules': self.checkin_rules(k)}
-        return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'personas': out}
+        return {'ok': True, 'version': VERSION, 'mode': self.opts['mode'], 'token_set': bool(self.opts['api_token']), 'db': self.adb.health(), 'db_degraded': self.adb.degraded is not None, 'personas': out}
 
 
 def make_handler(app):
@@ -2701,6 +2703,7 @@ def main():
         'set' if opts['api_token'] else 'NOT set (all requests refused)'))
     for k in app.cfg:
         threading.Thread(target=worker, args=(app, k), daemon=True).start()
+    app.adb.start_maintenance(opts['timezone'])   # nightly snapshot + restore check + trash purge
     app.start_gateways()
     app.start_hearth()
     def on_term(signum, frame):
