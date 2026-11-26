@@ -20,3 +20,6 @@ Stop and uninstall. Delete the three sensor kinds if you want (they are plain st
 
 ## Restore
 Stop the add-on. Copy the newest file from /data/backup over /data/ih.db, delete ih.db-wal and ih.db-shm, start the add-on.
+
+## Page (0.2.0)
+The add-on has a read-only page in the Home Assistant side panel ("IH · Room Insights", admin only, ingress port 8813). It shows the mode, last run, rooms analysed and history days; a rooms table with learned minutes per degree and minutes to reach the target from now; suspect valves with the time their reading last changed; and mould risk per humidity sensor. It has no controls. The page answers only the Home Assistant ingress gateway and never shows the api_token, options or any Home Assistant token. Port 8812 and its api_token endpoints are unchanged.

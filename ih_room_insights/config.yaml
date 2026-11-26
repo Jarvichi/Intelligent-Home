@@ -1,5 +1,5 @@
 name: "Intelligent Home - Room Insights"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_room_insights
 image: "ghcr.io/jarvichi/{arch}-ih_room_insights"
 description: "Read-only room insights from Home Assistant history: learned warm-up minutes per room, frozen-valve check, mould risk from humidity. It never changes a setpoint or calls a service. DRY by default (computes, publishes nothing)."
@@ -11,6 +11,11 @@ startup: application
 boot: auto
 watchdog: http://[HOST]:[PORT:8812]/healthz
 init: false
+ingress: true
+ingress_port: 8813
+panel_title: "IH · Room Insights"
+panel_icon: mdi:radiator
+panel_admin: true
 homeassistant_api: true
 ports:
   8812/tcp: 8812

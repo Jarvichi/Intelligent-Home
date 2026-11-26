@@ -1,0 +1,12 @@
+{
+  "title": "Room Insights",
+  "purpose": "How fast each room warms up, which radiator valves look stuck, and where mould could form.",
+  "description": "Learns from Home Assistant history how many minutes each room needs per degree, flags valves whose reading has not changed while heat is wanted, and watches humidity for mould risk. Read-only: it never changes a setpoint or calls a service.",
+  "navigation": [
+    "Learned warm-up minutes per degree for each room",
+    "Minutes to reach the target temperature from now",
+    "Suspect valves that look stuck",
+    "Mould risk per humidity sensor"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}
