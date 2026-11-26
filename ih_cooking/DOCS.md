@@ -102,7 +102,9 @@ Open the add-on's **Open Web UI** (ingress; no sidebar panel). It lists, searche
 - The image holds 22 example recipes (personal names removed) that are copied to `/data/recipes/` on first start only.
 - **To seed from your own files** run on the machine that has them: `IHC_TOKEN=<api_token> python3 seed_from_host.py http://<addon-host>:8809 <cooking folder>` (add `--dry` first). It reads `recipes/*.json`, `staples.json`, `meal_items.json` and posts them to `/import`. Existing files are kept unless `--overwrite`.
 - The meal plan comes from `/data/mealplan.json`, else (if `plan_entity_prefix` is set, for example `input_select.meal_`) from seven Home Assistant entities, else empty.
-- After a restart a running cook does **not** resume by itself. Start it again from the page.
+- After a restart a running cook does **not** resume by itself. Start it again from the page. Starting the same plan again with `POST /cook` resumes it and keeps the plan's own times.
+- Reading a list aloud (`say_list`) pauses the music once for the whole list and resumes it after.
+- Tapping DONE on the "get everything out" anchor long after it was announced asks first ("did you really finish?") instead of sliding the plan later.
 
 ### Cook engine
 Same behaviour as the old host scripts: the plan is built from the recipe (steps are minutes before serving, plus a "get everything out" gate that slides the plan later until done is tapped), checked every 5 s. Each due step is posted to Discord and spoken (music on the speaker group is paused and always resumed). Urgent steps are repeated once after 2.5 minutes unless acknowledged. A message goes to the child 15 minutes before serving. The wall display cooking sensor is updated every pass. A recipe step may carry `"oven": {"action": "start"|"set"|"stop", "temp": 200}` to control the oven when it is announced.
