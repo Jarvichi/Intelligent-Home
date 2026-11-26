@@ -18,6 +18,8 @@ MAX_TEXT = 80
 OPEN_CAP_S = 6 * 3600       # an event with no end is shown for at most this long
 MAX_STEP_S = 15 * 60        # a gap between samples longer than this (add-on was down) is never flagged
 MAX_EVENTS = 5000
+STALE_S = 15 * 60           # the countdown says "no data" when the newest sample is older than this
+PACE_PER_HOUR = 100 / 168   # an even spread of 100% over a 168 h week: the pace line rises this many points an hour with no use
 
 
 class BadInput(ValueError):
@@ -91,6 +93,10 @@ class UsageStore:
         return [{'ts': r[0], 'session': r[1], 'week': r[2], 'pace': r[3]}
                 for r in self.db.query('SELECT ts, session, week, pace FROM series WHERE ts >= ? AND ts <= ? ORDER BY ts', (since, until))]
 
+    def latest(self):
+        r = self.db.query('SELECT ts, session, week, pace FROM series ORDER BY ts DESC LIMIT 1')
+        return {'ts': r[0][0], 'session': r[0][1], 'week': r[0][2], 'pace': r[0][3]} if r else None
+
     # ---- events
     def add_event(self, source, label, start=None, end=None, ref=''):
         """A start (no end) opens an event; a later post with the same source+ref and an end closes the newest open one.
@@ -161,4 +167,26 @@ def find_jumps(samples, events, threshold, now=None):
             rise = round(b[metric] - a[metric], 2)
             if rise >= threshold and not any(s < b['ts'] and e >= a['ts'] for s, e in spans):
                 out.append({'ts': b['ts'], 'from_ts': a['ts'], 'metric': metric, 'rise': rise, 'ts_iso': iso(b['ts'])})
+    return out
+
+
+def countdown(sample, now):
+    """Hours until the week pace goes under 0 if no more Claude is used. Same maths as sensor.claude_hours_until_under_pace
+    (hours = max(pace, 0) / (100 / 168), 1 decimal). -> {state: counting|under|no_data, pace, hours_until_under, target_ts, target_iso,
+    sample_ts, sample_iso, age_s, server_ts}. no_data = no sample, no pace number, or a sample older than STALE_S.
+    pace <= 0 (at or under the target) is 'under' with 0 hours; target_ts is the sample time + the exact hours."""
+    now = int(now)
+    out = {'state': 'no_data', 'pace': None, 'hours_until_under': None, 'target_ts': None, 'target_iso': None,
+           'sample_ts': None, 'sample_iso': None, 'age_s': None, 'server_ts': now}
+    if not sample:
+        return out
+    ts = sample['ts']
+    out.update(sample_ts=ts, sample_iso=iso(ts), age_s=max(0, now - ts))
+    pace = number(sample.get('pace'))
+    if pace is None or now - ts > STALE_S:
+        return out
+    exact = max(pace, 0) / PACE_PER_HOUR
+    target = ts + exact * 3600
+    out.update(pace=pace, hours_until_under=round(exact, 1), target_ts=int(round(target)), target_iso=iso(round(target)))
+    out['state'] = 'under' if pace <= 0 or target <= now else 'counting'
     return out
