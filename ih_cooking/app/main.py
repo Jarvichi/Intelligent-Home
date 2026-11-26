@@ -69,7 +69,7 @@ def ingress_api(st, method, p, body):
         st.publish()
         return 200, {'saved': m[1]}
     if method == 'POST' and p == '/cook':
-        return start_cook(st, body.get('name'), str(body.get('eat', '')))
+        return start_cook(st, body.get('name'), str(body.get('eat', '')), body.get('resume') is True)
     if method == 'GET' and p == '/cook':
         return 200, engine(st).status()
     return 404, {'error': 'not found'}
@@ -79,11 +79,11 @@ def engine(st):
     return st.engine or st.make_engine()
 
 
-def start_cook(st, name, eat):
+def start_cook(st, name, eat, resume=False):
     r = st.recipe(name or '')
     if not r or not EAT_RE.fullmatch(eat or ''): return 422, {'errors': ['need a recipe and eat time HH:MM']}
     r.pop('slug', None)
-    res = engine(st).start_cook(r, name, eat)
+    res = engine(st).start_cook(r, name, eat, resume=resume)
     if not res.get('ok'): return 409, {'errors': [res.get('why')]}
     return 200, {'dry_run': not res['live'], 'would_run': 'cook %s at %s (%s)' % (name, eat, res['why']), 'result': 'started %s for %s' % (name, eat), 'steps': res['steps']}
 
@@ -263,7 +263,7 @@ def make_handler(st, ingress=False, ingress_ips=SUPERVISOR_IPS):
                 result=en.start_from_display(selected,name,eat,request_id)
                 return self._send(200 if result.get('ok') else 409,result)
             if method == 'POST' and p == '/cook':
-                code, obj = start_cook(st, body.get('recipe') or body.get('name'), str(body.get('eat', '')))
+                code, obj = start_cook(st, body.get('recipe') or body.get('name'), str(body.get('eat', '')), body.get('resume') is True)
                 self._why = 'rejected' if code >= 400 else '-'
                 return self._send(code, obj)
             if method == 'POST' and p == '/cook/stop':
