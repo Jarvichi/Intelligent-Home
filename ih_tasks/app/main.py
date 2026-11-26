@@ -6,7 +6,9 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   owner_token  -> the caller is the owner (approve, reject, answer, reopen, import).
   GET  /healthz (open)   GET /status   GET /board   GET /tasks?stage=a,b&needs_input=1&waiting=owner&q=text   GET /tasks/<n>   GET /tasks/<n>/history
   GET  /labels (labels in use, with counts)   GET  /legacy?kind=todo_uid&value=...
-  POST /tasks {title, description?, due?, priority? (high|normal|low), labels? (list of words), source?, legacy?, allow_duplicate?}
+  POST /tasks {title, description?, due?, priority? (high|normal|low), labels? (list of words), raised_by? (default: the caller; 'claude' for a worker or check),
+               blocked_by? / depends_on? / relates_to? (lists of task numbers, set with the new task), source?, legacy?, allow_duplicate?}
+  The accepted fields come from model.TASK_FIELDS (the same list builds the New task panel and the task page).
   POST /tasks/<n>/move {to, reason?, plan?, result?, verify_by?}     POST /tasks/<n>/plan {plan, verify_by?}
   POST /tasks/<n>/reject {comment}                                   POST /tasks/<n>/close {reason, detail?, duplicate_of?}
   POST /tasks/<n>/comment {text}                                     POST /tasks/<n>/edit {title?, description?, due?, priority?, labels?}
@@ -15,6 +17,7 @@ API on IHT_PORT (bearer token; an empty token refuses everything except /healthz
   POST /tasks/<n>/children {title, description?}   a child task under an Approved/Implementing parent (inherits the approval; the parent waits for all children)
   POST /tasks/<n>/remind {date, note?}   set a reminder for a future date and close the task ('Reminder set'); it returns to To do (high) that day and the Claude inbox is told   GET /reminders
   POST /tasks/<n>/relate {kind: blocked_by|depends_on|relates_to, task: m}   POST /tasks/<n>/unrelate {kind, task}   (GET /tasks/<n> shows relations + blocked)
+  POST /tasks/<n>/run_now {on?: true|false}   'Work this now': the owner asks for it (on, the default) or cancels it; a worker may only clear it (on: false)
   POST /tasks/merge {keep, merge: [n, ...]}   GET /tasks/duplicates   POST /tasks/duplicates/dismiss {ids: [n, ...]}
 The ingress page (IHT_UI_PORT, Home Assistant sign-in, admin only) uses the same routes under /api/ and always acts as the owner.
 Unknown fields are refused. Task text is never logged. stdlib only."""
@@ -37,7 +40,7 @@ import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.9.0'
+VERSION = '0.10.0'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -53,7 +56,7 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'reject': ({'comment'}, {'comment'}),
     'close': ({'reason', 'detail', 'duplicate_of'}, {'reason'}),
     'comment': ({'text'}, {'text'}),
-    'edit': ({'title', 'description', 'due', 'priority', 'labels'}, set()),
+    'edit': (set(M.field_ids('edit')), set()),
     'ask': ({'questions', 'after'}, {'questions', 'after'}),
     'answer': ({'answers', 'note'}, {'answers'}),
     'withdraw': ({'reason'}, {'reason'}),
@@ -63,9 +66,10 @@ TASK_POSTS = {   # action -> (allowed fields, required fields)
     'remind': ({'date', 'note'}, {'date'}),
     'relate': ({'kind', 'task'}, {'kind', 'task'}),
     'unrelate': ({'kind', 'task'}, {'kind', 'task'}),
+    'run_now': ({'on'}, set()),
 }
-CREATE_FIELDS = ({'title', 'description', 'due', 'source', 'legacy', 'allow_duplicate', 'priority', 'labels'}, {'title'})
-TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z]+))?')
+CREATE_FIELDS = (set(M.field_ids('create')) | set(M.API_ONLY_CREATE), {f['id'] for f in M.TASK_FIELDS if f.get('required')})
+TASK_PATH = re.compile(r'/tasks/(\d{1,9})(?:/([a-z_]+))?')
 
 
 def _hour(v):
@@ -121,8 +125,9 @@ def actor_of(role, body):
     raise M.RuleError('forbidden', 'this token can act as worker or check only')
 
 
-def dispatch(store, status, method, path, query, body, role):
-    """One request -> the reply object. Raises RuleError. `role` comes from the token (or the ingress page), never from the request body."""
+def dispatch(store, status, method, path, query, body, role, user=''):
+    """One request -> the reply object. Raises RuleError. `role` comes from the token (or the ingress page), never from the request body.
+    `user` is the signed-in Home Assistant user's name on the ingress page ('' on the API): it is who a new task is raised by."""
     if method == 'GET':
         if path == '/status':
             return status()
@@ -164,7 +169,9 @@ def dispatch(store, status, method, path, query, body, role):
         check_fields(body, *CREATE_FIELDS)
         if not isinstance(body.get('allow_duplicate', False), bool):
             raise M.RuleError('bad', 'allow_duplicate must be true or false')
-        return store.create(body['title'], actor, body.get('description', ''), body.get('due', ''), body.get('source', ''), body.get('legacy'), body.get('allow_duplicate', False), body.get('priority', ''), body.get('labels'))
+        raised = user or body.get('raised_by')     # on the page the signed-in user always wins; on the API the caller may name who it works for
+        return store.create(body['title'], actor, body.get('description', ''), body.get('due', ''), body.get('source', ''), body.get('legacy'), body.get('allow_duplicate', False),
+                            body.get('priority', ''), body.get('labels'), raised, {k: body.get(k) for k in M.LINK_FIELDS})
     if path == '/tasks/merge':
         actor = actor_of(role, body)
         check_fields(body, {'keep', 'merge'}, {'keep', 'merge'})
@@ -203,6 +210,8 @@ def dispatch(store, status, method, path, query, body, role):
         return store.answer(tid, actor, b('answers'), b('note', ''))
     if action == 'withdraw':
         return store.withdraw_question(tid, actor, b('reason'))
+    if action == 'run_now':
+        return store.set_run_now(tid, actor, b('on', True))
     if action == 'remind':
         return store.set_reminder(tid, actor, b('date'), b('note', ''))
     if action == 'children':
@@ -294,6 +303,14 @@ def make_ui_handler(store, status, peer=INGRESS_PEER):
     info = json.loads((UI_ROOT / 'ui.json').read_text())
 
     class H(Base):
+        def _user(self):
+            """The signed-in user's name, as the Supervisor adds it to ingress requests ('' when it is not sent)."""
+            for h in ('X-Remote-User-Display-Name', 'X-Remote-User-Name'):
+                v = ''.join(c for c in (self.headers.get(h) or '') if c.isprintable()).strip()
+                if v:
+                    return v[:M.RAISED_BY_MAX]
+            return ''
+
         def _allowed(self):
             if self.client_address[0] != peer:
                 self.send_error(403)
@@ -307,7 +324,8 @@ def make_ui_handler(store, status, peer=INGRESS_PEER):
             if u.path.startswith('/api/'):
                 if u.path == '/api/meta':
                     return self._send(200, {'stages': [{'id': s, 'label': M.STAGE_LABELS[s]} for s in M.STAGES],
-                                            'close_reasons': [{'id': r, 'label': M.CLOSE_LABELS[r]} for r in M.CLOSE_REASONS], 'version': VERSION})
+                                            'close_reasons': [{'id': r, 'label': M.CLOSE_LABELS[r]} for r in M.CLOSE_REASONS], 'version': VERSION,
+                                            'fields': list(M.TASK_FIELDS), 'user': self._user()})
                 return self._run(lambda: dispatch(store, status, 'GET', u.path[4:], u.query, None, 'owner'))
             if u.path == '/ui.json':
                 return self._send(200, {k: info.get(k) for k in ('title', 'purpose', 'description', 'navigation', 'access')})
@@ -326,7 +344,7 @@ def make_ui_handler(store, status, peer=INGRESS_PEER):
             u = urlparse(self.path)
             if not u.path.startswith('/api/') or u.path == '/api/import':
                 return self.send_error(404)
-            self._run(lambda: dispatch(store, status, 'POST', u.path[4:], u.query, self._body(), 'owner'))
+            self._run(lambda: dispatch(store, status, 'POST', u.path[4:], u.query, self._body(), 'owner', self._user()))
     return H
 
 

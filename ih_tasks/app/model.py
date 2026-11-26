@@ -24,6 +24,75 @@ QUESTION_TYPES = ('choice', 'multi', 'yesno', 'text')
 LEGACY_KINDS = ('todo_uid', 'queue_id', 'ok_number', 'wy_id')
 LINK_KINDS = ('pr', 'result', 'note', 'other')
 
+# ---- ONE field list for the New task panel and the task page (the "maintain the modal" rule) ----
+# Both pages are built from this list (served on /api/meta as `fields`), and the API's accepted fields are derived from it, so a field added
+# here appears in the panel, on the task page and in the API once. Keys: id, label, type (text|textarea|date|select|labels|tasks|readonly),
+# create (the New task panel / POST /tasks takes it), edit (the task page edits it / POST /tasks/<n>/edit takes it), required, help, options.
+# Fields only the API takes (never shown on the pages) are API_ONLY_CREATE.
+TASK_FIELDS = (
+    {'id': 'title', 'label': 'Title', 'type': 'text', 'create': True, 'edit': True, 'required': True, 'max': 200},
+    {'id': 'description', 'label': 'Detail', 'type': 'textarea', 'create': True, 'edit': True},
+    {'id': 'due', 'label': 'Due date', 'type': 'date', 'create': True, 'edit': True},
+    {'id': 'priority', 'label': 'Priority (workers take high first)', 'type': 'select', 'create': True, 'edit': True,
+     'options': [{'id': 'high', 'label': 'High'}, {'id': 'normal', 'label': 'Normal'}, {'id': 'low', 'label': 'Low'}], 'default': 'normal'},
+    {'id': 'labels', 'label': 'Labels', 'type': 'labels', 'create': True, 'edit': True,
+     'help': 'Type any label, or pick one already in use. Letters, digits and dashes; up to 8.'},
+    {'id': 'raised_by', 'label': 'Raised by', 'type': 'readonly', 'create': True, 'edit': False,
+     'help': 'Filled in for you: the signed-in user on this page, the caller on the API.'},
+    {'id': 'blocked_by', 'label': 'Blocked by', 'type': 'tasks', 'create': True, 'edit': False},
+    {'id': 'depends_on', 'label': 'Depends on', 'type': 'tasks', 'create': True, 'edit': False},
+    {'id': 'relates_to', 'label': 'Relates to', 'type': 'tasks', 'create': True, 'edit': False},
+)
+API_ONLY_CREATE = ('source', 'legacy', 'allow_duplicate')
+LINK_FIELDS = ('blocked_by', 'depends_on', 'relates_to')
+RAISED_BY_MAX = 40
+LINKS_MAX = 12      # task links of one kind sent with a new task
+
+
+def field_ids(key):
+    return tuple(f['id'] for f in TASK_FIELDS if f[key])
+
+
+def default_raised_by(actor):
+    """Who a task is attributed to when the caller does not say: workers and checks are Claude, the add-on itself is 'system', the owner 'owner'."""
+    return {'worker': 'claude', 'check': 'claude', 'system': 'system'}.get(actor, 'owner')
+
+
+def check_raised_by(value, actor):
+    """None or '' -> the default for the actor. Otherwise short text (control characters removed)."""
+    if value in (None, ''):
+        return default_raised_by(actor)
+    if not isinstance(value, str):
+        raise RuleError('bad', 'raised_by must be text')
+    v = ''.join(c for c in value if c.isprintable()).strip()
+    if len(v) > RAISED_BY_MAX:
+        raise RuleError('bad', 'raised_by is longer than %d characters' % RAISED_BY_MAX)
+    return v or default_raised_by(actor)
+
+
+def check_task_numbers(value, name):
+    """None or [] -> []. Otherwise a list of task numbers (whole numbers >= 1), de-duplicated, in the order given."""
+    if value in (None, []):
+        return []
+    if not isinstance(value, list):
+        raise RuleError('bad', '%s must be a list of task numbers' % name)
+    out = []
+    for x in value:
+        if isinstance(x, bool) or not isinstance(x, int) or x < 1:
+            raise RuleError('bad', '%s must be task numbers (whole numbers, 1 or more)' % name)
+        if x not in out:
+            out.append(x)
+    if len(out) > LINKS_MAX:
+        raise RuleError('bad', 'at most %d tasks in %s' % (LINKS_MAX, name))
+    return out
+
+
+# Stages where "Work this now" makes sense: a worker has something to do (plan a To do task, build an Approved one, revise a flagged plan).
+def can_run_now(task):
+    s = task['stage']
+    return not task.get('needs_input') and (s in ('todo', 'approved') or (s == 'planning' and bool(task.get('revise'))))
+
+
 PRIORITIES = ('high', 'normal', 'low')   # workers take high before normal before low, whatever the stage
 PRIORITY_LABELS = {'high': 'High', 'normal': 'Normal', 'low': 'Low'}
 TITLE_MAX = 200

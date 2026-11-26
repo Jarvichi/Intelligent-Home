@@ -54,9 +54,9 @@ class Files(unittest.TestCase):
         js = (UI / 'ui.js').read_text()
         self.assertIn('id="new-open"', page)
         self.assertRegex(page, r'<div id="new-modal"[^>]*hidden>')
-        for f in ('new-title', 'new-desc', 'new-due', 'new-pri', 'new-msg', 'new-cancel'):
+        for f in ('new-fields', 'new-msg', 'new-cancel', 'new-save'):
             self.assertIn('id="%s"' % f, page)
-        self.assertIn('type="date"', page)
+        self.assertIn("type: f.type === 'date' ? 'date' : 'text'", js)      # the fields themselves come from the shared list (see test_wave1)
         self.assertIn("ev.key === 'Escape'", js)
         self.assertIn("api('POST', '/tasks', body)", js)
 

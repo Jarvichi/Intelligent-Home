@@ -3,12 +3,12 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { labels: [], board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var state = { labels: [], flash: '', flashTone: '', draft: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
   var REL_TEXT = { blocked_by: 'Blocked by', depends_on: 'Depends on', relates_to: 'Relates to', blocks: 'Blocks', needed_by: 'Needed by' };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
     rejected: 'Plan rejected', link: 'Link added', plan: 'Plan', edited: 'Edited', imported: 'Carried over', question_withdrawn: 'Question withdrawn',
-    reminder_set: 'Reminder set', reminder_fired: 'Reminder fired', child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate', related: 'Link added', unrelated: 'Link removed' };
+    reminder_set: 'Reminder set', reminder_fired: 'Reminder fired', child_added: 'Child task', children_finished: 'Child tasks finished', duplicate_linked: 'Duplicate', merged: 'Merged', merged_into: 'Merged', not_duplicate: 'Not a duplicate', related: 'Link added', unrelated: 'Link removed', run_now: 'Work this now' };
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -50,11 +50,13 @@
     var flags = [];
     if (t.needs_input) flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: 'Needs your input' }));
     else if (t.waiting_on === 'owner') flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: t.stage === 'planning' ? 'Plan ready for you' : 'Waiting for you' }));
+    if (t.run_now) flags.push(el('span', { 'class': 't-flag', 'data-tone': 'ok', text: 'Work now' }));
     if (t.blocked && t.blocked_by) flags.push(el('span', { 'class': 't-flag', 'data-tone': 'warn', text: 'Blocked by #' + t.blocked_by }));
     if (t.stage === 'planning' && t.revise) flags.push(el('span', { 'class': 't-flag', text: 'Plan being revised' }));
     var sub = [];
     if (t.priority && t.priority !== 'normal') sub.push(t.priority === 'high' ? 'High priority' : 'Low priority');
     if (t.due) sub.push('Due ' + t.due);
+    if (t.raised_by) sub.push('Raised by ' + t.raised_by);
     if (t.children_total) sub.push((t.children_total - t.children_open) + ' of ' + t.children_total + ' child tasks done');
     if (t.parent_id) sub.push('Part of #' + t.parent_id);
     if (t.remind_at) sub.push('Reminder on ' + t.remind_at);
@@ -247,6 +249,89 @@
     control.id = id;
     return el('div', { 'class': 't-field' }, [el('label', { 'for': id, text: label }), control]);
   }
+  /* ---- the shared field list: the New task panel and the task page are BOTH built from state.meta.fields (model.TASK_FIELDS, served on /api/meta).
+     To add a field to a task, add it to that list; do not add markup for it here. Each control is {f, id, node, get(), dirty()}; get() is undefined for a read-only field. ---- */
+  function fieldsFor(key) { return ((state.meta && state.meta.fields) || []).filter(function (f) { return f[key]; }); }
+  function allTasks() { var out = []; if (state.board) state.board.columns.forEach(function (c) { out = out.concat(c.tasks); }); return out; }
+  function parseLabels(text) { var out = []; text.split(',').forEach(function (x) { x = x.trim().toLowerCase(); if (x && out.indexOf(x) < 0) out.push(x); }); return out; }
+  function labelsControl(f, init, id, changed) {
+    var inp = el('input', { type: 'text', maxlength: '250', autocomplete: 'off', placeholder: 'for example ih, kindle' }), sug = el('div', { 'class': 't-suggest', role: 'group', 'aria-label': 'Labels already in use' });
+    inp.value = (init || []).join(', ');
+    var draw = function () {
+      var parts = inp.value.split(','), cur = parts[parts.length - 1].trim().toLowerCase(), have = parseLabels(inp.value);
+      clear(sug);
+      state.labels.filter(function (x) { return !cur || x.indexOf(cur) >= 0 || have.indexOf(x) >= 0; }).slice(0, 10).forEach(function (x) {
+        var on = have.indexOf(x) >= 0;
+        sug.appendChild(el('button', { 'class': 't-button', type: 'button', 'data-picked': on ? 'true' : 'false', 'aria-pressed': on ? 'true' : 'false', text: x, on: { click: function () {
+          var list = inp.value.split(',').map(function (p) { return p.trim(); }).filter(Boolean), last = list.length ? list[list.length - 1].toLowerCase() : '';
+          if (on) list = list.filter(function (p) { return p.toLowerCase() !== x; });
+          else if (last && last !== x && have.indexOf(last) < 0 && x.indexOf(last) >= 0) list[list.length - 1] = x;     /* finish the word being typed */
+          else list.push(x);
+          inp.value = list.join(', '); draw(); changed();
+        } } }));
+      });
+    };
+    inp.addEventListener('input', function () { draw(); changed(); });
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });     /* Enter must not save the New task form half way through */
+    draw();
+    return { control: [inp, sug], focus: inp, get: function () { return parseLabels(inp.value); } };
+  }
+  function tasksControl(f, init, id, changed, selfId) {
+    var picked = (init || []).slice(), list = el('ul', { 'class': 't-picked' }), box = el('input', { type: 'text', autocomplete: 'off', placeholder: 'Search by number or title' }), sug = el('div', { 'class': 't-suggest', role: 'group', 'aria-label': 'Matching tasks' });
+    var titleOf = function (n) { var t = allTasks().filter(function (x) { return x.id === n; })[0]; return t ? t.title : ''; };
+    var matches = function () {
+      var q = box.value.trim().toLowerCase().replace(/^#/, '');
+      if (!q) return [];
+      return allTasks().filter(function (t) { return t.id !== selfId && picked.indexOf(t.id) < 0 && (String(t.id) === q || t.title.toLowerCase().indexOf(q) >= 0); }).slice(0, 6);
+    };
+    var add = function (n) { picked.push(n); box.value = ''; draw(); changed(); };
+    var draw = function () {
+      clear(list); clear(sug);
+      picked.forEach(function (n) {
+        list.appendChild(el('li', {}, [el('span', { text: '#' + n + ' ' + titleOf(n) }), el('button', { 'class': 't-button', type: 'button', text: 'Remove', 'aria-label': 'Remove link to #' + n, on: { click: function () { picked.splice(picked.indexOf(n), 1); draw(); changed(); } } })]));
+      });
+      matches().forEach(function (t) { sug.appendChild(el('button', { 'class': 't-button', type: 'button', text: '#' + t.id + ' ' + short(t.title, 50), on: { click: function () { add(t.id); box.focus(); } } })); });
+    };
+    box.addEventListener('input', draw);
+    box.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();      /* Enter picks the best match; it must not save the form */
+      var m = matches(), exact = m.filter(function (t) { return String(t.id) === box.value.trim().replace(/^#/, ''); })[0];
+      if (exact || m.length) add((exact || m[0]).id);
+    });
+    draw();
+    box.id = id;
+    return { control: [list, box, sug], focus: box, get: function () { return picked.slice(); } };
+  }
+  /* one control for one field of the list; `init` is the starting value, `changed` is called on every edit */
+  function buildField(f, init, prefix, changed, selfId) {
+    var id = prefix + f.id, c = null, get, focus = null, parts;
+    if (f.type === 'labels') c = labelsControl(f, init, id, changed);
+    else if (f.type === 'tasks') c = tasksControl(f, init, id, changed, selfId);
+    if (c) { get = c.get; focus = c.focus; parts = c.control; if (f.type === 'labels') c.focus.id = id; }
+    else if (f.type === 'readonly') { get = function () { return undefined; }; parts = [el('p', { 'class': 't-readonly', id: id, text: init || '' })]; }
+    else {
+      var ctl;
+      if (f.type === 'textarea') ctl = el('textarea', { rows: '5' });
+      else if (f.type === 'select') ctl = el('select', {}, (f.options || []).map(function (o) { return el('option', { value: o.id, text: o.label }); }));
+      else ctl = el('input', { type: f.type === 'date' ? 'date' : 'text', maxlength: f.max ? String(f.max) : null, required: f.required ? true : null });
+      ctl.id = id;
+      ctl.value = init === undefined || init === null ? '' : init;
+      ctl.addEventListener('input', changed); ctl.addEventListener('change', changed);
+      get = function () { return ctl.value.trim(); }; focus = ctl; parts = [ctl];
+    }
+    var kids = [el('label', { 'for': id, text: f.label + (f.required ? ' (required)' : '') })].concat(parts);
+    if (f.help) kids.push(el('p', { 'class': 't-help', text: f.help }));
+    var start = JSON.stringify(get() === undefined ? null : get());
+    return { f: f, id: f.id, node: el('div', { 'class': 't-field' }, kids), get: get, focus: focus, dirty: function () { var v = get(); return v !== undefined && JSON.stringify(v) !== start; } };
+  }
+  function taskValue(t, f) {
+    if (f.id === 'priority') return t.priority || 'normal';
+    if (f.type === 'labels') return t.labels || [];
+    return t[f.id] === undefined || t[f.id] === null ? '' : t[f.id];
+  }
+  function canRunNow(t) { return !t.needs_input && (t.stage === 'todo' || t.stage === 'approved' || (t.stage === 'planning' && !!t.revise)); }
+
   /* Links to other tasks: list with a two-tap Remove (blocked by / depends on / relates to; the inverse rows are read-only here: remove them from the other task) and an Add form. */
   function linksCard(t) {
     var msg = msgLine(), rels = t.relations || [];
@@ -311,7 +396,7 @@
     var t = state.open, d = $('detail'); clear(d); if (!t) return;
     var msg = msgLine();
     var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
-      el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', WAIT_TEXT[t.waiting_on] || '',
+      el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', t.raised_by ? 'Raised by ' + t.raised_by : '', WAIT_TEXT[t.waiting_on] || '', t.run_now ? 'Work now requested' : '',
         t.remind_at ? 'Reminder on ' + t.remind_at : '', t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
     var root = el('div', { 'class': 't-detail' }, [el('div', {}, head.concat([labelChips(t)]))]);
     if (t.question) root.appendChild(questionForm(t, msg));
@@ -335,28 +420,49 @@
     if (t.stage === 'verifying') {
       actions.appendChild(confirmButton('I have checked it: done', 'primary', function () { act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'done' })); }));
     }
-    actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save comment', on: { click: function () {
-      if (!comment.value.trim()) { msg.setAttribute('data-tone', 'error'); msg.textContent = 'The comment is empty.'; return; }
-      act(msg, api('POST', '/tasks/' + t.id + '/comment', { text: comment.value.trim() }));
-    } } }));
-    if (isOpen(t)) {
-      var pri = el('select', {}, ['high', 'normal', 'low'].map(function (p) { return el('option', { value: p, text: p.charAt(0).toUpperCase() + p.slice(1), selected: p === (t.priority || 'normal') }); }));
-      actions.appendChild(field('Priority (workers take high first)', pri, 'd-priority'));
-      actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save priority', on: { click: function () { act(msg, api('POST', '/tasks/' + t.id + '/edit', { priority: pri.value })); } } }));
-    }
-    if (isOpen(t)) {
-      /* a plain text box (comma-separated) with suggestions from the labels already in use; no dialogs */
-      var lab = el('input', { type: 'text', maxlength: '250', list: 'd-labels-list', autocomplete: 'off', value: (t.labels || []).join(', '), placeholder: 'for example ih, kindle' });
-      actions.appendChild(field('Labels (comma-separated; letters, digits and dashes; up to 8)', lab, 'd-labels'));
-      actions.appendChild(el('datalist', { id: 'd-labels-list' }, state.labels.map(function (x) { return el('option', { value: x }); })));
-      actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Save labels', on: { click: function () {
-        act(msg, api('POST', '/tasks/' + t.id + '/edit', { labels: lab.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean) }));
-      } } }));
-    }
+    /* ONE Save: sends only the fields that changed (one request) and the comment text (if any); disabled until something changes */
+    var editCtl = [], save = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Save', disabled: true });
+    var sync = function () { save.disabled = !(comment.value.trim() || editCtl.some(function (c) { return c.dirty(); })); };
+    comment.addEventListener('input', sync);
+    if (isOpen(t)) fieldsFor('edit').forEach(function (f) { editCtl.push(buildField(f, taskValue(t, f), 'd-', sync, t.id)); });
+    if (state.draft) { comment.value = state.draft; state.draft = ''; sync(); }
+    save.addEventListener('click', function () {
+      var body = {}, names = [], text = comment.value.trim();
+      editCtl.forEach(function (c) { if (c.dirty()) { body[c.id] = c.get(); names.push(c.f.label.replace(/ \(.*\)$/, '').toLowerCase()); } });
+      if (!names.length && !text) return;
+      if (body.title === '') { msg.setAttribute('data-tone', 'error'); msg.textContent = 'A title is needed.'; return; }
+      if (text) names.push('comment');
+      save.disabled = true; msg.removeAttribute('data-tone'); msg.textContent = 'Saving…';
+      var first = Object.keys(body).length ? api('POST', '/tasks/' + t.id + '/edit', body) : Promise.resolve(t);
+      first.then(function (nt) {
+        state.open = nt;
+        if (!text) return nt;
+        return api('POST', '/tasks/' + t.id + '/comment', { text: text }).then(function (n2) { state.open = n2; return n2; }).catch(function (e) {
+          var er = new Error('The other changes were saved, but the comment was not: ' + e.message); er.partial = true; throw er;
+        });
+      }).then(function () { state.flash = 'Saved: ' + names.join(', ') + '.'; renderDetail(); loadBoard(); })
+        .catch(function (e) {
+          if (e.partial) { state.flash = e.message; state.flashTone = 'error'; state.draft = text; renderDetail(); loadBoard(); return; }
+          msg.setAttribute('data-tone', 'error'); msg.textContent = e.message; sync();
+        });
+    });
+    actions.appendChild(save);
+    var details = editCtl.length ? el('ih-card', {}, [el('h3', { text: 'Details' })].concat(editCtl.map(function (c) { return c.node; }))) : null;
+    if (details) root.appendChild(details);
     var card = el('ih-card', {}, [el('h3', { text: t.stage === 'planning' && !t.question ? 'Your decision' : 'Comment' }),
       t.stage === 'planning' && t.question ? el('p', { 'class': 'ih-metadata', text: 'Approve and Reject appear when no questions are open.' }) : null,
       field('Comment (a note on this task; it never makes a new task)', comment, 'd-comment'), actions, msg]);
     root.appendChild(card);
+    if (state.flash) { msg.textContent = state.flash; if (state.flashTone) msg.setAttribute('data-tone', state.flashTone); state.flash = ''; state.flashTone = ''; }
+    if (isOpen(t) && (t.run_now || canRunNow(t))) {
+      /* Work this now: asks a worker to take this task next, ignoring pace and caps (the worker side runs on the host); two taps, no dialog */
+      var mw = msgLine();
+      root.appendChild(el('ih-card', {}, [el('h3', { text: 'Work this now' }),
+        el('p', { 'class': 'ih-metadata', text: t.run_now ? 'A worker has been asked to take this task next. It starts when the worker next looks (the STOP switch still applies).' : 'Asks a worker to take this task next, ignoring the usual pace and daily limits. It plans a To do task and builds an Approved one; nothing is built before you approve.' }),
+        el('div', { 'class': 't-actions' }, [t.run_now
+          ? confirmButton('Cancel work now', '', function () { act(mw, api('POST', '/tasks/' + t.id + '/run_now', { on: false })); })
+          : confirmButton('Work this now', 'primary', function () { act(mw, api('POST', '/tasks/' + t.id + '/run_now', { on: true })); })]), mw]));
+    }
 
     if (t.parent) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Part of' }), el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + t.parent.id + ': ' + t.parent.title, on: { click: function () { openTask(t.parent.id); } } },
       [el('b', { text: '#' + t.parent.id }), t.parent.title, el('small', { text: t.parent.stage_label + ' · approved together with this task' })])]));
@@ -366,7 +472,7 @@
     root.appendChild(linksCard(t));
     if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), el('p', { 'class': 't-text', text: t.plan })]));
     if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
-    if (t.description) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));
+    if (t.description && !isOpen(t)) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));
     if (t.links.length) {
       root.appendChild(el('ih-card', {}, [el('h3', { text: 'Results and links' }), el('ul', { 'class': 't-history' }, t.links.map(function (l) {
         var safe = /^https?:\/\//.test(l.url);
@@ -445,23 +551,33 @@
       loadBoard();
     }).catch(function (e) { m.textContent = e.message; });
   });
-  /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). */
-  function newOpen() { $('new-msg').textContent = ''; $('new-msg').removeAttribute('data-tone'); $('new-modal').hidden = false; $('new-title').focus(); }
+  /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). Its fields come from the shared field list. */
+  var newCtl = [];
+  function newBuild() {
+    var box = $('new-fields'); clear(box); newCtl = [];
+    fieldsFor('create').forEach(function (f) {
+      var init = f.type === 'labels' || f.type === 'tasks' ? [] : f.type === 'readonly' ? (state.meta.user || 'You (filled in when it is saved)') : (f.default || '');
+      var c = buildField(f, init, 'new-', function () {}, null);
+      newCtl.push(c); box.appendChild(c.node);
+    });
+  }
+  function newOpen() { newBuild(); $('new-msg').textContent = ''; $('new-msg').removeAttribute('data-tone'); $('new-modal').hidden = false; if (newCtl[0] && newCtl[0].focus) newCtl[0].focus.focus(); }
   function newClose() { $('new-modal').hidden = true; $('new-open').focus(); }
   $('new-open').addEventListener('click', newOpen);
   $('new-cancel').addEventListener('click', newClose);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !$('new-modal').hidden) newClose(); });
   $('new-form').addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var title = $('new-title').value.trim(), m = $('new-msg'), go = $('new-save');
-    if (!title) { m.setAttribute('data-tone', 'error'); m.textContent = 'A title is needed.'; return; }
-    var body = { title: title, priority: $('new-pri').value };
-    if ($('new-desc').value.trim()) body.description = $('new-desc').value.trim();
-    if ($('new-due').value) body.due = $('new-due').value;
+    var m = $('new-msg'), go = $('new-save'), body = {};
+    newCtl.forEach(function (c) {
+      var v = c.get();
+      if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) return;
+      body[c.id] = v;
+    });
+    if (!body.title) { m.setAttribute('data-tone', 'error'); m.textContent = 'A title is needed.'; return; }
     go.disabled = true; m.removeAttribute('data-tone'); m.textContent = 'Saving…';
     api('POST', '/tasks', body).then(function (r) {
       go.disabled = false;
-      $('new-form').reset();
       newClose();
       $('add-msg').textContent = r.duplicate_of ? 'Task ' + r.task.id + ' looked the same as task ' + r.duplicate_of + ', so it was closed as a duplicate. Open it and reopen it if that is wrong.' : 'Added task ' + r.task.id + '.';
       loadBoard();
