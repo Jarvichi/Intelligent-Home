@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Work Runner</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Work Runner"></ih-nav>
+  <ih-app>
+    <main class="wr-main">
+      <div class="ih-page-heading">
+        <h1 id="page-title">Work Runner</h1>
+        <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="wr-intro">Runs the Claude work for the Work add-on. This page only shows what it is doing. The STOP switch is on the Work page.</p>
+      <ih-card class="wr-card">
+        <h2>Now</h2>
+        <div id="now-rows" class="wr-rows"></div>
+        <p id="now-empty" class="ih-empty-inline" hidden>Nothing is running.</p>
+        <p id="work-note" class="ih-metadata" hidden>Work add-on not reachable, so the running job is unknown.</p>
+        <p><a id="work-link" class="wr-link" href="/app/32c8114c_ih_work" target="_top">Open Work page</a></p>
+      </ih-card>
+      <ih-card class="wr-card">
+        <h2>State</h2>
+        <div id="state-rows" class="wr-rows"></div>
+        <ul id="problems" class="wr-list"></ul>
+      </ih-card>
+      <ih-card class="wr-card">
+        <h2>Last runs</h2>
+        <div class="wr-table-wrap"><table class="wr-table"><thead><tr><th>Task</th><th>Mode</th><th>Result</th><th>Took</th><th>When</th></tr></thead><tbody id="runs"></tbody></table></div>
+        <p id="runs-empty" class="ih-empty-inline" hidden>No runs in the log yet.</p>
+      </ih-card>
+      <p id="checked" class="ih-metadata"></p>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

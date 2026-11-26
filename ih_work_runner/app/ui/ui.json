@@ -1,0 +1,14 @@
+{
+  "title": "Work Runner",
+  "purpose": "Shows what the Claude work runner is doing: mode, the job running now, the last runs, the pace gate and the worker lock.",
+  "description": "Read-only status page. The runner claims jobs from the Work add-on, runs them with the Claude CLI and reports on the task. Start, stop and the STOP switch are on the Work page.",
+  "health_port": 8847,
+  "health_path": "/healthz",
+  "navigation": [
+    "Shows the mode (dry or live) and why it is paused, if it is",
+    "Shows the job running now (title only) and how long it has run",
+    "Lists the last 20 runs with result and duration",
+    "Links to the Work page, where the STOP switch is"
+  ],
+  "access": "Home Assistant authenticated ingress only; read-only, no secrets shown"
+}

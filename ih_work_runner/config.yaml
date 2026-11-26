@@ -1,5 +1,5 @@
 name: "Intelligent Home - Work Runner"
-version: "0.1.0"
+version: "0.2.0"
 slug: ih_work_runner
 image: "ghcr.io/jarvichi/{arch}-ih_work_runner"
 description: "Runs the Claude work for the Work add-on: claims a job, runs it with the Claude CLI, reports the result on the task. Replaces the loop that used to start from the host's tmux. Starts in DRY (watches, claims nothing). Never runs twice at once (a lock file). A STOP file or the stop option pauses it."
@@ -11,6 +11,11 @@ startup: application
 # watchdog: add  watchdog: http://[HOST]:[PORT:8847]/healthz  once boot is auto.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8099
+panel_title: "IH · Work Runner"
+panel_icon: mdi:robot-outline
+panel_admin: true
 homeassistant_api: true
 map:
   - type: homeassistant_config
