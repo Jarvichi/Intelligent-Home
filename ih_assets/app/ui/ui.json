@@ -2,7 +2,7 @@
   "title": "Assets",
   "purpose": "Things you own with a low and high resale value each, and what the total was worth over time.",
   "description": "Keep a list of games, DVDs, toys, devices and books. Each item has a low and a high value; the page shows the totals and a low/high bar chart over time.",
-  "health_port": 8850,
+  "health_port": 8852,
   "health_path": "/healthz",
   "navigation": [
     "Shows total low and high value, item count and items not yet priced",

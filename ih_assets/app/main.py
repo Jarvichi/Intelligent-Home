@@ -25,8 +25,8 @@ import engine as E
 from ihlib import db as ihdb
 
 DATA = os.environ.get('IHA_DATA', '/data')
-PORT = int(os.environ.get('IHA_PORT', '8850'))
-UI_PORT = int(os.environ.get('IHA_UI_PORT', '8851'))
+PORT = int(os.environ.get('IHA_PORT', '8852'))
+UI_PORT = int(os.environ.get('IHA_UI_PORT', '8853'))
 INGRESS_PEER = '172.30.32.2'   # Supervisor ingress gateway
 MAX_BODY = 64 * 1024
 UI_ROOT = Path(HERE) / 'ui'

@@ -156,7 +156,7 @@ class Server(unittest.TestCase):
 class Contract(unittest.TestCase):
     def test_config_and_ports(self):
         cfg = (HERE.parent / 'config.yaml').read_text()
-        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8850]/healthz"', 'ingress: true', 'ingress_port: 8851', 'panel_admin: true', 'version: "0.2.0"'):
+        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8852]/healthz"', 'ingress: true', 'ingress_port: 8853', 'panel_admin: true', 'version: "0.2.0"'):
             self.assertIn(needle, cfg)
         self.assertNotIn('auto_update', cfg.replace('# ', ''))
         self.assertEqual(E.VERSION, '0.2.0')
@@ -169,7 +169,7 @@ class Contract(unittest.TestCase):
             txt = p.read_text()
             for m in re.finditer(r'^  (\d+)/tcp:\s*(\d+)\s*$', txt, re.M):
                 seen.setdefault(m.group(2), []).append(p.parent.name)
-        self.assertEqual(seen.get('8850'), ['ih_assets'])
+        self.assertEqual(seen.get('8852'), ['ih_assets'])
         self.assertEqual({k: v for k, v in seen.items() if len(v) > 1}, {})
 
     def test_ihlib_copy_matches_master(self):

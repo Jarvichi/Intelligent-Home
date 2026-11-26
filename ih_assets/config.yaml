@@ -9,17 +9,17 @@ arch:
 startup: application
 boot: auto
 init: false
-watchdog: "http://[HOST]:[PORT:8850]/healthz"
+watchdog: "http://[HOST]:[PORT:8852]/healthz"
 ingress: true
-ingress_port: 8851
+ingress_port: 8853
 panel_title: "IH · Assets"
 panel_icon: mdi:treasure-chest
 panel_admin: true
 homeassistant_api: true
 ports:
-  8850/tcp: 8850
+  8852/tcp: 8852
 ports_description:
-  8850/tcp: "Assets API (bearer api_token); /healthz is open"
+  8852/tcp: "Assets API (bearer api_token); /healthz is open"
 options:
   mode: "dry"
   api_token: ""

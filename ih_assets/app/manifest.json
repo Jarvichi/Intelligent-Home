@@ -8,14 +8,14 @@
  "health": [
   {
    "type": "http",
-   "url": "http://172.30.32.1:8850/healthz",
+   "url": "http://172.30.32.1:8852/healthz",
    "timeout": 3,
    "ok_status": [
     200
    ]
   }
  ],
- "port": 8850,
+ "port": 8852,
  "schedules": [],
  "declares_secrets": [
   "api_token"

@@ -15,12 +15,12 @@ Open **IH · Assets** in the sidebar (administrators only). Search and filter by
 | Option | Meaning |
 |---|---|
 | `mode` | `dry` (default) publishes nothing. `live` publishes `sensor.assets_low` and `sensor.assets_high` (state in GBP, with count, unpriced and by-category attributes) each interval. |
-| `api_token` | Bearer token for the API on port 8850. Empty = the API refuses everything except `/healthz`. |
+| `api_token` | Bearer token for the API on port 8852. Empty = the API refuses everything except `/healthz`. |
 | `interval_min` | Minutes between history and sensor updates (5 to 1440, default 60). |
 
 ## Install flags (IH runbook)
 
-Boot: auto. Watchdog: `/healthz` on port 8850. Turn on `auto_update` in the Supervisor after the first start. Add-on data: `/data/ih.db` with a daily snapshot in `/data/backup`. No host folders are mapped.
+Boot: auto. Watchdog: `/healthz` on port 8852. Turn on `auto_update` in the Supervisor after the first start. Add-on data: `/data/ih.db` with a daily snapshot in `/data/backup`. No host folders are mapped.
 
 ## First-time import (optional)
 
