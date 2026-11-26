@@ -289,6 +289,31 @@
       var from = ef('Start time (optional)', input('time', effect.from || '')), to = ef('End time (optional)', input('time', effect.to || '')), at = ef('Exact time (optional)', input('time', effect.at || ''));
       line.appendChild(el('button', { type: 'button', class: 'e-button', text: 'Remove effect', on: { click: function () { line.remove(); } } }));
       line._effectValues = function (i) { var result = { id: effect.id || ('effect_' + i), name: ename.value, kind: kind, sound: soundValue, min_gap_minutes: Number(min.value), max_gap_minutes: Number(max.value), from: from.value, to: to.value, at: at.value }; if (built) { result.steps = Array.prototype.map.call(sequence.children, function (row) { return row._stepValues(); }); result.repeat = Number(repeat.value); result.restore = restore.checked; } return result; };
+      var testNote = el('p', { class: 'e-hint' });
+      function explainTest() { testNote.textContent = 'Runs the current steps on the selected lights and speakers. ' + (restore.checked ? 'The previous lighting will be restored.' : 'The lighting will stay as the effect leaves it.') + ' Audio may interrupt current playback. Turn the event mode off first.'; }
+      restore.addEventListener('change', explainTest); explainTest();
+      var testStatus = el('p', { class: 'ih-metadata', role: 'status', 'aria-live': 'polite' });
+      var testButton = el('button', { type: 'button', class: 'e-button', text: 'Test now', on: { click: function () {
+        var invalid = line.querySelector(':invalid');
+        if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+        if (!built || !sequence.children.length) { testStatus.textContent = 'Add effect steps before testing.'; return; }
+        var draft = { slug: ev.slug || 'ih_preview', name: name.value.trim() || 'Effect test', status: ev.status || 'planned',
+          light_group: group()[0] || '', lights: lights(), speakers: speakers(), sounds_folder: folder, effects: [line._effectValues(1)] };
+        var request = { event: draft };
+        if (ev.slug) request.event_slug = ev.slug;
+        testButton.disabled = true; testStatus.textContent = 'Starting the test…';
+        api('POST', '/effect-tests', request).then(function (job) {
+          function poll() {
+            api('GET', '/effect-tests/' + job.id).then(function (result) {
+              testStatus.textContent = result.message;
+              if (result.status === 'running') window.setTimeout(poll, 1000);
+              else testButton.disabled = false;
+            }).catch(function () { testStatus.textContent = 'Could not check the test. It may still be running; wait before trying again.'; testButton.disabled = false; });
+          }
+          poll();
+        }).catch(function (error) { testStatus.textContent = error.message || 'Could not start the test.'; testButton.disabled = false; });
+      } } });
+      line.appendChild(testNote); line.appendChild(testButton); line.appendChild(testStatus);
     }
     (ev.effects || []).forEach(addEffect);
     panel.appendChild(el('button', { type: 'button', class: 'e-button e-add', text: '+ Add an effect', on: { click: function () { if (effectsBox.children.length < 12) addEffect({}); else say('You can add up to 12 effects.'); } } }));
