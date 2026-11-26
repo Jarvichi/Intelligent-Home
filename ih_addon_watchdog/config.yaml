@@ -1,0 +1,63 @@
+name: "Intelligent Home - Add-on Watchdog"
+version: "0.1.0"
+slug: ih_addon_watchdog
+description: "Watches every add-on: finds stopped or hung ones, restarts them safely (cool-down, hourly limit, never-restart list), saves the log lines and files one high-priority task. Also checks that a HomePod AirPlay link still plays. DRY mode by default: it only logs what it would do."
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+init: false
+hassio_api: true
+hassio_role: manager
+homeassistant_api: true
+map:
+  - media:rw
+ingress: true
+ingress_port: 8850
+panel_title: "IH · Watchdog"
+panel_icon: mdi:shield-refresh
+panel_admin: true
+ports:
+  8851/tcp: null
+ports_description:
+  8851/tcp: "Health check for the Supervisor watchdog (/healthz)"
+watchdog: "http://[HOST]:[PORT:8851]/healthz"
+options:
+  mode: "dry"
+  interval_seconds: 60
+  failed_probes: 3
+  cooldown_minutes: 10
+  max_restarts_per_hour: 3
+  http_timeout_seconds: 5
+  never_restart:
+    - "core"
+    - "supervisor"
+    - "ih_addon_watchdog"
+    - "ih_orchestrator"
+    - "core_mosquitto"
+  media_players:
+    - "media_player.bedroom_2"
+  media_probe_enabled: true
+  media_probe_clip: "media-source://media_source/local/ih_watchdog/silence.wav"
+  tasks_url: "http://32c8114c-ih-tasks:8818"
+  tasks_token: ""
+  discord_bot_token: ""
+  discord_channel_id: ""
+schema:
+  mode: list(dry|live)
+  interval_seconds: int(15,3600)
+  failed_probes: int(1,20)
+  cooldown_minutes: int(1,240)
+  max_restarts_per_hour: int(1,20)
+  http_timeout_seconds: int(1,30)
+  never_restart:
+    - str
+  media_players:
+    - str
+  media_probe_enabled: bool
+  media_probe_clip: str
+  tasks_url: str
+  tasks_token: password
+  discord_bot_token: password
+  discord_channel_id: str

@@ -1,0 +1,14 @@
+{
+ "name": "ih_addon_watchdog",
+ "version": "0.1.0",
+ "kind": "addon",
+ "description": "Finds stopped or hung add-ons, restarts them safely, saves the log lines and files one high-priority task. DRY mode by default.",
+ "owner": "local add-on ih_addon_watchdog",
+ "start": "Supervisor add-on 32c8114c_ih_addon_watchdog (boot auto)",
+ "health": [{"type": "http", "url": "http://172.30.32.1:8851/healthz", "timeout": 3, "ok_status": [200]}],
+ "port": 8851,
+ "schedules": [],
+ "declares_secrets": ["tasks_token", "discord_bot_token"],
+ "restore": "Stop or uninstall the add-on. Nothing else is changed. Incidents live in its own data and are lost on uninstall.",
+ "requires": []
+}
