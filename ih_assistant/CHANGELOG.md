@@ -3,6 +3,18 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.28.0] - 2026-11-25
+
+### Changed
+- Working data moved from JSON files to the add-on's own SQLite database `/data/ih.db` (database storage plan, shared `ihlib/db.py`, schema version 1): each persona's `state.json` and `profile.json` are key-value rows, `outbox.jsonl` is the table `outbox_log` (newest 1000 per persona). Behaviour and API shapes are unchanged.
+- Old files are copied into the database and checked in one transaction before they are moved to `/data/trash/<key>/`, which is emptied after 30 days. A file that fails the check stays where it is and is named in status.
+- The inbox (`inbox.jsonl`, the people's message text), `options.json`, the kill-switch files, the GIF cache and the log stay files (see DOCS.md for why).
+- A nightly snapshot (from 04:00 local time) goes to `/data/backup` (newest 3 kept), followed by a restore check logged with counts only.
+- `/status` has a new `db` block and `db_degraded`. Counts only, no text.
+
+### Safety
+- If the database is damaged, newer than this add-on, or cannot be opened, the add-on keeps running on plain files in `/data/degraded/` (filled from the newest snapshot) and status says so loudly. A damaged file is moved aside and never recreated. A failed single call is not redirected to files.
+
 ## [0.27.0] - 2026-11-25
 
 ### Added
@@ -55,7 +67,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [0.20.0] - 2026-11-17
 
 ### Added
-- Check-in offer: `GET /persona/<key>/behaviour` now adds `checkin_offer` (true or false) and `offer_prompt`; when true, the text is also added to the end of `prompt`. It tells the persona to ask once, lightly, "Would you like me to check in more often?", at most once a week, never again after a no, and not while a yes waits for the owner. Why: Rob and Claire went quiet because their settings are thin, and the owner wants them to offer more check-ins instead of changing their schedule.
+- Check-in offer: `GET /persona/<key>/behaviour` now adds `checkin_offer` (true or false) and `offer_prompt`; when true, the text is also added to the end of `prompt`. It tells the persona to ask once, lightly, "Would you like me to check in more often?", at most once a week, never again after a no, and not while a yes waits for the owner. Why: Two personas went quiet because their settings are thin, and the owner wants them to offer more check-ins instead of changing their schedule.
 - `POST /persona/<key>/checkin_offer` with `answer` = `asked` (starts the week), `no` (never ask again) or `yes` (the persona asks the owner to approve a higher level; the add-on never changes its own options). Not offered at `checkin_level` 10.
 
 ## [0.19.0] - 2026-11-12

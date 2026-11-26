@@ -1,7 +1,8 @@
-"""PersonaStore: the ONLY way to touch a persona's files. One store = one folder /data/personas/<key>/.
+"""PersonaStore: the ONLY way to touch a persona's data (database rows and the inbox file). One store = one folder /data/personas/<key>/.
 No method takes a path. File names are fixed. The key is validated, the folder must resolve (realpath) inside the personas folder,
 symlinks are refused, files are mode 0600 and written atomically. Nothing here can see another persona's folder."""
 import json, os, re, secrets, threading, time
+import assistantdb
 
 KEY_RE = re.compile(r'^[a-z][a-z0-9_]{1,20}$')
 INBOX_KEEP = 500
@@ -9,7 +10,7 @@ OUTBOX_KEEP = 1000
 DEFAULT_PROFILE = {'name': None, 'person_name': None, 'tone': None, 'notes': [], 'seeded_from': None, 'introduced': False}
 PROFILE_LIMITS = {'name': 60, 'person_name': 60, 'tone': 300, 'seeded_from': 60}
 NOTES_MAX, NOTE_LEN = 20, 300
-FILES = {'profile': 'profile.json', 'state': 'state.json', 'inbox': 'inbox.jsonl', 'outbox': 'outbox.jsonl'}
+FILES = {'inbox': 'inbox.jsonl'}      # profile, state and the outbox log moved to the database in 0.18.0; the inbox (message text) stays a file
 
 
 class StoreError(ValueError):
@@ -21,7 +22,7 @@ def valid_key(key):
 
 
 class PersonaStore:
-    def __init__(self, data_dir, key, clock=time.time):
+    def __init__(self, data_dir, key, clock=time.time, adb=None):
         if not valid_key(key):
             raise StoreError('bad persona key')
         base = os.path.realpath(os.path.join(data_dir, 'personas'))
@@ -35,6 +36,8 @@ class PersonaStore:
             raise StoreError('persona folder escapes the personas folder')
         self.key, self._dir, self.clock = key, real, clock
         self._lock = threading.RLock()
+        self.adb = adb or assistantdb.get(data_dir)       # profile, state and the outbox log live in the database (0.18.0)
+        self.adb.import_persona(key, real)
 
     # ---- fixed-name file helpers (private) ----
     def _p(self, which):
@@ -43,15 +46,10 @@ class PersonaStore:
             raise StoreError('refusing a linked file')
         return p
 
-    def _read_json(self, which, default):
-        try:
-            with open(self._p(which), encoding='utf-8') as f:
-                v = json.load(f)
-            return v if isinstance(v, dict) else dict(default)
-        except FileNotFoundError:
-            return json.loads(json.dumps(default))
-        except ValueError:
-            return json.loads(json.dumps(default))
+    def _doc(self, which, default):
+        """profile or state: the stored dict, else a copy of the default."""
+        v = self.adb.read_doc(self.key, which)
+        return v if isinstance(v, dict) else json.loads(json.dumps(default))
 
     def _write_atomic(self, which, text):
         p = self._p(which)
@@ -75,7 +73,7 @@ class PersonaStore:
     def profile(self):
         with self._lock:
             d = dict(DEFAULT_PROFILE, notes=[])
-            d.update({k: v for k, v in self._read_json('profile', d).items() if k in DEFAULT_PROFILE})
+            d.update({k: v for k, v in self._doc('profile', d).items() if k in DEFAULT_PROFILE})
             return d
 
     def merge_profile(self, seed):
@@ -98,17 +96,17 @@ class PersonaStore:
         with self._lock:
             prof = self.profile()
             prof.update(upd)
-            self._write_atomic('profile', json.dumps(prof, ensure_ascii=False, indent=1))
+            self.adb.write_doc(self.key, 'profile', prof)
             return prof, ignored
 
     # ---- state ----
     def state(self):
         with self._lock:
-            return self._read_json('state', {})
+            return self._doc('state', {})
 
     def save_state(self, st):
         with self._lock:
-            self._write_atomic('state', json.dumps(st, ensure_ascii=False))
+            self.adb.write_doc(self.key, 'state', st)
 
     def update_state(self, fn):
         """Run fn(state_dict) under the lock, then save. -> fn's return value."""
@@ -268,26 +266,14 @@ class PersonaStore:
         with self._lock:
             e = {'ts': time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(self.clock())) + 'Z'}
             e.update({k: v for k, v in entry.items() if k != 'text'})
-            lines = self._lines('outbox')
-            lines.append(json.dumps(e, ensure_ascii=False))
-            self._write_atomic('outbox', '\n'.join(lines[-OUTBOX_KEEP:]) + '\n')
+            self.adb.outbox_add(self.key, e, OUTBOX_KEEP)
             return e
 
     def outbox_count(self):
         with self._lock:
-            return len(self._lines('outbox'))
+            return self.adb.outbox_count(self.key)
 
     def last_outbox_ts(self, kinds):
         """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only timestamps and kinds."""
-        import calendar
-        best = None
         with self._lock:
-            for ln in self._lines('outbox'):
-                try:
-                    e = json.loads(ln)
-                    if e.get('kind') in kinds:
-                        t = calendar.timegm(time.strptime(e['ts'], '%Y-%m-%dT%H:%M:%SZ'))
-                        best = t if best is None else max(best, t)
-                except (ValueError, KeyError, TypeError):
-                    continue
-        return best
+            return self.adb.outbox_last_ts(self.key, kinds)
