@@ -24,6 +24,8 @@ class Tasks:
 
 class Media:
     def __init__(self): self.ok = [False, False]; self.reloaded = 0
+    busy_now = False
+    def busy(self, e): return self.busy_now
     def play_probe(self, e): return self.ok.pop(0)
     def reload_entry(self, e): self.reloaded += 1
 
@@ -107,6 +109,12 @@ class T(unittest.TestCase):
         self.media.ok = [False, True]; r = self.wd.media_cycle()
         self.assertEqual(self.media.reloaded, 1); self.assertIn('retry ok', r[0][1])
         self.assertEqual(self.wd.media_cycle(), [])   # rate limit 30 min
+
+    def test_media_skips_busy_player(self):
+        self.media.busy_now = True; self.media.ok = [False, False]
+        self.assertEqual(self.wd.media_cycle(), []); self.assertEqual(self.media.reloaded, 0)
+        self.media.busy_now = False; self.media.ok = [True]
+        self.assertEqual(self.wd.media_cycle()[0][1], 'ok')   # checked as soon as it is idle
 
     def test_media_not_in_dry(self):
         self.opts['mode'] = 'dry'; self.assertEqual(self.wd.media_cycle(), [])

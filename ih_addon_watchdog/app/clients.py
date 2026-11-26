@@ -103,18 +103,27 @@ class Media:
         d = '/media/ih_watchdog'
         os.makedirs(d, exist_ok=True)
         f = os.path.join(d, 'silence.wav')
-        if not os.path.exists(f):
+        want = 16000 * 2 * 5     # 5 s of 16 kHz 16-bit mono (a 1 s clip ended before the first check)
+        if not os.path.exists(f) or os.path.getsize(f) < want:
             with wave.open(f, 'wb') as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
-                w.writeframes(struct.pack('<h', 0) * 16000)    # 1 s of digital silence
+                w.writeframes(struct.pack('<h', 0) * 16000 * 5)    # 5 s of digital silence
+
+    def busy(self, entity):
+        try:
+            return self._c('GET', '/states/' + entity).get('state') in ('playing', 'buffering')
+        except Exception:
+            return False
 
     def play_probe(self, entity):
         self.ensure_clip()
+        before = self._c('GET', '/states/' + entity).get('last_updated')
         self._c('POST', '/services/media_player/play_media', {'entity_id': entity, 'media_content_id': self.o()['media_probe_clip'], 'media_content_type': 'music'})
-        for _ in range(10):
-            self.sleep(1)
-            st = self._c('GET', '/states/' + entity).get('state')
-            if st == 'playing':
+        for _ in range(40):                      # up to 10 s, polled every 0.25 s
+            self.sleep(0.25)
+            d = self._c('GET', '/states/' + entity)
+            # playing, or the player reacted at all (state changed since before the call): it took the clip
+            if d.get('state') == 'playing' or (d.get('last_updated') != before and d.get('state') not in ('unavailable', 'unknown')):
                 return True
         return False
 
