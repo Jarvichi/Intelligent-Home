@@ -168,6 +168,8 @@ class Watchdog:
             k = self.kv.load('media.' + ent, {'last': 0})
             if self.clock() - k['last'] < 1800:
                 continue
+            if self.media.busy(ent):      # someone is listening: never interrupt, look again next cycle
+                continue
             k['last'] = self.clock()
             ok = self.media.play_probe(ent)
             res = 'ok' if ok else 'failed'

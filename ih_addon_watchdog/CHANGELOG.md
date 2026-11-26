@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2026-11-26
+
+### Fixed
+- Media probe gave false failures on a working HomePod (and needlessly reloaded its config entry): the 1 s silent clip had finished before the first state check. The clip is now 5 s (an existing short file is replaced), the state is polled every 0.25 s, and a state change counts as success as well as 'playing'. A player that is playing or buffering is skipped (never interrupted) and checked again next cycle.
+
 ## [0.1.0] - 2026-11-26
 
 ### Added
