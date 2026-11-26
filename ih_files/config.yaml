@@ -1,5 +1,5 @@
 name: "Intelligent Home - Files"
-version: "0.2.1"
+version: "0.2.2"
 slug: ih_files
 image: "ghcr.io/jarvichi/{arch}-ih_files"
 description: "Per-person Samba logins, family and guest folders, Andrew-only brain share"
@@ -9,6 +9,11 @@ startup: services
 # boot: manual = start it yourself. After install the owner sets: boot auto, watchdog on, auto_update on.
 boot: manual
 init: false
+ingress: true
+ingress_port: 8826
+panel_title: "IH · Files"
+panel_icon: mdi:folder-network
+panel_admin: true
 map:
   - share:rw
 ports:

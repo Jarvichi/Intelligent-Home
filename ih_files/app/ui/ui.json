@@ -1,0 +1,13 @@
+{
+  "title": "Files",
+  "purpose": "Family and guest folders, per-person logins and the Andrew-only brain share, shared over the home network with Samba.",
+  "description": "Read-only view of the file shares: running state and version, each share with its folder and who may read or write, the names that have logins (never passwords), who is connected now, free space and the file sharing port.",
+  "navigation": [
+    "Shows whether file sharing is running, its version and port",
+    "Lists each share, its folder and who has read-only or read-write access",
+    "Lists the names that have logins, never passwords or hashes",
+    "Shows who is connected now, from where and since when",
+    "Shows free space on the data volume"
+  ],
+  "access": "Home Assistant authenticated ingress only; read-only"
+}

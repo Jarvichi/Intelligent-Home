@@ -83,6 +83,8 @@ cat > "$CONF" <<CONFEOF
   read only = no
 CONFEOF
 [ "${DRY_RUN:-0}" = 1 ] && { echo "dry run ok: cap=$CAP days=$DAYS"; exit 0; }
+# read-only UI page on the ingress port (answers only the Supervisor gateway); restarted if it ever stops
+( while true; do IHF_UI_PORT=8826 python3 /app/ui_server.py >/dev/null 2>&1; sleep 2; done ) &
 
 mkdir -p /var/log/samba "$ROOT"/{andrew,claire,rob,family,guest} "$ROOT/_samba_log"; chmod 700 "$ROOT/_samba_log"
 addgroup -S hf_family 2>/dev/null || true
