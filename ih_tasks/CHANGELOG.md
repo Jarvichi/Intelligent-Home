@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0
+- **Raised by** (schema 18-19). Every task has `raised_by`. The page fills it in from the signed-in Home Assistant user; the API uses the `raised_by` the caller sends, or the caller itself ("claude" for the worker and check token, "owner" for the owner token, "system" for the add-on). Existing tasks get their `created_by`. It is shown on the task page and on the board cards, and is read-only after creation. Nothing writes "Name/Date" lines into the description any more (old text stays as history).
+- **Links at creation.** `POST /tasks` accepts `blocked_by`, `depends_on` and `relates_to` (lists of task numbers). Every task must exist, otherwise the whole create is refused; each link gets the same history lines as `/relate`.
+- **New task panel = the task page's fields.** One field list (`model.TASK_FIELDS`, served on `/api/meta` as `fields`) now builds the New task panel and the edit form on the task page, and decides which fields `POST /tasks` and `POST /tasks/<n>/edit` accept. The panel has every creatable field: title, detail, due date, priority, labels, raised by (automatic), and linked tasks (search by number or title). The label box takes free text and lists the labels already in use as you type. A test fails when the panel, the page and the API disagree.
+- **One Save button** on the task page replaces Save priority, Save labels and Save comment. It sends only what changed (title, detail, due date, priority, labels, and the comment text) and shows one saved/failed message. It stays disabled until something changes. The page can now also edit the title, detail and due date.
+- **Work this now** (schema 20, new `run_now`). `POST /tasks/<n>/run_now {on?}`: the owner asks a worker to take this task next (To do, Approved, or a plan sent back for revision, with no open question); the page asks "tap again" first. It is recorded in the history. A worker may only clear the flag (`on: false`), which is what it does when the run starts; a move or a close also clears it. Every task summary has `run_now`. The worker side (taking such a task first, ignoring pace and caps) is separate and not in this version.
+- Task actions may now contain an underscore (`run_now`).
+
 ## 0.9.0
 - Page: a "Links to other tasks" card on every task (kind, other task number, title and stage; open it with a tap; two-tap Remove for blocked by / depends on / relates to; Add form with kind and task number; API errors such as a loop or a missing task show in the card). Links seen from the other end (Blocks, Needed by) are listed too and are removed from the task that owns them.
 - Board cards show "Blocked by #n" (the lowest open blocker), and the Waiting-for filter has a new "Blocked by another task" option.

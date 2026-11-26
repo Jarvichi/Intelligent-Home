@@ -65,8 +65,9 @@ The `api_token` can never act as the owner. If both tokens are set to the same t
 
 - A board: one column per stage. Closed is folded away under the board.
 - Filter: a search box with a result count, then **Stage** and **Waiting for** selects and **Clear** on one row.
-- "Add" makes a task in To do.
-- A task opens on its own page: plan, the question form when input is needed, **Approve** and **Reject** (only in Planning with no open questions), a comment box, close with a reason, reopen, links and the history.
+- "Add" makes a task in To do. **New task** opens a panel with every field a task can be created with (title, detail, due date, priority, labels, raised by, linked tasks). Raised by fills itself in. The label box takes any text and lists labels already in use as you type. Linked tasks: pick a kind, search by number or title, press Add.
+- **Keep the panel in step.** The New task panel and the edit form on the task page are built from ONE field list (`TASK_FIELDS` in `app/model.py`, sent to the page on `/api/meta`), and the API's accepted fields come from the same list. When a task gets a new field, add it to that list (set `create` and/or `edit`) and it appears in the panel, on the task page and in the API; a test fails if they disagree.
+- A task opens on its own page: plan, the question form when input is needed, **Approve** and **Reject** (only in Planning with no open questions), a comment box, close with a reason, reopen, links and the history. Open tasks have ONE **Save** button for the title, detail, due date, priority, labels and a comment: it sends only what changed and stays disabled until something does. **Work this now** (two taps) asks a worker to take the task next; it is shown on the card as "Work now" until the worker starts.
 - Approve, close, reopen and merge need two taps (no pop-up dialog).
 - **Merge** turns merge mode on: every open card gets a checkbox (tap anywhere on the card). With 2 or more selected, a bar at the bottom of the screen shows the task to keep (you can change it) and **Merge N tasks into #X**. Cancel or **Stop merging** leaves the mode.
 - **Find duplicates** lists groups of open tasks with nearly the same title. Each group has **Merge group into #X** and **Not duplicates** (remembered: the group is not offered again).
@@ -108,7 +109,7 @@ Port 8818. Send `Authorization: Bearer <token>` and JSON. Unknown fields are ref
 | `GET /tasks/<n>` | | The whole task: plan, open question set, past ones, links, old ids, history. |
 | `GET /tasks/<n>/history` | | The history only. |
 | `GET /legacy?kind=todo_uid&value=...` | | The task that carries an old id. |
-| `POST /tasks` | `title`, `description?`, `due?` (YYYY-MM-DD), `priority?` (`high`, `normal` default, `low`), `labels?` (list of words), `source?`, `legacy?`, `allow_duplicate?` | Reply: `task`, `duplicate_of`, `similar`, `existing`. |
+| `POST /tasks` | `title`, `description?`, `due?` (YYYY-MM-DD), `priority?` (`high`, `normal` default, `low`), `labels?` (list of words), `raised_by?` (who asked; default: the caller, "claude" for the worker token), `blocked_by?` / `depends_on?` / `relates_to?` (lists of task numbers; all must exist), `source?`, `legacy?`, `allow_duplicate?` | Reply: `task`, `duplicate_of`, `similar`, `existing`. |
 | `POST /tasks/<n>/move` | `to`, `reason?`, `plan?`, `result?`, `verify_by?` | `plan` only with a move to Planning. `verify_by` (`check` or `owner`) with a move to Planning or Verifying. |
 | `POST /tasks/<n>/plan` | `plan`, `verify_by?` | Worker, in Planning: a rewritten plan (after a rejection or an answer). |
 | `POST /tasks/<n>/reject` | `comment` | Owner, in Planning. |
@@ -116,6 +117,7 @@ Port 8818. Send `Authorization: Bearer <token>` and JSON. Unknown fields are ref
 | `POST /tasks/<n>/comment` | `text` | |
 | `GET /labels` | | Labels in use: `labels` `[{label, count}]`, most used first. |
 | `POST /tasks/<n>/edit` | `title?`, `description?`, `due?`, `priority?`, `labels?` (a list replaces the old labels; `[]` clears them) | Workers take `high` tasks before `normal` before `low`, whatever the stage. |
+| `POST /tasks/<n>/run_now` | `on?` (true by default) | Owner: ask for "Work this now" (To do, Approved or a plan sent back for revision; no open question) or cancel it. A worker may only clear it (`on: false`). History line added; a move or close clears it. `409` when a worker has nothing to do on the task. |
 | `POST /tasks/<n>/ask` | `questions` `[{id?, text, type, options?}]`, `after` | Worker. `409` if a set is already open. |
 | `POST /tasks/<n>/answer` | `answers` `{id: value}`, `note?` | Owner. Every question must be answered. |
 | `POST /tasks/<n>/withdraw` | `reason` | Takes the open question set back. |
@@ -128,7 +130,7 @@ Port 8818. Send `Authorization: Bearer <token>` and JSON. Unknown fields are ref
 
 Errors: `400` bad request, `401` no or wrong token, `403` this caller may not do that, `404` no such task, `409` the task is in the wrong state.
 
-Each task in a reply has `needs_input` (true or false) and `waiting_on` (`owner`, `worker`, `check` or empty): who has to act next.
+Each task in a reply has `raised_by` (who raised it) and `run_now` (true while "Work this now" is asked for). Each has `needs_input` (true or false) and `waiting_on` (`owner`, `worker`, `check` or empty): who has to act next.
 
 ## Mirror (one way)
 
@@ -172,4 +174,5 @@ python3 tools/migrate.py --live --api http://HOST:8818 --token-file FILE ...   #
 - Merge mode and Find duplicates were checked in a browser against a local test server (made-up tasks, 1280 and 393 px wide), not inside Home Assistant and not on a real phone.
 - Find duplicates on a large list: it compares every pair of open tasks (checked with about 10 tasks; a few hundred open tasks will take longer).
 - The mirror after a merge, when both tasks came from the old list (each task is pinned to its own list item before the old ids move; unit-tested in the store only).
+- The New task panel, the single Save button and Work this now were written without being viewed in a browser (the unit tests cover the API, the field list and the page files only): look at them on a desktop and a phone, light and dark, before relying on them.
 - The mirror against a real to-do list (the plan step is unit-tested; the Home Assistant calls are tested with a fake).

@@ -44,12 +44,17 @@ MIGRATIONS = [
             id INTEGER PRIMARY KEY AUTOINCREMENT, src INTEGER NOT NULL REFERENCES tasks(id), dst INTEGER NOT NULL REFERENCES tasks(id),
             kind TEXT NOT NULL, at TEXT NOT NULL, actor TEXT NOT NULL, UNIQUE(src, dst, kind))'''),
     (17, 'CREATE INDEX relations_dst ON relations(dst)'),
+    # who raised the task (0.10.0). Old rows get their created_by (owner, worker, check, system); new ones get the signed-in user / the API caller
+    (18, "ALTER TABLE tasks ADD COLUMN raised_by TEXT NOT NULL DEFAULT ''"),
+    (19, "UPDATE tasks SET raised_by = created_by WHERE raised_by = ''"),
+    # 'Work this now' (0.10.0): the owner asked a worker to take this task next; the worker clears it when the run starts
+    (20, 'ALTER TABLE tasks ADD COLUMN run_now INTEGER NOT NULL DEFAULT 0'),
 ]
 RELATION_KINDS = ('blocked_by', 'depends_on', 'relates_to')
 WAITS_ON = ('blocked_by', 'depends_on')      # both mean "src cannot finish before dst is done"
 INVERSE = {'blocked_by': 'blocks', 'depends_on': 'needed_by', 'relates_to': 'relates_to'}
 TASK_COLS = ('id', 'title', 'description', 'plan', 'stage', 'due', 'verify_by', 'revise', 'source', 'result', 'closed_reason', 'closed_detail',
-             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id', 'remind_at')
+             'duplicate_of', 'created_by', 'created_at', 'updated_at', 'priority', 'labels', 'parent_id', 'remind_at', 'raised_by', 'run_now')
 LIST_LIMIT = 500
 IDENTITY_KINDS = ('todo_uid', 'queue_id')   # sending the same old item twice returns the task it already became; other old ids only label a task
 COMMENT_MAX = 4000
@@ -126,6 +131,8 @@ class TaskStore:
         k = (kids if kids is not None else self._kids(con, [t['id']])).get(t['id'], (0, 0))
         t['children_open'], t['children_total'] = k
         t['revise'] = bool(t['revise'])
+        t['run_now'] = bool(t['run_now'])
+        t['raised_by'] = t.get('raised_by') or t.get('created_by') or ''
         t['labels'] = [x for x in (t.get('labels') or '').split(',') if x]
         t['needs_input'] = (t['id'] in open_ids) if open_ids is not None else self._open_question(con, t['id']) is not None
         t['stage_label'] = M.STAGE_LABELS[t['stage']]
@@ -227,25 +234,26 @@ class TaskStore:
                 raise M.RuleError('conflict', 'old identifier %s already belongs to task %d' % (x['kind'], r[0]))
             con.execute('INSERT OR IGNORE INTO legacy(kind, value, task_id) VALUES(?,?,?)', (x['kind'], x['value'], task_id))
 
-    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor, priority='normal', labels=(), parent_id=None):
+    def _insert(self, con, title, description, plan, stage, due, verify_by, source, actor, priority='normal', labels=(), parent_id=None, raised_by=None):
         at = self.now()
-        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at, priority, labels, parent_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                          (title, description, plan, stage, due, verify_by, source, actor, at, at, priority, ','.join(labels), parent_id))
+        cur = con.execute('INSERT INTO tasks(title, description, plan, stage, due, verify_by, source, created_by, created_at, updated_at, priority, labels, parent_id, raised_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                          (title, description, plan, stage, due, verify_by, source, actor, at, at, priority, ','.join(labels), parent_id, raised_by or M.default_raised_by(actor)))
         return cur.lastrowid
 
     def _close(self, con, t, actor, c):
         if c['duplicate_of'] is not None:
             self._row(con, c['duplicate_of'])
-        con.execute('UPDATE tasks SET stage = ?, closed_reason = ?, closed_detail = ?, duplicate_of = ? WHERE id = ?',
+        con.execute('UPDATE tasks SET stage = ?, closed_reason = ?, closed_detail = ?, duplicate_of = ?, run_now = 0 WHERE id = ?',
                     ('closed', c['reason_kind'], c['detail'], c['duplicate_of'], t['id']))
         open_q = self._open_question(con, t['id'])
         if open_q:
             con.execute("UPDATE questions SET status = 'withdrawn', answered_at = ? WHERE id = ?", (self.now(), open_q['id']))
         self._event(con, t['id'], actor, 'closed', t['stage'], 'closed', c['detail'], {'reason': c['reason_kind'], 'duplicate_of': c['duplicate_of']})
 
-    def create(self, title, actor, description='', due='', source='', legacy=None, allow_duplicate=False, priority='', labels=None):
+    def create(self, title, actor, description='', due='', source='', legacy=None, allow_duplicate=False, priority='', labels=None, raised_by=None, links=None):
         """New task in To do. If an OPEN task has nearly the same title, the new task is still stored (so nothing is lost) but closed at once as a
-        duplicate of it, with a link in its history. -> {task, duplicate_of, similar, existing}. A task that already owns the same old to-do uid or queue id is returned as-is (existing True)."""
+        duplicate of it, with a link in its history. raised_by: who asked for it (default: the caller; Claude for workers). links: {blocked_by|depends_on|relates_to: [task numbers]},
+        set in the same transaction (a missing task refuses the whole create). -> {task, duplicate_of, similar, existing}. A task that already owns the same old to-do uid or queue id is returned as-is (existing True)."""
         M.check_actor(actor)
         title = M.clean_text(title, M.TITLE_MAX, 'title', required=True)
         description = M.clean_text(description, M.TEXT_MAX, 'description')
@@ -254,16 +262,24 @@ class TaskStore:
         priority = M.check_priority(priority)
         labels = M.check_labels(labels)
         legacy = M.check_legacy(legacy)
+        raised_by = M.check_raised_by(raised_by, actor)
+        links = {k: M.check_task_numbers((links or {}).get(k), k) for k in M.LINK_FIELDS}
         with self.db.tx() as con:
             for x in legacy:
                 r = con.execute('SELECT task_id FROM legacy WHERE kind = ? AND value = ?', (x['kind'], x['value'])).fetchone() if x['kind'] in IDENTITY_KINDS else None
                 if r:
                     return {'task': self.get(r[0]), 'duplicate_of': None, 'similar': [], 'existing': True}
+            for k in M.LINK_FIELDS:
+                for other in links[k]:
+                    self._row(con, other)      # a missing task refuses the whole create, before anything is stored
             hits = [] if allow_duplicate else M.find_duplicates(title, con.execute(
                 'SELECT id, title FROM tasks WHERE parent_id IS NULL AND stage IN (%s)' % ', '.join('?' * len(M.OPEN_STAGES)), M.OPEN_STAGES).fetchall())
-            tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor, priority, labels)
+            tid = self._insert(con, title, description, '', 'todo', due, 'check', source, actor, priority, labels, raised_by=raised_by)
             self._add_legacy(con, tid, legacy)
             self._event(con, tid, actor, 'created', '', 'todo', '', {'source': source} if source else None)
+            for k in M.LINK_FIELDS:
+                for other in links[k]:
+                    self._relate(con, tid, actor, k, other)
             dup = None
             if hits:
                 dup = hits[0][0]
@@ -283,7 +299,7 @@ class TaskStore:
                     raise M.RuleError('bad', 'verify_by must be check or owner')
                 if actor not in ('worker', 'owner') or to not in ('planning', 'verifying'):
                     raise M.RuleError('bad', 'verify_by is set by the worker with the plan or when the work goes to Verifying')
-            sets, args = ['stage = ?'], [to]
+            sets, args = ['stage = ?', 'run_now = 0'], [to]
             if c['plan']:
                 if to != 'planning':
                     raise M.RuleError('bad', 'a plan is only sent with a move to Planning')
@@ -416,7 +432,7 @@ class TaskStore:
                 raise M.RuleError('conflict', 'a task can have at most %d child tasks' % M.MAX_CHILDREN)
             plan = ('Part of task #%d (%s), approved with it. ' % (parent_id, p['title'][:80])) + (description or title)
             cid = self._insert(con, title, description, plan[:M.TEXT_MAX], 'approved', p['due'], p['verify_by'], p['source'], actor, p['priority'],
-                               [x for x in (p.get('labels') or '').split(',') if x], parent_id)
+                               [x for x in (p.get('labels') or '').split(',') if x], parent_id, raised_by=p.get('raised_by'))
             self._event(con, cid, actor, 'created', '', 'approved', 'Child of task %d; approved with it.' % parent_id, {'parent': parent_id})
             self._event(con, parent_id, actor, 'child_added', text='Child task #%d: %s' % (cid, title[:120]), data={'child': cid})
             if p['stage'] == 'approved':
@@ -563,17 +579,43 @@ class TaskStore:
         if other == task_id:
             raise M.RuleError('bad', 'a task cannot be linked to itself')
         with self.db.tx() as con:
-            self._row(con, task_id)
-            self._row(con, other)
-            src, dst = (min(task_id, other), max(task_id, other)) if kind == 'relates_to' else (task_id, other)
-            if con.execute('SELECT 1 FROM relations WHERE src = ? AND dst = ? AND kind = ?', (src, dst, kind)).fetchone():
-                raise M.RuleError('conflict', 'that link already exists')
-            if kind in WAITS_ON and self._waits_on_path(con, other, task_id):
-                raise M.RuleError('conflict', 'that would make a loop: task %d already waits on task %d' % (other, task_id))
-            con.execute('INSERT INTO relations(src, dst, kind, at, actor) VALUES(?,?,?,?,?)', (src, dst, kind, self.now(), actor))
-            self._event(con, task_id, actor, 'related', text='%s task %d' % (kind.replace('_', ' '), other), data={'kind': kind, 'task': other})
-            self._event(con, other, actor, 'related', text='task %d %s this task' % (task_id, INVERSE[kind].replace('_', ' ') if kind != 'relates_to' else 'relates to'),
-                        data={'kind': INVERSE[kind], 'task': task_id})
+            self._relate(con, task_id, actor, kind, other)
+        return self.get(task_id)
+
+    def _relate(self, con, task_id, actor, kind, other):
+        """The checks and writes of relate(), inside the caller's transaction (also used when a task is created with links)."""
+        self._row(con, task_id)
+        self._row(con, other)
+        src, dst = (min(task_id, other), max(task_id, other)) if kind == 'relates_to' else (task_id, other)
+        if con.execute('SELECT 1 FROM relations WHERE src = ? AND dst = ? AND kind = ?', (src, dst, kind)).fetchone():
+            raise M.RuleError('conflict', 'that link already exists')
+        if kind in WAITS_ON and self._waits_on_path(con, other, task_id):
+            raise M.RuleError('conflict', 'that would make a loop: task %d already waits on task %d' % (other, task_id))
+        con.execute('INSERT INTO relations(src, dst, kind, at, actor) VALUES(?,?,?,?,?)', (src, dst, kind, self.now(), actor))
+        self._event(con, task_id, actor, 'related', text='%s task %d' % (kind.replace('_', ' '), other), data={'kind': kind, 'task': other})
+        self._event(con, other, actor, 'related', text='task %d %s this task' % (task_id, INVERSE[kind].replace('_', ' ') if kind != 'relates_to' else 'relates to'),
+                    data={'kind': INVERSE[kind], 'task': task_id})
+
+    def set_run_now(self, task_id, actor, on=True):
+        """'Work this now' (owner only to ask): flag the task so a worker takes it next, ignoring pace and caps (the worker side lives on the host).
+        The owner sets or cancels it; a worker (or the add-on) may only CLEAR it, which is what the worker does when the run starts.
+        Only a task a worker can act on: To do, Approved, or a Planning task flagged for revision, with no open question. A move or close clears it."""
+        M.check_actor(actor)
+        if not isinstance(on, bool):
+            raise M.RuleError('bad', 'on must be true or false')
+        if on and actor != 'owner':
+            raise M.RuleError('forbidden', 'only the owner can ask for Work this now')
+        if actor == 'check':
+            raise M.RuleError('forbidden', 'a check cannot change Work this now')
+        with self.db.tx() as con:
+            t = self._view(con, self._row(con, task_id))
+            if bool(t['run_now']) == on:
+                return self.get(task_id)
+            if on and not M.can_run_now(t):
+                raise M.RuleError('conflict', 'a worker has nothing to do on this task now (it is %s%s); Work this now needs To do, Approved or a plan sent back for revision, with no open question'
+                                  % (M.STAGE_LABELS[t['stage']], ', waiting for an answer' if t['needs_input'] else ''))
+            con.execute('UPDATE tasks SET run_now = ? WHERE id = ?', (1 if on else 0, task_id))
+            self._event(con, task_id, actor, 'run_now', text='Work this now: %s.' % ('requested by the owner' if on else 'cleared' + (' by the owner' if actor == 'owner' else '')), data={'on': on})
         return self.get(task_id)
 
     def unrelate(self, task_id, actor, kind, other):
