@@ -27,7 +27,7 @@ import factsview as FV
 import listmerge as LM
 from features import shopping as S
 
-VERSION = '0.4.0'
+VERSION = '0.5.1'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))
@@ -154,6 +154,18 @@ class BusShopping(S.Feature):
             m.bus_react(self.schan, mid, k)
         m.bus_watch(self.schan, mid, S.KEYS[:2], SCOPE_TTL, 'scope')
         return {'id': mid, 'user': str(user_id), 't': self.c.now()}
+
+    def clear_old(self):
+        """On 'shop': remove this module's old checklist and 'Which list?' messages at once (tagged ones only; errors are logged by _do and ignored)."""
+        m, ch = self.mod, self.schan
+        for tag in ('checklist', 'scope'):
+            try:
+                m.bus_delete_tagged(ch, tag)
+            except Exception:
+                pass   # a failed delete must never stop the new list
+        m.lists.clear()
+        self.pend = None
+        m.save_state()
 
     def post_checklist(self, extras_only=False):
         m, ch = self.mod, self.schan
