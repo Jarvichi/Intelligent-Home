@@ -40,7 +40,7 @@ import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.10.0'
+VERSION = '0.10.1'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -361,6 +361,30 @@ def serve(make_server, make_store, name, log):
     return t
 
 
+def background_pass(first, opts, ha, last_mirror, day, today, hour, snapshot, log, backup_status=None):
+    try:
+        if opts['mirror'] != 'off' and opts['mirror_entity']:
+            last_mirror['result'] = MIRROR.run(ha, first, opts['mirror_entity'], opts['mirror'], log)
+            last_mirror['at'] = first.now()
+    except Exception as e:
+        log('mirror failed (%s)', type(e).__name__)
+    try:
+        RMD.run(first, opts, hour, log=log)
+    except Exception as e:
+        log('reminder pass failed (%s)', type(e).__name__)
+    if today != day:
+        try:
+            snapshot(first.path, os.path.join(DATA, 'backup'))
+            day = today
+            if backup_status is not None:
+                backup_status.update(last_success=first.now(), error='')
+        except Exception as e:
+            if backup_status is not None:
+                backup_status['error'] = type(e).__name__
+            log('snapshot failed (%s)', type(e).__name__)
+    return day
+
+
 def main():
     lg = logging.getLogger('ihtasks')
     lg.setLevel(logging.INFO)
@@ -370,11 +394,12 @@ def main():
     opts = load_options()
     first = TaskStore(DATA)          # opens the file and applies migrations once, on the main thread
     last_mirror = {'at': '', 'result': None}
+    backup_status = {'last_success': '', 'error': ''}
 
     def status_for(store):
         return lambda: {'version': VERSION, 'counts': store.counts(), 'schema': store.db.schema_version(),
                         'mirror': {'mode': opts['mirror'], 'entity_set': bool(opts['mirror_entity']), 'last': last_mirror},
-                        'owner_token_set': bool(opts['owner_token'])}
+                        'owner_token_set': bool(opts['owner_token']), 'backup': dict(backup_status)}
 
     lg.info('ih_tasks %s starting: API %s, owner token %s, mirror %s, tasks %s', VERSION, 'on' if opts['api_token'] else 'OFF (no api_token)',
             'set' if opts['owner_token'] else 'not set (approve on the page only)', opts['mirror'], sum(first.counts().values()))
@@ -385,17 +410,7 @@ def main():
     ha = HA()
     day = None
     while True:
-        try:
-            if opts['mirror'] != 'off' and opts['mirror_entity']:
-                last_mirror['result'] = MIRROR.run(ha, first, opts['mirror_entity'], opts['mirror'], lg.info)
-                last_mirror['at'] = first.now()
-            RMD.run(first, opts, time.localtime().tm_hour, log=lg.info)
-            today = time.strftime('%Y-%m-%d')
-            if today != day:     # once a day: a snapshot of the database next to it
-                day = today
-                ihdb.snapshot(first.path, os.path.join(DATA, 'backup'))
-        except Exception as e:
-            lg.info('background pass failed (%s)', type(e).__name__)
+        day = background_pass(first, opts, ha, last_mirror, day, time.strftime('%Y-%m-%d'), time.localtime().tm_hour, ihdb.snapshot, lg.info, backup_status)
         time.sleep(opts['mirror_minutes'] * 60)
 
 

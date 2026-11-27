@@ -30,12 +30,20 @@ def run(store, opts, hour, today=None, log=print, opener=urllib.request.urlopen)
     """-> number of tasks reopened. Before the reminder hour nothing happens (so it never fires at 00:05)."""
     if hour < opts.get('reminder_hour', 8):
         return 0
+    if opts.get('inbox_url') and opts.get('inbox_token'):
+        for notification_id, reminder in store.pending_reminder_notifications():
+            if not notify(opts, reminder, opener):
+                log('queued reminder for task %d: inbox unavailable, will try again' % reminder['id'])
+                break
+            store.remove_reminder_notification(notification_id)
+            log('queued reminder delivered for task %d' % reminder['id'])
     n = 0
     for r in store.due_reminders(today):
         late_days = (store.today() - datetime.date.fromisoformat(r['remind_at'])).days
-        if not notify(opts, r, opener) and late_days < LATE_DAYS:
+        delivered = notify(opts, r, opener)
+        if not delivered and late_days < LATE_DAYS:
             log('reminder for task %d: the Claude inbox could not be reached, will try again' % r['id'])
             continue
-        store.fire_reminder(r['id']); n += 1
+        store.fire_reminder(r['id'], queue_notification=not delivered); n += 1
         log('reminder fired for task %d' % r['id'])
     return n

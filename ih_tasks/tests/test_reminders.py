@@ -81,6 +81,20 @@ class Pass(Store):
         self.t[0] += DAY                                                              # a day late: never lost
         self.assertEqual(R.run(self.s, opts, 9, opener=down, log=lambda m: None), 1)
         self.assertEqual(self.s.get(tid)['stage'], 'todo')
+        self.s.close()
+        from store import TaskStore
+        self.s = TaskStore(self.dir, clock=lambda: self.t[0])
+        self.assertEqual(len(self.s.pending_reminder_notifications()), 1)
+        R.run(self.s, {'reminder_hour': 8}, 9, log=lambda m: None)
+        self.assertEqual(len(self.s.pending_reminder_notifications()), 1)
+        sent = []
+        def up(req, timeout=0):
+            sent.append(json.loads(req.data)); return Resp()
+        self.assertEqual(R.run(self.s, opts, 9, opener=up, log=lambda m: None), 0)
+        self.assertEqual(sent[0]['ref'], 'task-%d-%s' % (tid, self.date(-1)))
+        self.assertEqual(self.s.pending_reminder_notifications(), [])
+        R.run(self.s, opts, 9, opener=up, log=lambda m: None)
+        self.assertEqual(len(sent), 1)
 
     def test_no_inbox_configured_still_reopens(self):
         tid = self.new('Call the plumber'); self.s.set_reminder(tid, 'owner', self.date(1)); self.t[0] += DAY
