@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.9] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
 ## 0.15.8
 - Update the shared Intelligent Home visual theme and components.
 

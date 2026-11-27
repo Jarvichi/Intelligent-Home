@@ -1,7 +1,7 @@
 """Add-on manager page (v0.10.0: trace explorer; consumer outcome progress). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of this repository (Supervisor store + each add-on's ih_meta file + registrations) merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
-import hashlib, json, os, re, threading, time, urllib.request, urllib.error
+import hashlib, json, os, re, tempfile, threading, time, urllib.request, urllib.error
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
@@ -251,7 +251,7 @@ class Jobs:
 
 class Manager:
     def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
-                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}):
+                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}, theme_path=None):
         self.static, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.registered, self._cat = registered, (0, None)
         self._meta, self._meta_file = {}, os.environ.get("IH_META_CACHE", "/data/meta_cache.json")
@@ -266,6 +266,38 @@ class Manager:
         self.usage_path, self.clock, self.ulock = usage_path or os.environ.get("IH_USAGE", "/data/usage.json"), clock, threading.Lock()
         self.usage, self.usage_t, self.usage_err = self._usage_load(), 0, {}
         self.trace_src = traces
+        self.theme_path = theme_path or os.environ.get('IH_THEME_FILE', '/data/theme.json')
+        self.theme_lock = threading.Lock()
+
+    def theme(self):
+        try:
+            with open(self.theme_path, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict) and data.get('palette') in ('neutral', 'coastal', 'woodland', 'terracotta') and data.get('mode') in ('system', 'light', 'dark'):
+                return 200, {'palette': data['palette'], 'mode': data['mode']}
+        except (OSError, ValueError):
+            pass
+        return 200, {'palette': 'neutral', 'mode': 'system'}
+
+    def set_theme(self, data):
+        if not isinstance(data, dict) or set(data) != {'palette', 'mode'} or data.get('palette') not in ('neutral', 'coastal', 'woodland', 'terracotta') or data.get('mode') not in ('system', 'light', 'dark'):
+            return 400, {'error': 'Choose an available palette and appearance.'}
+        with self.theme_lock:
+            name = None
+            try:
+                folder = os.path.dirname(os.path.abspath(self.theme_path))
+                os.makedirs(folder, exist_ok=True)
+                fd, name = tempfile.mkstemp(prefix='.theme-', dir=folder)
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump({'palette': data['palette'], 'mode': data['mode']}, f)
+                    f.flush(); os.fsync(f.fileno())
+                os.replace(name, self.theme_path)
+            except OSError as e:
+                if name and os.path.exists(name):
+                    os.unlink(name)
+                self.log('theme save failed (%s)' % type(e).__name__)
+                return 500, {'error': 'Could not save the theme.'}
+        return 200, {'palette': data['palette'], 'mode': data['mode']}
 
     def metas(self, shorts, base):
         """{short: {requires, ui}} from each add-on's own ih_meta file in the repository (read at most once an hour, 8 at a time). A failed read keeps the last good copy
@@ -790,6 +822,12 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+                if p in ("/theme-preview.html", "/theme-preview.css", "/theme-preview.js"):
+                    name = p[1:]
+                    body = (Path(__file__).parent / "ui" / name).read_bytes()
+                    return self._send(200, body, "text/html; charset=utf-8" if name.endswith('.html') else "text/css; charset=utf-8" if name.endswith('.css') else "text/javascript; charset=utf-8")
+                if p == '/api/theme':
+                    return self._json(*mgr.theme())
                 if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/manager-logic.js", "/wizard-ui.js"):
                     name = p[1:]
                     body = (Path(__file__).parent / "ui" / name).read_bytes()
@@ -825,6 +863,15 @@ def make_handler(mgr):
                 return
             u = urlparse(self.path)
             parts = u.path.strip("/").split("/")
+            if parts == ['api', 'theme']:
+                try:
+                    n = int(self.headers.get('Content-Length') or 0)
+                    if not 0 < n <= 1024:
+                        raise ValueError('bad length')
+                    data = json.loads(self.rfile.read(n))
+                except (ValueError, UnicodeDecodeError):
+                    return self._json(400, {'error': 'Invalid theme selection.'})
+                return self._json(*mgr.set_theme(data))
             if len(parts) == 4 and parts[:2] == ["api", "action"]:
                 wr = parse_qs(u.query).get("with_requires", [""])[0] == "1"
                 return self._json(*mgr.act(parts[2], parts[3], wr))

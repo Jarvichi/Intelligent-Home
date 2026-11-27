@@ -40,7 +40,7 @@ import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.10.14'
+VERSION = '0.10.15'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -49,7 +49,6 @@ MAX_BODY = 131072
 HTTP = {'bad': 400, 'forbidden': 403, 'missing': 404, 'conflict': 409}
 UI_ROOT = Path(HERE) / 'ui'
 ASSETS = {'/': 'index.html', '/index.html': 'index.html', '/ui.css': 'ui.css', '/ui.js': 'ui.js', '/markdown.js': 'markdown.js', '/ih-ui.css': 'ih-ui.css', '/ih-ui.js': 'ih-ui.js',
-          '/theme-preview.html': 'theme-preview.html', '/theme-preview.css': 'theme-preview.css', '/theme-preview.js': 'theme-preview.js',
           '/ih-patterns.css': 'ih-patterns.css', '/ui.json': 'ui.json'}
 TASK_POSTS = {   # action -> (allowed fields, required fields)
     'move': ({'to', 'reason', 'plan', 'result', 'verify_by'}, {'to'}),

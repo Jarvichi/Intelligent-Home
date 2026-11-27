@@ -1,5 +1,5 @@
 name: "Intelligent Home - Work Runner"
-version: "0.2.1"
+version: "0.2.2"
 slug: ih_work_runner
 image: "ghcr.io/jarvichi/{arch}-ih_work_runner"
 description: "Runs the Claude work for the Work add-on: claims a job, runs it with the Claude CLI, reports the result on the task. Replaces the loop that used to start from the host's tmux. Starts in DRY (watches, claims nothing). Never runs twice at once (a lock file). A STOP file or the stop option pauses it."

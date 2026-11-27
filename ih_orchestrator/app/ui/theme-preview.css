@@ -31,3 +31,5 @@
 .preview-disclosure{padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px}.preview-disclosure summary{cursor:pointer;font-weight:700}.preview-disclosure p{margin-top:8px}
 @media(max-width:760px){.preview-palettes{grid-template-columns:repeat(2,minmax(0,1fr))}.preview-grid,.preview-components{grid-template-columns:1fr}.preview-header,.preview-picker-head,.preview-example-head{flex-wrap:wrap}.preview-example{padding:16px}.preview-toolbar{flex-wrap:wrap}.preview-search{flex-basis:100%}.preview-filter{flex:1}}
 @media(max-width:360px){.preview-page{min-width:0}.preview-picker{padding:16px}.preview-palettes{grid-template-columns:1fr}.preview-mode{width:100%}.preview-mode button{flex:1}}
+
+.preview-save { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }

@@ -7,7 +7,7 @@ import jobs_child
 import metodb
 from jobs import metoffice
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 DATA = os.environ.get('IHJ_DATA', '/data')
 
 SPEC = dict(job='metoffice', source='ih_jobs_metoffice', slug='ih_jobs_metoffice', title='Intelligent Home - Jobs - Met Office', version=VERSION, port=8799, runner=metoffice.run)

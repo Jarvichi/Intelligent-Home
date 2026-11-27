@@ -4,7 +4,9 @@ const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 const listeners = {};
+const properties = {};
 const document = {
+  documentElement: {hasAttribute() { return true; }, style: {setProperty(k, v) { properties[k] = v; }}},
   addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
   removeEventListener(type, fn) { listeners[type] = (listeners[type] || []).filter(f => f !== fn); },
   querySelector() { return null; }
@@ -33,4 +35,8 @@ listeners.keydown[0]({key: 'Escape', preventDefault() {}});
 assert(!menu.open && summary.focused && closed === 1);
 menu.open = true; listeners.click[0]({target: {}}); assert(!menu.open && closed === 2);
 control.destroy(); assert.equal(listeners.click.length, 0); assert.equal(listeners.keydown.length, 0);
-console.log('Shared menu and tabs interactions passed.');
+window.IHTheme.apply({palette: 'coastal', mode: 'dark'});
+assert.equal(properties['--background'], '#101b26');
+window.IHTheme.apply({palette: 'invalid', mode: 'light'});
+assert.equal(properties['--background'], '#101b26');
+console.log('Shared menu, tabs and theme interactions passed.');
