@@ -16,6 +16,19 @@
   }
 })();
 
+/* IHToast.show('Saved'): shadcn style toast, text via textContent, gone after 4 s. */
+window.IHToast = {
+  show(text, ms) {
+    let r = document.querySelector('.toast-region');
+    if (!r) { r = document.createElement('div'); r.className = 'toast-region'; r.setAttribute('role', 'status'); r.setAttribute('aria-live', 'polite'); document.body.appendChild(r); }
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = String(text);
+    r.appendChild(t);
+    setTimeout(() => t.remove(), ms || 4000);
+  }
+};
+
 /* ih-nav: sticky top bar. Declarative: <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Jobs"></ih-nav>
    Without data-home-href (the hub itself) it shows the title only. Sub-screens call
    IHNav.setTrail([{label: 'Jobs', onClick: fn}], 'Request 12'): the bar then shows "‹ Jobs / Request 12"
