@@ -4,18 +4,10 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = { labels: [], flash: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
-  var boardLayout = 'new', hiddenColumns = [];
+  var hiddenColumns = [];
   try { var savedColumns = JSON.parse(localStorage.getItem('ih-tasks-hidden-columns') || '[]'); if (Array.isArray(savedColumns)) hiddenColumns = savedColumns.filter(function (x) { return typeof x === 'string'; }); } catch (_) {}
 
   function saveColumns() { try { localStorage.setItem('ih-tasks-hidden-columns', JSON.stringify(hiddenColumns)); } catch (_) {} }
-  function setBoardLayout(layout) {
-    boardLayout = layout;
-    $('board-view').setAttribute('data-layout', layout);
-    $('board-view-new').setAttribute('aria-pressed', layout === 'new' ? 'true' : 'false');
-    $('board-view-current').setAttribute('aria-pressed', layout === 'current' ? 'true' : 'false');
-    $('filter-options').hidden = layout === 'new' && $('filters-toggle').getAttribute('aria-expanded') !== 'true';
-    renderBoard();
-  }
   function renderColumnOptions() {
     var box = $('column-options'); clear(box);
     if (!state.board) return;
@@ -124,7 +116,7 @@
     b.columns.forEach(function (c) {
       total += c.tasks.length;
       var tasks = c.tasks.filter(matches);
-      if (boardLayout === 'new' && hiddenColumns.indexOf(c.stage) >= 0) {
+      if (hiddenColumns.indexOf(c.stage) >= 0) {
         suppressed += tasks.length;
         if (only === c.stage) selectedHidden = true;
         if (c.stage === 'closed') $('closed-box').hidden = true;
@@ -643,30 +635,16 @@
   function trail(list, title) { var nav = document.querySelector('ih-nav'); if (nav && typeof nav.setTrail === 'function') nav.setTrail(list, title); }
 
   /* ---- start ---- */
-  $('board-view-new').addEventListener('click', function () { setBoardLayout('new'); });
-  $('board-view-current').addEventListener('click', function () { setBoardLayout('current'); });
   $('filters-toggle').addEventListener('click', function () {
     var open = this.getAttribute('aria-expanded') !== 'true';
     this.setAttribute('aria-expanded', open ? 'true' : 'false'); $('filter-options').hidden = !open;
   });
   $('columns-reset').addEventListener('click', function () { hiddenColumns = []; saveColumns(); renderBoard(); });
-  setBoardLayout('new');
   $('back').addEventListener('click', closeTask);
   $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
   $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
   ['f-search', 'f-stage', 'f-waiting', 'f-label'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
   $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; $('f-label').value = ''; renderBoard(); });
-  $('add-form').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var title = $('add-title').value.trim(), m = $('add-msg');
-    if (!title) return;
-    m.textContent = 'Saving…';
-    api('POST', '/tasks', { title: title }).then(function (r) {
-      $('add-title').value = '';
-      m.textContent = r.duplicate_of ? 'Task ' + r.task.id + ' looked the same as task ' + r.duplicate_of + ', so it was closed as a duplicate. Open it and reopen it if that is wrong.' : 'Added task ' + r.task.id + '.';
-      loadBoard();
-    }).catch(function (e) { m.textContent = e.message; });
-  });
   /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). Its fields come from the shared field list. */
   var newCtl = [];
   function newBuild() {
@@ -678,9 +656,8 @@
     });
   }
   function newOpen() { newBuild(); $('new-msg').textContent = ''; $('new-msg').removeAttribute('data-tone'); $('new-modal').hidden = false; if (newCtl[0] && newCtl[0].focus) newCtl[0].focus.focus(); }
-  function newClose() { $('new-modal').hidden = true; $(boardLayout === 'new' ? 'new-open-compact' : 'new-open').focus(); }
+  function newClose() { $('new-modal').hidden = true; $('new-open').focus(); }
   $('new-open').addEventListener('click', newOpen);
-  $('new-open-compact').addEventListener('click', newOpen);
   $('new-cancel').addEventListener('click', newClose);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !$('new-modal').hidden) newClose(); });
   $('new-form').addEventListener('submit', function (ev) {
