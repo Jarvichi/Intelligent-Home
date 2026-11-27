@@ -247,10 +247,10 @@ class SurfaceTests(unittest.TestCase):
     def test_only_visible_energy_alert_can_have_dismiss_zone(self):
         self.surface.alerts=lambda:{'configured':True,'complete':True,'alerts':[{'kind':'smoke','title':'Smoke','dismissible':False},{'kind':'free','title':'Free power','short':'Power','dismissible':True}]}
         _,zones=self.surface.build('main',0,'asap')
-        self.assertEqual([z['action']['kind'] for z in zones if z['box']==[872,612,1014,664]],['alert'])
+        self.assertEqual([z['action']['kind'] for z in zones if z['box']==[884,612,1032,664]],['alert'])
         self.surface.alerts=lambda:{'configured':True,'complete':True,'alerts':[{'kind':'smoke','title':'Smoke','dismissible':False}]}
         _,zones=self.surface.build('main',0,'asap')
-        self.assertFalse(any(z['box']==[872,612,1014,664] for z in zones))
+        self.assertFalse(any(z['box']==[884,612,1032,664] for z in zones))
     def test_power_restriction_removes_popup_actions(self):
         self.data['device']['charging']=False
         _,zones=self.surface.build('dinner',0,'asap')
