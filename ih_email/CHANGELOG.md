@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2026-11-27
+
+### Fixed
+- "Too many open files": every request runs in its own thread and each thread kept its database connection open forever. The connection is now closed at the end of each request (`DB.release()` in ihlib), so the add-on no longer stops answering and gets restarted by the watchdog.
+
 ## [0.1.0] - 2026-11-18
 
 ### Added

@@ -256,6 +256,59 @@ class Http(unittest.TestCase):
         self.assertNotIn(TOKEN, page)
 
 
+class FdLeak(unittest.TestCase):
+    """Task #243: one thread per request must not leave a database connection (3 open files) behind."""
+
+    @staticmethod
+    def nfd():
+        return len(os.listdir('/proc/self/fd'))
+
+    def run_server(self, handler):
+        srv = ThreadingHTTPServer(('127.0.0.1', 0), handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        return 'http://127.0.0.1:%d' % srv.server_address[1]
+
+    def test_status_page_and_api_keep_open_files_flat(self):
+        box, o, _ = make()
+        status = self.run_server(main.make_status_handler(box))
+        api = self.run_server(main.make_handler(box, o))
+        def hit_all():
+            urllib.request.urlopen(status + '/').read()
+            r = urllib.request.Request(api + '/messages', headers={'Authorization': 'Bearer ' + TOKEN})
+            try:
+                urllib.request.urlopen(r).read()
+            except urllib.error.HTTPError:
+                pass
+        for _ in range(5):
+            hit_all()
+        before = self.nfd()
+        for _ in range(200):
+            hit_all()
+        after = self.nfd()
+        self.assertLess(after - before, 10, 'open files grew from %d to %d' % (before, after))
+        self.assertIn(b'IH Email', urllib.request.urlopen(status + '/').read())
+
+    def test_release_closes_this_threads_connection_and_reopens(self):
+        box, _, _ = make()
+        d = box.db
+        out = {}
+        def work():
+            d.query('SELECT 1')
+            out['open'] = len(d._all)
+            d.release()
+            out['after'] = len(d._all)
+            d.release()
+            out['again'] = d.query('SELECT 1')
+            d.release()
+        n0 = len(d._all)
+        t = threading.Thread(target=work); t.start(); t.join()
+        self.assertEqual(out['open'], n0 + 1)
+        self.assertEqual(out['after'], n0)
+        self.assertEqual(out['again'], [(1,)])
+        self.assertEqual(len(d._all), n0)
+
+
 class Html(unittest.TestCase):
     def test_strip(self):
         t = mailcore.strip_html('<div>a &amp; b</div><style>x{}</style><p>c<br>d</p>')
