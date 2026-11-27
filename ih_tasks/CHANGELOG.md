@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.14
+- Add a theme preview in Tools with four palettes and light/dark examples. It does not change the active theme.
+
 ## 0.10.13
 - Update the shared Intelligent Home visual theme and components.
 
