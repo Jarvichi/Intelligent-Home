@@ -117,6 +117,8 @@ body.t-merging main{padding-bottom:230px}
 .t-inline-action summary,.t-disclosure>summary{cursor:pointer;font-weight:700;min-height:28px}
 .t-inline-action[open] summary,.t-disclosure[open]>summary{margin-bottom:14px}
 .t-disclosure ih-card{margin-top:10px;background:var(--ih-surface-raised)}
+.t-disclosure .t-disclosure{margin-top:12px;background:var(--ih-surface-raised)}
+.t-edit-details{margin-bottom:16px}
 .t-section-heading h3{margin:0}
 .t-comments{list-style:none;display:grid;gap:14px;margin:18px 0;padding:0}
 .t-comments li{padding:14px;border-radius:var(--ih-radius-nested);background:var(--ih-surface-raised);overflow-wrap:anywhere}

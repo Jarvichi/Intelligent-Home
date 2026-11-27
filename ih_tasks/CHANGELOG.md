@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.4
+- Place Details above the plan, with advanced details and task actions grouped inside it.
+
 ## 0.10.3
 - Compare the current task detail page with a redesigned view: readable summary and plan, comments with an inline composer, grouped related work and actions, and collapsible activity.
 
