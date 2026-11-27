@@ -66,7 +66,7 @@ class Files(unittest.TestCase):
         self.assertLess(heading.index('id="new-open"'), heading.index('id="tools-menu"'))
         for control in ('columns-picker', 'merge-toggle', 'dup-toggle'):
             self.assertIn('id="%s"' % control, heading)
-        self.assertIn('href="theme-preview.html"', heading)
+        self.assertNotIn('href="theme-preview.html"', heading)
 
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Add-on Watchdog"
-version: "0.1.3"
+version: "0.1.4"
 slug: ih_addon_watchdog
 description: "Watches every add-on: finds stopped or hung ones, restarts them safely (cool-down, hourly limit, never-restart list), saves the log lines and files one high-priority task. Also checks that a HomePod AirPlay link still plays. DRY mode by default: it only logs what it would do."
 arch:

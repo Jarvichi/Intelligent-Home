@@ -1,28 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ih-theme-editor>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>IH theme preview</title>
   <link rel="stylesheet" href="ih-ui.css">
-  <link rel="stylesheet" href="ui.css">
   <link rel="stylesheet" href="theme-preview.css">
 </head>
 <body>
-  <ih-nav data-title="Theme preview"></ih-nav>
+  <ih-nav data-title="Appearance"></ih-nav>
   <ih-app><main class="preview-page">
     <header class="preview-header">
-      <div><p class="preview-kicker">INTELLIGENT HOME</p><h1>Find your look</h1><p>Compare colours on familiar controls and task cards.</p></div>
-      <a class="btn btn-outline" href="./">Back to Tasks</a>
+      <div><p class="preview-kicker">INTELLIGENT HOME</p><h1>Choose your theme</h1><p>Compare colours on familiar controls and task cards.</p></div>
+      <a class="btn btn-outline" href="./">Back to Intelligent Home</a>
     </header>
 
     <section class="preview-picker" aria-labelledby="palette-title">
-      <div class="preview-picker-head"><div><h2 id="palette-title">Choose a palette</h2><p>Pick a starting point, then try it in light and dark.</p></div>
-        <div class="preview-mode" role="group" aria-label="Preview appearance"><button type="button" data-mode="light" aria-pressed="true">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button></div>
+      <div class="preview-picker-head"><div><h2 id="palette-title">Choose a palette</h2><p>Choose a palette and appearance for all Intelligent Home add-ons.</p></div>
+        <div class="preview-mode" role="group" aria-label="Preview appearance"><button type="button" data-mode="system" aria-pressed="false">System</button><button type="button" data-mode="light" aria-pressed="true">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button></div>
       </div>
       <div id="palettes" class="preview-palettes" role="group" aria-label="Colour palette"></div>
-      <p class="preview-note">This is a preview. Your selection does not change your add-ons.</p>
+      <div class="preview-save"><button class="btn" type="button" id="save-theme" disabled>Save theme</button><p id="theme-status" class="preview-note" role="status" aria-live="polite">Loading your active theme…</p></div>
     </section>
 
     <section class="preview-example" aria-labelledby="example-title">

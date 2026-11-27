@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.15
+- Apply the active Intelligent Home appearance across add-ons.
+
 ## 0.10.14
 - Add a theme preview in Tools with four palettes and light/dark examples. It does not change the active theme.
 

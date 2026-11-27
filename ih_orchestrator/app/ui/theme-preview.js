@@ -7,17 +7,10 @@
     { id: 'terracotta', name: 'Terracotta', description: 'Warm neutrals, earthy accent', light: ['#fcf8f5','#392820','#ffffff','#f6eee9','#82685c','#e8d8cf','#a64d31','#ffffff'], dark: ['#201713','#fff0e8','#30221c','#443029','#d0b7aa','#5e453a','#f0ab8e','#3d2015'] }
   ];
   var selected = 'neutral', mode = 'light';
-  var keys = ['--background','--foreground','--card','--muted','--muted-foreground','--border','--primary','--primary-foreground'];
   var box = document.getElementById('palettes');
+  var status = document.getElementById('theme-status'), save = document.getElementById('save-theme');
   function apply() {
-    var palette = palettes.filter(function (p) { return p.id === selected; })[0], values = palette[mode], root = document.documentElement;
-    keys.forEach(function (key, i) { root.style.setProperty(key, values[i]); });
-    root.style.setProperty('--card-foreground', values[1]);
-    root.style.setProperty('--popover', values[2]); root.style.setProperty('--popover-foreground', values[1]);
-    root.style.setProperty('--secondary', values[3]); root.style.setProperty('--secondary-foreground', values[1]);
-    root.style.setProperty('--accent', values[3]); root.style.setProperty('--accent-foreground', values[1]);
-    root.style.setProperty('--input', values[5]); root.style.setProperty('--ring', values[6]);
-    root.style.setProperty('color-scheme', mode);
+    window.IHTheme.apply({palette: selected, mode: mode});
     Array.prototype.forEach.call(box.querySelectorAll('button'), function (button) { button.setAttribute('aria-pressed', button.dataset.palette === selected ? 'true' : 'false'); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (button) { button.setAttribute('aria-pressed', button.dataset.mode === mode ? 'true' : 'false'); });
   }
@@ -32,5 +25,17 @@
   Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (button) { button.addEventListener('click', function () { mode = button.dataset.mode; apply(); }); });
   document.getElementById('sample-add').addEventListener('click', function () { document.getElementById('sample-message').textContent = 'This is an example, so no task was created.'; });
   document.getElementById('sample-clear').addEventListener('click', function () { document.querySelector('.preview-search input').value = ''; document.querySelector('.preview-filter select').selectedIndex = 0; });
-  apply();
+  save.addEventListener('click', async function () {
+    save.disabled = true; status.textContent = 'Saving…';
+    try {
+      var response = await fetch('api/theme', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({palette: selected, mode: mode})});
+      if (!response.ok) throw new Error('save failed');
+      var choice = await response.json(); window.IHTheme.remember(choice); window.IHTheme.apply(choice);
+      status.textContent = 'Theme saved for Intelligent Home.';
+    } catch (e) { status.textContent = 'Could not save the theme. Please try again.'; }
+    save.disabled = false;
+  });
+  fetch('api/theme', {cache: 'no-store'}).then(function (response) { if (!response.ok) throw new Error('load failed'); return response.json(); }).then(function (choice) {
+    selected = choice.palette; mode = choice.mode; window.IHTheme.remember(choice); apply(); save.disabled = false; status.textContent = 'Your active theme. Changes are previewed until you save.';
+  }).catch(function () { status.textContent = 'Could not load your active theme. Reload this page to try again.'; });
 }());
