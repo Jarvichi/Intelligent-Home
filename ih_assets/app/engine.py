@@ -1,7 +1,7 @@
 """ih_assets engine: items, history, totals, one-time import, barcode lookup. Standard library only."""
-import csv, datetime, json, os, re, urllib.request
+import csv, datetime, json, math, os, re, urllib.request
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 CATEGORIES = ('game', 'dvd', 'toy', 'device', 'book', 'other')
 
 MIGRATIONS = [
@@ -29,7 +29,7 @@ def _num(v, name, allow_none=True):
         f = float(v)
     except (TypeError, ValueError):
         raise BadInput(name + ' must be a number')
-    if f < 0 or f != f:
+    if f < 0 or not math.isfinite(f):
         raise BadInput(name + ' must be 0 or more')
     return round(f, 2)
 
@@ -39,6 +39,10 @@ def _date(v, name):
         return None
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(v)):
         raise BadInput(name + ' must be YYYY-MM-DD')
+    try:
+        datetime.date.fromisoformat(str(v))
+    except ValueError:
+        raise BadInput(name + ' must be a real date')
     return str(v)
 
 
@@ -57,7 +61,9 @@ def clean(d, partial=False):
     if 'qty' in d or not partial:
         try:
             q = 1 if d.get('qty') in (None, '') else int(d.get('qty'))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            raise BadInput('qty must be a whole number')
+        if isinstance(d.get('qty'), bool) or (isinstance(d.get('qty'), float) and d['qty'] != q):
             raise BadInput('qty must be a whole number')
         if q < 1 or q > 999:
             raise BadInput('qty must be 1 to 999')
@@ -138,17 +144,19 @@ class Assets:
 
     # ---- totals and history
     def totals(self):
-        lo = hi = n = unp = 0
+        lo = hi = n = unp = missing_low = missing_high = 0
         cats = {}
         for i in self.items():
             q = i['qty']
             n += q
             if i['low'] is None or i['high'] is None:
                 unp += q
+                missing_low += q if i['low'] is None else 0
+                missing_high += q if i['high'] is None else 0
                 continue
             lo += i['low'] * q; hi += i['high'] * q
             c = cats.setdefault(i['category'], [0, 0]); c[0] += i['low'] * q; c[1] += i['high'] * q
-        return {'low': round(lo, 2), 'high': round(hi, 2), 'count': n, 'unpriced': unp,
+        return {'low': round(lo, 2), 'high': round(hi, 2), 'count': n, 'unpriced': unp, 'missing_low': missing_low, 'missing_high': missing_high,
                 'by_category': {k: {'low': round(v[0], 2), 'high': round(v[1], 2)} for k, v in cats.items()}, 'date': self.today()}
 
     def record(self):
@@ -197,17 +205,18 @@ def barcode_lookup(code, get=None):
     if not code:
         raise BadInput('barcode must contain digits')
     get = get or (lambda url: json.load(urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'ih-assets'}), timeout=12)))
+    failed = False
     if len(code) in (10, 13) and (len(code) == 10 or code.startswith(('978', '979'))):
         try:
             d = get('https://openlibrary.org/api/books?bibkeys=ISBN:%s&format=json&jscmd=data' % code).get('ISBN:' + code)
             if d:
                 return {'code': code, 'name': d['title'] + (': ' + d['subtitle'] if d.get('subtitle') else ''), 'source': 'openlibrary'}
         except Exception:
-            pass
+            failed = True
     try:
         it = get('https://api.upcitemdb.com/prod/trial/lookup?upc=' + code).get('items')
         if it:
             return {'code': code, 'name': it[0]['title'], 'source': 'upcitemdb'}
     except Exception:
-        pass
-    return {'code': code, 'name': None, 'source': None}
+        failed = True
+    return {'code': code, 'name': None, 'source': None, 'lookup_failed': failed}

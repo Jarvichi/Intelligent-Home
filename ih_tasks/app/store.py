@@ -50,6 +50,7 @@ MIGRATIONS = [
     # 'Work this now' (0.10.0): the owner asked a worker to take this task next; the worker clears it when the run starts
     (20, 'ALTER TABLE tasks ADD COLUMN run_now INTEGER NOT NULL DEFAULT 0'),
     (21, '''CREATE TABLE reminder_outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)'''),
+    (22, "CREATE TABLE backup_status(id INTEGER PRIMARY KEY CHECK(id=1), last_success TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '')"),
 ]
 RELATION_KINDS = ('blocked_by', 'depends_on', 'relates_to')
 WAITS_ON = ('blocked_by', 'depends_on')      # both mean "src cannot finish before dst is done"
@@ -85,6 +86,18 @@ class TaskStore:
 
     def close(self):
         self.db.close()
+
+    def backup_status(self):
+        row = self.db.con.execute('SELECT last_success, error FROM backup_status WHERE id=1').fetchone()
+        return {'last_success': row[0], 'error': row[1]} if row else {'last_success': '', 'error': ''}
+
+    def save_backup_status(self, status):
+        with self.db.tx() as con:
+            con.execute('INSERT OR REPLACE INTO backup_status(id,last_success,error) VALUES(1,?,?)', (status['last_success'], status['error']))
+
+    def reminder_delivery_status(self):
+        rows = self.db.con.execute('SELECT payload FROM reminder_outbox ORDER BY id').fetchall()
+        return [{'id': r['id'], 'title': r['title'], 'date': r['remind_at']} for r in (json.loads(row[0]) for row in rows)]
 
     def today(self):
         """Today's date in the add-on's own time zone (a reminder date is a calendar day)."""

@@ -215,6 +215,13 @@
   }
 
   function loadBoard() {
+    api('GET', '/status').then(function (info) {
+      var b = info.backup || {}, pending = (info.reminder_delivery || {}).pending || [];
+      $('backup-info').textContent = 'Last successful backup: ' + (b.last_success || 'None recorded') + (b.error ? ' · Last attempt failed (' + b.error + '); retrying.' : '');
+      var box = $('reminder-info'); clear(box);
+      box.appendChild(el('p', { text: pending.length ? pending.length + ' reminder notification(s) waiting: ' + (info.reminder_delivery.configured ? 'the inbox could not be reached; retrying.' : 'inbox is not configured.') : 'No reminder notifications waiting.' }));
+      pending.forEach(function (r) { box.appendChild(el('p', { text: '#' + r.id + ' · ' + r.title + ' · due ' + r.date })); });
+    }).catch(function () { $('backup-info').textContent = 'Backup and reminder status unavailable.'; });
     return api('GET', '/board').then(function (b) {
       state.board = b;
       var s = $('service-status');

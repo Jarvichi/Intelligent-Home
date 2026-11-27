@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.2
+
+- Show pending reminder delivery and persistent backup status. Use the actual reminder date in delayed notifications.
+
 ## 0.10.1
 - Keep overdue reminder notifications in a durable queue until the inbox accepts them, even after the task reopens. Retry failed daily backups and run them independently of mirror and reminder failures.
 

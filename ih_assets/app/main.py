@@ -96,6 +96,19 @@ def make_handler(app, ui, peer=INGRESS_PEER):
     class H(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
 
+        def finish(self):
+            try:
+                super().finish()
+            finally:
+                db = app['a'].db
+                con = getattr(db._local, 'con', None)
+                if con is not None:
+                    with db._all_lock:
+                        if con in db._all:
+                            db._all.remove(con)
+                    del db._local.con
+                    con.close()
+
         def log_message(self, *a):
             pass
 
@@ -189,6 +202,24 @@ def serve(server, name, log):
     return t
 
 
+def run_tick(a, live, ha, app, last_snap, snapshot, now, log):
+    try:
+        t = a.record()
+        if live:
+            a.publish(ha)
+        app['last_tick'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        log('tick ok: low %s high %s items %s unpriced %s', t['low'], t['high'], t['count'], t['unpriced'])
+    except Exception as e:
+        log('tick failed (%s)', type(e).__name__)
+    if now - last_snap > 86400:
+        try:
+            snapshot(os.path.join(DATA, ihdb.DB_FILE_NAME), os.path.join(DATA, 'backup'))
+            return now
+        except Exception as e:
+            log('snapshot failed (%s)', type(e).__name__)
+    return last_snap
+
+
 def main():
     lg = logging.getLogger('iha')
     lg.setLevel(logging.INFO)
@@ -217,17 +248,7 @@ def main():
     serve(QuietServer(('0.0.0.0', UI_PORT), make_handler(app, True)), 'ui', lg.info)
     last_snap = 0
     while True:
-        try:
-            t = a.record()
-            if live:
-                a.publish(ha)
-            app['last_tick'] = time.strftime('%Y-%m-%dT%H:%M:%S')
-            lg.info('tick ok: low %s high %s items %s unpriced %s', t['low'], t['high'], t['count'], t['unpriced'])
-            if time.time() - last_snap > 86400:
-                ihdb.snapshot(os.path.join(DATA, ihdb.DB_FILE_NAME), os.path.join(DATA, 'backup'))
-                last_snap = time.time()
-        except Exception as e:
-            lg.info('tick failed (%s)', type(e).__name__)
+        last_snap = run_tick(a, live, ha, app, last_snap, ihdb.snapshot, time.time(), lg.info)
         time.sleep(opts['interval_min'] * 60)
 
 

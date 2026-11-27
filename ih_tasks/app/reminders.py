@@ -8,8 +8,8 @@ LATE_DAYS = 1   # if the inbox cannot be reached until this many days after the 
 
 
 def text_for(r):
-    return ('Reminder you set for today on IH task #%d: %s.%s The task is back in To do (high priority). Tell the owner it is a reminder THEY set on the IH Tasks board%s, then offer to restart it.'
-            % (r['id'], r['title'][:150], (' Your note: ' + r['note'][:300] + '.') if r['note'] else '', (' on ' + r['set_at'][:10]) if r['set_at'] else ''))
+    return ('Reminder you set for %s on IH task #%d: %s.%s The task was reopened in To do (high priority). Tell the owner it is a reminder THEY set on the IH Tasks board%s, then offer to restart it.'
+            % (r['remind_at'], r['id'], r['title'][:150], (' Your note: ' + r['note'][:300] + '.') if r['note'] else '', (' on ' + r['set_at'][:10]) if r['set_at'] else ''))
 
 
 def notify(opts, r, opener=urllib.request.urlopen):

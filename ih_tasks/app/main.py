@@ -40,7 +40,7 @@ import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.10.1'
+VERSION = '0.10.2'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))
@@ -382,6 +382,11 @@ def background_pass(first, opts, ha, last_mirror, day, today, hour, snapshot, lo
             if backup_status is not None:
                 backup_status['error'] = type(e).__name__
             log('snapshot failed (%s)', type(e).__name__)
+        if backup_status is not None:
+            try:
+                first.save_backup_status(backup_status)
+            except Exception as e:
+                log('cannot save backup status (%s)', type(e).__name__)
     return day
 
 
@@ -394,12 +399,13 @@ def main():
     opts = load_options()
     first = TaskStore(DATA)          # opens the file and applies migrations once, on the main thread
     last_mirror = {'at': '', 'result': None}
-    backup_status = {'last_success': '', 'error': ''}
+    backup_status = first.backup_status()
 
     def status_for(store):
         return lambda: {'version': VERSION, 'counts': store.counts(), 'schema': store.db.schema_version(),
                         'mirror': {'mode': opts['mirror'], 'entity_set': bool(opts['mirror_entity']), 'last': last_mirror},
-                        'owner_token_set': bool(opts['owner_token']), 'backup': dict(backup_status)}
+                        'owner_token_set': bool(opts['owner_token']), 'backup': dict(backup_status),
+                        'reminder_delivery': {'pending': store.reminder_delivery_status(), 'configured': bool(opts.get('inbox_url') and opts.get('inbox_token'))}}
 
     lg.info('ih_tasks %s starting: API %s, owner token %s, mirror %s, tasks %s', VERSION, 'on' if opts['api_token'] else 'OFF (no api_token)',
             'set' if opts['owner_token'] else 'not set (approve on the page only)', opts['mirror'], sum(first.counts().values()))
