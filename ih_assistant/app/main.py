@@ -25,7 +25,7 @@ import inbox_events as inboxmod
 import selfprompts as selfmod
 import random
 
-VERSION = '0.29.0'
+VERSION = '0.30.0'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -50,6 +50,60 @@ EVENT_TYPES = ('game_session', 'game_reset', 'reminder_due')
 EVENT_PER_DAY = 30
 EVENT_FACTS_MAX, EVENT_FACT_LEN, EVENT_SOURCE_LEN, EVENT_TEXT_LEN = 20, 300, 40, 1000
 CHECKIN_WINDOW_MIN = 30
+DEFER_RETRY_S = 15 * 60        # a deferred check-in is re-checked at most this often
+DEFER_MAX_MIN = 180            # ... for at most this long
+DEFER_WAKE_END_MARGIN_MIN = 15 # ... and never later than this long before wake end
+SOFT_SKIP = ('messaged recently', 'persona spoke recently', 'last message is unanswered',
+             'too soon after the last check-in', 'not home', 'busy now')   # worth retrying; the rest are final
+AGREED_MAX = 20
+PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
+FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
+FACT_TIMEOUT_S = 5
+GIF_MAX_BYTES = 8 * 1024 * 1024
+GIF_CACHE_MAX = 300   # pictures kept for reuse; the oldest go first
+GIF_REUSE_CHANCE = 0.5
+GIF_STOP = {'the', 'and', 'for', 'with', 'you', 'that', 'this', 'gif', 'your'}
+GIF_WORDS_MAX = 60
+ENTITY_RE = re.compile(r'^[a-z_]+\.[a-z0-9_]{1,80}$')
+PERSON_RE = re.compile(r'^[a-z][a-z0-9_]{0,23}$')   # 0.19.0: a person's short name in presence_entities
+PRESENCE_PEOPLE_MAX = 8                              # 0.19.0: most people in presence_entities
+HOME_NOBODY = 'nobody'                               # 0.19.0: home_now text when everyone known is away
+POLL_S = 3   # 0.9.8: was 8; the reply starts about this much sooner
+POLL_FALLBACK_S = 60   # 0.15.0: Discord is asked this often while the push connection (gateway) is ready; a push asks at once
+WAKE_BURST_S = 10      # 0.15.0: after a push, ask every POLL_S for this long (covers a second message and a late REST answer)
+TYPING_MAX_S = 300
+ASK_KEEP_S = 86400
+ASK_MAX = 10
+WATCH_KEEP_S = 21600   # 0.13.1: plain persona messages are watched for reactions for 6 h
+WATCH_MAX = 8
+REACT_EVERY_S = 20
+ASK_EMOJI = {'yes': '\u2705', 'no': '\u274c', 'unsure': '\u2753'}
+PLAN_DEFAULTS = {'checkin_plan': False, 'checkins_per_day': 2, 'wake_start': '09:00', 'wake_end': '21:30', 'min_gap_h': 3.0, 'calendars': [], 'calendar_read': [], 'dates': [], 'dates_leads': '7,3', 'dates_at': '18:00', 'dates_latest': '21:30', 'location_entities': [], 'calendar_write': [], 'busy_windows': [], 'free_windows': [],
+                 'meal_plan_entity': '', 'meal_fact': '', 'presence_entity': '', 'presence_person': '', 'quiet_if_messaged_h': 2.0,
+                 'checkin_days': [], 'closed_dates': [], 'checkin_texts': [], 'checkin_send': False, 'usage_text': '', 'usage_text_notime': '', 'usage_texts': [], 'usage_texts_notime': []}
+HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+MARK_RE = re.compile(r'^\d{1,25}$')
+DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}(\.\.\d{4}-\d{2}-\d{2})?$')
+USAGE_SENSORS = {'session': 'sensor.claude_usage_andrew_pro_session_usage', 'week': 'sensor.claude_usage_andrew_pro_week_usage',  # privacy-scan: ignore LOCAL_TERM
+                 'session_reset': 'sensor.claude_usage_andrew_pro_session_reset_time', 'week_reset': 'sensor.claude_usage_andrew_pro_weekly_reset_time',  # privacy-scan: ignore LOCAL_TERM
+                 'extra_enabled': 'sensor.claude_usage_andrew_pro_extra_usage_enabled', 'extra_pct': 'sensor.claude_usage_andrew_pro_extra_usage'}   # defaults; options usage_sensor_* override  # privacy-scan: ignore LOCAL_TERM
+USAGE_OUT_AT = 99.0       # percent: out of usage when the session or the week sensor is at or over this
+USAGE_EXTRA_OUT_AT = 98.0  # percent of the extra-usage limit: at or over this the extra credits are used up too
+USAGE_WAIT_S = 60         # a message must stay unanswered this long before the automatic reply
+USAGE_MIN_GAP_S = 600     # one automatic reply per persona per 10 minutes
+USAGE_PENDING_MAX_S = 3600  # an unanswered message older than this is forgotten (no late notice)
+USAGE_FAR_H = 12          # reset further away than this shows a day name
+USAGE_ANSWER_KINDS = ('reply', 'ask', 'checkin', 'usage_reply')   # anything the persona sent counts as an answer
+USAGE_TEXT_DEFAULT = 'I cannot read your message right now: I am out of Claude usage until {t}. Your message is saved here. I answer when it resets.'
+USAGE_TEXT_MAX = 400
+USAGE_VARIANTS_MAX = 10      # 0.16.1: at most this many own-voice variants per list
+USAGE_VARIANT_MAX_CHARS = 500
+USAGE_OWN_KEY = 'usage_own'   # 0.17.0: persona state key holding the lists the persona wrote itself
+USAGE_OWN_WRITES_PER_DAY = 20   # 0.17.0: accepted writes per persona per day
+USAGE_TIME_FIELD = 'time'   # the only placeholder a variant may use
+USAGE_PLACEHOLDER_RE = re.compile(r'\{([^{}]*)\}')
+CHECKIN_TEXT_MAX = 600
 AGREED_MAX = 20
 PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
 FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
@@ -1562,8 +1616,19 @@ class Assistant:
 
     def minutes_since_sent(self, key):
         """Minutes since the persona last sent anything (reply or question), from its own outbox log."""
-        t = self.stores[key].last_outbox_ts(('reply', 'ask'))
+        t = self.stores[key].last_outbox_ts(('reply', 'ask'), skip_auto=True)
         return None if t is None else (self.clock() - t) / 60
+
+    def _auto_reply(self, key, body):
+        """True when a reply/ask answers an automated event: the caller said auto:true, or the newest message-like
+        inbox event is a reminder_due (no person message since)."""
+        if body.get('auto') is True:
+            return True
+        last = None
+        for ev in self.stores[key].read_inbox(0, 500):
+            if ev.get('type') in ('message', 'reminder_due'):
+                last = ev.get('type')
+        return last == 'reminder_due'
 
     def _skip_reason(self, key, slot, nm):
         c = self.cfg[key]
@@ -1582,7 +1647,7 @@ class Assistant:
         if sent is not None and sent < c['quiet_if_messaged_h'] * 60:
             return 'persona spoke recently'
         got = self.last_message_ts(key)
-        out_ts = self.stores[key].last_outbox_ts(('reply', 'ask'))
+        out_ts = self.stores[key].last_outbox_ts(('reply', 'ask'), skip_auto=True)
         if sent is not None and sent < 360 and (got is None or out_ts > got):
             return 'last message is unanswered'
         gap = c['min_gap_h'] * 60 * levels.checkin_gap_factor(c['levels']['checkin_level'])
@@ -1613,18 +1678,41 @@ class Assistant:
             self.make_day_plan(key, day, rebuild=True)
         fired = []
         for i, sl in enumerate(st.state().get('plans', {}).get(dkey, {}).get('slots', [])):
-            if sl['status'] != 'pending':
+            if sl['status'] not in ('pending', 'deferred'):
                 continue
             t = to_min(sl['time'])
             if nm < t:
                 continue
-            if nm > t + CHECKIN_WINDOW_MIN:
-                status, why = 'missed', None
+            deferred = sl['status'] == 'deferred'
+            extra, why = {}, None
+            if deferred and self.clock() > sl.get('until', 0):
+                status = 'missed'
+            elif deferred and self.clock() < sl.get('next', 0):
+                continue
+            elif not deferred and nm > t + CHECKIN_WINDOW_MIN:
+                status = 'missed'
             else:
                 why = self._skip_reason(key, sl, nm)
-                status = 'skipped' if why else 'sent'
-            def mark(s, i=i, status=status):
-                s['plans'][dkey]['slots'][i]['status'] = status
+                if not why:
+                    status = 'sent'
+                    extra = {'sent_at': now.strftime('%H:%M')}
+                elif why in SOFT_SKIP and sl['kind'] != 'agreed':
+                    until_nm = min((sl['tried_nm'] if deferred else nm) + DEFER_MAX_MIN,
+                                   to_min(c['wake_end']) - DEFER_WAKE_END_MARGIN_MIN)
+                    if until_nm <= nm:
+                        status = 'skipped'
+                    else:
+                        status = 'deferred'
+                        extra = {'next': self.clock() + DEFER_RETRY_S, 'tried_nm': sl['tried_nm'] if deferred else nm,
+                                 'until': self.clock() + (until_nm - nm) * 60, 'why': why}
+                        if not deferred:
+                            self.log('persona %s: check-in deferred (%s), retry until %02d:%02d' % (key, why, until_nm // 60, until_nm % 60))
+                else:
+                    status = 'skipped'
+            def mark(s, i=i, status=status, extra=extra):
+                sl2 = s['plans'][dkey]['slots'][i]
+                sl2['status'] = status
+                sl2.update(extra)
             st.update_state(mark)
             if status == 'sent':
                 self.maybe_intro(key)
@@ -1632,7 +1720,9 @@ class Assistant:
                 self._count_out(key, 'checkin')
                 self._note_fired(key, sl['time'])
                 fired.append(sl['time'])
-            elif why:
+            elif status == 'missed' and deferred:
+                self.log('persona %s: deferred check-in missed (still %s)' % (key, sl.get('why')))
+            elif why and status == 'skipped':
                 self.log('persona %s: planned check-in skipped (%s)' % (key, why))
         return fired
 
@@ -1807,8 +1897,9 @@ class Assistant:
         rt = body.get('reply_to')
         rt = str(rt) if rt is not None and MARK_RE.match(str(rt)) else None
         st = self.stores[key]
+        auto = {'auto': True} if self._auto_reply(key, body) else {}
         if not self.is_live(key):
-            st.log_outbox({'kind': 'reply', 'chars': len(text), 'mode': 'dry'})
+            st.log_outbox(dict({'kind': 'reply', 'chars': len(text), 'mode': 'dry'}, **auto))
             self._count_out(key, 'reply')
             st.update_state(lambda s: s.pop('keepers', None))
             self.log('persona %s: [DRY] would send %d chars' % (key, len(text)))
@@ -1822,7 +1913,7 @@ class Assistant:
             return 502, {'ok': False, 'why': 'discord: %s' % e}
         if ok:
             self.watch_sent(key)
-        st.log_outbox({'kind': 'reply', 'chars': len(text), 'mode': 'live', 'ok': ok})
+        st.log_outbox(dict({'kind': 'reply', 'chars': len(text), 'mode': 'live', 'ok': ok}, **auto))
         if ok:
             st.update_state(lambda s: s.pop('keepers', None))
             self._count_out(key, 'reply')
@@ -2254,8 +2345,9 @@ class Assistant:
         if not isinstance(opts, list) or not opts or any(o not in ASK_EMOJI for o in opts):
             return 400, {'ok': False, 'why': 'options: a list of yes, no, unsure'}
         st = self.stores[key]
+        auto = {'auto': True} if self._auto_reply(key, body) else {}
         if not self.is_live(key):
-            st.log_outbox({'kind': 'ask', 'chars': len(text), 'mode': 'dry', 'options': len(opts)})
+            st.log_outbox(dict({'kind': 'ask', 'chars': len(text), 'mode': 'dry', 'options': len(opts)}, **auto))
             self._count_out(key, 'reply')
             self.log('persona %s: [DRY] would ask %d chars with %d reactions' % (key, len(text), len(opts)))
             return 200, {'ok': True, 'sent': False, 'dry': True, 'chars': len(text)}
@@ -2277,7 +2369,7 @@ class Assistant:
             a.append({'msg_id': mid, 'ts': now}); s['asks'] = a
             s.pop('keepers', None)
         st.update_state(add)
-        st.log_outbox({'kind': 'ask', 'chars': len(text), 'mode': 'live', 'options': len(opts)})
+        st.log_outbox(dict({'kind': 'ask', 'chars': len(text), 'mode': 'live', 'options': len(opts)}, **auto))
         self._count_out(key, 'reply')
         self.log('persona %s: asked, %d chars' % (key, len(text)))
         return 200, {'ok': True, 'sent': True, 'dry': False, 'msg_id': mid}

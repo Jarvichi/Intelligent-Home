@@ -136,6 +136,45 @@ class Http(unittest.TestCase):
         self.assertEqual(len(r['series']), 2); self.assertEqual(r['jumps'][0]['rise'], 4.0)
 
 
+class Countdown(unittest.TestCase):
+    def smp(self, pace, age=60): return {'ts': NOW - age, 'session': 1, 'week': 2, 'pace': pace}
+
+    def test_over_pace_counts_down_like_the_ha_sensor(self):
+        c = S.countdown(self.smp(10.0), NOW)
+        self.assertEqual(c['state'], 'counting')
+        self.assertEqual(c['hours_until_under'], 16.8)                  # 10 / (100/168), the sensor's formula
+        self.assertEqual(c['target_ts'], NOW - 60 + 16.8 * 3600)
+        self.assertEqual((c['pace'], c['sample_ts'], c['server_ts'], c['age_s']), (10.0, NOW - 60, NOW, 60))
+
+    def test_under_pace_is_zero_hours(self):
+        c = S.countdown(self.smp(-3.5), NOW)
+        self.assertEqual((c['state'], c['hours_until_under']), ('under', 0.0))
+
+    def test_exactly_at_target(self):
+        c = S.countdown(self.smp(0), NOW)
+        self.assertEqual((c['state'], c['hours_until_under'], c['target_ts']), ('under', 0.0, NOW - 60))
+
+    def test_target_already_passed_is_under(self):
+        # pace 0.1 -> 0.168 h = 605 s after the sample; sample is 700 s old and still fresh
+        self.assertEqual(S.countdown(self.smp(0.1, age=700), NOW)['state'], 'under')
+
+    def test_stale_or_missing_is_no_data(self):
+        self.assertEqual(S.countdown(self.smp(10.0, age=S.STALE_S), NOW)['state'], 'counting')     # exactly 15 min is still fresh
+        c = S.countdown(self.smp(10.0, age=S.STALE_S + 1), NOW)
+        self.assertEqual((c['state'], c['hours_until_under'], c['target_ts']), ('no_data', None, None))
+        self.assertEqual(S.countdown(self.smp(None), NOW)['state'], 'no_data')
+        self.assertEqual(S.countdown(None, NOW)['state'], 'no_data')
+
+    def test_store_latest_and_endpoint(self):
+        st = mk()
+        self.assertIsNone(st.latest())
+        self.assertEqual(M.dispatch(st, {}, 'GET', '/countdown', '', None)['state'], 'no_data')
+        import time
+        st.add_sample(1, 2, 5.0, ts=int(time.time()) - 30)
+        r = M.dispatch(st, {}, 'GET', '/countdown', '', None)
+        self.assertEqual((r['state'], r['hours_until_under']), ('counting', 8.4))
+
+
 class Options(unittest.TestCase):
     def test_defaults_and_bounds(self):
         d = tempfile.mkdtemp(); p = os.path.join(d, 'o.json')
@@ -172,6 +211,8 @@ class Files(unittest.TestCase):
         self.assertRegex(page, r'<button id="f-clear"[^>]*>Clear</button>')
         for sel in ('f-source', 'f-period'): self.assertRegex(page, r'<label for="%s">[^<]+</label>' % sel)
         self.assertNotIn('chip', page + css)
+        for hook in ('id="clock"', 'id="clock-text"', 'role="timer"'): self.assertIn(hook, page)
+        self.assertIn('/countdown', js)
         for bad in ('innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'confirm(', 'alert('): self.assertNotIn(bad, js)
 
     def test_versions_in_step_and_meta(self):

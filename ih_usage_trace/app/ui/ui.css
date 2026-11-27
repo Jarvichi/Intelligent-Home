@@ -38,3 +38,9 @@ section h2{font-size:18px;margin:24px 0 8px}
 .u-table th,.u-table td{padding:8px 10px;border-bottom:1px solid var(--ih-line);text-align:left;white-space:nowrap}
 .u-table th{color:var(--ih-muted);font-weight:600}
 .u-table td:nth-child(3){white-space:normal;overflow-wrap:anywhere}
+
+.u-clock{margin:16px 0;padding:16px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-panel);background:var(--ih-surface)}
+.u-clock h2{margin:0 0 8px}
+.u-clock-text{display:block;font-size:clamp(28px,8vw,48px);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.u-clock[data-state=under] .u-clock-text{color:var(--u-line-session)}
+.u-clock[data-state=no_data] .u-clock-text{color:var(--ih-muted)}

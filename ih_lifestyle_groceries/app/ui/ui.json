@@ -1,0 +1,9 @@
+{
+  "title": "Groceries",
+  "purpose": "Read-only view of the grocery receipts ledger and item library.",
+  "description": "Shows the add-on mode, counts, the latest receipts, recent price changes, products due again and a search over the item library. Nothing here writes, and nothing can add to or tick the shopping list.",
+  "health_port": 8801,
+  "health_path": "/healthz",
+  "navigation": ["Summary and mode", "Latest receipts", "Price changes", "Due again", "Item library search"],
+  "access": "Home Assistant authenticated admin ingress only; read-only"
+}

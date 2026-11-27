@@ -26,8 +26,9 @@
       const meta = el('div', 'wk-meta');
       meta.appendChild(el('span', '', NAME[w.worker] || w.worker));
       meta.appendChild(el('span', '', 'running ' + elapsed(w.elapsed_s)));
+      if (w.progress) meta.appendChild(el('span', 'wk-progress', w.progress));
       if (w.detail) meta.appendChild(el('span', '', w.detail));
-      if (w.stalled) meta.appendChild(el('span', 'wk-flag', 'No update for ' + elapsed(w.age_s) + ' (last stage: ' + (LABEL[w.stage] || w.stage) + ')'));
+      if (w.stalled) meta.appendChild(el('span', 'wk-flag', 'No update for ' + elapsed(w.age_s) + (w.stall_s ? ' (limit ' + elapsed(w.stall_s) + ')' : '') + ' (last stage: ' + (LABEL[w.stage] || w.stage) + ')'));
       r.appendChild(meta);
       rows.appendChild(r);
     }

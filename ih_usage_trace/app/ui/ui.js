@@ -177,6 +177,31 @@
 
   function render() { fillTables(); draw(); }
 
+  // Countdown tile. The server sends an absolute target time; the browser ticks it every second and corrects for a clock that is off
+  // (offset = server time - browser time at the moment of the reply). Re-synced by load().
+  var cd = null, offset = 0;
+  function dhms(sec) {
+    var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), s = Math.floor(sec % 60);
+    return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'm ' + s + 's';
+  }
+  function tick() {
+    var box = $('clock-text'), tile = $('clock').parentNode, state = 'no_data', text = 'No data', note;
+    if (cd && cd.state !== 'no_data') {
+      var left = cd.target_ts - (Date.now() / 1000 + offset);
+      if (cd.state === 'under' || left <= 0) { state = 'under'; text = 'Under pace now'; }
+      else { state = 'counting'; text = dhms(left); }
+      note = 'Pace ' + cd.pace + ' points over an even spread; sample from ' + fmt(cd.sample_ts) + '. Counts down to ' + fmt(cd.target_ts) + ' if no more Claude is used; re-synced when new data arrives.';
+    } else {
+      note = cd && cd.sample_ts ? 'The newest sample is from ' + fmt(cd.sample_ts) + ' (older than 15 minutes) or has no pace.' : 'No usage samples yet.';
+    }
+    tile.setAttribute('data-state', state);
+    if (box.textContent !== text) { box.textContent = text; $('clock').setAttribute('aria-label', text); }
+    $('clock-note').textContent = note;
+  }
+  function loadClock() {
+    return api('/countdown').then(function (d) { cd = d; offset = d.server_ts - Date.now() / 1000; tick(); }).catch(function () { cd = null; tick(); });
+  }
+
   function load() {
     var since = period() ? Math.floor(Date.now() / 1000) - period() : 0;
     return Promise.all([api('/series?since=' + since), api('/events?since=' + since), api('/status')]).then(function (r) {
@@ -211,6 +236,9 @@
     window.addEventListener('resize', function () { clearTimeout(tm); tm = setTimeout(draw, 120); });
     load();
     setInterval(load, 120000);
+    loadClock();
+    setInterval(loadClock, 60000);
+    setInterval(tick, 1000);
   }
   init();
 })();

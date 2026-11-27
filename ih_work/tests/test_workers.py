@@ -48,6 +48,23 @@ class Unit(unittest.TestCase):
         self.c.move(minutes=24); self.assertEqual(len(self.w.view()['workers']), 1)
         self.c.move(minutes=1); self.assertEqual(self.w.view()['workers'], [])
 
+    def test_planning_stalls_at_15_min_others_at_5(self):
+        self.w.update(dict(MSG, stage='planning')); self.c.move(seconds=600)
+        x = self.w.view()['workers'][0]; self.assertFalse(x['stalled']); self.assertEqual(x['stall_s'], 900)
+        self.c.move(seconds=300); self.assertTrue(self.w.view()['workers'][0]['stalled'])
+        for st in ('starting', 'assessing', 'implementing', 'reporting', 'reviewing'):
+            self.w.update(dict(MSG, stage=st)); self.c.move(seconds=299)
+            self.assertFalse(self.w.view()['workers'][0]['stalled'], st); self.c.move(seconds=1)
+            x = self.w.view()['workers'][0]; self.assertTrue(x['stalled'], st); self.assertEqual(x['stall_s'], 300)
+
+    def test_progress_stored_scrubbed_kept_and_cleared(self):
+        self.assertEqual(self.w.update(dict(MSG, stage='planning')), {'ok': True}); self.assertEqual(self.w.view()['workers'][0]['progress'], '')
+        self.w.update(dict(MSG, stage='planning', progress='planned 3 of 12')); self.assertEqual(self.w.view()['workers'][0]['progress'], 'planned 3 of 12')
+        self.w.update(dict(MSG, stage='planning')); self.assertEqual(self.w.view()['workers'][0]['progress'], 'planned 3 of 12')
+        self.w.update(dict(MSG, stage='implementing')); self.assertEqual(self.w.view()['workers'][0]['progress'], '')
+        self.w.update(dict(MSG, stage='planning', progress='token=abc123 ' + 'z' * 100)); p = self.w.view()['workers'][0]['progress']
+        self.assertNotIn('abc123', p); self.assertLessEqual(len(p), 60)
+
     def test_update_resets_stalled_keeps_start(self):
         self.w.update(dict(MSG, started_at=None) if False else MSG); self.c.move(minutes=10)
         self.w.update(dict(MSG, stage='planning', detail='brain_write x')); x = self.w.view()['workers'][0]
@@ -76,7 +93,7 @@ class Unit(unittest.TestCase):
         open(os.path.join(self.d, 'workers.json'), 'w').write('{not json'); self.assertEqual(Workers(self.d, self.c).view()['workers'], [])
 
     def test_stored_file_has_no_secrets_fields(self):
-        self.w.update(MSG); self.assertEqual(set(json.load(open(os.path.join(self.d, 'workers.json')))['queue']), {'worker', 'title', 'ref', 'started_at', 'stage', 'detail', 'updated_at'})
+        self.w.update(MSG); self.assertEqual(set(json.load(open(os.path.join(self.d, 'workers.json')))['queue']), {'worker', 'title', 'ref', 'started_at', 'stage', 'detail', 'progress', 'updated_at'})
 
 
 class Api(Base):
@@ -106,6 +123,10 @@ class Api(Base):
         s, v = self.call('GET', '/workers'); x = v['workers'][0]
         self.assertEqual((s, x['worker'], x['stage'], x['title']), (200, 'queue', 'assessing', 'Do the thing')); self.assertNotIn(TOKEN, json.dumps(v))
         self.call('POST', '/workers/status', dict(MSG, stage='idle')); self.assertEqual(self.call('GET', '/workers')[1]['workers'], [])
+
+    def test_progress_over_http(self):
+        self.assertEqual(self.call('POST', '/workers/status', dict(MSG, stage='planning', progress='planned 3 of 12'))[0], 200)
+        x = self.call('GET', '/workers')[1]['workers'][0]; self.assertEqual((x['progress'], x['stall_s']), ('planned 3 of 12', 900))
 
     def test_validation_errors(self):
         self.assertEqual(self.call('POST', '/workers/status', dict(MSG, stage='x'))[0], 400)

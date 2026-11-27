@@ -4,7 +4,7 @@
 API on IHU_PORT (bearer api_token; an empty token refuses everything except /healthz):
   GET  /healthz (open)   GET /status
   POST /events {source, label, start?, end?, ref?}   start defaults to now. Same source+ref with an end closes the open one. No message text is ever accepted or stored.
-  GET  /events?since=&until=&source=   GET /series?since=&until=   (times: ISO 8601 or epoch seconds; series also returns the unattributed jumps)
+  GET  /events?since=&until=&source=   GET /countdown (hours until the week pace is under target, with an absolute target time)   GET /series?since=&until=   (times: ISO 8601 or epoch seconds; series also returns the unattributed jumps)
 mode shadow: the series is recorded, POST /events logs 'would store' and stores nothing. mode live: events are stored.
 The ingress page (IHU_UI_PORT, Home Assistant sign-in, admin only) serves the same GET routes under /api/. Threaded servers. stdlib only."""
 import hmac
@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import store as S
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 DATA = os.environ.get('IHU_DATA', '/data')
 PORT = int(os.environ.get('IHU_PORT', '8848'))
 UI_PORT = int(os.environ.get('IHU_UI_PORT', '8849'))
@@ -89,6 +89,8 @@ def dispatch(store, opts, method, path, query, body):
             if path == '/status':
                 return {'version': VERSION, 'mode': opts['mode'], 'counts': store.counts(), 'jump_threshold': opts['jump_threshold'],
                         'retention_days': opts['retention_days'], 'schema': store.db.schema_version(), 'api_token_set': bool(opts['api_token'])}
+            if path == '/countdown':
+                return S.countdown(store.latest(), time.time())
             if path == '/series':
                 return series_reply(store, opts, q)
             if path == '/events':

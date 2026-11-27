@@ -3,10 +3,16 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
-## [0.29.0] - 2026-11-27
+## [0.30.0] - 2026-11-27
 
 ### Added
 - `GET /persona/<key>/weather` (read only): today's weather for every persona, fetched from the Met Office add-on `GET /summary?format=json` with a bearer token (5 s timeout). New options `weather_url` (default `http://172.30.32.1:8799`, the ih_jobs_metoffice host port) and `weather_token` (password, the Met Office add-on's `assistant_token`). Empty token = off: the reply says `Weather lookup is not set up yet.` Refusals and network errors become one plain sentence; only the error type is logged, never the token. Needs ih_jobs_metoffice with `/summary`.
+
+## [0.29.0] - 2026-11-27
+
+### Changed
+- Planned check-ins are no longer lost for a passing reason. When a slot is held back by messaged recently, persona spoke recently, last message unanswered, too soon after the last check-in, not home or busy now, it becomes `deferred` and is re-checked every 15 minutes until the earlier of 3 hours or 15 minutes before wake end; then it is sent or marked `missed`. Quiet hours, max per day and outside waking hours still end the slot (`skipped`). Max per day and the minimum gap still apply, so there are no bursts. Agreed times keep their exemption. The log says why and until when; the plan view shows `deferred`.
+- Replies and questions written because of an automated `reminder_due` event no longer count as the persona having spoken. `reply` and `ask` accept `auto: true`; the add-on also marks the entry itself when the newest message-like inbox event is a `reminder_due`. The outbox entry carries `auto: true`; the "spoke recently" and "unanswered" checks ignore those entries.
 
 ## [0.28.0] - 2026-11-25
 

@@ -1,13 +1,14 @@
 """Live worker status (0.4.0): what each Claude runner is doing right now (worker name, task title, stage, short detail).
 Kept in memory with a short copy in /data/workers.json (so a restart does not lose it). The runner posts on each stage change and a final 'idle'.
-The server stamps its own clock on every update. Not updated for 5 minutes = 'stalled'; not updated for 30 minutes = dropped. Idle removes the entry."""
+The server stamps its own clock on every update. Not updated for 5 minutes (15 minutes while planning, a request to a slow AI can take that long) = 'stalled'; not updated for 30 minutes = dropped. Idle removes the entry."""
 import json, os, re, threading
 from datetime import datetime, timedelta, timezone
 
 from store import FileStore, StoreError, iso, parse, utcnow
 
 STAGES = ('starting', 'assessing', 'planning', 'implementing', 'reporting', 'reviewing', 'idle')
-STALLED_S = 300
+STALLED_S = 300   # default limit
+STALL_BY_STAGE = {'planning': 900}
 DROP_S = 1800
 MAX_WORKERS = 8
 NAME_RE = re.compile(r'^[a-z0-9][a-z0-9_-]{0,19}$')
@@ -62,8 +63,11 @@ class Workers:
                     raise StoreError('conflict', 'too many workers')
                 started = d.get('started_at')
                 started = iso(parse(started)) if isinstance(started, str) and parse(started) else (self.items.get(w, {}).get('started_at') or iso(now))
+                old = self.items.get(w, {})
+                # progress: kept while the stage stays the same and none is sent; cleared on a stage change
+                progress = _text(d.get('progress'), 60) if d.get('progress') is not None else (old.get('progress', '') if old.get('stage') == stage else '')
                 self.items[w] = dict(worker=w, title=_text(d.get('title'), 120), ref=_text(d.get('ref'), 60), started_at=started,
-                                     stage=stage, detail=_text(d.get('detail'), 80), updated_at=iso(now))
+                                     stage=stage, detail=_text(d.get('detail'), 80), progress=progress, updated_at=iso(now))
             self._save()
         return {'ok': True}
 
@@ -75,5 +79,6 @@ class Workers:
             for v in sorted(self.items.values(), key=lambda x: x['worker']):
                 upd, st = parse(v['updated_at']) or now, parse(v['started_at']) or now
                 age = max(0, int((now - upd).total_seconds()))
-                out.append(dict(v, elapsed_s=max(0, int((now - st).total_seconds())), age_s=age, stalled=age >= STALLED_S))
+                limit = STALL_BY_STAGE.get(v.get('stage'), STALLED_S)
+                out.append(dict(v, progress=v.get('progress', ''), elapsed_s=max(0, int((now - st).total_seconds())), age_s=age, stall_s=limit, stalled=age >= limit))
         return {'workers': out, 'now': iso(now)}
