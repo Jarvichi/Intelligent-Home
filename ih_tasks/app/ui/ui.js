@@ -479,7 +479,7 @@
       return el('li', {}, [el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + c.id + ': ' + c.title, on: { click: function () { openTask(c.id); } } }, [el('b', { text: '#' + c.id }), c.title, el('small', { text: c.stage_label })])]);
     }))]));
     root.appendChild(linksCard(t));
-    if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), el('p', { 'class': 't-text', text: t.plan })]));
+    if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), window.IHTasksMarkdown.render(t.plan)]));
     if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
     if (t.description && !isOpen(t)) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));
     if (t.links.length) {

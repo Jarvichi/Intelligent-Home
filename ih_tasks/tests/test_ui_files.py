@@ -34,6 +34,11 @@ class Files(unittest.TestCase):
             self.assertNotIn(bad, js)
         self.assertIn("rel: 'noopener noreferrer'", js)
 
+    def test_plan_markdown_is_loaded_before_the_page(self):
+        page = (UI / 'index.html').read_text()
+        self.assertLess(page.index('src="markdown.js"'), page.index('src="ui.js"'))
+        self.assertIn('IHTasksMarkdown.render(t.plan)', (UI / 'ui.js').read_text())
+
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()
         css = (UI / 'ui.css').read_text()
