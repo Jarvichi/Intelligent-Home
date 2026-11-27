@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.41] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
 ## [0.1.40] - 2026-11-27
 - Add five themes with shared colours and visual details.
 
