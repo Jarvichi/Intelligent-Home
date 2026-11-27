@@ -60,6 +60,13 @@ class Files(unittest.TestCase):
             self.assertNotIn('id="%s"' % removed, page)
         self.assertIn('id="columns-picker"', page)
 
+    def test_board_tools_are_grouped_beside_new_task(self):
+        page = (UI / 'index.html').read_text()
+        heading = page[page.index('class="t-board-heading"'):page.index('id="add-msg"')]
+        self.assertLess(heading.index('id="new-open"'), heading.index('id="tools-menu"'))
+        for control in ('columns-picker', 'merge-toggle', 'dup-toggle'):
+            self.assertIn('id="%s"' % control, heading)
+
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()
         css = (UI / 'ui.css').read_text()

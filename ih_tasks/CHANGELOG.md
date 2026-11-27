@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.11
+- Group Columns, Merge and Find duplicates in a Tools menu beside New task.
+
 ## 0.10.10
 - Show the result, comments and history text as formatted Markdown using the same safe renderer as plans. Sync the shared UI components and tokens.
 

@@ -141,7 +141,7 @@
     board.hidden = only === 'closed' || visibleColumns === 0;
     $('f-count').textContent = shown + ' of ' + total + ' tasks' + (suppressed ? ' · ' + suppressed + ' in hidden columns' : '');
     $('board-empty').hidden = shown > 0;
-    $('board-empty').textContent = suppressed || selectedHidden ? 'Matching tasks may be in hidden columns. Use Columns to show them.' : 'No tasks match.';
+    $('board-empty').textContent = suppressed || selectedHidden ? 'Matching tasks may be in hidden columns. Use Tools → Columns to show them.' : 'No tasks match.';
     var filterCount = ['f-stage', 'f-waiting', 'f-label'].filter(function (id) { return !!$(id).value; }).length;
     $('filters-toggle').textContent = filterCount ? 'Filters (' + filterCount + ')' : 'Filters';
     renderColumnOptions();
@@ -635,14 +635,19 @@
   function trail(list, title) { var nav = document.querySelector('ih-nav'); if (nav && typeof nav.setTrail === 'function') nav.setTrail(list, title); }
 
   /* ---- start ---- */
+  var toolsMenu = $('tools-menu');
+  function closeTools(focus) { toolsMenu.open = false; $('columns-picker').open = false; if (focus) toolsMenu.querySelector('summary').focus(); }
+  document.addEventListener('click', function (event) { if (toolsMenu.open && !toolsMenu.contains(event.target)) closeTools(false); });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && toolsMenu.open) { event.preventDefault(); closeTools(true); } });
+  toolsMenu.addEventListener('toggle', function () { if (!toolsMenu.open) $('columns-picker').open = false; });
   $('filters-toggle').addEventListener('click', function () {
     var open = this.getAttribute('aria-expanded') !== 'true';
     this.setAttribute('aria-expanded', open ? 'true' : 'false'); $('filter-options').hidden = !open;
   });
   $('columns-reset').addEventListener('click', function () { hiddenColumns = []; saveColumns(); renderBoard(); });
   $('back').addEventListener('click', closeTask);
-  $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
-  $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
+  $('merge-toggle').addEventListener('click', function () { closeTools(false); setMerging(!state.merging); });
+  $('dup-toggle').addEventListener('click', function () { closeTools(false); if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
   ['f-search', 'f-stage', 'f-waiting', 'f-label'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
   $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; $('f-label').value = ''; renderBoard(); });
   /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). Its fields come from the shared field list. */
