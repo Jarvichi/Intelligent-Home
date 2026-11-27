@@ -143,8 +143,25 @@ window.IHToast = {
     { id: 'neutral', name: 'Neutral', description: 'Crisp and understated', light: ['#ffffff','#171717','#ffffff','#f5f5f5','#737373','#e5e5e5','#171717','#fafafa'], dark: ['#0a0a0a','#fafafa','#171717','#262626','#a1a1a1','#404040','#e5e5e5','#171717'] },
     { id: 'coastal', name: 'Coastal', description: 'Cool blue, calm surfaces', light: ['#f6f9fc','#152a3d','#ffffff','#eaf1f7','#526b80','#cbdbe7','#235b86','#ffffff'], dark: ['#101b26','#edf5fb','#192b3a','#243b4d','#acc1d0','#385264','#8ec8ef','#102b40'] },
     { id: 'woodland', name: 'Woodland', description: 'Soft greens, natural warmth', light: ['#f7f9f5','#203029','#ffffff','#edf3ea','#5b7062','#cfddd0','#31694c','#ffffff'], dark: ['#141d18','#eef5ed','#1e2c23','#2a3b2e','#b2c5b3','#415547','#9bd4a9','#173525'] },
-    { id: 'terracotta', name: 'Terracotta', description: 'Warm neutrals, earthy accent', light: ['#fcf8f5','#392820','#ffffff','#f6eee9','#82685c','#e8d8cf','#a64d31','#ffffff'], dark: ['#201713','#fff0e8','#30221c','#443029','#d0b7aa','#5e453a','#f0ab8e','#3d2015'] }
+    { id: 'terracotta', name: 'Terracotta', description: 'Warm neutrals, earthy accent', light: ['#fcf8f5','#392820','#ffffff','#f6eee9','#82685c','#e8d8cf','#a64d31','#ffffff'], dark: ['#201713','#fff0e8','#30221c','#443029','#d0b7aa','#5e453a','#f0ab8e','#3d2015'] },
+    { id: 'slate', name: 'Slate', description: 'Cool greys and a crisp blue', light: ['#f6f8fa','#17232f','#ffffff','#e9eef3','#526577','#c9d5e0','#245985','#ffffff'], dark: ['#111b24','#edf3f8','#1c2a36','#293a48','#afc1d0','#415667','#9acafa','#10263b'] },
+    { id: 'lavender', name: 'Lavender', description: 'Soft purple and rounded shapes', light: ['#faf8fc','#30243b','#ffffff','#f1eaf7','#6d597d','#ddd0e9','#704596','#ffffff'], dark: ['#1c1624','#f5edf9','#2a2035','#3a2c48','#c9b9d6','#584568','#d9b5f3','#302039'] },
+    { id: 'rose', name: 'Rose', description: 'Warm pink and soft stone', light: ['#fcf8f8','#39252a','#ffffff','#f8ecee','#7e5962','#ead3d8','#993f5b','#ffffff'], dark: ['#21171b','#fbeef1','#312329','#452f37','#d2b8c0','#624750','#f2b1c6','#3c1e29'] },
+    { id: 'midnight', name: 'Midnight', description: 'Deep navy with a little depth', light: ['#f5f8fc','#15263c','#ffffff','#e9eff8','#536982','#cad7e7','#205893','#ffffff'], dark: ['#0a1221','#edf4ff','#111e33','#1c2c45','#acbfd8','#354b68','#8bbfff','#0b2445'] },
+    { id: 'sunshine', name: 'Sunshine', description: 'Cream, amber and softer corners', light: ['#fdfaf2','#382b16','#fffefa','#f8f0dc','#786345','#e9dabb','#80540b','#ffffff'], dark: ['#211b11','#f9f0dc','#30271a','#443722','#d2bea0','#605037','#f2c879','#35260e'] }
   ];
+  // These details are deliberately modest: the same controls remain familiar in every theme.
+  const character = {
+    neutral: ['0.5rem', 'Inter, system-ui, sans-serif', '0 1px 2px rgb(0 0 0 / 5%)'],
+    coastal: ['0.625rem', 'Inter, system-ui, sans-serif', '0 2px 8px rgb(24 65 98 / 8%)'],
+    woodland: ['0.75rem', 'system-ui, sans-serif', '0 2px 8px rgb(30 65 40 / 8%)'],
+    terracotta: ['0.75rem', 'system-ui, sans-serif', '0 2px 8px rgb(90 45 25 / 9%)'],
+    slate: ['0.375rem', 'Inter, system-ui, sans-serif', '0 1px 4px rgb(20 40 60 / 8%)'],
+    lavender: ['0.875rem', 'system-ui, sans-serif', '0 3px 12px rgb(70 40 95 / 9%)'],
+    rose: ['0.875rem', 'system-ui, sans-serif', '0 3px 10px rgb(110 50 70 / 9%)'],
+    midnight: ['0.5rem', 'Inter, system-ui, sans-serif', '0 4px 16px rgb(0 12 35 / 18%)'],
+    sunshine: ['1rem', 'system-ui, sans-serif', '0 3px 10px rgb(100 65 15 / 10%)']
+  };
   const cacheKey = 'ih-active-theme-v1';
   const keys = ['--background','--foreground','--card','--muted','--muted-foreground','--border','--primary','--primary-foreground'];
   const valid = value => value && palettes.some(p => p.id === value.palette) && ['system','light','dark'].includes(value.mode);
@@ -157,6 +174,12 @@ window.IHToast = {
     const values = palettes.find(p => p.id === value.palette)[mode], style = document.documentElement.style;
     keys.forEach((key, i) => style.setProperty(key, values[i]));
     [['--card-foreground',1],['--popover',2],['--popover-foreground',1],['--secondary',3],['--secondary-foreground',1],['--accent',3],['--accent-foreground',1],['--input',5],['--ring',6]].forEach(([key, i]) => style.setProperty(key, values[i]));
+    const details = character[value.palette];
+    style.setProperty('--radius', details[0]);
+    style.setProperty('--ih-font', details[1]);
+    style.setProperty('--ih-shadow', mode === 'dark' ? '0 3px 12px rgb(0 0 0 / 25%)' : details[2]);
+    style.setProperty('--ih-space-3', value.palette === 'slate' ? '10px' : value.palette === 'sunshine' ? '14px' : '12px');
+    style.setProperty('--ih-space-4', value.palette === 'slate' ? '14px' : value.palette === 'sunshine' ? '18px' : '16px');
     style.setProperty('color-scheme', mode);
   };
   const remember = value => { if (valid(value)) try { localStorage.setItem(cacheKey, JSON.stringify(value)); } catch (_) {} };
@@ -174,7 +197,7 @@ window.IHToast = {
       const value = await response.json(); if (valid(value)) { remember(value); apply(value); }
     } catch (_) { /* Keep the last known appearance while Orchestrator is unavailable. */ }
   };
-  window.IHTheme = {apply, remember, refresh};
+  window.IHTheme = {apply, remember, refresh, palettes};
   if (media) { const changed = () => { if (current && current.mode === 'system') apply(current); }; if (media.addEventListener) media.addEventListener('change', changed); else if (media.addListener) media.addListener(changed); }
   if (!editor) {
     try { const saved = JSON.parse(localStorage.getItem(cacheKey)); if (valid(saved)) apply(saved); } catch (_) {}

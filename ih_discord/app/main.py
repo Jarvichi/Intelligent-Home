@@ -29,7 +29,7 @@ import identity
 import approvals
 import inbox_events
 
-VERSION = '0.11.2'
+VERSION = '0.11.3'
 SOURCE = 'ih_discord'
 STOP_FILE = 'STOP_LIVE'   # kill switch: create /data/STOP_LIVE and every module's Discord writes go dry at once
 DEFAULT_INBOX_URL = 'http://172.30.32.1:8800'   # the orchestration inbox add-on (queue API) seen from an add-on

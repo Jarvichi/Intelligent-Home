@@ -1,6 +1,6 @@
 {
  "name": "ih_addon_watchdog",
- "version": "0.1.4",
+ "version": "0.1.5",
  "kind": "addon",
  "description": "Finds stopped or hung add-ons, restarts them safely, saves the log lines and files one high-priority task. DRY mode by default.",
  "owner": "local add-on ih_addon_watchdog",

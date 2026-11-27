@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.4] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
 ## [0.15.3] - 2026-11-27
 - Fix theme contrast in Orchestrator and use shared styling for setup fields.
 

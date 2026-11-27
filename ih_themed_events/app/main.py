@@ -40,7 +40,7 @@ import effect_test
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.12'
+VERSION = '0.1.13'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
