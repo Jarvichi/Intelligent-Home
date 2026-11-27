@@ -395,8 +395,9 @@ def ai_type(ctx, box, s, veh):
     if ctx.dry:
         ctx.log('[DRY] would ask the AI layer for the model of fleet number %s' % num)
         return None
-    q = ('What bus model (manufacturer and type, e.g. "ADL Enviro400") is %s fleet number %s (bustimes.org code %s)? '
-         'Answer with the model name on the first line, or UNKNOWN. Public facts only.' % (s['operator_name'], num, veh))
+    q = ('What bus (make and model, e.g. "ADL Enviro400", single or double deck, and registration plate) is %s fleet number %s (bustimes.org code %s)? '
+         'Answer with the make and model on the first line, then on separate lines the deck (single or double) and, if you know it, the registration plate; '
+         'or UNKNOWN. Public facts only.' % (s['operator_name'], num, veh))
     ans = None
     try:
         layer = spare_ai.Layer(ctx.option('ai_layer_url').strip() or spare_ai.DEFAULT_URL, token, getattr(ctx.http, 'opener', None))
@@ -453,6 +454,17 @@ def unknown_codes(folder, answered=()):
     except OSError:
         pass
     return sorted(found.values(), key=lambda e: (e['last_seen'], e['code']), reverse=True)
+
+
+def unknown_attrs(folder, limit=200):
+    """Attributes the promise entity carries for the Transport page's Bus types card: ALL unclassified codes without an answer (newest first, at most `limit`),
+    so the dropdown lists every one. Never raises: if the database cannot be read the answered codes are simply not removed."""
+    try:
+        answered = jobs_db(folder).overrides()
+    except Exception:
+        answered = {}
+    codes = [e['code'] for e in unknown_codes(folder, answered)]
+    return {'unknown_codes': codes[:limit], 'unknown_count': len(codes)}
 
 
 def http_overrides(folder, method, body=None, log=None):
@@ -817,7 +829,9 @@ def publish_all(ctx, box, s, getbuses, now):
     if s['morning_entity']:
         items.append((s['morning_entity'],) + sensor_payload(status(ctx, box, s, 'morning', getbuses, now), s['morning_name'] or 'Bus'))
     if s['promise_entity']:
-        items.append((s['promise_entity'],) + promise_payload(s, box.promise_rows(), now))
+        pstate, pattrs = promise_payload(s, box.promise_rows(), now)
+        pattrs.update(unknown_attrs(box.folder))
+        items.append((s['promise_entity'], pstate, pattrs))
     if s['schedule_entity']:
         items.append((s['schedule_entity'],) + schedule_payload(s))
     ok = True

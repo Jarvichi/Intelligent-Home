@@ -3,6 +3,15 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.22.0] - 2026-11-27
+
+### Added
+- `transport_page`: optional "Bus types" card on the Transport page (settings `type_code_entity`, `type_deck_entity`, `type_save_entity`, `type_admin_url`): a code dropdown, a single/double/unknown choice, a Save button and a link to the admin Bus types card as a fallback. The save itself is a Home Assistant script that calls `POST /plugin/bus_watch/overrides`, so the token never goes in a dashboard. The admin card is unchanged.
+- `bus_watch`: the promise entity now carries `unknown_codes` (ALL unclassified codes without an answer, newest first, at most 200) and `unknown_count`, to fill that dropdown.
+
+### Changed
+- `bus_watch`: the AI question now asks for make and model, deck (single or double) and the registration plate, not only the model. Only the first line (make and model) is used as before.
+
 ## [0.21.0] - 2026-11-20
 
 ### Added
