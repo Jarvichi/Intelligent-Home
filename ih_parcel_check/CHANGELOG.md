@@ -1,4 +1,8 @@
 # Changelog
+## 0.4.0
+- New read-only page in the Home Assistant sidebar ("IH · Parcel check", ingress port 8099, answers only the Supervisor gateway): mode (DRY or live), last check time, whether the AI layer answers, counts (checked, parcel, no parcel, unsure, errors) for today and 7 days, the last 20 verdicts (time, camera, verdict, answer text, which AI answered) and recent errors. No pictures and no picture file names are shown or served. Confidence is not recorded (the model answers yes/no), so the answer text is shown instead.
+- New own database /data/ih.db (ihlib.db copy) with the verdicts and the last 50 errors. On the first start the old /data/verdicts.jsonl is imported; that file is kept and still written.
+- The HTTP servers are now threaded (an idle connection no longer blocks a request). Port 8816 with /healthz and /status is unchanged.
 ## 0.3.0
 - New option `checks`: a list of yes/no questions, each with `name`, `cameras` (comma list of picture prefixes), `question` and optional `yes_means`. Every picture is asked every matching check; verdicts are logged per check (new `check` field) and /status shows the latest verdict per check under `checks`. Empty list = the old single parcel check on `cameras`, so nothing changes on update. Old log lines count as check `parcel`. Still DRY: nothing is posted. Invalid or duplicate checks are skipped.
 
