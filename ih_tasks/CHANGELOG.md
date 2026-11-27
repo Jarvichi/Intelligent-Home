@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.9
+- Make the streamlined task board the standard view and remove the old layout and comparison switch.
+
 ## 0.10.8
 - Compare a simplified task board with the current layout. The new board uses one task creation entry point, expandable filters and browser-saved column visibility.
 

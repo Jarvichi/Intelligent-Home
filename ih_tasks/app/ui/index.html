@@ -22,16 +22,9 @@
 
       <section id="board-view" aria-label="Task board">
         <div class="t-board-heading"><div><span class="t-eyebrow">YOUR WORK</span><h2>Task board</h2></div>
-          <div class="t-board-heading-actions"><button id="new-open-compact" class="t-button" type="button" data-variant="primary">+ New task</button>
-          <div class="t-board-view-switch" role="group" aria-label="Board layout"><button id="board-view-new" class="t-button" type="button" aria-pressed="true">New view</button><button id="board-view-current" class="t-button" type="button" aria-pressed="false">Current view</button></div></div>
+          <div class="t-board-heading-actions"><button id="new-open" class="t-button" type="button" data-variant="primary" aria-haspopup="dialog">+ New task</button></div>
         </div>
-        <form id="add-form" class="t-add" autocomplete="off">
-          <label class="t-visually-hidden" for="add-title">New task title</label>
-          <input id="add-title" type="text" maxlength="200" placeholder="New task">
-          <button id="add-go" class="t-button" type="submit">Add</button>
-        </form>
         <p id="add-msg" class="ih-metadata" role="status" aria-live="polite"></p>
-        <p class="t-old-create"><button id="new-open" class="t-button" type="button" data-variant="primary" aria-haspopup="true">New task</button></p>
         <div id="new-modal" class="t-modal" role="dialog" aria-modal="true" aria-labelledby="new-heading" hidden>
           <form id="new-form" class="t-modal-card" autocomplete="off">
             <h2 id="new-heading">New task</h2>
@@ -46,9 +39,9 @@
             <label class="t-visually-hidden" for="f-search">Search tasks</label>
             <input id="f-search" type="search" placeholder="Search by title or number">
             <span id="f-count" class="ih-metadata" role="status" aria-live="polite"></span>
-            <button id="filters-toggle" class="t-button t-board-new-only" type="button" aria-expanded="false" aria-controls="filter-options">Filters</button>
+            <button id="filters-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="filter-options">Filters</button>
           </div>
-          <div id="filter-options">
+          <div id="filter-options" hidden>
           <div class="t-filter-grid">
             <label for="f-stage">Stage</label>
             <label for="f-waiting">Waiting for</label>
@@ -73,7 +66,7 @@
         </div>
 
         <div class="t-tools">
-          <details id="columns-picker" class="t-columns-picker t-board-new-only"><summary>Columns</summary><div id="column-options" class="t-column-options"></div><button id="columns-reset" class="t-button" type="button">Show all</button></details>
+          <details id="columns-picker" class="t-columns-picker"><summary>Columns</summary><div id="column-options" class="t-column-options"></div><button id="columns-reset" class="t-button" type="button">Show all</button></details>
           <button id="merge-toggle" class="t-button" type="button" aria-pressed="false">Merge</button>
           <button id="dup-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="dup-view">Find duplicates</button>
         </div>

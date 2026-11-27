@@ -48,6 +48,13 @@ class Files(unittest.TestCase):
         self.assertNotIn("$('view-old')", script)
         self.assertNotIn('renderOldDetail', script)
 
+    def test_board_has_one_creation_entry_and_no_comparison_switch(self):
+        page = (UI / 'index.html').read_text()
+        self.assertEqual(page.count('id="new-open"'), 1)
+        for removed in ('add-form', 'board-view-new', 'board-view-current'):
+            self.assertNotIn('id="%s"' % removed, page)
+        self.assertIn('id="columns-picker"', page)
+
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()
         css = (UI / 'ui.css').read_text()
