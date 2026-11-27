@@ -2,6 +2,7 @@
 
 ## [0.9.4] - 2026-11-27
 - Add five themes with shared colours and visual details.
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
 
 ## [0.9.3] - 2026-11-27
 - Apply the active Intelligent Home appearance across add-ons.
