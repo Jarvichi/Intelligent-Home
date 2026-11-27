@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.12
+- Remove the redundant task board headings.
+
 ## 0.10.11
 - Group Columns, Merge and Find duplicates in a Tools menu beside New task.
 
