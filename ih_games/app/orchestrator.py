@@ -15,6 +15,11 @@ TEMPLATES = {
     ]
 }
 
+SESSION_TEMPLATES = [
+    "Good session on {game}: {events_summary}. How was it?",
+    "{events_summary}, nice long one. Enjoying {game}?",
+]
+
 PLAYFUL = [
     "Spotted you on {game}. {events_summary}. Go on then, how did it go?",
     "Right, {game}: {events_summary}. Not bad. Enjoying it?",
@@ -202,7 +207,10 @@ def run(ctx, now=None):
 
         rnd = random.Random(f"{pkey}_{valid_events[0]['time']}")
         kind = rnd.choice(["congrats", "ask"])
-        tmpl = rnd.choice(PLAYFUL if p.get("voice") == "playful" else TEMPLATES[kind])
+        if all(e.get("kind") == "session" for e in valid_events):   # play time only, no trophies: do not congratulate on a trophy
+            tmpl = rnd.choice(SESSION_TEMPLATES)
+        else:
+            tmpl = rnd.choice(PLAYFUL if p.get("voice") == "playful" else TEMPLATES[kind])
         msg_text = tmpl.format(game=game, events_summary=summary_str)
 
         msg_payload = {
@@ -241,7 +249,7 @@ def run(ctx, now=None):
             ctx.log("[DRY] would send event to persona %s" % speaker)
         elif a_url and sent_ok:
             facts = {"player": pkey, "kind": kind, "game": game, "events": len(valid_events), "big": has_big,
-                     "summary": summary_str, "event_time": valid_events[-1]["time"]}
+                     "summary": summary_str, "sessions": sum(1 for e in valid_events if e.get("kind") == "session"), "event_time": valid_events[-1]["time"]}
             names = [str(e.get("achievement")) for e in valid_events if e.get("kind") == "trophy_named" and e.get("achievement")]
             if names:
                 facts["trophies"] = "; ".join(names)
