@@ -273,7 +273,8 @@ class PersonaStore:
         with self._lock:
             return self.adb.outbox_count(self.key)
 
-    def last_outbox_ts(self, kinds):
-        """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only timestamps and kinds."""
+    def last_outbox_ts(self, kinds, skip_auto=False):
+        """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only timestamps and kinds.
+        skip_auto: ignore entries marked auto (replies to automated reminder events)."""
         with self._lock:
-            return self.adb.outbox_last_ts(self.key, kinds)
+            return self.adb.outbox_last_ts(self.key, kinds, skip_auto)
