@@ -1,7 +1,13 @@
 main { max-width: 1400px; margin: auto; padding: 1rem; }
-.card { background: var(--ih-surface, #fff); border: 1px solid var(--ih-border, #ddd); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+.card { margin-bottom: 1rem; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .previews { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
-.previews img { display: block; max-width: 100%; width: min(100%,536px); height: auto; margin: 0 auto; }
+.previews .card { min-width: 0; margin-bottom: 0; }
+.previews img { display: block; max-width: 100%; width: min(100%,536px); height: auto; margin: 0 auto; border-radius: calc(var(--radius) - 2px); }
 .previews img[hidden] { display: none; }
+input, select { box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); background: var(--background); color: var(--foreground); }
+input:focus-visible, select:focus-visible { outline: 0; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent); }
+button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); background: var(--background); color: var(--foreground); font-size: 14px; font-weight: 500; cursor: pointer; box-shadow: var(--ih-shadow); }
+button:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
+button:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 760px) { .previews { grid-template-columns: 1fr; } }
