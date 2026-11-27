@@ -251,7 +251,8 @@ class Jobs:
 
 class Manager:
     def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
-                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}, theme_path=None):
+                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}, theme_path=None, wd=lambda: None):
+        self.wd = wd
         self.static, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.registered, self._cat = registered, (0, None)
         self._meta, self._meta_file = {}, os.environ.get("IH_META_CACHE", "/data/meta_cache.json")
@@ -793,9 +794,41 @@ class Manager:
         svc = [{"name": r.get("name"), "state": r.get("state"), "kind": r.get("kind"), "version": r.get("version"),
                 "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or [] if isinstance(c, dict)]}
                for r in snap.get("services") or []]
-        return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s"),
+        counts = dict(snap.get("counts") or {})
+        total = snap.get("total")
+        wd = getattr(self, "wd", lambda: None)()
+        report = wd.report() if wd else None
+        if report and report["enabled"]:       # the watchdog's per-add-on result feeds the same cards (names already reported by a manifest win)
+            have = {s["name"] for s in svc}
+            for r in report["rows"]:
+                if r["slug"] in have:
+                    continue
+                svc.append({"name": r["slug"], "state": r["state"], "kind": "addon", "version": None,
+                            "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or []] or [str(r.get("probe") or "")[:200]]})
+                counts[r["state"]] = counts.get(r["state"], 0) + 1
+                total = (total or 0) + 1
+        return 200, {"services": svc, "counts": counts, "total": total, "stale": snap.get("stale"), "age_s": snap.get("age_s"),
                      "consumer_progress": snap.get("consumer_progress") or [],
-                     "ui_contributions": snap.get("ui_contributions") or []}
+                     "ui_contributions": snap.get("ui_contributions") or [],
+                     "watchdog": report}
+
+    def watchdog_mode(self, mode):
+        wd = self.wd()
+        if not wd or mode not in ("dry", "live"):
+            return 400, {"error": "watchdog is off or the mode is unknown"}
+        wd.set_mode(mode)
+        self.log("watchdog: mode set to %s from the page" % mode)
+        return 200, {"mode": mode}
+
+    def watchdog_toggle(self, short, on):
+        wd = self.wd()
+        if not wd:
+            return 400, {"error": "watchdog is off"}
+        try:
+            wd.set_enabled(short, on)
+        except ValueError as e:
+            return 404, {"error": str(e)}
+        return 200, {"slug": short, "enabled": on}
 
 
 PAGE = (Path(__file__).parent / "ui" / "index.html").read_text(encoding="utf-8")
@@ -884,6 +917,10 @@ def make_handler(mgr):
                 except (ValueError, UnicodeDecodeError):
                     return self._json(400, {"error": "bad json"})
                 return self._json(*mgr.wizard_save(parts[2], body))
+            if len(parts) == 4 and parts[:3] == ["api", "watchdog", "mode"]:
+                return self._json(*mgr.watchdog_mode(parts[3]))
+            if len(parts) == 5 and parts[:3] == ["api", "watchdog", "toggle"] and parts[4] in ("on", "off"):
+                return self._json(*mgr.watchdog_toggle(unquote(parts[3]), parts[4] == "on"))
             if parts == ["api", "provision"]:
                 return self._json(*mgr.fill_now())
             self._json(404, {"error": "not found"})

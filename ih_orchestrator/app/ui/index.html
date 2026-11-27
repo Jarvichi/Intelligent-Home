@@ -345,8 +345,17 @@ function tabHealth(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);
    var c2=card('Consumers','Is anything waiting for an answer?');var p=j.consumer_progress||[];
    if(!p.length)c2.appendChild(stateBox('empty','No consumer outcome streams reported yet.'));
    p.forEach(function(x){var st=x.status||'unknown',tone=st=='idle'?'':st=='stalled'?'bad':st=='disabled'?'off':'warn';var d=[st.charAt(0).toUpperCase()+st.slice(1).replace(/_/g,' ')+'.',(x.pending==null?'Pending unknown':x.pending+' pending')+'.'];if(x.oldest_pending_age_s!=null)d.push('Oldest pending '+Math.floor(x.oldest_pending_age_s)+' s.');if(x.no_progress_s!=null)d.push('No progress '+Math.floor(x.no_progress_s)+' s.');if(x.reason)d.push('Reason: '+String(x.reason).replace(/_/g,' ')+'.');c2.appendChild(row(tone,x.consumer,d.join(' ')))});
-   holder.appendChild(c2)}
+   holder.appendChild(c2);if(j.watchdog)holder.appendChild(wdCard(j.watchdog))}
   holder.appendChild(usageItem())}
+ function wdCard(w){var live=w.mode=='live',c=card('Add-on watchdog',w.enabled?(live?'LIVE: a failing add-on is restarted after '+w.failed_probes+' failed checks in a row.':'DRY: failing add-ons are only reported, nothing is restarted.')+' Only Intelligent Home add-ons are watched.':'Switched off in the configuration (watchdog_enabled).');
+  if(!w.enabled)return c;
+  c.appendChild(btn(live?'Switch to DRY (report only)':'Switch to LIVE (restart failing add-ons)',function(){var me=this;ask(me,live?'Switch the watchdog to DRY (report only)?':'Switch the watchdog to LIVE? Failing add-ons will be restarted.',function(){say('saving ...');post('api/watchdog/mode/'+(live?'dry':'live')).then(function(y){say(y[0]==200?'Watchdog is now '+y[1].mode+'.':(y[1].error||'failed'));show(true)}).catch(function(e){say('error: '+e)})})},live?'':'danger'));
+  if(!w.rows.length)c.appendChild(stateBox('empty','No installed Intelligent Home add-ons to watch yet.'));
+  w.rows.forEach(function(r){var tone=r.state=='OK'?'':r.state=='FAIL'?'bad':'warn',sub=r.state+' · '+(r.fails?r.fails+' failed in a row · ':'')+r.restarts_today+' restarts today'+(r.enabled?'':' · watching paused');
+   c.appendChild(item('w:'+r.slug,tone,r.name,[],sub,function(b){b.appendChild(kvl([['Add-on state',r.addon_state],['Last result',r.probe],['Failed in a row',r.fails],['Last action',r.action||r.last_action||'none'],['Restarts today',r.restarts_today]]));
+    b.appendChild(btn(r.enabled?'Pause watching this add-on':'Resume watching',function(){post('api/watchdog/toggle/'+encodeURIComponent(r.slug)+'/'+(r.enabled?'off':'on')).then(function(){show(true)})}))})).style.marginTop='6px'});
+  if(w.incidents.length){var inc=item('w:incidents','warn','Incidents',[],w.incidents.length+' recent (30 days)',function(b){w.incidents.forEach(function(x){b.appendChild(E('p',new Date(x.at*1000).toLocaleString()+' · '+x.name+' · '+(x.dry?'[DRY] ':'')+x.action+' · '+x.probe+(x.task?' · task #'+x.task:''),'meta')).style.marginTop='8px';if(x.excerpt){var pre=E('pre',x.excerpt.slice(-1500));pre.style.maxHeight='140px';pre.style.overflow='auto';b.appendChild(pre)}})});inc.style.marginTop='6px';c.appendChild(inc)}
+  return c}
  function usageItem(){var u=S.usage,box=E('div');
   var it=item('usage',u&&u.state=='fail'?'bad':'off','Usage, last 7 days',[],u&&u.data?'Calls per add-on. '+u.data.addons.length+' add-ons, '+u.data.addons.filter(function(a){return a.total==0}).length+' not used.':u&&u.state=='fail'?'Could not read.':'Reading...',function(b){
    if(!u||u.state=='fail'){b.appendChild(stateBox('fail','Could not read the usage.',function(){show(true)},u&&u.err)).style.marginTop='10px';return}
