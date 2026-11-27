@@ -220,6 +220,24 @@ class DB:
                 self._all.append(con)
         return con
 
+    def release(self):
+        """Close and forget THIS thread's connection. Call at the end of a short-lived thread (one per request), else each
+        thread leaves a connection (about 3 open files) behind. Safe to call when the thread has none; it reopens on next use."""
+        con = getattr(self._local, 'con', None)
+        if con is None:
+            return
+        self._local.con = None
+        self._local.depth = 0
+        with self._all_lock:
+            try:
+                self._all.remove(con)
+            except ValueError:
+                pass
+        try:
+            con.close()
+        except sqlite3.Error:
+            pass
+
     def close(self):
         """Close every thread's connection. Call once, when no thread is using the database any more."""
         with self._all_lock:

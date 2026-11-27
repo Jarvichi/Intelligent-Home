@@ -51,6 +51,13 @@ def token_ok(header, token):
 
 def make_handler(box, opts):
     class H(BaseHTTPRequestHandler):
+        def handle(self):
+            # one thread per request: give its database connection back, or the open-file limit is hit (task #243)
+            try:
+                super().handle()
+            finally:
+                box.db.release()
+
         def log_message(self, *a):
             pass
 
@@ -143,6 +150,13 @@ def status_page(box):
 
 def make_status_handler(box):
     class S(BaseHTTPRequestHandler):
+        def handle(self):
+            # one thread per request: give its database connection back, or the open-file limit is hit (task #243)
+            try:
+                super().handle()
+            finally:
+                box.db.release()
+
         def log_message(self, *a):
             pass
 

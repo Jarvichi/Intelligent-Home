@@ -1,5 +1,5 @@
 name: "Intelligent Home - Email"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_email
 image: "ghcr.io/jarvichi/{arch}-ih_email"
 description: "Lets the AI Layer assistant look through the house mailbox, pull facts out of an email, and reply or send. Read-only reading (nothing is marked read, attachments are never returned). Sending needs a confirmed flag, at most 3 recipients and at most 5 emails a day. Own database, token-protected local API, status page."
