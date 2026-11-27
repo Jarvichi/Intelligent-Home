@@ -34,6 +34,17 @@ class Store:
     def close(self):
         self.db.close()
 
+    def close_thread_connection(self):
+        """Release the connection owned by a finished HTTP handler thread."""
+        con = getattr(self.db._local, 'con', None)
+        if con is None:
+            return
+        with self.db._all_lock:
+            if con in self.db._all:
+                self.db._all.remove(con)
+        del self.db._local.con
+        con.close()
+
     def now(self):
         return datetime.fromtimestamp(self.clock(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 

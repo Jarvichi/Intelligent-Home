@@ -40,7 +40,7 @@ import effect_test
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.8'
+VERSION = '0.1.9'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -263,9 +263,15 @@ def _slug_of(body):
     return re.sub(r'[^a-z0-9]+', '_', str(name).lower()).strip('_')[:20]
 
 
-def make_handler(store, ha, opts_of, ui):
+def make_handler(store, ha, opts_of, ui, backup_status=None):
     class H(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
+
+        def finish(self):
+            try:
+                super().finish()
+            finally:
+                store.close_thread_connection()
 
         def log_message(self, *a):
             pass
@@ -334,7 +340,7 @@ def make_handler(store, ha, opts_of, ui):
             path = u.path[4:] if ui and u.path.startswith('/api/') else u.path
             if path == '/status':
                 return self._send(200, {'version': VERSION, 'counts': store.counts(), 'control': opts_of()['control'], 'api_token_set': bool(opts_of()['api_token']),
-                                        'schema': store.db.schema_version()})
+                                        'schema': store.db.schema_version(), 'backup': dict(backup_status or {})})
             if ui and not u.path.startswith('/api/'):
                 return self.send_error(404)
             self._run('GET', path, lambda: None)
@@ -362,6 +368,20 @@ def serve(make_server, make_store, name, log):
     return t
 
 
+def snapshot_if_due(path, folder, today, day, snapshot, log, backup_status=None):
+    if today != day:
+        try:
+            snapshot(path, folder)
+            if backup_status is not None:
+                backup_status.update(last_success=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), error='')
+            return today
+        except Exception as e:
+            if backup_status is not None:
+                backup_status['error'] = type(e).__name__
+            log('snapshot failed (%s)', type(e).__name__)
+    return day
+
+
 def main():
     lg = logging.getLogger('ihevents')
     lg.setLevel(logging.INFO)
@@ -369,6 +389,7 @@ def main():
     sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S'))
     lg.addHandler(sh)
     opts = load_options()
+    backup_status = {'last_success': '', 'error': ''}
     first = Store(DATA)
     seeded = SEED.load(first)
     try:
@@ -378,18 +399,12 @@ def main():
         ha = None
     lg.info('ih_themed_events %s starting: API %s, switching %s, events %d%s', VERSION, 'on' if opts['api_token'] else 'OFF (no api_token)', opts['control'],
             first.counts()['events'], ' (Halloween and NYE records added)' if seeded else '')
-    serve(lambda s: QuietServer(('0.0.0.0', PORT), make_handler(s, ha, lambda: opts, False)), lambda: Store(DATA), 'api', lg.info)
-    serve(lambda s: QuietServer(('0.0.0.0', UI_PORT), make_handler(s, ha, lambda: opts, True)), lambda: Store(DATA), 'ui', lg.info)
+    serve(lambda s: QuietServer(('0.0.0.0', PORT), make_handler(s, ha, lambda: opts, False, backup_status)), lambda: Store(DATA), 'api', lg.info)
+    serve(lambda s: QuietServer(('0.0.0.0', UI_PORT), make_handler(s, ha, lambda: opts, True, backup_status)), lambda: Store(DATA), 'ui', lg.info)
     from ihlib import db as ihdb
     day = None
     while True:
-        try:
-            today = time.strftime('%Y-%m-%d')
-            if today != day:
-                day = today
-                ihdb.snapshot(first.path, os.path.join(DATA, 'backup'))
-        except Exception as e:
-            lg.info('snapshot failed (%s)', type(e).__name__)
+        day = snapshot_if_due(first.path, os.path.join(DATA, 'backup'), time.strftime('%Y-%m-%d'), day, ihdb.snapshot, lg.info, backup_status)
         time.sleep(3600)
 
 

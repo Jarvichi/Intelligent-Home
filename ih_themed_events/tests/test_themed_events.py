@@ -33,6 +33,38 @@ def ev(**kw):
     return M.clean_event(base)
 
 
+class Reliability(unittest.TestCase):
+    def test_threaded_requests_release_connections(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(folder)
+            server = MAIN.QuietServer(('127.0.0.1', 0), MAIN.make_handler(store, None, lambda: {'api_token': 'test'}, False))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                for _ in range(30):
+                    req = urllib.request.Request('http://127.0.0.1:%d/events' % server.server_port, headers={'Authorization': 'Bearer test', 'Connection': 'close'})
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        self.assertEqual(resp.status, 200)
+                server.shutdown()
+                thread.join()
+                server.server_close()
+                self.assertEqual(len(store.db._all), 1)
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+                store.close()
+
+    def test_snapshot_retries_the_same_day(self):
+        snapshot = mock.Mock(side_effect=[OSError('disk full'), 'backup'])
+        day = MAIN.snapshot_if_due('db', 'backup', '2026-11-27', None, snapshot, lambda *a: None)
+        self.assertIsNone(day)
+        day = MAIN.snapshot_if_due('db', 'backup', '2026-11-27', day, snapshot, lambda *a: None)
+        self.assertEqual(day, '2026-11-27')
+        MAIN.snapshot_if_due('db', 'backup', day, day, snapshot, lambda *a: None)
+        self.assertEqual(snapshot.call_count, 2)
+
+
 class Rules(unittest.TestCase):
     def test_effect_steps_validate_and_preserve_legacy(self):
         legacy = M.clean_event(SEED.HALLOWEEN)

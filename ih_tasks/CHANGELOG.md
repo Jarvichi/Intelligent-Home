@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.1
+- Keep overdue reminder notifications in a durable queue until the inbox accepts them, even after the task reopens. Retry failed daily backups and run them independently of mirror and reminder failures.
+
 ## 0.10.0
 - **Raised by** (schema 18-19). Every task has `raised_by`. The page fills it in from the signed-in Home Assistant user; the API uses the `raised_by` the caller sends, or the caller itself ("claude" for the worker and check token, "owner" for the owner token, "system" for the add-on). Existing tasks get their `created_by`. It is shown on the task page and on the board cards, and is read-only after creation. Nothing writes "Name/Date" lines into the description any more (old text stays as history).
 - **Links at creation.** `POST /tasks` accepts `blocked_by`, `depends_on` and `relates_to` (lists of task numbers). Every task must exist, otherwise the whole create is refused; each link gets the same history lines as `/relate`.
