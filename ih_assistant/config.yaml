@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assistant - Personas"
-version: "0.29.0"
+version: "0.30.0"
 slug: ih_assistant
 image: "ghcr.io/jarvichi/{arch}-ih_assistant"
 description: "Personal assistant transport for several personas in one add-on: reads each person's private Discord messages through that persona's own bot, queues check-ins, and sends replies written elsewhere. Every persona has its own separate datastore. DRY-RUN by default."
@@ -38,6 +38,8 @@ options:
   usage_autoreply: true
   speaker_url: ""
   speaker_token: ""
+  weather_url: "http://172.30.32.1:8799"
+  weather_token: ""
   hearth:
     enabled: false
   personas: []
@@ -69,6 +71,8 @@ schema:
     - str?
   speaker_url: str?
   speaker_token: password?
+  weather_url: str?
+  weather_token: password?
   hearth:
     enabled: bool?
     persona: str?

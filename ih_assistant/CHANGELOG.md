@@ -3,6 +3,11 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.30.0] - 2026-11-27
+
+### Added
+- `GET /persona/<key>/weather` (read only): today's weather for every persona, fetched from the Met Office add-on `GET /summary?format=json` with a bearer token (5 s timeout). New options `weather_url` (default `http://172.30.32.1:8799`, the ih_jobs_metoffice host port) and `weather_token` (password, the Met Office add-on's `assistant_token`). Empty token = off: the reply says `Weather lookup is not set up yet.` Refusals and network errors become one plain sentence; only the error type is logged, never the token. Needs ih_jobs_metoffice with `/summary`.
+
 ## [0.29.0] - 2026-11-27
 
 ### Changed
