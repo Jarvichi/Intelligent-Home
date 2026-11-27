@@ -1,5 +1,5 @@
 name: "Intelligent Home - Tasks"
-version: "0.10.10"
+version: "0.10.11"
 slug: ih_tasks
 image: "ghcr.io/jarvichi/{arch}-ih_tasks"
 description: "One list of tasks with clear stages (To do, Planning, Approved, Implementing, Verifying, Done, Closed with a reason). A worker writes the plan; only the owner approves it. Questions are a flag on the task, answers carry on the same task, and every change is kept in the task's history. Own database, token-protected local API, board page. Changes nothing outside itself unless the to-do list mirror is turned on."
