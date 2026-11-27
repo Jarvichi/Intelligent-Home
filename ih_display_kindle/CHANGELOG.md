@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.12] - 2026-11-27
+- To-do row detail text ('plug it in', 'in 3 days') is now the same size as the row title, medium weight and darker (white on the black row), as asked on 20 Nov. The sunrise/sunset text on the main screen moves down 15 px so it sits on the same line as the date (estimated from a photo of the Kindle; not rendered here).
+
 ## [0.15.11] - 2026-11-27
 - Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
 
