@@ -1,7 +1,7 @@
 """ih_assets engine: items, history, totals, one-time import, barcode lookup. Standard library only."""
 import csv, datetime, json, math, os, re, urllib.request
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 CATEGORIES = ('game', 'dvd', 'toy', 'device', 'book', 'other')
 
 MIGRATIONS = [

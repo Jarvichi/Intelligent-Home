@@ -591,28 +591,15 @@
     }
     if (actionItems.length) {
       var tabs = el('div', { 'class': 't-action-tabs', role: 'tablist', 'aria-label': 'Task actions' }), panels = [];
-      function selectAction(index, focus) {
-        actionItems.forEach(function (item, i) {
-          item.tab.setAttribute('aria-selected', i === index ? 'true' : 'false');
-          item.tab.tabIndex = i === index ? 0 : -1;
-          panels[i].hidden = i !== index;
-        });
-        if (focus) actionItems[index].tab.focus();
-      }
       actionItems.forEach(function (item, i) {
         var tabId = 'action-tab-' + i, panelId = 'action-panel-' + i;
         item.tab = el('button', { 'class': 't-action-tab', id: tabId, type: 'button', role: 'tab', 'aria-controls': panelId, text: item.label });
-        item.tab.addEventListener('click', function () { selectAction(i, false); });
-        item.tab.addEventListener('keydown', function (event) {
-          var next = event.key === 'ArrowRight' ? (i + 1) % actionItems.length : event.key === 'ArrowLeft' ? (i + actionItems.length - 1) % actionItems.length : event.key === 'Home' ? 0 : event.key === 'End' ? actionItems.length - 1 : -1;
-          if (next >= 0) { event.preventDefault(); selectAction(next, true); }
-        });
         tabs.appendChild(item.tab);
         panels.push(el('div', { 'class': 't-action-panel', id: panelId, role: 'tabpanel', 'aria-labelledby': tabId }, [item.card]));
       });
       actions.appendChild(tabs);
       panels.forEach(function (panel) { actions.appendChild(panel); });
-      selectAction(0, false);
+      window.IHUI.tabs(tabs, panels);
       root.insertBefore(actions, details.nextSibling);
     }
     if (sections['History']) root.appendChild(el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Activity' }), sections['History']]));
@@ -636,9 +623,8 @@
 
   /* ---- start ---- */
   var toolsMenu = $('tools-menu');
-  function closeTools(focus) { toolsMenu.open = false; $('columns-picker').open = false; if (focus) toolsMenu.querySelector('summary').focus(); }
-  document.addEventListener('click', function (event) { if (toolsMenu.open && !toolsMenu.contains(event.target)) closeTools(false); });
-  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && toolsMenu.open) { event.preventDefault(); closeTools(true); } });
+  var toolsControl = window.IHUI.menu(toolsMenu, function () { $('columns-picker').open = false; });
+  function closeTools(focus) { toolsControl.close(focus); }
   toolsMenu.addEventListener('toggle', function () { if (!toolsMenu.open) $('columns-picker').open = false; });
   $('filters-toggle').addEventListener('click', function () {
     var open = this.getAttribute('aria-expanded') !== 'true';

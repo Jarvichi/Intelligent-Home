@@ -1,5 +1,5 @@
 name: "Intelligent Home - AI Layer - Ollama Agent"
-version: "0.1.0"
+version: "0.1.1"
 slug: ih_ai_layer_ollama
 image: "ghcr.io/jarvichi/{arch}-ih_ai_layer_ollama"
 description: "Agent of Intelligent Home - AI Layer. Answers general questions, summaries and picture questions by calling an Ollama server on ANOTHER machine in the house (never on the Raspberry Pi). Nothing leaves the home network. ollama_url empty = off. No Home Assistant access. Maps no folders."

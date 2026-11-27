@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.38] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 ## [0.1.37] - 2026-11-10
 
 ### Fixed

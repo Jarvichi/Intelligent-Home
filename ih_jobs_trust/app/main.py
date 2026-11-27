@@ -6,7 +6,7 @@ sys.path.insert(0, HERE)
 import jobs_child
 import trustjob, trustdb, scores
 
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 DATA = os.environ.get('IHJ_DATA', '/data')
 
 SPEC = dict(job='trust', source='ih_jobs_trust', slug='ih_jobs_trust', title='Intelligent Home - Jobs - AI Trust Test', version=VERSION, port=8810, runner=trustjob.run)

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.5
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.6.4
 
 - Group planner income, spending, savings and mortgage inputs by purpose, explain unfamiliar terms and allow new savings pots to be added.

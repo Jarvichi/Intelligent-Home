@@ -25,7 +25,7 @@ import inbox_events as inboxmod
 import selfprompts as selfmod
 import random
 
-VERSION = '0.30.0'
+VERSION = '0.30.1'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')

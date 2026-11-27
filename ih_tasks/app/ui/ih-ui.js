@@ -16,6 +16,40 @@
   }
 })();
 
+/* Reusable behaviour for native disclosures and accessible tabs. Pages own their content. */
+window.IHUI = Object.assign(window.IHUI || {}, {
+  menu(details, onClose) {
+    const close = (focus) => {
+      details.open = false;
+      if (typeof onClose === 'function') onClose();
+      const summary = details.querySelector('summary');
+      if (focus && summary) summary.focus();
+    };
+    const click = (event) => { if (details.open && !details.contains(event.target)) close(false); };
+    const key = (event) => { if (details.open && event.key === 'Escape') { event.preventDefault(); close(true); } };
+    document.addEventListener('click', click);
+    document.addEventListener('keydown', key);
+    return { close, destroy() { document.removeEventListener('click', click); document.removeEventListener('keydown', key); } };
+  },
+  tabs(tablist, panels) {
+    const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+    if (!tabs.length || tabs.length !== panels.length) return;
+    const select = (index, focus) => {
+      tabs.forEach((tab, i) => { tab.setAttribute('aria-selected', i === index ? 'true' : 'false'); tab.tabIndex = i === index ? 0 : -1; panels[i].hidden = i !== index; });
+      if (focus) tabs[index].focus();
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(i, false));
+      tab.addEventListener('keydown', (event) => {
+        const next = event.key === 'ArrowRight' ? (i + 1) % tabs.length : event.key === 'ArrowLeft' ? (i + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+        if (next >= 0) { event.preventDefault(); select(next, true); }
+      });
+    });
+    select(Math.max(0, tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true')), false);
+    return { select };
+  }
+});
+
 /* IHToast.show('Saved'): shadcn style toast, text via textContent, gone after 4 s. */
 window.IHToast = {
   show(text, ms) {

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.2] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.2.1
 
 - Run and retry database backups independently of insight calculation and sensor publishing.

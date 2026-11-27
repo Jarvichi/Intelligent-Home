@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.13
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.10.12
 - Remove the redundant task board headings.
 

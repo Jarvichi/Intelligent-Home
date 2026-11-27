@@ -7,7 +7,7 @@ sys.path.insert(0, HERE)
 import jobs_child
 from jobs import backupstore
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 DATA = os.environ.get('IHJ_DATA', '/data')
 LOCAL_TZ = 'Europe/London'      # for the nightly snapshot hour
 

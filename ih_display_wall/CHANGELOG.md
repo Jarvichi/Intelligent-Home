@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.14.1
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.14.0
 
 - Add an opt-in compatibility proxy for legacy display clients with fallback to the existing image.

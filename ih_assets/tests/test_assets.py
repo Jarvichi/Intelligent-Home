@@ -188,10 +188,9 @@ class Server(unittest.TestCase):
 class Contract(unittest.TestCase):
     def test_config_and_ports(self):
         cfg = (HERE.parent / 'config.yaml').read_text()
-        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8852]/healthz"', 'ingress: true', 'ingress_port: 8853', 'panel_admin: true', 'version: "0.2.1"'):
+        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8852]/healthz"', 'ingress: true', 'ingress_port: 8853', 'panel_admin: true', 'version: "%s"' % E.VERSION):
             self.assertIn(needle, cfg)
         self.assertNotIn('auto_update', cfg.replace('# ', ''))
-        self.assertEqual(E.VERSION, '0.2.1')
         self.assertEqual(json.loads((HERE.parent / 'app' / 'manifest.json').read_text())['version'], E.VERSION)
 
     def test_published_ports_do_not_clash(self):

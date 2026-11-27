@@ -1,9 +1,10 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Add-on Watchdog</title>
+<link rel="stylesheet" href="ih-ui.css">
 <style>
-:root{color-scheme:light dark;--bg:#fff;--fg:#1c1c1e;--mut:#6b7280;--line:#d9dde3;--ok:#157f3b;--bad:#b42318;--warn:#b54708;--card:#f6f7f9}
-@media(prefers-color-scheme:dark){:root{--bg:#161719;--fg:#ececec;--mut:#9aa0a8;--line:#33363b;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--card:#202226}}
-body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif}
+:root{--bg:var(--ih-bg);--fg:var(--ih-text);--mut:var(--ih-muted);--line:var(--ih-line);--ok:var(--ih-ok);--bad:var(--ih-danger);--warn:var(--ih-warn);--card:var(--ih-surface-raised)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 var(--ih-font)}
+main{padding:16px}
 h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:24px 0 8px}.mut{color:var(--mut)}
 .bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}
 .pill{padding:2px 10px;border-radius:99px;border:1px solid var(--line);background:var(--card)}
@@ -14,12 +15,12 @@ button,input,select{font:inherit}button{padding:6px 12px;border:1px solid var(--
 details{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;background:var(--card)}summary{cursor:pointer}
 pre{white-space:pre-wrap;word-break:break-word;font-size:12px;max-height:300px;overflow:auto;margin:8px 0 0}
 input[type=search]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-width:200px}
-</style></head><body>
+</style></head><body><ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Add-on Watchdog"></ih-nav><main>
 <h1>Add-on Watchdog</h1><div class="mut" id="sub">Loading...</div>
 <div class="bar"><span>Mode: <b id="mode" class="pill"></b></span><button id="swap"></button><input type="search" id="q" placeholder="Search add-ons"><button id="clr">Clear</button></div>
 <h2>Health</h2><div class="tw"><table><thead><tr><th>Add-on</th><th>State</th><th>Last probe</th><th>Restarts today</th><th>Watch</th></tr></thead><tbody id="rows"></tbody></table></div>
 <h2>Recent incidents</h2><div id="inc" class="mut">None yet.</div>
-<script>
+</main><script src="ih-ui.js"></script><script>
 const $=id=>document.getElementById(id);let D=null;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const when=t=>t?new Date(t*1000).toLocaleString():'-';
