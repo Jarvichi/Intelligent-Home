@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.10
+- Show the result, comments and history text as formatted Markdown using the same safe renderer as plans. Sync the shared UI components and tokens.
+
 ## 0.10.9
 - Make the streamlined task board the standard view and remove the old layout and comparison switch.
 
