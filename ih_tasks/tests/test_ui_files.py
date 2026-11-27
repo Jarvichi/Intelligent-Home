@@ -39,6 +39,13 @@ class Files(unittest.TestCase):
         self.assertLess(page.index('src="markdown.js"'), page.index('src="ui.js"'))
         self.assertIn('IHTasksMarkdown.render(t.plan)', (UI / 'ui.js').read_text())
 
+    def test_task_detail_has_no_layout_switch(self):
+        page = (UI / 'index.html').read_text()
+        script = (UI / 'ui.js').read_text()
+        self.assertNotIn('view-new', page + script)
+        self.assertNotIn('view-old', page + script)
+        self.assertNotIn('renderOldDetail', script)
+
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()
         css = (UI / 'ui.css').read_text()

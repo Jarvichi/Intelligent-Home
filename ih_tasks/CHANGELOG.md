@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.7
+- Make the redesigned task detail page the standard view and remove the comparison switch.
+
 ## 0.10.6
 - Place Actions after Details and present available actions as tabs, showing one at a time.
 
