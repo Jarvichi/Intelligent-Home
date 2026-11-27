@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.3] - 2026-11-27
+- Fix theme contrast in Orchestrator and use shared styling for setup fields.
+
 ## [0.15.2] - 2026-11-27
 - Apply the active Intelligent Home appearance across add-ons.
 
