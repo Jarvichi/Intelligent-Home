@@ -25,7 +25,7 @@ svg{display:block}
 .info.mains{width:470px}
 .refresh{left:986px;top:36px}
 .festive{left:300px;top:calc(86px + var(--i) * 30px);width:724px;font-weight:700;text-align:right;font-size:25px}
-.sun{left:500px;top:144px;width:524px;font-size:34px;font-weight:700;text-align:right}
+.sun{left:500px;top:159px;width:524px;font-size:34px;font-weight:700;text-align:right}
 .h-rule{top:213px}
 
 /* weather */
@@ -112,7 +112,7 @@ svg{display:block}
 .row{left:48px;top:calc(1150px + var(--i) * var(--pitch));width:976px;height:var(--h);font-size:var(--font);border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
 .row.ink{background:#000;color:#fff}
 .row .t{flex:1 1 auto;min-width:0}
-.row .d{font-size:18px;flex:0 1 auto;max-width:300px;text-align:right}
+.row .d{font-size:var(--font);font-weight:500;color:#333;flex:0 1 auto;max-width:340px;text-align:right}.row.ink .d{color:#fff}
 .overlay{left:0;top:0}
 
 /* ---------------------------------------------------------------- the other screens */
