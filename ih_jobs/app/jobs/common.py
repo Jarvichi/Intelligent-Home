@@ -1,5 +1,5 @@
 """Shared helpers for the ih_jobs jobs. stdlib only. HA REST goes through the Supervisor proxy with the add-on's own SUPERVISOR_TOKEN."""
-import os, urllib.request
+import os, time, urllib.request
 from ihlib.ha import HA, REST_BASE
 
 HA_BASE = REST_BASE
@@ -39,5 +39,13 @@ class Ctx:
         if self.dry:
             self.log('[DRY] would set %s = %s' % (entity, state))
             return False
+        try:   # remember it so the host can post it again after an HA restart (pluginhost.republish_all)
+            from ihlib.state import Store
+            st = Store(os.path.join(self.data_dir, '_legacy_jobs'))
+            d = st.load('published')
+            d[entity] = {'state': state, 'attributes': attributes, 'ts': time.time()}
+            st.save('published', d)
+        except Exception as e:
+            self.log('could not save the published value (%s)' % type(e).__name__)
         self.ha('states/' + entity, {'state': state, 'attributes': attributes})
         return True

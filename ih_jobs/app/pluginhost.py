@@ -8,6 +8,13 @@ from datetime import datetime, timedelta, timezone
 import ihlib.ha, ihlib.discord, ihlib.http, ihlib.state, ihlib.log
 from ihlib import trace
 
+PUBLISHED = 'published'          # state file name: {entity: {state, attributes, ts}} (HA keeps REST-posted states in memory only)
+LEGACY_FOLDER = '_legacy_jobs'   # the old jobs (jobs/common.py set_state) save theirs here
+RECHECK_S = 300                  # how often saved sensors are checked for 'missing / unavailable / unknown'
+RESUB_WAIT_S = 20                # wait before re-subscribing to the HA event when HA is down
+START_EVENT = 'homeassistant_started'
+BAD_STATES = (None, '', 'unavailable', 'unknown')
+
 CATCHUP_MIN = 60   # a daily plugin missed by less than this still runs (add-on started late)
 STOP_ALL = 'STOP_LIVE'
 
@@ -94,6 +101,22 @@ class PluginCtx:
         """Read-only view of another plugin's state store (same /data root)."""
         return ihlib.state.Store(os.path.join(self.data, plugin)) if self.data else ihlib.state.Store(os.path.join(os.path.dirname(self.state.folder), plugin))
 
+    def publish(self, entity, state, attributes=None, timeout=30):
+        """Set a sensor by REST AND remember the value in /data/<plugin>/published.json, so the host can post it again after an HA restart
+        (HA keeps REST-posted states in memory only). Dry: log only, saves nothing. Returns True if posted."""
+        if self.dry:
+            self.log('[DRY] would publish %s = %s' % (entity, ihlib.log.one_line(str(state), 80)))
+            return False
+        attributes = attributes or {}
+        try:
+            d = self.state.load(PUBLISHED)
+            d[entity] = {'state': state, 'attributes': attributes, 'ts': time.time()}
+            self.state.save(PUBLISHED, d)
+        except Exception as e:   # never lose the post because the disk copy failed
+            self.log('could not save the published value (%s)' % type(e).__name__)
+        self.ha.post('states/' + entity, {'state': state, 'attributes': attributes}, timeout=timeout)
+        return True
+
     def service(self, domain, service, data=None):
         """Dry-aware service call."""
         if self.dry:
@@ -118,6 +141,7 @@ class Host:
         self.thread = None
         self.stop_evt = threading.Event()
         self.service_threads = {}
+        self.republish_threads = []
 
     # ---- config ----
     def settings(self, name):
@@ -308,6 +332,78 @@ class Host:
                 ran.append(name)
         return ran
 
+    # ---- republish after an HA restart ----
+    def _saved_sets(self):
+        """[(label, folder, allowed)] for every live plugin (and the legacy jobs). Dry, kill-switched and unlisted plugins are skipped."""
+        out = []
+        for name in sorted(self.mods):
+            if name in self.cfg and self.mode(name)[0] == 'live':
+                out.append((name, os.path.join(self.data, name)))
+        if not os.path.exists(os.path.join(self.data, STOP_ALL)):
+            out.append(('legacy jobs', os.path.join(self.data, LEGACY_FOLDER)))
+        return out
+
+    def republish_all(self, only_missing=False):
+        """Post again the last saved value of every sensor the live plugins published. only_missing: first read the entity and post only
+        when HA has no state for it (404) or it is unavailable/unknown. Never raises; one failure never stops the rest. -> number re-posted."""
+        n = 0
+        for label, folder in self._saved_sets():
+            log = self._plog(label)
+            try:
+                saved = ihlib.state.Store(folder).load(PUBLISHED)
+            except Exception:
+                continue
+            for entity, v in sorted((saved if isinstance(saved, dict) else {}).items()):
+                try:
+                    if not isinstance(v, dict) or 'state' not in v:
+                        continue
+                    if only_missing:
+                        try:
+                            cur = (self.ha.get('states/' + entity, 15) or {}).get('state')
+                        except Exception as e:
+                            if getattr(e, 'code', None) != 404:
+                                continue   # HA down or other trouble: try again at the next check
+                            cur = None
+                        if cur not in BAD_STATES:
+                            continue
+                    self.ha.post('states/' + entity, {'state': v['state'], 'attributes': v.get('attributes') or {}}, 30)
+                    n += 1
+                    log('republished %s' % entity)
+                except Exception as e:
+                    log('republish %s failed: %s' % (entity, type(e).__name__))
+        return n
+
+    def republish_loop(self):
+        """Once at start, then every RECHECK_S a check that re-posts only missing/unavailable/unknown sensors."""
+        first = True
+        while not self.stop_evt.is_set():
+            try:
+                self.republish_all(only_missing=not first)
+            except Exception:
+                pass
+            first = False
+            self.stop_evt.wait(RECHECK_S)
+
+    def republish_events_once(self, max_seconds=600):
+        """Listen for homeassistant_started; each one re-posts everything. -> True if the listen ended normally, False if HA was unreachable."""
+        try:
+            self.ha.subscribe_events(START_EVENT, lambda d: self.republish_all(), max_seconds=max_seconds, on_idle=None)
+            return True
+        except Exception:
+            return False
+
+    def republish_events_loop(self):
+        while not self.stop_evt.is_set():
+            ok = self.republish_events_once()
+            if not ok:
+                self.stop_evt.wait(RESUB_WAIT_S)
+
+    def start_republish(self):
+        self.republish_threads = [threading.Thread(target=f, daemon=True, name=n) for n, f in
+                                  (('republish', self.republish_loop), ('republish-events', self.republish_events_loop))]
+        for t in self.republish_threads:
+            t.start()
+
     def start(self, interval=30):
         def loop():
             while True:
@@ -319,6 +415,7 @@ class Host:
         self.thread = threading.Thread(target=loop, daemon=True, name='plugins')
         self.thread.start()
         self.start_services()
+        self.start_republish()
 
     def service_names(self):
         return [n for n in sorted(self.mods) if n in self.cfg and self.mods[n].SCHEDULE.get('kind') == 'service']

@@ -229,7 +229,7 @@ def post_state(env, reg, last=None, bump=True):
              'albums': [{'id': a['id'], 'name': a['name'], 'family': a['family'], 'count': len(a['photos'])} for a in s['albums']],
              'auto_albums': len(s['auto']), 'last_result': last}
     try:
-        env.ctx.ha.post('states/' + env.s['sensor_entity'], {'state': 'ok', 'attributes': attrs}, timeout=15)
+        env.ctx.publish(env.s['sensor_entity'], 'ok', attrs, timeout=15)
     except Exception as e:
         env.log('sensor post failed (%s)' % type(e).__name__)
 

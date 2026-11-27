@@ -63,6 +63,12 @@ class Ctx:
     def log(self, m):
         self.logs.append(m)
 
+    def publish(self, entity, state, attributes=None, timeout=30):   # same as PluginCtx.publish minus the disk copy
+        if self.dry:
+            return False
+        self.ha.post('states/' + entity, {'state': state, 'attributes': attributes or {}}, timeout)
+        return True
+
     def option(self, name):
         return self.opts.get(name, 'test-key' if name == 'bods_api_key' else '')
 

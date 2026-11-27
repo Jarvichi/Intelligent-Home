@@ -840,7 +840,7 @@ def publish_all(ctx, box, s, getbuses, now):
             ctx.log('[DRY] would publish %s: %s' % (ent, state))
             continue
         try:
-            ctx.ha.post('states/' + ent, {'state': state, 'attributes': attrs})
+            ctx.publish(ent, state, attrs)
             ctx.log('published %s: %s' % (ent, state))
         except Exception as e:
             ctx.log('publish %s failed: %s' % (ent, type(e).__name__))
