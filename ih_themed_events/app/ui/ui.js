@@ -410,6 +410,9 @@
   $('back').addEventListener('click', function () { say(''); showList(); });
   $('new-event').addEventListener('click', function () { editEvent(null); });
   var status = $('service-status');
+  fetch('api/status', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('unavailable'); return r.json(); }).then(function (info) {
+    var b = info.backup || {}; $('backup-info').textContent = 'Last successful backup: ' + (b.last_success || 'None recorded') + (b.error ? ' · Last attempt failed (' + b.error + '); retrying.' : '');
+  }).catch(function () { $('backup-info').textContent = 'Backup status unavailable.'; });
   fetch('api/events', { cache: 'no-store' }).then(function (r) { status.setAttribute('status', r.ok ? 'ok' : 'error'); status.textContent = r.ok ? 'Running' : 'Problem'; }).catch(function () { status.setAttribute('status', 'error'); status.textContent = 'Not reachable'; });
   showList();
 }());

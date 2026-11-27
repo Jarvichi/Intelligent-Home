@@ -47,6 +47,24 @@ def make_handler(eng, token):
     return H
 
 
+def run_tick(eng, live, last_snap, snapshot, now, log):
+    try:
+        out = eng.run_once()
+        if live:
+            eng.publish(out)
+        log('run ok: %d rooms, %d suspect valves, mould %s', len(out['rooms']), len(out['frozen']),
+            {m['room']: m['level'] for m in out['mould'].values()})
+    except Exception as e:
+        log('run failed (%s)', type(e).__name__)
+    if now - last_snap > 86400:
+        try:
+            snapshot(os.path.join(DATA, 'ih.db'), os.path.join(DATA, 'backup'))
+            return now
+        except Exception as e:
+            log('snapshot failed (%s)', type(e).__name__)
+    return last_snap
+
+
 def main():
     lg = logging.getLogger('ihri')
     lg.setLevel(logging.INFO)
@@ -62,17 +80,7 @@ def main():
     def ticker():
         last_snap = 0
         while True:
-            try:
-                out = eng.run_once()
-                if live:
-                    eng.publish(out)
-                lg.info('run ok: %d rooms, %d suspect valves, mould %s', len(out['rooms']), len(out['frozen']),
-                        {m['room']: m['level'] for m in out['mould'].values()})
-                if time.time() - last_snap > 86400:
-                    ihdb.snapshot(os.path.join(DATA, 'ih.db'), os.path.join(DATA, 'backup'))
-                    last_snap = time.time()
-            except Exception as e:
-                lg.info('run failed (%s)', type(e).__name__)
+            last_snap = run_tick(eng, live, last_snap, ihdb.snapshot, time.time(), lg.info)
             time.sleep(max(5, int(opts.get('interval_min', 15))) * 60)
     threading.Thread(target=ticker, daemon=True).start()
     threading.Thread(target=ui_server.make_server(eng, E.VERSION, UI_PORT).serve_forever, daemon=True).start()

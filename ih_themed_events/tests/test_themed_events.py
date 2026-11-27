@@ -34,6 +34,16 @@ def ev(**kw):
 
 
 class Reliability(unittest.TestCase):
+    def test_backup_status_survives_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(folder)
+            status = {'last_success': '2026-11-27T09:00:00Z', 'error': 'OSError'}
+            store.save_backup_status(status)
+            store.close()
+            store = Store(folder)
+            self.assertEqual(store.backup_status(), status)
+            store.close()
+
     def test_threaded_requests_release_connections(self):
         with tempfile.TemporaryDirectory() as folder:
             store = Store(folder)

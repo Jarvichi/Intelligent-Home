@@ -59,14 +59,16 @@ class Watchdog:
 
     # ---- one probe ----
     def probe(self, slug, info):
-        """-> (ok, text). Started add-ons with an ingress port also get an HTTP request: any HTTP answer is alive;
-        no answer (timeout, refused) is a failed probe."""
+        """Prefer a health endpoint, falling back to the ingress page if unavailable or protected."""
         state = info.get('state')
         if state != 'started':
             return False, 'state=%s' % state
         port, ip = info.get('ingress_port'), info.get('ip_address')
         if info.get('ingress') and port and ip:
-            ok, why = self.http_probe('http://%s:%s/' % (ip, port))
+            base = 'http://%s:%s' % (ip, port)
+            ok, why = self.http_probe(base + '/healthz')
+            if why in ('HTTP 401', 'HTTP 403', 'HTTP 404', 'HTTP 405'):
+                ok, why = self.http_probe(base + '/')
             if not ok:
                 return False, 'started but no HTTP answer on its ingress port (%s)' % why
             return True, 'started, HTTP ok (%s)' % why
@@ -75,6 +77,7 @@ class Watchdog:
     # ---- one cycle ----
     def cycle(self):
         opts = self.opts()
+        self.retry_tasks()
         out = []
         for a in self.sup.addons():
             slug = a['slug']
@@ -84,6 +87,19 @@ class Watchdog:
                 self.health[slug] = {'slug': slug, 'name': a.get('name') or slug, 'state': 'error', 'probe': 'watchdog error: %s' % type(e).__name__,
                                      'last_probe': self.clock(), 'restarts_today': 0, 'enabled': True, 'fails': 0}
         return out
+
+    def retry_tasks(self):
+        """Retry recording incidents even if the add-on has recovered in the meantime."""
+        rows = self.db.query("SELECT id,slug,name,probe,action,dry,excerpt FROM incidents WHERE task IS NULL AND slug NOT LIKE 'media.%' ORDER BY id LIMIT 50")
+        for incident, slug, name, probe, action, dry, logs in rows:
+            s = self.st(slug)
+            s['fails'] = max(s.get('fails', 0), 1)
+            task = self.file_task(slug, name, probe, action, logs or '', s, not dry)
+            if task:
+                self.db.execute('UPDATE incidents SET task=? WHERE id=?', (task, incident))
+                self.save(slug, s)
+            else:
+                break
 
     def check(self, slug, name, opts):
         info = self.sup.info(slug)
@@ -140,7 +156,7 @@ class Watchdog:
         if action in ('restarted',) or action.startswith('restart FAILED') or 'escalated' in action:
             self.notify('Add-on watchdog: %s - %s (%s)' % (name, action, text))
         elif action.startswith('not restarted'):
-            self.notify('Add-on watchdog: %s is failing and is on the never-restart list (%s). Task filed.' % (name, text))
+            self.notify('Add-on watchdog: %s is failing and is on the never-restart list (%s). %s' % (name, text, 'Task filed.' if task else 'Task could not be filed; will retry.'))
 
     def file_task(self, slug, name, text, action, logs, s, live):
         tag = '' if live else '[DRY] '

@@ -40,7 +40,7 @@ import effect_test
 import seed as SEED
 from store import Store
 
-VERSION = '0.1.9'
+VERSION = '0.1.10'
 DATA = os.environ.get('IHE_DATA', '/data')
 PORT = int(os.environ.get('IHE_PORT', '8819'))
 UI_PORT = int(os.environ.get('IHE_UI_PORT', '8825'))
@@ -368,17 +368,22 @@ def serve(make_server, make_store, name, log):
     return t
 
 
-def snapshot_if_due(path, folder, today, day, snapshot, log, backup_status=None):
+def snapshot_if_due(path, folder, today, day, snapshot, log, backup_status=None, save_status=None):
     if today != day:
         try:
             snapshot(path, folder)
             if backup_status is not None:
                 backup_status.update(last_success=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), error='')
-            return today
+            day = today
         except Exception as e:
             if backup_status is not None:
                 backup_status['error'] = type(e).__name__
             log('snapshot failed (%s)', type(e).__name__)
+        if backup_status is not None and save_status is not None:
+            try:
+                save_status(backup_status)
+            except Exception as e:
+                log('cannot save backup status (%s)', type(e).__name__)
     return day
 
 
@@ -389,8 +394,8 @@ def main():
     sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S'))
     lg.addHandler(sh)
     opts = load_options()
-    backup_status = {'last_success': '', 'error': ''}
     first = Store(DATA)
+    backup_status = first.backup_status()
     seeded = SEED.load(first)
     try:
         from ihlib.ha import HA
@@ -404,7 +409,7 @@ def main():
     from ihlib import db as ihdb
     day = None
     while True:
-        day = snapshot_if_due(first.path, os.path.join(DATA, 'backup'), time.strftime('%Y-%m-%d'), day, ihdb.snapshot, lg.info, backup_status)
+        day = snapshot_if_due(first.path, os.path.join(DATA, 'backup'), time.strftime('%Y-%m-%d'), day, ihdb.snapshot, lg.info, backup_status, first.save_backup_status)
         time.sleep(3600)
 
 

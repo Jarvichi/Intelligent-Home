@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Retry incident task creation after outages and report filing failures accurately. Prefer health endpoints and detect HTTP server errors.
+
 ## [0.1.1] - 2026-11-26
 
 ### Fixed

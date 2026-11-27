@@ -1,5 +1,6 @@
 import json, os, sys, tempfile, threading, unittest, urllib.error, urllib.request
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'app'))
@@ -16,6 +17,16 @@ def mk():
 
 
 class Engine(unittest.TestCase):
+    def test_backup_runs_after_failed_tick_and_retries(self):
+        asset = mock.Mock()
+        asset.record.side_effect = OSError('unavailable')
+        snapshot = mock.Mock(side_effect=[OSError('full'), 'ok'])
+        day = M.run_tick(asset, False, None, {}, 0, snapshot, 100000, lambda *a: None)
+        self.assertEqual(day, 0)
+        day = M.run_tick(asset, False, None, {}, day, snapshot, 100001, lambda *a: None)
+        self.assertEqual(day, 100001)
+        self.assertEqual(snapshot.call_count, 2)
+
     def test_add_totals_sell_history(self):
         a, _ = mk()
         a.add({'name': 'Example Game', 'category': 'game', 'qty': 2, 'low': 10, 'high': 20})
@@ -40,6 +51,15 @@ class Engine(unittest.TestCase):
         for bad in ({'name': ''}, {'name': 'x', 'category': 'car'}, {'name': 'x', 'low': 5, 'high': 1}, {'name': 'x', 'qty': 0}, {'name': 'x', 'low': -1}, {'name': 'x', 'bought_date': '1 Nov'}):
             with self.assertRaises(E.BadInput):
                 a.add(bad)
+        for bad in ({'name': 'x', 'bought_date': '2026-02-30'}, {'name': 'x', 'low': 'inf'}, {'name': 'x', 'qty': 1.5}, {'name': 'x', 'qty': True}):
+            with self.assertRaises(E.BadInput):
+                a.add(bad)
+
+    def test_partial_price_is_explained(self):
+        a, _ = mk()
+        a.add({'name': 'Partial', 'qty': 2, 'low': 5})
+        t = a.totals()
+        self.assertEqual((t['low'], t['high'], t['unpriced'], t['missing_low'], t['missing_high']), (0, 0, 2, 0, 2))
 
     def test_import_matches_and_refuses_twice(self):
         a, d = mk()
@@ -61,6 +81,9 @@ class Engine(unittest.TestCase):
         self.assertEqual(E.barcode_lookup('5 0 2', fake)['name'], 'Some Game')
         with self.assertRaises(E.BadInput):
             E.barcode_lookup('abc', fake)
+        def down(url): raise OSError('offline')
+        self.assertTrue(E.barcode_lookup('502', down)['lookup_failed'])
+        self.assertFalse(E.barcode_lookup('502', lambda url: {})['lookup_failed'])
 
     def test_publish_sensors(self):
         a, _ = mk()
@@ -108,6 +131,7 @@ class Server(unittest.TestCase):
         self.assertEqual(self.call('/items', tok='bad')[0], 401)
         self.app['opts']['api_token'] = ''
         self.assertEqual(self.call('/items', tok='')[0], 401)
+
         self.app['opts']['api_token'] = 'tok'
         s, it = self.call('/items', 'POST', {'name': 'A', 'category': 'toy', 'low': 1, 'high': 2})
         self.assertEqual(s, 201)
@@ -123,6 +147,14 @@ class Server(unittest.TestCase):
         self.assertEqual(self.call('/items/%d' % it['id'], 'DELETE')[1], {'deleted': True})
         self.assertEqual(self.call('/items/%d' % it['id'], 'DELETE')[0], 404)
         self.assertEqual(self.call('/')[0], 404)   # the API port serves no page
+
+    def test_connections_are_released_after_requests(self):
+        for _ in range(30):
+            self.assertEqual(self.call('/items')[0], 200)
+        for srv in self.srvs:
+            srv.shutdown()
+            srv.server_close()
+        self.assertEqual(len(self.a.db._all), 1)
 
     def test_ingress_page_and_api(self):
         s, page = self.call('/', ui=True)
@@ -156,10 +188,10 @@ class Server(unittest.TestCase):
 class Contract(unittest.TestCase):
     def test_config_and_ports(self):
         cfg = (HERE.parent / 'config.yaml').read_text()
-        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8852]/healthz"', 'ingress: true', 'ingress_port: 8853', 'panel_admin: true', 'version: "0.2.0"'):
+        for needle in ('boot: auto', 'watchdog: "http://[HOST]:[PORT:8852]/healthz"', 'ingress: true', 'ingress_port: 8853', 'panel_admin: true', 'version: "0.2.1"'):
             self.assertIn(needle, cfg)
         self.assertNotIn('auto_update', cfg.replace('# ', ''))
-        self.assertEqual(E.VERSION, '0.2.0')
+        self.assertEqual(E.VERSION, '0.2.1')
         self.assertEqual(json.loads((HERE.parent / 'app' / 'manifest.json').read_text())['version'], E.VERSION)
 
     def test_published_ports_do_not_clash(self):
