@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.14] - 2026-11-27
+- Now-playing box art fills the full height of its box (210 px) and is wider (190 px, was 140 x 190); the game name moves right and drops to 22 px to make room.
+
+## [0.15.13] - 2026-11-27
+- Main screen side margins cut from 48 px to 30 px on both sides (content now 30 to 1042 px, was 48 to 1024), as asked on 20 Nov. Every horizontal position and width on the main screen is scaled to the wider area (text sizes unchanged) and the touch zones move with them. The other screens (menu, dinner, cooking, birthdays) are unchanged.
+
 ## [0.15.12] - 2026-11-27
 - To-do row detail text ('plug it in', 'in 3 days') is now the same size as the row title, medium weight and darker (white on the black row), as asked on 20 Nov. The sunrise/sunset text on the main screen moves down 15 px so it sits on the same line as the date (estimated from a photo of the Kindle; not rendered here).
 
