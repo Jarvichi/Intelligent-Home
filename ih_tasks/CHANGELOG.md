@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.6
+- Place Actions after Details and present available actions as tabs, showing one at a time.
+
 ## 0.10.5
 - Render task plans as Markdown, including lists, headings, tables and code, in both task detail views.
 
