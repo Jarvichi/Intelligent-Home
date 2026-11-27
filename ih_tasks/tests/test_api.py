@@ -184,7 +184,7 @@ class Page(unittest.TestCase):
             code, html = call(p, 'GET', '/')
             self.assertEqual(code, 200)
             self.assertIn(b'<ih-nav', html)
-            for asset in ('/ui.js', '/ui.css', '/ih-ui.js', '/ih-ui.css', '/ih-patterns.css'):
+            for asset in ('/ui.js', '/markdown.js', '/ui.css', '/ih-ui.js', '/ih-ui.css', '/ih-patterns.css'):
                 self.assertEqual(call(p, 'GET', asset)[0], 200, asset)
             self.assertEqual(call(p, 'GET', '/main.py')[0], 404)
             self.assertEqual(call(p, 'GET', '/../main.py')[0], 404)

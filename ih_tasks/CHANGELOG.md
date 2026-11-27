@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.5
+- Render task plans as Markdown, including lists, headings, tables and code, in both task detail views.
+
 ## 0.10.4
 - Place Details above the plan, with advanced details and task actions grouped inside it.
 
