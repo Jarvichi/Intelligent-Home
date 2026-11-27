@@ -22,6 +22,8 @@
   ],
   "speaker_url": "http://speaker-host:8831",
   "speaker_token": "",
+  "weather_url": "http://172.30.32.1:8799",
+  "weather_token": "",
   "hearth": {
     "enabled": false,
     "persona": "hearth",
