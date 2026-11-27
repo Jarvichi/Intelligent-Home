@@ -61,7 +61,7 @@
           st.group.fields.forEach(function (f) {
             var l = E('label'); l.style.cssText = 'display:grid;gap:4px;margin:8px 0';
             l.appendChild(document.createTextNode(f.label));
-            var inp = E('input'); inp.type = f.kind === 'secret' ? 'password' : 'text'; inp.autocomplete = 'off'; inp.disabled = !f.supported;
+            var inp = E('input', null, 'input'); inp.type = f.kind === 'secret' ? 'password' : 'text'; inp.autocomplete = 'off'; inp.disabled = !f.supported;
             inp.placeholder = f.set ? 'Already set. Leave blank to keep it.' : 'Not set'; inp.value = form.values[f.option] || '';
             inp.oninput = function () { form.values[f.option] = inp.value; }; l.appendChild(inp); dlg.appendChild(l);
           });
