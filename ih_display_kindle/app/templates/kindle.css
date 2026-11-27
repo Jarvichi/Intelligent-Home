@@ -41,9 +41,9 @@ svg{display:block}
 .day-text{left:666.6px;top:calc(294px + var(--i) * 118px);width:259.2px;font-size:23px}
 .day-icon{left:949.7px;top:calc(248px + var(--i) * 118px)}
 .game-box{left:643.8px;top:238px;width:398.2px;height:216px}
-.game-art{left:657.3px;top:251px;width:140px;height:190px;object-fit:contain}
-.game-label{left:816px;top:262px;width:207.4px;font-size:18px;font-weight:700}
-.game-line{left:816px;top:calc(292px + var(--i) * 32px);width:207.4px;font-size:24px;font-weight:700}
+.game-art{left:651px;top:241px;width:190px;height:210px;object-fit:contain}
+.game-label{left:854px;top:262px;width:182px;font-size:18px;font-weight:700}
+.game-line{left:854px;top:calc(292px + var(--i) * 32px);width:182px;font-size:22px;font-weight:700}
 
 /* the band under the weather: warning banner, now playing, or the hourly strip */
 .band{left:30px;top:478px;width:1012px;height:190px}
