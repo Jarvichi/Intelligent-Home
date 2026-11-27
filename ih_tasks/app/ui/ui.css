@@ -119,6 +119,11 @@ body.t-merging main{padding-bottom:230px}
 .t-disclosure ih-card{margin-top:10px;background:var(--ih-surface-raised)}
 .t-disclosure .t-disclosure{margin-top:12px;background:var(--ih-surface-raised)}
 .t-edit-details{margin-bottom:16px}
+.t-action-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 8px;border-bottom:1px solid var(--ih-line)}
+.t-action-tab{flex:none;min-height:44px;padding:8px 14px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ih-muted);font:inherit;cursor:pointer}
+.t-action-tab[aria-selected=true]{border-color:var(--ih-line);background:var(--ih-surface-raised);color:var(--ih-text);font-weight:750}
+.t-action-tab:focus-visible{outline:2px solid var(--ih-link);outline-offset:-2px}
+.t-action-panel ih-card{margin-top:12px}
 .note-markdown{min-width:0;line-height:1.6;overflow-wrap:anywhere}
 .note-markdown>:first-child{margin-top:0}
 .note-markdown>:last-child{margin-bottom:0}
