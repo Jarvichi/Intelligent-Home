@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.3
+- Compare the current task detail page with a redesigned view: readable summary and plan, comments with an inline composer, grouped related work and actions, and collapsible activity.
+
 ## 0.10.2
 
 - Show pending reminder delivery and persistent backup status. Use the actual reminder date in delayed notifications.
