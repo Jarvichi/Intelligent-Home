@@ -235,20 +235,26 @@ class AssistantDB:
             return self._call(lambda: self.db.query('SELECT COUNT(*) FROM outbox_log WHERE persona=?', (key,))[0][0])
         return len(_lines(self._degraded_path(key, OUTBOX_FILE)))
 
-    def outbox_last_ts(self, key, kinds):
-        """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only times and kinds."""
+    def outbox_last_ts(self, key, kinds, skip_auto=False):
+        """Unix time of the newest outbox entry whose kind is in `kinds` (None if none). Reads only times and kinds.
+        skip_auto: ignore entries marked auto (replies to automated reminder events)."""
         kinds = list(kinds)
         best = None
+        def is_auto(text):
+            try:
+                return bool(json.loads(text).get('auto'))
+            except (ValueError, TypeError, AttributeError):
+                return False
         if self.db is not None:
             marks = ','.join('?' * len(kinds))
-            rows = self._call(lambda: self.db.query('SELECT ts FROM outbox_log WHERE persona=? AND kind IN (%s)' % marks, [key] + kinds)) if kinds else []
-            stamps = [r[0] for r in rows]
+            rows = self._call(lambda: self.db.query('SELECT ts, entry FROM outbox_log WHERE persona=? AND kind IN (%s)' % marks, [key] + kinds)) if kinds else []
+            stamps = [r[0] for r in rows if not (skip_auto and is_auto(r[1]))]
         else:
             stamps = []
             for ln in _lines(self._degraded_path(key, OUTBOX_FILE)):
                 try:
                     e = json.loads(ln)
-                    if e.get('kind') in kinds:
+                    if e.get('kind') in kinds and not (skip_auto and e.get('auto')):
                         stamps.append(e['ts'])
                 except (ValueError, KeyError, TypeError, AttributeError):
                     continue
