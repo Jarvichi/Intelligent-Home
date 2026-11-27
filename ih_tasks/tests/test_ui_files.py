@@ -42,8 +42,10 @@ class Files(unittest.TestCase):
     def test_task_detail_has_no_layout_switch(self):
         page = (UI / 'index.html').read_text()
         script = (UI / 'ui.js').read_text()
-        self.assertNotIn('view-new', page + script)
-        self.assertNotIn('view-old', page + script)
+        self.assertNotIn('id="view-new"', page)
+        self.assertNotIn('id="view-old"', page)
+        self.assertNotIn("$('view-new')", script)
+        self.assertNotIn("$('view-old')", script)
         self.assertNotIn('renderOldDetail', script)
 
     def test_merge_controls(self):

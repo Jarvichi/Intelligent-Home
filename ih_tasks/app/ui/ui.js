@@ -4,6 +4,32 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = { labels: [], flash: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var boardLayout = 'new', hiddenColumns = [];
+  try { var savedColumns = JSON.parse(localStorage.getItem('ih-tasks-hidden-columns') || '[]'); if (Array.isArray(savedColumns)) hiddenColumns = savedColumns.filter(function (x) { return typeof x === 'string'; }); } catch (_) {}
+
+  function saveColumns() { try { localStorage.setItem('ih-tasks-hidden-columns', JSON.stringify(hiddenColumns)); } catch (_) {} }
+  function setBoardLayout(layout) {
+    boardLayout = layout;
+    $('board-view').setAttribute('data-layout', layout);
+    $('board-view-new').setAttribute('aria-pressed', layout === 'new' ? 'true' : 'false');
+    $('board-view-current').setAttribute('aria-pressed', layout === 'current' ? 'true' : 'false');
+    $('filter-options').hidden = layout === 'new' && $('filters-toggle').getAttribute('aria-expanded') !== 'true';
+    renderBoard();
+  }
+  function renderColumnOptions() {
+    var box = $('column-options'); clear(box);
+    if (!state.board) return;
+    state.board.columns.forEach(function (c) {
+      var check = el('input', { type: 'checkbox', 'data-stage': c.stage, checked: hiddenColumns.indexOf(c.stage) < 0 });
+      check.addEventListener('change', function () {
+        hiddenColumns = hiddenColumns.filter(function (stage) { return stage !== c.stage; });
+        if (!check.checked) hiddenColumns.push(c.stage);
+        saveColumns(); renderBoard();
+        Array.prototype.forEach.call(box.querySelectorAll('input'), function (next) { if (next.getAttribute('data-stage') === c.stage) next.focus(); });
+      });
+      box.appendChild(el('label', { 'class': 't-column-option' }, [check, el('span', { text: c.label })]));
+    });
+  }
   var REL_TEXT = { blocked_by: 'Blocked by', depends_on: 'Depends on', relates_to: 'Relates to', blocks: 'Blocks', needed_by: 'Needed by' };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
@@ -93,11 +119,17 @@
   }
   function renderBoard() {
     var b = state.board; if (!b) return;
-    var board = $('board'), shown = 0, total = 0, only = $('f-stage').value;
+    var board = $('board'), shown = 0, total = 0, only = $('f-stage').value, suppressed = 0, visibleColumns = 0, selectedHidden = false;
     clear(board);
     b.columns.forEach(function (c) {
       total += c.tasks.length;
       var tasks = c.tasks.filter(matches);
+      if (boardLayout === 'new' && hiddenColumns.indexOf(c.stage) >= 0) {
+        suppressed += tasks.length;
+        if (only === c.stage) selectedHidden = true;
+        if (c.stage === 'closed') $('closed-box').hidden = true;
+        return;
+      }
       shown += tasks.length;
       if (c.stage === 'closed') {
         $('closed-title').textContent = 'Closed (' + tasks.length + ')';
@@ -108,14 +140,19 @@
         return;
       }
       if (only && only !== c.stage) return;
+      visibleColumns++;
       board.appendChild(el('section', { 'class': 't-col', 'aria-label': c.label }, [
         el('h2', {}, [c.label, el('span', { text: String(tasks.length) })]),
         el('div', { 'class': 't-col-list' }, tasks.length ? tasks.map(card) : [el('p', { 'class': 't-empty', text: 'Nothing here' })])
       ]));
     });
-    board.hidden = only === 'closed';
-    $('f-count').textContent = shown + ' of ' + total + ' tasks';
+    board.hidden = only === 'closed' || visibleColumns === 0;
+    $('f-count').textContent = shown + ' of ' + total + ' tasks' + (suppressed ? ' · ' + suppressed + ' in hidden columns' : '');
     $('board-empty').hidden = shown > 0;
+    $('board-empty').textContent = suppressed || selectedHidden ? 'Matching tasks may be in hidden columns. Use Columns to show them.' : 'No tasks match.';
+    var filterCount = ['f-stage', 'f-waiting', 'f-label'].filter(function (id) { return !!$(id).value; }).length;
+    $('filters-toggle').textContent = filterCount ? 'Filters (' + filterCount + ')' : 'Filters';
+    renderColumnOptions();
   }
   /* ---- merge ---- */
   function rank(t) { var ids = (state.meta ? state.meta.stages : []).map(function (x) { return x.id; }); return ids.indexOf(t.stage); }
@@ -606,6 +643,14 @@
   function trail(list, title) { var nav = document.querySelector('ih-nav'); if (nav && typeof nav.setTrail === 'function') nav.setTrail(list, title); }
 
   /* ---- start ---- */
+  $('board-view-new').addEventListener('click', function () { setBoardLayout('new'); });
+  $('board-view-current').addEventListener('click', function () { setBoardLayout('current'); });
+  $('filters-toggle').addEventListener('click', function () {
+    var open = this.getAttribute('aria-expanded') !== 'true';
+    this.setAttribute('aria-expanded', open ? 'true' : 'false'); $('filter-options').hidden = !open;
+  });
+  $('columns-reset').addEventListener('click', function () { hiddenColumns = []; saveColumns(); renderBoard(); });
+  setBoardLayout('new');
   $('back').addEventListener('click', closeTask);
   $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
   $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
@@ -633,8 +678,9 @@
     });
   }
   function newOpen() { newBuild(); $('new-msg').textContent = ''; $('new-msg').removeAttribute('data-tone'); $('new-modal').hidden = false; if (newCtl[0] && newCtl[0].focus) newCtl[0].focus.focus(); }
-  function newClose() { $('new-modal').hidden = true; $('new-open').focus(); }
+  function newClose() { $('new-modal').hidden = true; $(boardLayout === 'new' ? 'new-open-compact' : 'new-open').focus(); }
   $('new-open').addEventListener('click', newOpen);
+  $('new-open-compact').addEventListener('click', newOpen);
   $('new-cancel').addEventListener('click', newClose);
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !$('new-modal').hidden) newClose(); });
   $('new-form').addEventListener('submit', function (ev) {
