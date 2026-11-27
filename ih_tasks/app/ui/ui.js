@@ -455,7 +455,7 @@
     }))]));
     root.appendChild(linksCard(t));
     if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), window.IHTasksMarkdown.render(t.plan)]));
-    if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
+    if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), window.IHTasksMarkdown.render(t.result)]));
     if (t.links.length) {
       root.appendChild(el('ih-card', {}, [el('h3', { text: 'Results and links' }), el('ul', { 'class': 't-history' }, t.links.map(function (l) {
         var safe = /^https?:\/\//.test(l.url);
@@ -503,7 +503,7 @@
       var extra = h.text || '';
       if (h.kind === 'answered' && h.data && h.data.answers) extra = Object.keys(h.data.answers).map(function (k) { var v = h.data.answers[k]; return k + ': ' + (v === true ? 'Yes' : v === false ? 'No' : Array.isArray(v) ? v.join(', ') : v); }).join(' | ') + (extra ? ' | ' + extra : '');
       if (h.data && h.data.result) extra += (extra ? ' | ' : '') + 'Result: ' + h.data.result;
-      return el('li', {}, [el('time', { datetime: h.at, text: when(h.at) }), el('b', { text: line }), extra ? el('p', { 'class': 't-text', text: extra }) : null]);
+      return el('li', {}, [el('time', { datetime: h.at, text: when(h.at) }), el('b', { text: line }), extra ? window.IHTasksMarkdown.render(extra) : null]);
     }))]));
     if (t.legacy.length) root.appendChild(el('p', { 'class': 'ih-metadata', text: 'Old ids: ' + t.legacy.map(function (l) { return l.kind.replace('_', ' ') + ' ' + l.value; }).join(', ') }));
     return root;
@@ -559,7 +559,7 @@
       }).catch(function (e) { commentButton.disabled = false; commentMsg.setAttribute('data-tone', 'error'); commentMsg.textContent = e.message; });
     });
     var commentList = comments.length ? el('ol', { 'class': 't-comments' }, comments.map(function (c) {
-      return el('li', {}, [el('div', { 'class': 't-comment-meta' }, [el('strong', { text: c.actor }), el('time', { datetime: c.at, text: when(c.at) })]), el('p', { 'class': 't-text', text: c.text })]);
+      return el('li', {}, [el('div', { 'class': 't-comment-meta' }, [el('strong', { text: c.actor }), el('time', { datetime: c.at, text: when(c.at) })]), window.IHTasksMarkdown.render(c.text)]);
     })) : el('p', { 'class': 't-empty', text: 'No comments yet.' });
     root.appendChild(el('ih-card', { 'class': 't-comments-card' }, [el('div', { 'class': 't-section-heading' }, [el('h3', { text: 'Comments' }), el('span', { 'class': 't-count', text: String(comments.length) })]), commentList,
       el('div', { 'class': 't-comment-compose' }, [field('Add a comment', commentBox, 'new-comment'), commentButton, commentMsg])]));

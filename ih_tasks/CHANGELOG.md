@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.9
+- Show the result, comments and history text as formatted Markdown too (the plan already was), using the same safe renderer (no raw HTML).
+
 ## 0.10.8
 - Compare a simplified task board with the current layout. The new board uses one task creation entry point, expandable filters and browser-saved column visibility.
 

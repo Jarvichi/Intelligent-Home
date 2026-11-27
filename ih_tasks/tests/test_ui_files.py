@@ -8,6 +8,11 @@ HUB = '/app/32c8114c_ih_orchestrator'
 
 
 class Files(unittest.TestCase):
+    def test_long_text_is_rendered_as_markdown(self):
+        js = (UI / 'ui.js').read_text()
+        for field in ('t.plan', 't.result', 'c.text', 'extra'):
+            self.assertIn('window.IHTasksMarkdown.render(%s)' % field, js)
+
     def test_nav_and_shared_copies(self):
         page = (UI / 'index.html').read_text()
         self.assertIn('<ih-nav data-home-href="%s"' % HUB, page)
