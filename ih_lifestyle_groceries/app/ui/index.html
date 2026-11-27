@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Groceries · Intelligent Home</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Groceries"></ih-nav>
+  <ih-app>
+    <div class="ih-page-heading">
+      <h1>Groceries</h1>
+      <ih-status id="mode" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+    </div>
+    <p id="note" class="ih-metadata"></p>
+    <section class="ih-card-grid metrics" aria-label="Counts">
+      <ih-card><ih-metric id="m-items">–<small>Items in the library</small></ih-metric></ih-card>
+      <ih-card><ih-metric id="m-receipts">–<small>Receipts</small></ih-metric></ih-card>
+      <ih-card><ih-metric id="m-prices">–<small>Price changes</small></ih-metric></ih-card>
+    </section>
+    <div class="ih-card-grid panels">
+      <ih-card><h2>Latest receipts</h2><div class="scroll"><table id="t-receipts"><thead><tr><th>Date</th><th>Shop</th><th class="num">Total</th></tr></thead><tbody></tbody></table></div></ih-card>
+      <ih-card><h2>Price changes</h2><div class="scroll"><table id="t-prices"><thead><tr><th>Item</th><th class="num">Old</th><th class="num">New</th><th class="num">Change</th></tr></thead><tbody></tbody></table></div></ih-card>
+      <ih-card><h2>Due again</h2><div class="scroll"><table id="t-due"><thead><tr><th>Item</th><th>Last bought</th><th>Due</th></tr></thead><tbody></tbody></table></div></ih-card>
+      <ih-card><h2>Item library</h2>
+        <form class="ih-toolbar" id="search" role="search"><label>Search items<input id="q" type="search" maxlength="80" autocomplete="off" placeholder="e.g. biscuits"></label></form>
+        <div class="scroll"><table id="t-library"><thead><tr><th>Item</th><th class="num">Bought</th><th>Last bought</th></tr></thead><tbody></tbody></table></div>
+      </ih-card>
+    </div>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

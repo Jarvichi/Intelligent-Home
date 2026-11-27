@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import ledger as L, stats as S, publisher as PUB
+import ledger as L, stats as S, publisher as PUB, ui_server
 
 PORT = 8801
 MAX_BODY = 512 * 1024
@@ -107,12 +107,13 @@ def main():
     d = L.open_ledger(os.path.join(data, 'ih.db'), snapshot_dir=os.path.join(data, 'backup'))
     from ihlib import ha as ihha
     app = App(d, opts.get('mode', 'dry'), opts.get('api_token', ''), ha=ihha.HA() if os.environ.get('SUPERVISOR_TOKEN') else None)
-    print('ih_lifestyle_groceries: mode %s, api on %d' % (app.mode, PORT), flush=True)
+    print('ih_lifestyle_groceries: mode %s, api on %d, page on %d' % (app.mode, PORT, ui_server.UI_PORT), flush=True)
     def loop():
         while True:
             print('sensors published: %d' % app.publish(), flush=True)
             time.sleep(PUBLISH_EVERY_S)
     threading.Thread(target=loop, daemon=True).start()
+    threading.Thread(target=ui_server.make_ui_server(app).serve_forever, daemon=True).start()
     make_server(app).serve_forever()
 
 
