@@ -9,7 +9,7 @@ from ihlib import db as ihdb
 
 PROMPT = "Is there a parcel, package or cardboard box on the ground or doorstep in this picture? Answer only yes or no."
 STATE = {"seen": 0, "last": None, "ai_layer_ok": None, "dry": True, "checks": {}}
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 PORT = int(os.environ.get("PC_PORT", "8816"))
 UI_PORT = int(os.environ.get("PC_UI_PORT", "8099"))
 INGRESS_PEER = os.environ.get("PC_UI_PEER", "172.30.32.2")  # Supervisor ingress gateway ('' = allow all, tests only)

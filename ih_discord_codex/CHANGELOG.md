@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.40] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
 ## [0.1.39] - 2026-11-27
 - Apply the active Intelligent Home appearance across add-ons.
 

@@ -37,6 +37,10 @@ menu.open = true; listeners.click[0]({target: {}}); assert(!menu.open && closed 
 control.destroy(); assert.equal(listeners.click.length, 0); assert.equal(listeners.keydown.length, 0);
 window.IHTheme.apply({palette: 'coastal', mode: 'dark'});
 assert.equal(properties['--background'], '#101b26');
+window.IHTheme.apply({palette: 'sunshine', mode: 'light'});
+assert.equal(properties['--radius'], '1rem');
+assert.equal(properties['--primary'], '#80540b');
+window.IHTheme.apply({palette: 'coastal', mode: 'dark'});
 window.IHTheme.apply({palette: 'invalid', mode: 'light'});
 assert.equal(properties['--background'], '#101b26');
 console.log('Shared menu, tabs and theme interactions passed.');

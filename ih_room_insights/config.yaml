@@ -1,5 +1,5 @@
 name: "Intelligent Home - Room Insights"
-version: "0.2.3"
+version: "0.2.4"
 slug: ih_room_insights
 image: "ghcr.io/jarvichi/{arch}-ih_room_insights"
 description: "Read-only room insights from Home Assistant history: learned warm-up minutes per room, frozen-valve check, mould risk from humidity. It never changes a setpoint or calls a service. DRY by default (computes, publishes nothing)."

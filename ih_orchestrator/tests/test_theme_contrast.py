@@ -31,7 +31,7 @@ class ThemeContrast(unittest.TestCase):
     def test_palette_text_is_readable_on_surfaces(self):
         js = (UI / "ih-ui.js").read_text()
         palettes = re.findall(r"(?:light|dark): \[([^]]+)\]", js)
-        self.assertEqual(len(palettes), 8)
+        self.assertEqual(len(palettes), 18)
         for palette in palettes:
             colours = [rgb(c) for c in re.findall(r"#[0-9a-f]{6}", palette)]
             background, foreground, card, raised, muted, _, primary, primary_text = colours

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.16
+- Add five themes with shared colours and visual details.
+
 ## 0.10.15
 - Apply the active Intelligent Home appearance across add-ons.
 

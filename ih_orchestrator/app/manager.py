@@ -273,14 +273,14 @@ class Manager:
         try:
             with open(self.theme_path, encoding='utf-8') as f:
                 data = json.load(f)
-            if isinstance(data, dict) and data.get('palette') in ('neutral', 'coastal', 'woodland', 'terracotta') and data.get('mode') in ('system', 'light', 'dark'):
+            if isinstance(data, dict) and data.get('palette') in ('neutral', 'coastal', 'woodland', 'terracotta', 'slate', 'lavender', 'rose', 'midnight', 'sunshine') and data.get('mode') in ('system', 'light', 'dark'):
                 return 200, {'palette': data['palette'], 'mode': data['mode']}
         except (OSError, ValueError):
             pass
         return 200, {'palette': 'neutral', 'mode': 'system'}
 
     def set_theme(self, data):
-        if not isinstance(data, dict) or set(data) != {'palette', 'mode'} or data.get('palette') not in ('neutral', 'coastal', 'woodland', 'terracotta') or data.get('mode') not in ('system', 'light', 'dark'):
+        if not isinstance(data, dict) or set(data) != {'palette', 'mode'} or data.get('palette') not in ('neutral', 'coastal', 'woodland', 'terracotta', 'slate', 'lavender', 'rose', 'midnight', 'sunshine') or data.get('mode') not in ('system', 'light', 'dark'):
             return 400, {'error': 'Choose an available palette and appearance.'}
         with self.theme_lock:
             name = None

@@ -1,5 +1,5 @@
 name: "Intelligent Home - Usage Trace"
-version: "0.2.2"
+version: "0.2.3"
 slug: ih_usage_trace
 image: "ghcr.io/jarvichi/{arch}-ih_usage_trace"
 description: "Shows what used your Claude allowance. Every 5 minutes it records the session and week usage percentages from Home Assistant, and callers post labelled events (for example an assistant, a worker run, a task channel) over a token-protected local API. One page draws both on a chart and flags any jump that no event explains. Only labels and times are stored, never message text. SHADOW mode by default: the series is recorded, events are only logged."

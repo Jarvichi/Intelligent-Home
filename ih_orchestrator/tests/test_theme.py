@@ -18,6 +18,11 @@ class ThemeTest(unittest.TestCase):
             self.assertEqual(instance.set_theme(choice), (200, choice))
             self.assertEqual(json.loads(Path(path).read_text()), choice)
             self.assertEqual(manager.Manager([], theme_path=path).theme(), (200, choice))
+            for palette in ('slate', 'lavender', 'rose', 'midnight', 'sunshine'):
+                selected = {'palette': palette, 'mode': 'dark'}
+                self.assertEqual(instance.set_theme(selected), (200, selected))
+                self.assertEqual(instance.theme(), (200, selected))
+            instance.set_theme(choice)
             for invalid in ({"palette": "bad", "mode": "dark"}, {"palette": "coastal", "mode": "dark", "extra": 1}, None):
                 self.assertEqual(instance.set_theme(invalid)[0], 400)
                 self.assertEqual(instance.theme(), (200, choice))
