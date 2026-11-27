@@ -86,7 +86,7 @@ class SessionRunTest(TmpCase):
         with open(os.path.join(self.d, "psn_playtime_%s.json" % PLAYER)) as fh:
             return json.load(fh)
 
-    def test_run_tracks_sensor_and_writes_outside_feeds(self):
+    def test_run_tracks_sensor_and_feeds_only_a_session_event(self):
         ctx = FakeCtx(self.d)
         S.run(ctx, PLAYERS[0], now=self.now(0)); S.run(ctx, PLAYERS[0], now=self.now(25))
         ctx.state = "unknown"
@@ -95,7 +95,10 @@ class SessionRunTest(TmpCase):
         self.assertEqual(ctx.asked[0], "states/sensor.player_a_now_playing")
         self.assertEqual(data["games"]["A"]["minutes"], 25)
         self.assertEqual(data["tracked_since"], "2026-11-01")
-        self.assertFalse(os.path.exists(os.path.join(self.d, "feeds")))
+        with open(os.path.join(self.d, "feeds", "psn_sessions_%s.json" % PLAYER)) as fh:   # 25 min: also one chat event
+            feed = json.load(fh)
+        self.assertEqual([e["kind"] for e in feed["events"]], ["session"])
+        self.assertNotIn("current", feed)
 
     def test_read_error_is_ignored_and_no_prefix_does_nothing(self):
         ctx = FakeCtx(self.d)

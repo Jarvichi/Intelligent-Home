@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.16.1] - 2026-11-27
+
+### Fixed
+- A PlayStation session of 20 minutes or more that ends now reaches the assistant again. `psn_sessions` adds one "session" event (`<game> for <n> min`) to `/data/feeds/psn_sessions_<player>.json` (last 20 kept); the orchestrator sends it through the usual `game_session` path, so quiet hours, the daily limit, the 3 h gap and the handled-event tracking apply as for trophies. Shorter sessions only count towards play time. The feed has no "current" key, so it never counts as "is playing". Sent only when the add-on is live; DRY logs "would send".
+
 ## [0.16.0] - 2026-11-26
 
 ### Added
