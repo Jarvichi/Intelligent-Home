@@ -1,7 +1,7 @@
 """The Kindle's other screens (dinner menu, who's home, birthdays, the Kindle menu, cooking): values prepared here, layout in templates/<screen>.html
 and templates/kindle.css (same fixed positions as popup_render.py / device_menu.py / cooking_render.py, so the touch zones in device_surface.py line up)."""
 import datetime
-from kindle_html import ART, render
+from kindle_html import ART, Safe, render
 
 EATS = ('ASAP', '12:30', '13:30', '18:30')
 CAPTIONS = ('As soon as ready', '12:30 lunch', '13:30 lunch', '18:30 dinner')
@@ -59,8 +59,19 @@ def birthdays(data, now=None):
     return render('birthdays.html', items=rows, message='Birthdays unavailable' if not isinstance(data, dict) else 'No upcoming birthdays' if not items else '')
 
 
+MENU_ICONS = {
+    'COOK DINNER': '<path d="M6 14h20v8a6 6 0 0 1-6 6h-8a6 6 0 0 1-6-6zM4 14h24M12 4v6M20 4v6"/>',
+    'WHO IS HOME': '<path d="M4 16 16 5l12 11M8 14v13h16V14"/>',
+    'ALL LIGHTS OFF': '<path d="M11 22a9 9 0 1 1 10 0v3H11zM12 29h8"/>',
+    'REFRESH': '<path d="M26 14a10 10 0 1 0 1 6M26 5v9h-9"/>',
+    'WI-FI': '<path d="M3 12a18 18 0 0 1 26 0M8 17a11 11 0 0 1 16 0M12 22a5 5 0 0 1 8 0M16 27h.1"/>',
+    'BIRTHDAYS': '<path d="M5 28h22M7 28V17h18v11M7 22c3 3 5-3 9 0s6-3 9 0M16 17v-6M16 4c-2 3 0 5 0 5s2-2 0-5"/>',
+    'BACK': '<path d="M20 5 9 16l11 11"/>',
+}
+
+
 def menu(data=None, now=None):
-    return render('menu.html', rows=MENU_ROWS)
+    return render('menu.html', rows=[{'label': label, 'icon': Safe(MENU_ICONS[label])} for label in MENU_ROWS])
 
 
 def cooking(cook, alerts=None):

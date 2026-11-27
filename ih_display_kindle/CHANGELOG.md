@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.7
+
+- The Kindle menu looks calmer: white rows with a thin outline and a small icon on the left, instead of big black buttons (a tapped row still draws pressed).
+- The Refresh tap area on the main screen is now about 120x100 px around the icon (was 39x40 px, easy to miss).
+
 ## 0.15.6
 
 - When the alert feed is incomplete because a smoke or CO alarm is offline, the picture now says which one ("Offline: Smoke alarm") instead of the generic "Alert sources unavailable".

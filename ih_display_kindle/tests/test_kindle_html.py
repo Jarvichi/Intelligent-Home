@@ -76,7 +76,7 @@ class PageTests(unittest.TestCase):
             page = kindle_html.page(data(), now=0)
             self.assertIn('MINE', page); self.assertIn('my css', page)
             self.assertIn('<meta charset', page)   # base.html still comes from the built-in set
-            self.assertIn('Menu', kindle_html.render('menu.html', rows=('A',)))   # other templates still the built-in ones
+            self.assertIn('Menu', kindle_html.render('menu.html', rows=({'label': 'A', 'icon': ''},)))   # other templates still the built-in ones
 
     def test_a_broken_template_falls_back_instead_of_failing(self):
         with tempfile.TemporaryDirectory() as folder:
