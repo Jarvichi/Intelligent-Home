@@ -97,5 +97,5 @@ def run(ctx):
     if s['publish_entity']:
         attrs = {k: v for k, v in p.items() if k != 'notes'}
         attrs.update({'unit_of_measurement': 'notes', 'state_class': 'measurement', 'icon': 'mdi:brain', 'friendly_name': 'Brain notes'})
-        ctx.ha.post('states/' + s['publish_entity'], {'state': str(p['notes']), 'attributes': attrs})
+        ctx.publish(s['publish_entity'], str(p['notes']), attrs)
     return True

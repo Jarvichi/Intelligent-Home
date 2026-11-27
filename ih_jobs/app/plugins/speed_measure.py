@@ -76,6 +76,6 @@ def run(ctx):
         return True
     ctx.log('measured %d Mbit/s' % v)
     if s['publish_entity']:
-        ctx.ha.post('states/' + s['publish_entity'], {'state': str(v), 'attributes': {
-            'unit_of_measurement': 'Mbit/s', 'state_class': 'measurement', 'friendly_name': 'Internet download measured', 'icon': 'mdi:speedometer'}})
+        ctx.publish(s['publish_entity'], str(v), {
+            'unit_of_measurement': 'Mbit/s', 'state_class': 'measurement', 'friendly_name': 'Internet download measured', 'icon': 'mdi:speedometer'})
     return True

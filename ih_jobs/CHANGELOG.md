@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.23.0] - 2026-11-27
+- Sensors published by plugins (speed_measure, brain_stats, car_log, bus_watch, photo_albums, legacy set_state) are saved and posted again after a Home Assistant restart: at add-on start, on homeassistant_started, and every 5 min for any that are missing/unavailable/unknown. Dry and kill-switched plugins post nothing.
+
 ## [0.22.3] - 2026-11-27
 - Add five themes with shared colours and visual details.
 
