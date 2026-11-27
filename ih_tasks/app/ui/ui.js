@@ -4,6 +4,8 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = { labels: [], flash: '', flashTone: '', draft: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var detailView = 'new';
+  var detailDirty = false, switchTimer = null;
   var REL_TEXT = { blocked_by: 'Blocked by', depends_on: 'Depends on', relates_to: 'Relates to', blocks: 'Blocks', needed_by: 'Needed by' };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
@@ -399,7 +401,7 @@
     } } })]));
     return box;
   }
-  function renderDetail() {
+  function renderOldDetail() {
     var t = state.open, d = $('detail'); clear(d); if (!t) return;
     var msg = msgLine();
     var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
@@ -532,6 +534,106 @@
     if (t.legacy.length) root.appendChild(el('p', { 'class': 'ih-metadata', text: 'Old ids: ' + t.legacy.map(function (l) { return l.kind.replace('_', ' ') + ' ' + l.value; }).join(', ') }));
     d.appendChild(root);
   }
+  function renderDetail() {
+    detailDirty = false;
+    renderOldDetail();
+    $('view-new').setAttribute('aria-pressed', detailView === 'new' ? 'true' : 'false');
+    $('view-old').setAttribute('aria-pressed', detailView === 'old' ? 'true' : 'false');
+    if (detailView === 'new' && state.open) arrangeNewDetail();
+  }
+
+  function arrangeNewDetail() {
+    var t = state.open, container = $('detail'), old = container.firstChild;
+    var children = Array.prototype.slice.call(old.children), sections = {};
+    children.slice(1).forEach(function (node) {
+      var heading = node.querySelector('h3');
+      if (heading) sections[heading.textContent] = node;
+    });
+    var root = el('div', { 'class': 't-detail t-detail-new' });
+    var summary = el('section', { 'class': 't-overview' }, [
+      el('div', { 'class': 't-overview-top' }, [el('span', { 'class': 't-eyebrow', text: 'TASK #' + t.id }), el('span', { 'class': 't-stage', text: t.stage_label })]),
+      el('h2', { text: t.title }),
+      el('p', { 'class': 't-overview-meta', text: [WAIT_TEXT[t.waiting_on] || '', (t.priority || 'normal') + ' priority', t.due ? 'Due ' + t.due : '', t.raised_by ? 'Raised by ' + t.raised_by : '', t.run_now ? 'Work now requested' : '', t.remind_at ? 'Reminder ' + t.remind_at : '', t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') }),
+      labelChips(t), t.description ? el('p', { 'class': 't-text t-overview-description', text: t.description }) : el('p', { 'class': 't-empty', text: 'No description yet.' })]);
+    root.appendChild(summary);
+    var message = msgLine();
+    if (sections['Needs your input']) {
+      var question = sections['Needs your input'];
+      var oldMessage = old.querySelector('.t-msg');
+      if (oldMessage) question.appendChild(oldMessage);
+      root.appendChild(question);
+    }
+    if (sections['Plan'] || sections['Plan (being revised)'] || (t.stage === 'planning' && !t.question)) {
+      var plan = sections['Plan'] || sections['Plan (being revised)'] || el('ih-card', {}, [el('h3', { text: 'Plan' }), el('p', { 'class': 't-empty', text: 'No plan yet.' })]);
+      if (t.stage === 'planning' && !t.question) {
+        var decisionMsg = msgLine(), reason = el('textarea', { rows: '3', placeholder: 'What would you like changed?' });
+        var request = el('details', { 'class': 't-inline-action' }, [el('summary', { text: 'Request changes' }), field('What should change?', reason, 'new-reject-reason'),
+          el('button', { 'class': 't-button', type: 'button', text: 'Send back for changes', on: { click: function () {
+            if (!reason.value.trim()) { decisionMsg.setAttribute('data-tone', 'error'); decisionMsg.textContent = 'Describe what should change.'; reason.focus(); return; }
+            act(decisionMsg, api('POST', '/tasks/' + t.id + '/reject', { comment: reason.value.trim() }));
+          } } })]);
+        plan.appendChild(el('div', { 'class': 't-plan-actions' }, [confirmButton('Approve plan', 'primary', function () { act(decisionMsg, api('POST', '/tasks/' + t.id + '/move', { to: 'approved' })); }), request, decisionMsg]));
+      }
+      root.appendChild(plan);
+    }
+    if (sections['Result']) root.appendChild(sections['Result']);
+    if (t.stage === 'verifying') root.appendChild(el('ih-card', {}, [el('h3', { text: 'Ready to check' }), confirmButton('I have checked it: done', 'primary', function () { act(message, api('POST', '/tasks/' + t.id + '/move', { to: 'done' })); }), message]));
+
+    var comments = t.comments || [], commentBox = el('textarea', { rows: '3', placeholder: 'Write a comment…', maxlength: '4000' }), commentMsg = msgLine();
+    var commentButton = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Add comment' });
+    commentButton.addEventListener('click', function () {
+      var text = commentBox.value.trim();
+      if (!text) { commentMsg.setAttribute('data-tone', 'error'); commentMsg.textContent = 'Write a comment first.'; commentBox.focus(); return; }
+      commentButton.disabled = true; commentMsg.removeAttribute('data-tone'); commentMsg.textContent = 'Adding comment…';
+      api('POST', '/tasks/' + t.id + '/comment', { text: text }).then(function (updated) {
+        state.open = updated; state.flash = 'Comment added.'; renderDetail(); loadBoard();
+      }).catch(function (e) { commentButton.disabled = false; commentMsg.setAttribute('data-tone', 'error'); commentMsg.textContent = e.message; });
+    });
+    var commentList = comments.length ? el('ol', { 'class': 't-comments' }, comments.map(function (c) {
+      return el('li', {}, [el('div', { 'class': 't-comment-meta' }, [el('strong', { text: c.actor }), el('time', { datetime: c.at, text: when(c.at) })]), el('p', { 'class': 't-text', text: c.text })]);
+    })) : el('p', { 'class': 't-empty', text: 'No comments yet.' });
+    root.appendChild(el('ih-card', { 'class': 't-comments-card' }, [el('div', { 'class': 't-section-heading' }, [el('h3', { text: 'Comments' }), el('span', { 'class': 't-count', text: String(comments.length) })]), commentList,
+      el('div', { 'class': 't-comment-compose' }, [field('Add a comment', commentBox, 'new-comment'), commentButton, commentMsg])]));
+
+    var related = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Related work' })]);
+    children.forEach(function (node) {
+      var h = node.querySelector('h3'), title = h ? h.textContent : '';
+      if (title === 'Part of' || title.indexOf('Child tasks (') === 0 || title.indexOf('Links to other tasks') === 0 || title === 'Results and links') related.appendChild(node);
+    });
+    root.appendChild(related);
+    if (isOpen(t)) {
+      var edit = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Edit details' })]), controls = [], editMsg = msgLine();
+      var save = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Save details', disabled: true });
+      var sync = function () { save.disabled = !controls.some(function (c) { return c.dirty(); }); };
+      fieldsFor('edit').forEach(function (f) { var c = buildField(f, taskValue(t, f), 'new-', sync, t.id); controls.push(c); edit.appendChild(c.node); });
+      save.addEventListener('click', function () {
+        var body = {}; controls.forEach(function (c) { if (c.dirty()) body[c.id] = c.get(); });
+        if (body.title === '') { editMsg.setAttribute('data-tone', 'error'); editMsg.textContent = 'A title is needed.'; return; }
+        save.disabled = true;
+        api('POST', '/tasks/' + t.id + '/edit', body).then(function (updated) { state.open = updated; state.flash = 'Details saved.'; renderDetail(); loadBoard(); })
+          .catch(function (e) { editMsg.setAttribute('data-tone', 'error'); editMsg.textContent = e.message; sync(); });
+      });
+      edit.appendChild(save); edit.appendChild(editMsg); root.appendChild(edit);
+    }
+    var actions = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'More actions' })]);
+    ['Work this now', 'Remind me later', 'Reopen', 'Close without doing it'].forEach(function (name) { if (sections[name]) actions.appendChild(sections[name]); });
+    if (t.stage === 'approved' || t.stage === 'implementing' || t.stage === 'verifying') {
+      var replanNote = el('textarea', { rows: '3', placeholder: 'Optional note for the worker' }), replanMsg = msgLine();
+      actions.appendChild(el('ih-card', {}, [el('h3', { text: 'Replan' }), field('What should the new plan consider?', replanNote, 'new-replan'),
+        confirmButton('Send back to planning', '', function () {
+          var why = 'Replan requested by the owner: check the CURRENT state of the house and the code first (what is already built, merged, installed or changed since the plan was written), then write a new plan for what is still needed.' + (replanNote.value.trim() ? ' Owner note: ' + replanNote.value.trim() : '');
+          act(replanMsg, api('POST', '/tasks/' + t.id + '/move', { to: 'planning', reason: why }));
+        }), replanMsg]));
+    }
+    root.appendChild(actions);
+    if (sections['History']) root.appendChild(el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Activity' }), sections['History']]));
+    var legacy = children[children.length - 1];
+    if (legacy && legacy.tagName === 'P') root.appendChild(legacy);
+    var previousMsg = old.querySelector('.t-msg');
+    if (previousMsg && previousMsg.textContent && !sections['Needs your input']) root.appendChild(el('p', { 'class': 'ih-metadata', role: 'status', text: previousMsg.textContent }));
+    clear(container); container.appendChild(root);
+  }
+
   function openTask(id) {
     api('GET', '/tasks/' + id).then(function (t) {
       state.open = t; $('board-view').hidden = true; $('detail-view').hidden = false; renderDetail(); renderMergeBar(); window.scrollTo(0, 0); $('back').focus();
@@ -542,6 +644,19 @@
   function trail(list, title) { var nav = document.querySelector('ih-nav'); if (nav && typeof nav.setTrail === 'function') nav.setTrail(list, title); }
 
   /* ---- start ---- */
+  ['input', 'change'].forEach(function (event) { $('detail').addEventListener(event, function (e) {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) detailDirty = true;
+  }); });
+  ['new', 'old'].forEach(function (view) { var button = $('view-' + view), label = button.textContent;
+    button.addEventListener('click', function () {
+      if (detailView === view) return;
+      if (detailDirty && button.getAttribute('data-armed') !== 'true') {
+        button.setAttribute('data-armed', 'true'); button.textContent = 'Tap again to discard edits';
+        clearTimeout(switchTimer); switchTimer = setTimeout(function () { button.removeAttribute('data-armed'); button.textContent = label; }, 5000); return;
+      }
+      clearTimeout(switchTimer); button.removeAttribute('data-armed'); button.textContent = label; detailView = view; renderDetail();
+    });
+  });
   $('back').addEventListener('click', closeTask);
   $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
   $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });

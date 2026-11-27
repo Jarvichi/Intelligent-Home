@@ -95,3 +95,31 @@ body.t-merging main{padding-bottom:230px}
 .t-readonly{margin:0;min-height:44px;display:flex;align-items:center;padding:0 2px;color:var(--ih-text)}
 .t-help{margin:0;color:var(--ih-muted);font-size:12px}
 .t-save-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.t-detail-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+.t-detail-toolbar #back{margin:0}
+.t-view-switch{display:flex;flex-wrap:wrap;gap:4px;padding:4px;border:1px solid var(--ih-line);border-radius:12px;background:var(--ih-surface-raised)}
+.t-view-switch .t-button{min-height:36px;padding:5px 12px;border:0;background:transparent;font-size:13px}
+.t-view-switch .t-button[aria-pressed=true]{background:var(--ih-surface);box-shadow:0 1px 4px rgba(0,0,0,.16);font-weight:750}
+.t-detail-new{max-width:860px;gap:14px;margin:20px auto 0}
+.t-overview{padding:22px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-panel);background:var(--ih-surface-raised)}
+.t-overview-top,.t-section-heading,.t-comment-meta{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.t-overview-top{margin-bottom:12px}
+.t-eyebrow{color:var(--ih-muted);font-size:12px;font-weight:750;letter-spacing:.08em}
+.t-stage,.t-count{padding:4px 10px;border:1px solid var(--ih-line);border-radius:999px;font-size:12px;font-weight:700}
+.t-overview h2{font-size:26px;line-height:1.2}
+.t-overview-meta{color:var(--ih-muted);font-size:13px;line-height:1.5}
+.t-overview-description{margin-top:18px;line-height:1.6}
+.t-detail-new ih-card{display:block;padding:20px}
+.t-detail-new h3{font-size:17px}
+.t-detail-new .t-text{line-height:1.6}
+.t-plan-actions{display:grid;justify-items:start;gap:10px;margin-top:16px}
+.t-inline-action,.t-disclosure{border:1px solid var(--ih-line);border-radius:var(--ih-radius-nested);background:var(--ih-surface);padding:14px 16px}
+.t-inline-action summary,.t-disclosure>summary{cursor:pointer;font-weight:700;min-height:28px}
+.t-inline-action[open] summary,.t-disclosure[open]>summary{margin-bottom:14px}
+.t-disclosure ih-card{margin-top:10px;background:var(--ih-surface-raised)}
+.t-section-heading h3{margin:0}
+.t-comments{list-style:none;display:grid;gap:14px;margin:18px 0;padding:0}
+.t-comments li{padding:14px;border-radius:var(--ih-radius-nested);background:var(--ih-surface-raised);overflow-wrap:anywhere}
+.t-comment-meta{margin-bottom:7px;color:var(--ih-muted);font-size:12px}
+.t-comment-compose{margin-top:18px;padding-top:16px;border-top:1px solid var(--ih-line)}
+@media(max-width:600px){.t-detail-toolbar{align-items:stretch}.t-view-switch{width:100%}.t-view-switch .t-button{flex:1}.t-overview,.t-detail-new ih-card{padding:16px}.t-overview h2{font-size:22px}}
