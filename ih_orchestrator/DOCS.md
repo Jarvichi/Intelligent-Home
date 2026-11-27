@@ -38,6 +38,21 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `provision_interval_min` | No | Settings hub, see below. Default: `10`. |
 | `shared` | No | Settings hub, see below |
 | `fact_clients` | No | Setting `fact_clients`. |
+| `watchdog_enabled` | No | Turn the add-on watchdog on or off (see Add-on watchdog). Default: `true`. |
+| `watchdog_mode` | No | `dry` only reports and files a task; `live` also restarts. The Health page switch wins over this option. Default: `dry`. |
+| `watchdog_interval_seconds` | No | Seconds between checks. Default: `60`. |
+| `watchdog_failed_probes` | No | Failed checks in a row before it acts. Default: `3`. |
+| `watchdog_cooldown_minutes` | No | Minutes to wait after an action on the same add-on. Default: `10`. |
+| `watchdog_max_restarts_per_hour` | No | Restarts per add-on per hour before it escalates instead. Default: `3`. |
+| `watchdog_never_restart` | No | Comma-separated add-on names that get a task but are never restarted. |
+| `tasks_url` | No | IH Tasks add-on address (token API); with `tasks_token` the watchdog files and comments tasks. |
+| `tasks_token` | No | Token for the IH Tasks API (secret). |
+| `discord_bot_token` | No | Optional Discord bot token for watchdog notices (secret). |
+| `discord_channel_id` | No | Discord channel for watchdog notices. |
+
+## Add-on watchdog
+
+Replaces the separate watchdog add-on (task #236). It watches only the installed Intelligent Home add-ons of the catalogue, never other apps and never the orchestrator. Each add-on gets the Supervisor state check plus an HTTP request to its ingress port; the result shows in the Health cards and in the Add-on watchdog card. After `watchdog_failed_probes` failed checks in a row it restarts the add-on through the Manager's own restart action (live mode only), then waits `watchdog_cooldown_minutes`; it never restarts more than `watchdog_max_restarts_per_hour` times an hour, never restarts names in `watchdog_never_restart`, and always files or comments a task. Default mode is dry: nothing is restarted. A stopped add-on counts as failing only if it was seen running before and starts on boot. Incidents (with a log excerpt where tokens, addresses and keys are removed) are kept 30 days in `/data/watchdog.db`.
 
 ## Consumer progress
 

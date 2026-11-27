@@ -5,7 +5,7 @@ Reads manifests (IH_MANIFESTS), runs the checks a container can run (http, file_
 import html, json, os, sys, time, glob, hmac, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import healthlib, scheduler, provisioner, manager, facts, consumer_progress, trace_store, ui_contribution
+import healthlib, scheduler, provisioner, manager, facts, consumer_progress, trace_store, ui_contribution, watchdog
 from urllib.parse import urlparse, parse_qs
 
 MANIFESTS = os.environ.get("IH_MANIFESTS", "")  # only for --once on the host; the add-on maps no folders
@@ -21,6 +21,7 @@ TOKEN = ""
 FACTS = None  # facts.Facts once options are loaded (v0.9.0; off when fact_clients is empty)
 PROGRESS = None
 TRACES = None
+WATCHDOG = None   # watchdog.Watchdog (IH add-ons only; started by init_manager)
 PROV = None   # provisioner.Provisioner when option provision is true
 LOG_PAYLOADS = False   # option log_payloads: invocation lines also hold 200 chars of the request and reply (never for /admin)
 LOG = lambda m: print(m, flush=True)
@@ -372,12 +373,39 @@ def register(raw):
 def init_manager():
     """Start the ingress-only manager page server on its own port. Never raises."""
     try:
-        mgr = manager.Manager([], prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True), registered=lambda: STATE.get("registered") or {})
+        mgr = manager.Manager([], prov=lambda: PROV, seen=seen_map, health=snapshot, traces=lambda: TRACES, log=lambda m: print(m, flush=True), registered=lambda: STATE.get("registered") or {},
+                              wd=lambda: WATCHDOG)
         threading.Thread(target=mgr.warm, daemon=True).start()
         threading.Thread(target=manager.serve, args=(mgr, MANAGER_PORT), daemon=True).start()
+        init_watchdog(mgr)
         return mgr
     except Exception as e:
         print("manager failed to start:", type(e).__name__, flush=True)
+
+
+def watchdog_options():
+    o = dict(watchdog.DEFAULTS)
+    o.update({k: v for k, v in (getattr(load_options, "last", {}) or {}).items() if k in o and v is not None})
+    nr = o["watchdog_never_restart"]       # option is a comma-separated text (an optional list is not valid in a config schema)
+    o["watchdog_never_restart"] = [x.strip() for x in nr.split(",") if x.strip()] if isinstance(nr, str) else list(nr)
+    return o
+
+
+def init_watchdog(mgr):
+    """Start the add-on watchdog thread (IH catalogue add-ons only; DRY unless the option or the page says live). Never raises."""
+    global WATCHDOG
+    try:
+        def targets():
+            prefix, _ = mgr.context()
+            return watchdog.ih_targets(mgr.catalogue, mgr.installed_map(prefix))
+        o = watchdog_options
+        WATCHDOG = watchdog.Watchdog(watchdog.DB(os.path.join(DATA, "watchdog.db")), lambda m, p: mgr.sup(m, p), targets, lambda short: mgr.act("restart", short),
+                                     lambda short: "\n".join(mgr.logs(short)[1].get("lines") or []), watchdog.Tasks(o), watchdog.discord_notifier(o),
+                                     watchdog.Media(o), o)
+        threading.Thread(target=watchdog.loop, args=(WATCHDOG, o), kwargs={"log": LOG}, daemon=True).start()
+    except Exception as e:
+        WATCHDOG = None
+        print("watchdog failed to start:", type(e).__name__, flush=True)
 
 
 def load_options(path=None):
