@@ -3,6 +3,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.12.0] - 2026-11-27
+
+### Added
+- Working now card: optional `progress` text in `POST /workers/status` (for example `planned 3 of 12`), shown on the card. Kept while the stage stays the same, cleared on a stage change.
+- Per-stage stall limits: `planning` is stalled after 15 minutes (a request to a slow AI can take up to 10), other stages after 5 minutes. `GET /workers` returns `stall_s` for each worker.
+
 ## [0.11.0] - 2026-11-25
 
 ### Changed

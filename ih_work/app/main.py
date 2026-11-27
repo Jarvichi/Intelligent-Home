@@ -4,7 +4,7 @@ API (bearer api_token; an empty token refuses everything except /healthz):
   POST /enqueue {kind, ref, title, instruction, approved?, by?, priority? (high|normal|low)}   GET /list?status=a,b   GET /item/<id>
   POST /claim {consumer, lease_s?}   POST /heartbeat {id, consumer, lease_s?}   POST /complete {id, consumer, summary?}   POST /fail {id, consumer, error?}   POST /wait {id, consumer, kind, summary?}   POST /requeue {id}
   POST /cancel {id}   POST /retry {id}   GET /status
-  POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, updated_at?}   GET /workers
+  POST /workers/status {worker, stage, title?, ref?, started_at?, detail?, progress?, updated_at?}   GET /workers
   GET /runs   POST /runs/settings {night?, day?}   POST /runs/start {pace_target, max_items|null, block_size?}   POST /runs/stop   GET /healthz (open)
 Unknown fields are refused. Nothing secret is logged or returned. stdlib only."""
 import hmac, json, logging, os, re, sys, threading, time
@@ -35,7 +35,7 @@ FIELDS = {   # POST path -> (allowed fields, required fields)
     '/runs/settings': ({'night', 'day'}, set()),
     '/runs/start': ({'pace_target', 'max_items', 'block_size', 'review_batch_size'}, {'pace_target', 'max_items'}),
     '/runs/stop': (set(), set()),
-    '/workers/status': ({'worker', 'title', 'ref', 'started_at', 'stage', 'detail', 'updated_at'}, {'worker', 'stage'}),
+    '/workers/status': ({'worker', 'title', 'ref', 'started_at', 'stage', 'detail', 'progress', 'updated_at'}, {'worker', 'stage'}),
 }
 DEFAULT_PREFIXES = ['IH:', 'Check:', 'Review:']
 
