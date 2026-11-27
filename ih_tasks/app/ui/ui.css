@@ -100,6 +100,8 @@ body.t-merging main{padding-bottom:230px}
 .t-tools-menu[open]>summary{border-color:var(--ih-link)}
 .t-tools-panel{position:absolute;right:0;z-index:10;display:grid;gap:4px;width:min(240px,calc(100vw - 32px));margin-top:6px;padding:8px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-nested);background:var(--ih-surface);box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .t-tools-panel>button{width:100%;text-align:left;border:0;background:transparent}
+.t-tools-link{display:flex;align-items:center;text-decoration:none;border:0;background:transparent}
+.t-tools-link:hover{background:var(--ih-surface-raised)}
 .t-tools-panel>button[aria-pressed=true],.t-tools-panel>button[aria-expanded=true]{color:var(--ih-link);font-weight:750}
 .t-filter{padding:14px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-panel);background:var(--ih-surface-raised)}
 .t-search-row{grid-template-columns:minmax(0,1fr) auto auto;margin-bottom:0}
