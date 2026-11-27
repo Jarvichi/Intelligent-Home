@@ -35,6 +35,8 @@ class UiFiles(unittest.TestCase):
     def test_no_external_urls_no_writes(self):
         for f in os.listdir(UI):
             text = open(os.path.join(UI, f)).read()
+            if f.endswith(('.css', '.js')):
+                text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
             self.assertIsNone(re.search(r'https?://|src="//|href="//', text), f)
         js = open(os.path.join(UI, 'ui.js')).read()
         self.assertNotRegex(js, r"method\s*:|POST|innerHTML")

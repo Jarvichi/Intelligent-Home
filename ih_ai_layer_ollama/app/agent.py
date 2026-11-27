@@ -5,7 +5,7 @@ Request and reply text are never logged unless option log_payloads is true (firs
 import json, os, re, threading, time, urllib.error, urllib.request
 import jobs_link
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 CAPABILITIES = ['general_qa', 'summarize', 'vision']
 STOP_FILE = 'STOP'
 MAX_IN = 8000

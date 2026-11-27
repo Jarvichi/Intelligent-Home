@@ -26,7 +26,7 @@ sys.path.insert(0, HERE)
 from ihlib import trace
 import bus_client, events
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 DATA = os.environ.get('IHT_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHT_PORT', '8797'))

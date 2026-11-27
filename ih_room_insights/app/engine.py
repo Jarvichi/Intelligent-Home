@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import insights as I
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 MIGRATIONS = [
     (1, 'CREATE TABLE runs(room TEXT NOT NULL, start TEXT NOT NULL, minutes REAL, rise REAL, min_per_deg REAL, PRIMARY KEY(room,start))'),
 ]

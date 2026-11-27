@@ -40,7 +40,7 @@ import reminders as RMD
 import model as M
 from store import TaskStore
 
-VERSION = '0.10.12'
+VERSION = '0.10.13'
 DATA = os.environ.get('IHT_DATA', '/data')
 PORT = int(os.environ.get('IHT_PORT', '8818'))
 UI_PORT = int(os.environ.get('IHT_UI_PORT', '8823'))

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.2
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.12.1
 
 - The authenticated alert feed lists the smoke/CO alarms that are unavailable (`offline`), so displays can name the problem.

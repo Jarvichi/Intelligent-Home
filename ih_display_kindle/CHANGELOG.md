@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.15.8
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.15.7
 
 - The Kindle menu looks calmer: white rows with a thin outline and a small icon on the left, instead of big black buttons (a tapped row still draws pressed).

@@ -5,6 +5,9 @@ import core
 import clients
 from unittest import mock
 from urllib.error import HTTPError
+import threading
+import urllib.request
+from http.server import ThreadingHTTPServer
 
 OPTS = {'mode': 'live', 'failed_probes': 3, 'cooldown_minutes': 10, 'max_restarts_per_hour': 3, 'never_restart': ['core', 'ih_orchestrator'],
         'media_players': ['media_player.b2'], 'media_probe_enabled': True}
@@ -31,6 +34,21 @@ class Media:
     def busy(self, e): return self.busy_now
     def play_probe(self, e): return self.ok.pop(0)
     def reload_entry(self, e): self.reloaded += 1
+
+
+class Page(unittest.TestCase):
+    def test_shared_ui_assets_are_served_to_ingress(self):
+        import main
+        with mock.patch.object(main, 'PEER', '127.0.0.1'):
+            server = ThreadingHTTPServer(('127.0.0.1', 0), main.handler(None, None, None, None))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                for path in ('/', '/ih-ui.css', '/ih-ui.js'):
+                    with urllib.request.urlopen('http://127.0.0.1:%d%s' % (server.server_port, path), timeout=3) as response:
+                        self.assertEqual(response.status, 200)
+            finally:
+                server.shutdown(); thread.join(); server.server_close()
 
 
 class T(unittest.TestCase):

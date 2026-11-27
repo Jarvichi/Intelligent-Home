@@ -17,7 +17,7 @@ import speaker as sp              # noqa: E402
 import ui_server                  # noqa: E402
 from ihlib import db as ihdb     # noqa: E402
 
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 MAX_BODY = 8192
 DATA = os.environ.get('IHS_DATA', '/data')
 

@@ -1,4 +1,7 @@
 # Changelog
+
+## 0.4.1
+- Update the shared Intelligent Home visual theme and components.
 ## 0.4.0
 - New read-only page in the Home Assistant sidebar ("IH · Parcel check", ingress port 8099, answers only the Supervisor gateway): mode (DRY or live), last check time, whether the AI layer answers, counts (checked, parcel, no parcel, unsure, errors) for today and 7 days, the last 20 verdicts (time, camera, verdict, answer text, which AI answered) and recent errors. No pictures and no picture file names are shown or served. Confidence is not recorded (the model answers yes/no), so the answer text is shown instead.
 - New own database /data/ih.db (ihlib.db copy) with the verdicts and the last 50 errors. On the first start the old /data/verdicts.jsonl is imported; that file is kept and still written.

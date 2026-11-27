@@ -1,6 +1,6 @@
 {
  "name": "ih_usage_trace",
- "version": "0.2.0",
+ "version": "0.2.1",
  "kind": "addon",
  "description": "Records Claude usage (session and week percent) every 5 minutes and labelled events (who or what used it), shows both on one chart and flags unattributed jumps. Own database, token-protected API, page.",
  "owner": "local add-on ih_usage_trace",

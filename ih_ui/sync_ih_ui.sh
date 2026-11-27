@@ -2,7 +2,14 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CHECK=0
-[ "${1:-}" != "--check" ] || CHECK=1
+SHARED_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK=1 ;;
+    --shared-only) SHARED_ONLY=1 ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
 found=0
 # copy_one SRC DST LABEL: copy, or in --check mode fail when DST is missing or differs.
 copy_one() {
@@ -21,7 +28,7 @@ for dir in "$ROOT"/ih_*/app/ui; do
     copy_one "$ROOT/ih_ui/$src" "$dir/$dst" "$rel/$dst"
   done
   # Pages marked "page": "status" in ui.json use the shared status page template.
-  if [ -f "$dir/ui.json" ] && grep -q '"page"[[:space:]]*:[[:space:]]*"status"' "$dir/ui.json"; then
+  if [ "$SHARED_ONLY" -eq 0 ] && [ -f "$dir/ui.json" ] && grep -q '"page"[[:space:]]*:[[:space:]]*"status"' "$dir/ui.json"; then
     for pair in "status-page.html:index.html" "status-page.js:ui.js" "status-page.css:ui.css" "patterns.css:ih-patterns.css"; do
       src=${pair%%:*}; dst=${pair#*:}
       copy_one "$ROOT/ih_ui/$src" "$dir/$dst" "$rel/$dst"
