@@ -93,7 +93,7 @@ class DeviceSurface:
                     if isinstance(cook,dict) and 16<=datetime.datetime.fromtimestamp(now).astimezone().hour<19:nav([48,726,280,866],'dinner')
                     add([270,884,410,924],self.actions.describe('lights'))
                     add([716,882,864,922],halloween)
-                    add([985,36,1024,76],self.actions.describe('refresh'))
+                    add([904,16,1024,116],self.actions.describe('refresh'))   # 120x100 around the icon (was 39x40, easy to miss)
                 tasks=data.get('tasks');offset=data.get('device',{}).get('page_offset',0)
                 rows,_,pages,grouped=kindle_render.task_page(tasks,offset if type(offset) is int else 0,now)
                 if grouped and data.get('tasks_partial') is not True:

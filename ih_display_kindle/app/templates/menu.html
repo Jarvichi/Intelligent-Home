@@ -1,4 +1,4 @@
 {% extends "base.html" %}{% block body %}
 <div class="a n menu-title">Menu</div>
-{% for label in rows %}<div class="a ink menu-row" style="--i:{{ loop.index0 }}">{{ label }}</div>{% endfor %}
+{% for row in rows %}<div class="a menu-row" style="--i:{{ loop.index0 }}"><svg class="menu-icon" viewBox="0 0 32 32" width="44" height="44" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">{{ row.icon|safe }}</svg><span>{{ row.label }}</span></div>{% endfor %}
 {% endblock %}

@@ -141,7 +141,8 @@ svg{display:block}
 .home-status{left:306px;top:calc(520px + var(--i) * 180px);width:640px;font-size:32px}
 .home-done{left:140px;top:1010px;width:792px;height:104px;line-height:98px;font-size:40px}
 .menu-title{left:48px;top:36px;font-size:48px;font-weight:700}
-.menu-row{left:140px;top:calc(300px + var(--i) * 140px);width:792px;height:116px;border-radius:30px;font-size:30px;font-weight:700;line-height:116px;text-align:center}
+.menu-row{left:140px;top:calc(300px + var(--i) * 140px);width:792px;height:116px;box-sizing:border-box;border:3px solid #000;border-radius:30px;background:#fff;color:#000;font-size:30px;font-weight:700;display:flex;align-items:center;gap:28px;padding:0 36px}
+.menu-icon{flex:0 0 44px}
 
 /* cooking */
 .ck-title{left:48px;top:52px;width:560px;font-size:46px;font-weight:700}
