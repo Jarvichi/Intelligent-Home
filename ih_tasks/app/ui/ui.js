@@ -563,6 +563,8 @@
       if (oldMessage) question.appendChild(oldMessage);
       root.appendChild(question);
     }
+    var details = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Details' })]);
+    root.appendChild(details);
     if (sections['Plan'] || sections['Plan (being revised)'] || (t.stage === 'planning' && !t.question)) {
       var plan = sections['Plan'] || sections['Plan (being revised)'] || el('ih-card', {}, [el('h3', { text: 'Plan' }), el('p', { 'class': 't-empty', text: 'No plan yet.' })]);
       if (t.stage === 'planning' && !t.question) {
@@ -595,14 +597,13 @@
     root.appendChild(el('ih-card', { 'class': 't-comments-card' }, [el('div', { 'class': 't-section-heading' }, [el('h3', { text: 'Comments' }), el('span', { 'class': 't-count', text: String(comments.length) })]), commentList,
       el('div', { 'class': 't-comment-compose' }, [field('Add a comment', commentBox, 'new-comment'), commentButton, commentMsg])]));
 
-    var related = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Related work' })]);
+    var related = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Advanced details' })]);
     children.forEach(function (node) {
       var h = node.querySelector('h3'), title = h ? h.textContent : '';
       if (title === 'Part of' || title.indexOf('Child tasks (') === 0 || title.indexOf('Links to other tasks') === 0 || title === 'Results and links') related.appendChild(node);
     });
-    root.appendChild(related);
     if (isOpen(t)) {
-      var edit = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Edit details' })]), controls = [], editMsg = msgLine();
+      var edit = el('div', { 'class': 't-edit-details' }, [el('h3', { text: 'Edit details' })]), controls = [], editMsg = msgLine();
       var save = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Save details', disabled: true });
       var sync = function () { save.disabled = !controls.some(function (c) { return c.dirty(); }); };
       fieldsFor('edit').forEach(function (f) { var c = buildField(f, taskValue(t, f), 'new-', sync, t.id); controls.push(c); edit.appendChild(c.node); });
@@ -613,9 +614,10 @@
         api('POST', '/tasks/' + t.id + '/edit', body).then(function (updated) { state.open = updated; state.flash = 'Details saved.'; renderDetail(); loadBoard(); })
           .catch(function (e) { editMsg.setAttribute('data-tone', 'error'); editMsg.textContent = e.message; sync(); });
       });
-      edit.appendChild(save); edit.appendChild(editMsg); root.appendChild(edit);
+      edit.appendChild(save); edit.appendChild(editMsg); details.appendChild(edit);
     }
-    var actions = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'More actions' })]);
+    details.appendChild(related);
+    var actions = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Actions' })]);
     ['Work this now', 'Remind me later', 'Reopen', 'Close without doing it'].forEach(function (name) { if (sections[name]) actions.appendChild(sections[name]); });
     if (t.stage === 'approved' || t.stage === 'implementing' || t.stage === 'verifying') {
       var replanNote = el('textarea', { rows: '3', placeholder: 'Optional note for the worker' }), replanMsg = msgLine();
@@ -625,7 +627,7 @@
           act(replanMsg, api('POST', '/tasks/' + t.id + '/move', { to: 'planning', reason: why }));
         }), replanMsg]));
     }
-    root.appendChild(actions);
+    details.appendChild(actions);
     if (sections['History']) root.appendChild(el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Activity' }), sections['History']]));
     var legacy = children[children.length - 1];
     if (legacy && legacy.tagName === 'P') root.appendChild(legacy);
