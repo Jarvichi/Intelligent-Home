@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.15] - 2026-11-28
+- The plain (SVG) fallback picture is now saved as 8-bit greyscale like the Chromium one. It was an RGB PNG, which the Kindle's eips shows stretched to about double width whenever the add-on fell back (28 Nov).
+
 ## [0.15.14] - 2026-11-27
 - Now-playing box art fills the full height of its box (210 px) and is wider (190 px, was 140 x 190); the game name moves right and drops to 22 px to make room.
 

@@ -27,7 +27,19 @@ ASSETS={'/':('index.html','text/html'),'/ih-ui.css':('ih-ui.css','text/css'),'/i
 def png(data):
     result=subprocess.run(['rsvg-convert','--format=png'],input=data,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=10,check=True)
     if len(result.stdout)>8*1024*1024 or not result.stdout.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid image')
-    return result.stdout
+    return grey(result.stdout)
+
+def grey(data):
+    # rsvg-convert writes an RGB PNG. The Kindle's eips reads 8-bit greyscale, so an RGB picture shows stretched to about double width (28 Nov 2026).
+    try:
+        from PIL import Image
+        import io
+        with Image.open(io.BytesIO(data)) as image:
+            out=io.BytesIO();image.convert('L').save(out,'PNG',optimize=True)
+        value=out.getvalue()
+        return value if value.startswith(b'\x89PNG\r\n\x1a\n') else data
+    except Exception:
+        return data
 
 def make_handler(store,ingress=False,peer=PEER,sources=None,snapshot=None,alerts=None,png_encoder=png,variants=None,menu=None,html=None):
     def main_picture(data,alert_data):
