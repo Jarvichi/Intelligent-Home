@@ -104,8 +104,8 @@ def svg(data,alerts=None,now=None):
     text(970 if charging else 1024,64,info,25,anchor='end')
     if charging:p.append(f'<circle cx="1005" cy="55" r="19" fill="{header_color}"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="{"black" if inverted else "white"}" stroke-width="3"/>')
     for i,line in enumerate(festive_header.lines(event)):
-        size=min(25,max(12,int(380/max(1,len(line))*1.5)))
-        text(1024,110+i*30,line,size,True,'end')
+        size=min(32,max(12,int(520/max(1,len(line))*1.5)))   # bigger now the weather cat is gone from this header (Andrew, 28 Nov)
+        text(1024,112+i*42,line,size,True,'end')
     text(1024,181,data.get('sun') or 'Sun unavailable',34,True,'end');p.append('<path d="M48 214H1024" stroke="black" stroke-width="3"/>')
     if halloween:p.append(halloween_art.header_decor())
     weather=data.get('weather')
