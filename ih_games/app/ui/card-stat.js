@@ -57,7 +57,12 @@
       }
       const earned = wholeNumber(stat.earned);
       if (earned === null) continue;
-      return { kind: kind, label: 'Trophies', value: earned + ' out of ' + total + ' ' + TROPHY_MARK };
+      const box = { kind: kind, label: 'Trophies', value: earned + ' out of ' + total + ' ' + TROPHY_MARK };
+      if (stat.stale) {   // the last PSN refresh failed: these numbers are old
+        box.stale = true;
+        box.note = 'Out of date' + (stat.as_of ? ', last updated ' + (formatDate ? formatDate(stat.as_of) : stat.as_of) : '');
+      }
+      return box;
     }
     return null;
   }

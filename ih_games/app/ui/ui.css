@@ -45,6 +45,7 @@
 .game-facts.three-facts{grid-template-columns:repeat(3,minmax(0,1fr))}
 .detail-row{display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 0;border-top:1px solid var(--ih-line)}
 .detail-row dt{color:var(--ih-muted);font-size:11px;font-weight:650}
+.stale-badge{display:inline-block;margin-left:.25em;padding:0 .45em;border:1px solid var(--ih-warn);border-radius:999px;color:var(--ih-warn);font-size:.7em;font-weight:600;white-space:nowrap;vertical-align:middle;cursor:help}
 .info-glyph{display:inline-block;cursor:help;font-weight:400;opacity:.75}.info-glyph:hover,.info-glyph:focus{opacity:1}
 .detail-row dd{margin:0;font-size:13px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
 .art-status{margin:auto 0 0;padding-top:8px;color:var(--ih-muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}

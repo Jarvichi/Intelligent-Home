@@ -57,6 +57,22 @@ def totals_index(data_dir, player):
     return out
 
 
+def stale_info(data_dir, player):
+    """{"stale": bool, "since": last good refresh (ISO text) or None}. Stale = the last refresh failed while a feed
+    (old totals) still exists. A missing or unreadable state file is not stale."""
+    try:
+        with open(os.path.join(data_dir, "state_%s_%s.json" % (TITLES_FEED, player))) as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        return {"stale": False, "since": None}
+    if not isinstance(state, dict) or state.get("ok") is not False:
+        return {"stale": False, "since": None}
+    feed = _feed(data_dir, TITLES_FEED, player)
+    if not feed:
+        return {"stale": False, "since": None}
+    return {"stale": True, "since": state.get("last_ok") or feed.get("updated")}
+
+
 # ---- full trophy list for one game (tap a tier tile) ----
 LIST_DIR = "trophy_lists"            # /data/trophy_lists/<player>/<game slug>.json
 LIST_CACHE_S = 15 * 60               # a saved list younger than this is served without a PSN call

@@ -199,6 +199,37 @@ class CardStatTest(TmpCase):
         self.assertEqual(card_stat.playtime_stat(e), {"kind": "playtime", "minutes": 356, "tracked": False, "since": None})
         self.assertIsNone(card_stat.for_entry(self.entry(), {}))
 
+    def test_stale_flag_only_on_trophies_and_only_when_stale(self):
+        e = self.entry(playtime_min=356)
+        stale = {"stale": True, "since": "2026-11-20T10:00:00+00:00"}
+        self.assertEqual(card_stat.for_entry(e, self.TOTALS, None, stale),
+                         {"kind": "trophies", "earned": 24, "total": 55, "stale": True, "as_of": stale["since"]})
+        self.assertEqual(card_stat.for_entry(e, self.TOTALS, None, {"stale": False, "since": None}), {"kind": "trophies", "earned": 24, "total": 55})
+        self.assertNotIn("stale", card_stat.for_entry(e, {}, None, stale))   # play time stat
+        quest = card_stat.tool_progress(QuestTool({"done": 1, "total": 2}), None, PLAYER)
+        self.assertNotIn("stale", card_stat.for_entry(e, self.TOTALS, quest, stale))
+
+    def test_stale_info_reads_state_and_needs_a_feed(self):
+        feeds = os.path.join(self.d, "feeds"); os.makedirs(feeds)
+        sp = os.path.join(self.d, "state_psn_trophy_titles_p.json")
+        self.assertEqual(trophies.stale_info(self.d, "p"), {"stale": False, "since": None})   # no state
+        json.dump({"ok": False, "last_ok": "X"}, open(sp, "w"))
+        self.assertFalse(trophies.stale_info(self.d, "p")["stale"])                           # failed, but no feed yet
+        json.dump({"updated": "U", "titles": []}, open(os.path.join(feeds, "psn_trophy_titles_p.json"), "w"))
+        self.assertEqual(trophies.stale_info(self.d, "p"), {"stale": True, "since": "X"})
+        json.dump({"ok": False}, open(sp, "w"))
+        self.assertEqual(trophies.stale_info(self.d, "p")["since"], "U")                      # old state file: feed stamp
+        json.dump({"ok": True}, open(sp, "w"))
+        self.assertFalse(trophies.stale_info(self.d, "p")["stale"])
+
+    def test_annotate_marks_stale_trophy_stat(self):
+        os.makedirs(os.path.join(self.d, "feeds"))
+        json.dump({"updated": "U", "titles": [{"title": GAME, "earned": {"bronze": 1}, "defined": {"bronze": 5}}]},
+                  open(os.path.join(self.d, "feeds", "psn_trophy_titles_p.json"), "w"))
+        json.dump({"ok": False, "last_ok": "X"}, open(os.path.join(self.d, "state_psn_trophy_titles_p.json"), "w"))
+        out = card_stat.annotate([self.entry()], self.d, "p")
+        self.assertEqual(out[0]["card_stat"], {"kind": "trophies", "earned": 1, "total": 5, "stale": True, "as_of": "X"})
+
     def test_zero_minutes_is_hidden_not_shown(self):
         self.assertIsNone(card_stat.for_entry(self.entry(playtime_min=0), {}))
 
@@ -403,6 +434,13 @@ class CardStatScriptTest(unittest.TestCase):
                          {"kind": "playtime", "label": "Play time", "value": "5 hours 56 min", "note": "Tracked since D2026-11-01"})
         self.assertEqual(self.stat({"card_stat": {"kind": "playtime", "minutes": 61, "tracked": False, "since": None}}),
                          {"kind": "playtime", "label": "Play time", "value": "1 hour 1 min", "note": ""})
+
+    def test_stale_trophies_get_an_out_of_date_note(self):
+        game = {"card_stat": {"kind": "trophies", "earned": 2, "total": 9, "stale": True, "as_of": "2026-11-20"}}
+        box = self.stat(game)
+        self.assertEqual((box["stale"], box["note"], box["value"]), (True, "Out of date, last updated D2026-11-20", "2 out of 9 \U0001F3C6"))
+        self.assertEqual(self.stat({"card_stat": {"kind": "trophies", "earned": 2, "total": 9, "stale": True}})["note"], "Out of date")
+        self.assertNotIn("stale", self.stat({"card_stat": {"kind": "trophies", "earned": 2, "total": 9}}))
 
     def test_play_time_is_available_beside_trophies(self):
         playtime = {"kind": "playtime", "minutes": 356, "tracked": False, "since": None}

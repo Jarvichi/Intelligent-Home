@@ -28,6 +28,8 @@ The same token and Online ID let the Games page list every trophy of a game: ope
 
 ### PlayStation play time
 
+When the trophy-titles refresh fails (for example the NPSSO token expired), the trophy box keeps the last saved totals and shows an amber "out of date" badge with the date of the last good refresh. The badge goes away after the next successful refresh. Only the trophy box is marked.
+
 PSN reports no play time for most games. When `psn_trophies` is enabled, the add-on also reads `sensor.<trophy_prefix>_now_playing` on every provider run and sums the play sessions it sees (a session ends after 10 minutes without a title; sessions under 5 minutes are dropped). Totals are kept in `/data/psn_playtime_<player>.json` and count only from the day tracking began; the card says "Play time since <date>". A session of 20 minutes or more that ends is also written as a "session" event to `/data/feeds/psn_sessions_<player>.json`, so the assistant gets the usual game message (quiet hours, daily limit and the 3 h gap apply; DRY mode only logs "would send"). To fill in earlier sessions from the Home Assistant recorder, run `app/tools/psn_backfill.py` once (read-only unless `--write` is given).
 
 ### The stat box on a game card

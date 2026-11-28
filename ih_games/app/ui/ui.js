@@ -408,7 +408,14 @@
     /* Progress (quests / trophies) first, then play time above zero; no box when unknown (never a misleading "0 min"). */
     const showDate = function (value) { return fmtDate(value, true); };
     const stat = cardStatHelpers.cardStat(game, showDate);
-    if (stat) facts.append(row(stat.label, stat.value, stat.note));
+    if (stat) {
+      const statRow = row(stat.label, stat.value, stat.note);
+      if (stat.stale) {   // amber "out of date" badge: the last PSN refresh failed, the numbers are old
+        const badge = el('span', 'out of date', 'stale-badge'); badge.title = stat.note || 'Out of date';
+        statRow.querySelector('dd').append(' ', badge);
+      }
+      facts.append(statRow);
+    }
     const played = stat && stat.kind === 'playtime' ? null : cardStatHelpers.cardPlaytime(game, showDate);
     if (played) facts.append(row(played.label, played.value, played.note));
     if (facts.children.length > 2) facts.classList.add('three-facts');   // Last played | trophies | play time as three columns

@@ -80,8 +80,11 @@ def run(ctx, player):
         titles = fetch_titles(token, online_id)
     except Exception as exc:
         ctx.log(f"psn_trophy_titles: lookup failed for {pkey} ({type(exc).__name__})")
-        _atomic_write(state_path, {"attempted_at": stamp, "ok": False})
+        # keep the feed (old totals) but remember when it was last good and why it failed (class name only, no secrets),
+        # so the Games tile can show an "out of date" marker
+        last_ok = state.get("last_ok") or (state.get("attempted_at") if state.get("ok") else None)
+        _atomic_write(state_path, {"attempted_at": stamp, "ok": False, "last_ok": last_ok, "error": type(exc).__name__})
         return
     _atomic_write(feed_path, {"source": NAME, "player": pkey, "updated": stamp, "events": [], "titles": titles})
-    _atomic_write(state_path, {"attempted_at": stamp, "ok": True, "count": len(titles)})
+    _atomic_write(state_path, {"attempted_at": stamp, "ok": True, "count": len(titles), "last_ok": stamp})
     ctx.log(f"psn_trophy_titles: {len(titles)} games with trophies for {pkey}")

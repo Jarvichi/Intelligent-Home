@@ -37,14 +37,18 @@ def tool_progress(tool, tc, player):
     return {"kind": KIND_QUESTS, "done": min(done, total), "total": total, "label": str(p.get("label") or DEFAULT_QUEST_LABEL)}
 
 
-def for_entry(entry, trophy_totals, quest=None):
-    """The stat for one library entry. trophy_totals: trophies.totals_index(); quest: tool_progress() result or None."""
+def for_entry(entry, trophy_totals, quest=None, stale=None):
+    """The stat for one library entry. trophy_totals: trophies.totals_index(); quest: tool_progress() result or None;
+    stale: trophies.stale_info() - when stale, the trophy stat also carries stale=True and as_of (last good refresh)."""
     if quest:
         return quest
     if entry.get("platform") in TROPHY_PLATFORMS:
         t = trophy_totals.get(L.norm(entry.get("title")))
         if t and t.get("total"):
-            return {"kind": KIND_TROPHIES, "earned": t["earned"], "total": t["total"]}
+            stat = {"kind": KIND_TROPHIES, "earned": t["earned"], "total": t["total"]}
+            if stale and stale.get("stale"):
+                stat.update(stale=True, as_of=stale.get("since"))
+            return stat
     return playtime_stat(entry)
 
 
@@ -61,8 +65,9 @@ def playtime_stat(entry):
 def annotate(games, data_dir, player, tool_for=None, tc=None):
     """Copies of the library entries with `card_stat` added."""
     totals = trophies.totals_index(data_dir, player)
+    stale = trophies.stale_info(data_dir, player)
     out = []
     for e in games:
         tool = tool_for(e) if tool_for and e.get("tools") else None
-        out.append(dict(e, card_playtime=playtime_stat(e), card_stat=for_entry(e, totals, tool_progress(tool, tc, player) if tool else None)))
+        out.append(dict(e, card_playtime=playtime_stat(e), card_stat=for_entry(e, totals, tool_progress(tool, tc, player) if tool else None, stale)))
     return out
