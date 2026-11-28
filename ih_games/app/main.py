@@ -7,11 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ihlib import trace
-import schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, trophies as trophies_mod, card_stat, todos, tools as tools_mod, artwork
+import discord_presence as discord_presence_listener, schedule_client, orchestrator, sensors as sensors_mod, library as library_mod, played, trophies as trophies_mod, card_stat, todos, tools as tools_mod, artwork
 from jobs import common
-from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, psn_sessions, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library
+from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, psn_sessions, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library, discord_presence
 
-VERSION = "0.16.5"
+VERSION = "0.17.1"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
@@ -34,6 +34,7 @@ PROVIDERS = {
     "xbox_gamerscore": xbox_gamerscore,
     "destiny": destiny,
     "steam_presence": steam_presence,
+    "discord_presence": discord_presence,
     "steam_achievements": steam_achievements,
     "steam_library": steam_library,
 }
@@ -66,6 +67,7 @@ def load_options(path=None):
         "bungie_api_key": str(o.get("bungie_api_key") or "").strip(),
         "psn_npsso": str(o.get("psn_npsso") or "").strip(),
         "steam_api_key": str(o.get("steam_api_key") or "").strip(),
+        "discord_presence_token": str(o.get("discord_presence_token") or "").strip(),
         "destiny_poll_s": int(o.get("destiny_poll_s") or 900),
         "log_payloads": o.get("log_payloads") is True,
         "admin_token": str(o.get("admin_token") or "").strip(),
@@ -576,6 +578,11 @@ def main():
     
     mod.start_run_all()
     mod.start_fallback_timer()
+    try:    # Discord "Playing X" for players with discord_user_id (needs the bot's Presence Intent; see DOCS)
+        lis = discord_presence_listener.start(mod.data, mod.opts.get("players", []), mod.opts.get("discord_presence_token"), log=lg.info)
+        lg.info("discord presence: %s" % ("listening" if lis else "off (no token or no player with discord_user_id)"))
+    except Exception as e:
+        lg.info("discord presence not started (%s)" % type(e).__name__)
     lg.info(f"ih_games {VERSION} starting: mode={mod.mode()}")
     manifest = json.load(open(os.path.join(HERE, "manifest.json")))
 

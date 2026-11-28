@@ -36,6 +36,13 @@ PSN reports no play time for most games. When `psn_trophies` is enabled, the add
 
 Next to "Last played" a card shows one box: quest progress when the game's tool reports it, else trophies earned out of the total, else a play time above zero. With none of these the box is hidden.
 
+### PC games from Discord (`discord_presence`, 0.17.0)
+What a person plays on their PC, read from Discord's "Playing X" (the Discord desktop app detects PC games by itself).
+1. Discord developer portal, the bot (the House Bot), **Bot**, Privileged Gateway Intents: switch **Presence Intent** ON and save. Without it Discord refuses the connection (close code 4014) and the log says so.
+2. The person must share a server with the bot and have *Settings, Activity Privacy, Share your detected activity* ON.
+3. Options: `discord_presence_token` = the bot token; on the player add `discord_user_id` (their Discord user id); add `discord_presence` to `providers_enabled`; restart the add-on.
+Only the ids in `discord_user_id` are looked at, everybody else's presence is dropped on arrival. Only the game name is kept (data/presence_<player>.json, feed `discord_presence_<player>.json`). A session of 20 minutes or more becomes a "Played X for about N min" event; the live game is `current.now_playing`, and announcements to that person are held back while it is set.
+
 ### Steam achievement names
 
 Follow [STEAM_ACHIEVEMENT_SETUP.md](STEAM_ACHIEVEMENT_SETUP.md) to configure the Steam profile URL you supplied and the private Steam API key option. The provider reads the current game and App ID from Home Assistant's Steam Online integration. Steam's Web API returns earned achievements and the game's published schema; profile game details must be public for the lookup to work.
