@@ -1,0 +1,39 @@
+name: "Intelligent Home - Polestar"
+version: "0.1.0"
+slug: ih_polestar
+image: "ghcr.io/jarvichi/{arch}-ih_polestar"
+description: "Read-only Polestar 2 data (battery, range, charging state, odometer) published as polestar_* sensors. No commands: it cannot lock, unlock, heat or charge the car. Has a fixture mode with fake values so the Cars tab can be tested before the car exists. DRY by default (publishes nothing)."
+arch:
+  - aarch64
+  - amd64
+startup: application
+# auto_update is a Supervisor setting: turn it on after install (see DOCS.md).
+boot: auto
+watchdog: http://[HOST]:[PORT:8813]/healthz
+init: false
+ingress: true
+ingress_port: 8811
+panel_title: "IH · Polestar"
+panel_icon: mdi:car-electric
+panel_admin: true
+homeassistant_api: true
+ports:
+  8813/tcp: 8813
+ports_description:
+  8813/tcp: "Health and readings (/healthz open; /status and /readings need the bearer api_token)"
+options:
+  mode: "dry"
+  api_token: ""
+  polestar_email: ""
+  polestar_password: ""
+  vin: ""
+  interval_min: 10
+  keep_days: 90
+schema:
+  mode: list(dry|fixture|live)
+  api_token: password
+  polestar_email: str?
+  polestar_password: password?
+  vin: str?
+  interval_min: int(5,1440)
+  keep_days: int(7,730)
