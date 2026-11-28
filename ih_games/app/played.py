@@ -3,7 +3,7 @@ import json, os
 import library as L
 import trophies
 
-FEEDS = ("psn_trophies", "xbox_gamerscore", "steam_presence", "steam_achievements", "destiny")
+FEEDS = ("psn_trophies", "xbox_gamerscore", "steam_presence", "discord_presence", "steam_achievements", "destiny")
 
 
 def played(data_dir, player, entry):

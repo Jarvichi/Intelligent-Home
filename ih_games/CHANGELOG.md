@@ -1,7 +1,10 @@
 # Changelog
 
-## [0.16.5] - 2026-11-27
+## [0.17.2] - 2026-11-27
 - Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.17.0] - 2026-11-27
+- New provider `discord_presence`: what a person is playing on their PC, from Discord's "Playing X". A Gateway listener (needs the bot's Presence Intent) records only the players that have `discord_user_id`; sessions of 20+ minutes become feed events and the live game is the now-playing state (announcements are held back while someone plays). Options: `discord_presence_token` (the bot token) and `discord_user_id` per player; add `discord_presence` to `providers_enabled`. Nothing is stored about anyone else; only the game name is kept.
 
 ## [0.16.4] - 2026-11-27
 - Add five themes with shared colours and visual details.

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.16.1] - 2026-11-28
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
 ## [0.16.0] - 2026-11-27
 
 ### Added

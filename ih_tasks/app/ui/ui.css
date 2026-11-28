@@ -2,13 +2,13 @@
 [hidden]{display:none!important}
 #back{margin-top:12px}
 .t-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.t-button{min-height:44px;padding:8px 14px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit;cursor:pointer}
+.t-button{min-height:44px;padding:8px 14px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--ih-text);font:inherit;cursor:pointer}
 .t-button:hover{background:var(--ih-surface-raised)}
 .t-button[data-variant=primary]{border-color:transparent;background:var(--ih-accent);color:var(--ih-accent-ink);font-weight:750}
 .t-button[data-variant=danger]{color:var(--ih-danger)}
 .t-button[data-armed=true]{outline:3px solid var(--ih-warn);outline-offset:1px}
 .t-button:disabled{opacity:.55;cursor:default}
-.t-search-row input,.t-filter-grid select,.t-field input,.t-field select,.t-field textarea{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit}
+.t-search-row input,.t-filter-grid select,.t-field input,.t-field select,.t-field textarea{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);background:var(--ih-surface);color:var(--ih-text);font:inherit}
 .t-field textarea{min-height:88px;resize:vertical}
 .t-filter{margin:16px 0}
 .t-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:8px}
@@ -25,7 +25,7 @@
 .t-card b{color:var(--ih-muted);font-weight:700;margin-right:6px}
 .t-card small{display:block;margin-top:4px;color:var(--ih-muted);font-size:12px}
 .t-label-filter{margin-top:8px}
-.t-label-filter select{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit}
+.t-label-filter select{min-height:44px;width:100%;min-width:0;padding:8px 10px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);background:var(--ih-surface);color:var(--ih-text);font:inherit}
 .t-labels{display:block}
 .t-label{display:inline-block;margin:6px 6px 0 0;padding:2px 8px;border-radius:999px;border:1px solid var(--ih-line);font-size:12px}
 .t-flags{display:block}
@@ -56,7 +56,7 @@
 .t-pick>span{min-width:0}
 .t-pick[data-picked=true]{border-color:var(--ih-link);box-shadow:inset 0 0 0 1px var(--ih-link)}
 .t-merge-controls{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 280px;min-width:0}
-.t-merge-controls select{flex:1 1 200px;min-width:0;max-width:100%;min-height:48px;padding:8px 10px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface);color:var(--ih-text);font:inherit;text-overflow:ellipsis}
+.t-merge-controls select{flex:1 1 200px;min-width:0;max-width:100%;min-height:48px;padding:8px 10px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);background:var(--ih-surface);color:var(--ih-text);font:inherit;text-overflow:ellipsis}
 .t-merge-controls .t-button,.t-mergebar .t-button,.t-dup-actions .t-button{min-height:48px}
 .t-merge-controls .t-button{flex:1 1 200px}
 .t-mergebar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:12px max(12px,env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));border-top:1px solid var(--ih-line);background:var(--ih-surface);box-shadow:0 -6px 24px rgba(0,0,0,.18)}
@@ -107,9 +107,9 @@ body.t-merging main{padding-bottom:230px}
 .t-search-row{grid-template-columns:minmax(0,1fr) auto auto;margin-bottom:0}
 #filter-options{margin-top:14px}
 .t-columns-picker{position:relative}
-.t-columns-picker summary{display:flex;align-items:center;min-height:44px;padding:8px 14px;border-radius:10px;background:var(--ih-surface);cursor:pointer;list-style:none}
+.t-columns-picker summary{display:flex;align-items:center;min-height:44px;padding:8px 14px;border-radius:calc(var(--radius) - 2px);background:var(--ih-surface);cursor:pointer;list-style:none}
 .t-columns-picker summary::-webkit-details-marker{display:none}
-.t-columns-picker[open]{padding:0 0 10px;border-radius:10px;background:var(--ih-surface-raised)}
+.t-columns-picker[open]{padding:0 0 10px;border-radius:calc(var(--radius) - 2px);background:var(--ih-surface-raised)}
 .t-columns-picker[open] summary{border:0;border-bottom:1px solid var(--ih-line);border-radius:0}
 .t-columns-picker[open] .t-button{margin:4px 10px 0}
 .t-column-options{display:grid;gap:2px;padding:8px 10px}
@@ -136,7 +136,7 @@ body.t-merging main{padding-bottom:230px}
 .t-disclosure .t-disclosure{margin-top:12px;background:var(--ih-surface-raised)}
 .t-edit-details{margin-bottom:16px}
 .t-action-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 8px;border-bottom:1px solid var(--ih-line)}
-.t-action-tab{flex:none;min-height:44px;padding:8px 14px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ih-muted);font:inherit;cursor:pointer}
+.t-action-tab{flex:none;min-height:44px;padding:8px 14px;border:1px solid transparent;border-radius:calc(var(--radius) - 2px);background:transparent;color:var(--ih-muted);font:inherit;cursor:pointer}
 .t-action-tab[aria-selected=true]{border-color:var(--ih-line);background:var(--ih-surface-raised);color:var(--ih-text);font-weight:750}
 .t-action-tab:focus-visible{outline:2px solid var(--ih-link);outline-offset:-2px}
 .t-action-panel ih-card{margin-top:12px}
@@ -151,11 +151,11 @@ body.t-merging main{padding-bottom:230px}
 .note-markdown blockquote{margin-left:0;padding:4px 14px;border-left:4px solid var(--ih-line);color:var(--ih-muted)}
 .note-markdown a{color:var(--ih-link);text-decoration:underline;overflow-wrap:anywhere}
 .note-markdown code{padding:2px 4px;background:var(--ih-surface-raised);border-radius:4px;font:.9em/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
-.note-markdown pre{padding:14px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-bg);overflow-x:auto}
+.note-markdown pre{padding:14px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);background:var(--ih-bg);overflow-x:auto}
 .note-markdown pre code{padding:0;background:transparent;white-space:pre-wrap}
 .note-markdown hr{border:0;border-top:1px solid var(--ih-line);margin:20px 0}
 .note-task{list-style:none;position:relative}.note-task>input{position:absolute;left:-22px;top:6px;accent-color:var(--ih-link)}
-.note-attachment{display:inline-block;padding:4px 8px;border:1px solid var(--ih-line);border-radius:8px;overflow-wrap:anywhere}
+.note-attachment{display:inline-block;padding:4px 8px;border:1px solid var(--ih-line);border-radius:calc(var(--radius) - 2px);overflow-wrap:anywhere}
 .unresolved-note{text-decoration:underline dotted}
 .note-table{margin:14px 0;min-width:0;overflow-x:auto}
 .note-table table{width:100%;border-collapse:collapse;font-size:14px}
