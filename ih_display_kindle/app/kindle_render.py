@@ -95,16 +95,18 @@ def svg(data,alerts=None,now=None):
     event=next((x for x in active if x.get('slot')=='occasion'),None)
     inverted,header_font=festive_header.style(event)
     if halloween:inverted=True
+    event_header=inverted   # `inverted` is reused below for the DOORS tile
     if inverted:
         p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
+    p.append('<g transform="matrix(1.06762 0 0 1 -36.246 0)">')   # side margins 15 px: the whole picture is mapped from 48..1024 to 15..1057 (touch zones use the mapped places)
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
     device=data.get('device') if isinstance(data.get('device'),dict) else {};charging=device.get('charging') is True;info='Updated '+today.strftime('%H:%M')
     if device.get('fresh') and device.get('battery') is not None:info+=' · '+('⚡ Plugged in' if charging else '🔋 Kindle '+str(device['battery'])+'%')
     text(970 if charging else 1024,64,info,25,anchor='end')
     if charging:p.append(f'<circle cx="1005" cy="55" r="19" fill="{header_color}"/><path d="M998 55a8 8 0 1 0 8-8 M1004 43l5 4-5 4" fill="none" stroke="{"black" if inverted else "white"}" stroke-width="3"/>')
     for i,line in enumerate(festive_header.lines(event)):
-        size=min(25,max(12,int(380/max(1,len(line))*1.5)))
-        text(1024,110+i*30,line,size,True,'end')
+        size=min(32,max(12,int(520/max(1,len(line))*1.5)))   # bigger now the weather cat is gone from this header (Andrew, 28 Nov)
+        text(1024,112+i*42,line,size,True,'end')
     text(1024,181,data.get('sun') or 'Sun unavailable',34,True,'end');p.append('<path d="M48 214H1024" stroke="black" stroke-width="3"/>')
     if halloween:p.append(halloween_art.header_decor())
     weather=data.get('weather')
@@ -246,6 +248,7 @@ def svg(data,alerts=None,now=None):
             if detail:label(1000,y+h//2+7,detail,18,fill,'end',max_width=300)
     weather=data.get('weather') or {}
     current=weather.get('current') or {}
+    p.append('</g>')
     if halloween:p.append(halloween_art.body_decor())
-    p.append(cat_render.render(timestamp,current.get('condition'),halloween))
+    p.append(cat_render.render(timestamp,current.get('condition'),halloween,header_cat=not event_header))
     return (''.join(p)+'</svg>').encode('utf-8')
