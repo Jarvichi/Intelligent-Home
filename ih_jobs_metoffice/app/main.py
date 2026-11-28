@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Intelligent Home - Jobs - Met Office 0.2.0: child of the Intelligent Home - Jobs parent. Runs ONE job (metoffice), registers with the parent, DRY by default. All shared logic is in jobs_child.py (copy)."""
+"""Intelligent Home - Jobs - Met Office 0.3.0: child of the Intelligent Home - Jobs parent. Runs ONE job (metoffice), registers with the parent, DRY by default. All shared logic is in jobs_child.py (copy)."""
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import jobs_child
 import metodb
+import summary
 from jobs import metoffice
 
-VERSION = '0.2.3'
+VERSION = '0.3.0'
 DATA = os.environ.get('IHJ_DATA', '/data')
 
 SPEC = dict(job='metoffice', source='ih_jobs_metoffice', slug='ih_jobs_metoffice', title='Intelligent Home - Jobs - Met Office', version=VERSION, port=8799, runner=metoffice.run)
@@ -33,4 +34,5 @@ if __name__ == '__main__':
     store = metodb.get(DATA)           # migrations, legacy import, trash purge: before the first job run
     store.start_maintenance(jobs_child.load_options(os.environ.get('IHJ_OPTIONS', '/data/options.json'), extra_str=[('timezone', 'Europe/London')])['timezone'])
     _with_db_status()
-    jobs_child.main(SPEC, extra_str=[('met_office_key', ''), ('timezone', 'Europe/London'), ('zone_entity', 'zone.home'), ('fallback_weather_entity', 'weather.forecast_home')], extra_bool=[])
+    summary.install(jobs_child)       # GET /summary (token), added here so the shared jobs_child.py stays untouched
+    jobs_child.main(SPEC, extra_str=[('met_office_key', ''), ('assistant_token', ''), ('timezone', 'Europe/London'), ('zone_entity', 'zone.home'), ('fallback_weather_entity', 'weather.forecast_home')], extra_bool=[])

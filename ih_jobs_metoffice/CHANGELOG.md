@@ -15,6 +15,12 @@
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 
+## [0.3.0] - 2026-11-28
+
+### Added
+- Read-only `GET /summary` on the add-on port (8799) for an assistant: now, today high/low, rain chance and amount, the next 2 days, and which source was used (Met Office, or met.no when the Met Office data is over 3 hours old). Plain text, or JSON with `?format=json`.
+- New option `assistant_token` (secret). Send it as `Authorization: Bearer <token>`. It unlocks `/summary` only. Empty = the endpoint is off (404). No or wrong token = 401.
+
 ## [0.2.0] - 2026-11-12
 
 ### Changed

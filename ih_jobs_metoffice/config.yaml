@@ -1,5 +1,5 @@
 name: "Intelligent Home - Jobs - Met Office"
-version: "0.2.4"
+version: "0.3.0"
 slug: ih_jobs_metoffice
 image: "ghcr.io/jarvichi/{arch}-ih_jobs_metoffice"
 description: "Child of Intelligent Home - Jobs. Met Office forecast sensors with a fallback to the Home Assistant weather entity. DRY-RUN by default. Registers with the parent."
@@ -30,6 +30,7 @@ options:
   register_key: ""
   own_timer_min: 0
   met_office_key: ""
+  assistant_token: ""
   timezone: "Europe/London"
   zone_entity: "zone.home"
   fallback_weather_entity: "weather.forecast_home"
@@ -42,6 +43,7 @@ schema:
   register_key: password
   own_timer_min: int(0,1440)
   met_office_key: password
+  assistant_token: password?
   timezone: str
   zone_entity: str
   fallback_weather_entity: str

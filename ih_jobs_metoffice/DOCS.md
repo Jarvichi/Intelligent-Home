@@ -31,6 +31,7 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 | `register_key` | Yes | Shared secret with the parent (secret) |
 | `own_timer_min` | No | Run by itself every N minutes (0 = only when the parent or start-up asks). Default: `0`. |
 | `met_office_key` | Yes | Met Office DataHub API key (secret) |
+| `assistant_token` | No | Secret for `GET /summary` (read-only weather summary on port 8799). Empty = the endpoint is off. Send `Authorization: Bearer <token>`; add `?format=json` for JSON. It unlocks nothing else |
 | `timezone` | No | Day boundaries (default `Europe/London`) |
 | `zone_entity` | No | Zone whose latitude/longitude is used. Default: `zone.home`. |
 | `fallback_weather_entity` | No | Weather entity used when Met Office data is missing or stale. Default: `weather.forecast_home`. |
@@ -40,6 +41,10 @@ Set these in the add-on Configuration tab. Required = must be filled before it c
 - **Nothing happens, or replies start with `[dry]`.** The add-on starts safe because `mode` is `dry`. Switch it as in the last Set-up step once the log looks right.
 - **Still dry after going live.** A file `/data/STOP` or `/data/STOP_LIVE` is a kill switch that forces dry mode. Delete it to re-enable.
 - **Parent does not list this add-on / "cannot reach parent".** `register_key` must be identical in both add-ons, and `parent_url` must point at the parent (default gateway address and port). An empty key turns the link off.
+
+## Weather summary for an assistant (since 0.3.0)
+
+`GET http://<home-assistant>:8799/summary` returns plain text (or JSON with `?format=json`): now (condition, temperature), today high/low, rain chance and amount, the next 2 days, and the source used (Met Office, or met.no when the Met Office data is over 3 hours old). It needs `Authorization: Bearer <assistant_token>`; a missing or wrong token gets 401, an empty option turns the endpoint off (404). The token is compared in constant time and unlocks only this path. The output has fixed fields only (no keys, addresses or place names) and the call changes nothing.
 
 ## Privacy
 
