@@ -74,10 +74,15 @@ def svg(data,alerts=None,now=None):
     p=['<svg xmlns="http://www.w3.org/2000/svg" width="1072" height="1448" viewBox="0 0 1072 1448"><defs><filter id="gray"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1072" height="1448" fill="white"/>']
     header_color='black';header_font='Roboto, sans-serif'
     def text(x,y,value,size=28,bold=False,anchor='start',max_width=None):
-        color=header_color if y<=187 else 'black';font=header_font if y<=187 else 'Roboto, sans-serif'
+        in_header=y<=187;color=header_color if in_header else 'black';font=header_font if in_header else 'Roboto, sans-serif'
+        # The festive fonts (Bangers, Creepster ...) are condensed and tightly spaced: at the normal sizes the small header text was hard to read on e-ink
+        # and the letters of the day name touched. Make them a little larger with extra letter-spacing (28 Nov 2026).
+        spaced=in_header and not font.startswith('Roboto')
+        if spaced:size=round(size*(1.0 if size>=90 else 1.2))
         if max_width:size=fitted_size(value,size,max_width)
         fit=f' textLength="{max_width}" lengthAdjust="spacingAndGlyphs"' if max_width and text_units(value)*size>max_width else ''
-        p.append(f'<text x="{x}" y="{y}" fill="{color}" font-family="{font}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}"{fit}>{clean(value,256)}</text>')
+        spacing=f' letter-spacing="{round(size*.06,1)}"' if spaced else ''
+        p.append(f'<text x="{x}" y="{y}" fill="{color}" font-family="{font}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}"{spacing}{fit}>{clean(value,256)}</text>')
     def box(x,y,w,h,fill='white'):
         p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="20" fill="{fill}" stroke="black" stroke-width="3"/>')
     def label(x,y,value,size=28,fill='black',anchor='start',max_width=None):
