@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.17.3] - 2026-11-28
+
+### Added
+- The trophy box on a game card now shows an amber "out of date" badge (tooltip: "Out of date, last updated <date>") when the last `psn_trophy_titles` refresh failed, for example after the PSN token (NPSSO) expired. Before, the old totals looked current. `state_psn_trophy_titles_<player>.json` now also keeps `last_ok` and `error` (the error class name only); old state files still work. Only the trophy box is marked, never quests or play time.
+
 ## [0.17.2] - 2026-11-27
 - Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
 

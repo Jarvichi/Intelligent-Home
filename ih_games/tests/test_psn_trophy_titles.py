@@ -103,6 +103,22 @@ class ProviderTest(Base):
         self.assertFalse(os.path.exists(os.path.join(self.d, "feeds", "psn_trophy_titles_player_a.json")))
         P.run(c, PLAYER); self.assertEqual(len(c.logs), 1)   # not retried straight away
 
+    def test_failure_keeps_feed_and_remembers_last_good_refresh(self):
+        P.run(Ctx(self.d), PLAYER)
+        good = self.feed(); sp = os.path.join(self.d, "state_psn_trophy_titles_player_a.json")
+        ok_state = json.load(open(sp)); self.assertTrue(ok_state["ok"]); self.assertEqual(ok_state["last_ok"], ok_state["attempted_at"])
+        class Boom(FakeClient):
+            def me(self): raise RuntimeError("secret-token-xyz")
+        sys.modules["psnawp_api"].PSNAWP = Boom
+        old = (datetime.datetime.now().astimezone() - datetime.timedelta(hours=2)).isoformat(timespec="seconds")
+        ok_state["attempted_at"] = ok_state["last_ok"] = old; json.dump(ok_state, open(sp, "w"))
+        P.run(Ctx(self.d), PLAYER)
+        st = json.load(open(sp))
+        self.assertEqual((st["ok"], st["last_ok"], st["error"]), (False, old, "RuntimeError"))
+        self.assertNotIn("secret", json.dumps(st))
+        self.assertEqual(self.feed(), good)
+        self.assertEqual(trophies.stale_info(self.d, "player_a"), {"stale": True, "since": old})
+
 
 class LibraryTest(Base):
     def lib(self):
