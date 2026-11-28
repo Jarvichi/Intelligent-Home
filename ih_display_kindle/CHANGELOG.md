@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.15.17] - 2026-11-28
+- No weather cat on the header while an event header (birthday, Christmas, Halloween ...) is showing. The cats elsewhere on the screen are unchanged.
+
 ## [0.15.16] - 2026-11-28
 - Festive header (birthday, Christmas, Halloween ...): the small right-hand text ('Updated', 'Plugged in', the event line) is 20% larger with extra letter-spacing, the day name and date get letter-spacing so the letters no longer touch. The condensed festive fonts were too small and cramped on e-ink.
 

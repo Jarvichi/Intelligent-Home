@@ -95,6 +95,7 @@ def svg(data,alerts=None,now=None):
     event=next((x for x in active if x.get('slot')=='occasion'),None)
     inverted,header_font=festive_header.style(event)
     if halloween:inverted=True
+    event_header=inverted   # `inverted` is reused below for the DOORS tile
     if inverted:
         p.append('<rect width="1072" height="214" fill="black"/>');header_color='white'
     text(48,115,today.strftime('%A'),96,True);text(48,187,str(today.day)+' '+today.strftime('%B'),52)
@@ -247,5 +248,5 @@ def svg(data,alerts=None,now=None):
     weather=data.get('weather') or {}
     current=weather.get('current') or {}
     if halloween:p.append(halloween_art.body_decor())
-    p.append(cat_render.render(timestamp,current.get('condition'),halloween))
+    p.append(cat_render.render(timestamp,current.get('condition'),halloween,header_cat=not event_header))
     return (''.join(p)+'</svg>').encode('utf-8')
