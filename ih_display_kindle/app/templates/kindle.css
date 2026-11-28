@@ -19,97 +19,97 @@ body{position:relative;font:28px Roboto,'DejaVu Sans',sans-serif;color:#000;line
 svg{display:block}
 
 /* ---------------------------------------------------------------- main screen: header */
-.day{left:30px;top:24px;font-size:96px;font-weight:700}
-.date{left:30px;top:150px;font-size:52px}
-.info{left:498.7px;top:38px;width:543.3px;font-size:25px;text-align:right}
-.info.mains{width:487.3px}
-.refresh{left:1002.6px;top:36px}
-.festive{left:291.3px;top:calc(86px + var(--i) * 30px);width:750.7px;font-weight:700;text-align:right;font-size:25px}
-.sun{left:498.7px;top:159px;width:543.3px;font-size:34px;font-weight:700;text-align:right}
+.day{left:15px;top:24px;font-size:96px;font-weight:700}
+.date{left:15px;top:150px;font-size:52px}
+.info{left:497.6px;top:38px;width:559.4px;font-size:25px;text-align:right}
+.info.mains{width:501.7px}
+.refresh{left:1016.4px;top:36px}
+.festive{left:284px;top:calc(86px + var(--i) * 30px);width:773px;font-weight:700;text-align:right;font-size:25px}
+.sun{left:497.6px;top:159px;width:559.4px;font-size:34px;font-weight:700;text-align:right}
 .h-rule{top:213px}
 
 /* weather */
-.wx-icon{left:30px;top:248px}
-.wx-temp{left:187.6px;top:250px;font-size:110px;font-weight:700}
-.wx-cond{left:30px;top:362px;width:352.5px;font-size:37px;font-weight:700}
-.wx-range{left:30px;top:408px;width:352.5px}
-.fact-l{left:420.9px;top:calc(252px + var(--i) * 74px);width:207.4px}
-.fact-v{left:420.9px;top:calc(272px + var(--i) * 74px);width:207.4px;font-size:28px;font-weight:700}
-.arrow{left:560.9px;top:264px}
-.day-box{left:643.8px;top:calc(238px + var(--i) * 118px);width:398.2px;height:98px}
-.day-name{left:666.6px;top:calc(252px + var(--i) * 118px);width:259.2px;font-size:30px;font-weight:700}
-.day-text{left:666.6px;top:calc(294px + var(--i) * 118px);width:259.2px;font-size:23px}
-.day-icon{left:949.7px;top:calc(248px + var(--i) * 118px)}
-.game-box{left:643.8px;top:238px;width:398.2px;height:216px}
-.game-art{left:651px;top:241px;width:190px;height:210px;object-fit:contain}
-.game-label{left:854px;top:262px;width:182px;font-size:18px;font-weight:700}
-.game-line{left:854px;top:calc(292px + var(--i) * 32px);width:182px;font-size:22px;font-weight:700}
+.wx-icon{left:15px;top:248px}
+.wx-temp{left:177.3px;top:250px;font-size:110px;font-weight:700}
+.wx-cond{left:15px;top:362px;width:362.9px;font-size:37px;font-weight:700}
+.wx-range{left:15px;top:408px;width:362.9px}
+.fact-l{left:417.5px;top:calc(252px + var(--i) * 74px);width:213.5px}
+.fact-v{left:417.5px;top:calc(272px + var(--i) * 74px);width:213.5px;font-size:28px;font-weight:700}
+.arrow{left:561.6px;top:264px}
+.day-box{left:647px;top:calc(238px + var(--i) * 118px);width:410px;height:98px}
+.day-name{left:670.5px;top:calc(252px + var(--i) * 118px);width:266.9px;font-size:30px;font-weight:700}
+.day-text{left:670.5px;top:calc(294px + var(--i) * 118px);width:266.9px;font-size:23px}
+.day-icon{left:962px;top:calc(248px + var(--i) * 118px)}
+.game-box{left:647px;top:238px;width:410px;height:216px}
+.game-art{left:654.4px;top:241px;width:195.6px;height:210px;object-fit:contain}
+.game-label{left:863.4px;top:262px;width:187.4px;font-size:18px;font-weight:700}
+.game-line{left:863.4px;top:calc(292px + var(--i) * 32px);width:187.4px;font-size:22px;font-weight:700}
 
 /* the band under the weather: warning banner, now playing, or the hourly strip */
-.band{left:30px;top:478px;width:1012px;height:190px}
-.band-dash{left:42.4px;top:490px;width:987.1px;height:166px;border:3px dashed #fff;border-radius:16px}
-.tri{top:515px}.tri-l{left:62.1px}.tri-r{left:893.7px}
+.band{left:15px;top:478px;width:1042px;height:190px}
+.band-dash{left:27.8px;top:490px;width:1016.4px;height:166px;border:3px dashed #fff;border-radius:16px}
+.tri{top:515px}.tri-l{left:48.1px}.tri-r{left:904.3px}
 .warn{color:#fff;font-weight:700;text-align:center}
-.warn-1{left:199px;top:552px;width:674px;font-size:30px}
-.warn-2{left:199px;top:calc(538px + var(--i) * 48px);width:674px;font-size:30px}
-.warn-n{left:calc(182.4px + var(--c) * 385.7px);top:calc(534px + var(--r) * 48px);width:321.4px;font-size:23px}
-.warn-page{left:913.4px;top:632px;width:98.5px;font-size:18px;font-weight:700;text-align:right;color:#fff}
-.dismiss{left:884.4px;top:612px;width:147.2px;height:52px;border-radius:20px;background:#fff;color:#000;font:700 20px/52px Roboto,sans-serif;text-align:center}
-.media-art{left:44.5px;top:493px;width:160px;height:160px;object-fit:contain}
-.media-label{left:234.3px;top:504px;font-size:20px;font-weight:700}
-.media-title{left:234.3px;top:540px;width:782.8px;font-size:30px;font-weight:700}
-.media-sub{left:234.3px;top:595px;width:782.8px;font-size:23px}
-.hour-time{left:calc(42.4px + var(--i) * 169px);top:497px;width:145.2px;font-size:25px;font-weight:700;text-align:center}
-.hour-icon{left:calc(83.9px + var(--i) * 169px);top:532px}
-.hour-temp{left:calc(42.4px + var(--i) * 169px);top:598px;width:145.2px;font-size:36px;font-weight:700;text-align:center}
-.hour-rain{left:calc(42.4px + var(--i) * 169px);top:640px;width:145.2px;font-size:17px;text-align:center}
-.hour-sep{left:calc(32.1px + var(--i) * 169px);top:496px;width:2px;height:152px;background:#aaa}
+.warn-1{left:189px;top:552px;width:694px;font-size:30px}
+.warn-2{left:189px;top:calc(538px + var(--i) * 48px);width:694px;font-size:30px}
+.warn-n{left:calc(171.9px + var(--c) * 397.1px);top:calc(534px + var(--r) * 48px);width:330.9px;font-size:23px}
+.warn-page{left:924.6px;top:632px;width:101.4px;font-size:18px;font-weight:700;text-align:right;color:#fff}
+.dismiss{left:894.7px;top:612px;width:151.6px;height:52px;border-radius:20px;background:#fff;color:#000;font:700 20px/52px Roboto,sans-serif;text-align:center}
+.media-art{left:29.9px;top:493px;width:164.7px;height:160px;object-fit:contain}
+.media-label{left:225.4px;top:504px;font-size:20px;font-weight:700}
+.media-title{left:225.4px;top:540px;width:806px;font-size:30px;font-weight:700}
+.media-sub{left:225.4px;top:595px;width:806px;font-size:23px}
+.hour-time{left:calc(27.8px + var(--i) * 174px);top:497px;width:149.5px;font-size:25px;font-weight:700;text-align:center}
+.hour-icon{left:calc(70.5px + var(--i) * 174px);top:532px}
+.hour-temp{left:calc(27.8px + var(--i) * 174px);top:598px;width:149.5px;font-size:36px;font-weight:700;text-align:center}
+.hour-rain{left:calc(27.8px + var(--i) * 174px);top:640px;width:149.5px;font-size:17px;text-align:center}
+.hour-sep{left:calc(17.2px + var(--i) * 174px);top:496px;width:2px;height:152px;background:#aaa}
 
 /* house tiles */
-.house-label{left:30px;top:688px}
-.tile{left:calc(30px + var(--i) * 257.1px);top:726px;width:240.6px;height:140px}
-.tile-title{left:calc(50.7px + var(--i) * 257.1px);top:742px;width:199.1px;font-size:21px}
-.tile-value{left:calc(50.7px + var(--i) * 257.1px);top:787px;width:199.1px;font-size:23px;font-weight:700}
-.tile-sub{left:calc(50.7px + var(--i) * 257.1px);top:827px;width:199.1px;font-size:18px}
+.house-label{left:15px;top:688px}
+.tile{left:calc(15px + var(--i) * 264.7px);top:726px;width:247.7px;height:140px}
+.tile-title{left:calc(36.3px + var(--i) * 264.7px);top:742px;width:205px;font-size:21px}
+.tile-value{left:calc(36.3px + var(--i) * 264.7px);top:787px;width:205px;font-size:23px;font-weight:700}
+.tile-sub{left:calc(36.3px + var(--i) * 264.7px);top:827px;width:205px;font-size:18px}
 .on-ink{color:#fff}
-.person{left:calc(307.9px + var(--j) * 66.4px);top:788px}
-.cook-tile{left:30px;top:726px;width:240.6px;height:140px}
-.cook-title{left:50.7px;top:742px;width:199.1px;font-size:21px}
-.cook-value{left:50.7px;top:787px;width:199.1px;font-size:23px;font-weight:700}
+.person{left:calc(301.1px + var(--j) * 68.4px);top:788px}
+.cook-tile{left:15px;top:726px;width:247.7px;height:140px}
+.cook-title{left:36.3px;top:742px;width:205px;font-size:21px}
+.cook-value{left:36.3px;top:787px;width:205px;font-size:23px;font-weight:700}
 
 /* lights */
-.lights-label{left:30px;top:892px}
-.floor-l{left:calc(30px + var(--c) * 506px);top:calc(932px + var(--r) * 44px);width:143.1px;font-size:26px;font-weight:700}
-.floor-v{left:calc(175.2px + var(--c) * 506px);top:calc(932px + var(--r) * 44px);width:352.5px;font-size:26px}
-.lights-flat{left:30px;top:934px;width:985px;font-size:26px}
-.btn-alloff{left:260.2px;top:884px;width:145.2px}
-.btn-menu{left:892.7px;top:884px;width:149.3px}
+.lights-label{left:15px;top:892px}
+.floor-l{left:calc(15px + var(--c) * 521px);top:calc(932px + var(--r) * 44px);width:147.3px;font-size:26px;font-weight:700}
+.floor-v{left:calc(164.5px + var(--c) * 521px);top:calc(932px + var(--r) * 44px);width:362.9px;font-size:26px}
+.lights-flat{left:15px;top:934px;width:1014.2px;font-size:26px}
+.btn-alloff{left:252px;top:884px;width:149.5px}
+.btn-menu{left:903.3px;top:884px;width:153.7px}
 
 /* energy */
 .e-rule{top:1030px}
-.en-left{left:30px;top:1042px;width:580.7px;font-size:25px;font-weight:700}
-.en-left.wide{width:1012px}
-.en-cost{left:627.2px;top:1042px;width:414.8px;font-size:25px;font-weight:700;text-align:right}
-.saving{left:30px;top:1040px;width:1012px;height:48px;padding:7px 17px;font-size:22px;font-weight:700}
-.cook-unavail{left:498.7px;top:1070px;width:543.3px;font-size:18px;font-weight:700;text-align:right}
+.en-left{left:15px;top:1042px;width:597.9px;font-size:25px;font-weight:700}
+.en-left.wide{width:1042px}
+.en-cost{left:629.9px;top:1042px;width:427.1px;font-size:25px;font-weight:700;text-align:right}
+.saving{left:15px;top:1040px;width:1042px;height:48px;padding:7px 17px;font-size:22px;font-weight:700}
+.cook-unavail{left:497.6px;top:1070px;width:559.4px;font-size:18px;font-weight:700;text-align:right}
 
 /* to do */
-.todo-label{left:30px;top:1117px}
-.todo-note{left:498.7px;top:1120px;width:543.3px;font-size:18px;text-align:right}
-.btn-prev{left:809.7px;top:1106px;width:112px}
-.btn-next{left:930px;top:1106px;width:112px}
-.todo-msg{left:30px;top:1158px;font-size:25px}
-.no-tasks{left:52.8px;top:1183px;font-size:23px;font-weight:700}
-.card2{left:calc(30px + var(--i) * 512.2px);top:1150px;width:499.8px;height:144px;padding:17px 21px;font-size:23px;font-weight:700;line-height:32px}
+.todo-label{left:15px;top:1117px}
+.todo-note{left:497.6px;top:1120px;width:559.4px;font-size:18px;text-align:right}
+.btn-prev{left:817.8px;top:1106px;width:115.3px}
+.btn-next{left:941.7px;top:1106px;width:115.3px}
+.todo-msg{left:15px;top:1158px;font-size:25px}
+.no-tasks{left:38.5px;top:1183px;font-size:23px;font-weight:700}
+.card2{left:calc(15px + var(--i) * 527.4px);top:1150px;width:514.6px;height:144px;padding:17px 21px;font-size:23px;font-weight:700;line-height:32px}
 .card2 .t{max-height:64px;overflow:hidden}
-.card2 .d{position:absolute;left:2px;top:104px;width:445.9px;font-size:19px}
-.rooms-label{left:30px;top:1315px}
-.room-l{left:calc(33.1px + var(--i) * 100.6px);top:1362px;width:95.4px;font-size:14px;text-align:center}
-.room-v{left:calc(33.1px + var(--i) * 100.6px);top:1403px;width:95.4px;font-size:20px;font-weight:700;text-align:center}
+.card2 .d{position:absolute;left:-13.8px;top:104px;width:459.1px;font-size:19px}
+.rooms-label{left:15px;top:1315px}
+.room-l{left:calc(18.2px + var(--i) * 103.6px);top:1362px;width:98.2px;font-size:14px;text-align:center}
+.room-v{left:calc(18.2px + var(--i) * 103.6px);top:1403px;width:98.2px;font-size:20px;font-weight:700;text-align:center}
 .rows-3{--pitch:99px;--h:87px;--font:29px}
 .rows-4{--pitch:75px;--h:61px;--font:27px}
 .rows-5{--pitch:59px;--h:50px;--font:24px}
-.row{left:30px;top:calc(1150px + var(--i) * var(--pitch));width:1012px;height:var(--h);font-size:var(--font);border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
+.row{left:15px;top:calc(1150px + var(--i) * var(--pitch));width:1042px;height:var(--h);font-size:var(--font);border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
 .row.ink{background:#000;color:#fff}
 .row .t{flex:1 1 auto;min-width:0}
 .row .d{font-size:var(--font);font-weight:500;color:#333;flex:0 1 auto;max-width:340px;text-align:right}.row.ink .d{color:#fff}

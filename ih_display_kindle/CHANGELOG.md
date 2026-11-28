@@ -1,6 +1,7 @@
 # Changelog
 
 ## [0.15.17] - 2026-11-28
+- Main screen side margins cut again, from 30 px to 15 px each side (content 15 to 1057 px), as asked on 28 Nov. The normal picture's positions and widths are rescaled and the touch zones move with them. The event (birthday, Christmas ...) picture is drawn by a separate path that still had the old 48 px margins; it is now mapped to the same 15 to 1057 px (stretched about 7% sideways, text sizes otherwise unchanged).
 - No weather cat on the header while an event header (birthday, Christmas, Halloween ...) is showing. The cats elsewhere on the screen are unchanged. The event line itself ('Rob's birthday today!' and its cake) is now larger (up to 38 px with the festive-font boost, was 25).
 
 ## [0.15.16] - 2026-11-28
