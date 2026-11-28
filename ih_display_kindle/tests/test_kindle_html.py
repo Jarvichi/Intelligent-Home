@@ -61,9 +61,9 @@ class PageTests(unittest.TestCase):
         self.assertIn('23:00', kindle_html.page(data(), {'configured': True, 'complete': True, 'alerts': []}, now=0).split('</style>')[1])
 
     def test_button_positions_live_in_the_stylesheet_where_the_touch_zones_expect_them(self):
-        for rule in ('.btn-alloff{left:260.2px;top:884px;width:145.2px}', '.btn-menu{left:892.7px;top:884px;width:149.3px}', '.btn-prev{left:809.7px;top:1106px;width:112px}',
-                     '.btn-next{left:930px;top:1106px;width:112px}', '.refresh{left:1002.6px;top:36px}', '.tile{left:calc(30px + var(--i) * 257.1px);top:726px;width:240.6px;height:140px}',
-                     '.rows-5{--pitch:59px;--h:50px;--font:24px}', '.dismiss{left:884.4px;top:612px;width:147.2px;height:52px'):
+        for rule in ('.btn-alloff{left:252px;top:884px;width:149.5px}', '.btn-menu{left:903.3px;top:884px;width:153.7px}', '.btn-prev{left:817.8px;top:1106px;width:115.3px}',
+                     '.btn-next{left:941.7px;top:1106px;width:115.3px}', '.refresh{left:1016.4px;top:36px}', '.tile{left:calc(15px + var(--i) * 264.7px);top:726px;width:247.7px;height:140px}',
+                     '.rows-5{--pitch:59px;--h:50px;--font:24px}', '.dismiss{left:894.7px;top:612px;width:151.6px;height:52px'):
             self.assertIn(rule, CSS)
         page = kindle_html.page(data(device={'charging': True, 'fresh': True, 'battery': 90}, tasks=[{'title': str(i), 'display_group': 'task'} for i in range(7)]), now=0)
         self.assertIn('btn-prev', page); self.assertIn('btn-next', page)
