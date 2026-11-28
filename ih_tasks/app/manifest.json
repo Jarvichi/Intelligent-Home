@@ -1,6 +1,6 @@
 {
  "name": "ih_tasks",
- "version": "0.10.0",
+ "version": "0.10.17",
  "kind": "addon",
  "description": "One list of tasks with stages, a single approval step by the owner, questions as a flag on the task, and a full history. Own database, token-protected API, board page.",
  "owner": "local add-on ih_tasks",

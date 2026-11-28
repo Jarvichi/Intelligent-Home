@@ -27,7 +27,7 @@ import factsview as FV
 import listmerge as LM
 from features import shopping as S
 
-VERSION = '0.5.1'
+VERSION = '0.5.4'
 DATA = os.environ.get('IHS_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHS_PORT', '8795'))

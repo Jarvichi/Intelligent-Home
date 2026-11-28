@@ -38,12 +38,12 @@ class Supervisor:
 
 
 def http_probe(url, timeout=5):
-    """-> (ok, text). ANY HTTP status counts as alive (401, 404 included); a timeout or refused connection is a failure."""
+    """-> (ok, text). Client errors can indicate an authenticated page; server errors are failures."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             return True, 'HTTP %d' % r.status
     except urllib.error.HTTPError as e:
-        return True, 'HTTP %d' % e.code
+        return e.code < 500, 'HTTP %d' % e.code
     except Exception as e:
         return False, type(e).__name__
 

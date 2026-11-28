@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.1.4] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.1.3] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
+## 0.1.2
+
+- Retry incident task creation after outages and report filing failures accurately. Prefer health endpoints and detect HTTP server errors.
+
 ## [0.1.1] - 2026-11-26
 
 ### Fixed

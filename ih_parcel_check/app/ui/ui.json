@@ -1,0 +1,14 @@
+{
+  "title": "Parcel check",
+  "purpose": "Shows whether the doorstep camera pictures were judged to hold a parcel.",
+  "description": "Looks at saved doorstep pictures through the Intelligent Home AI layer and says yes, no or unsure. This page is read-only: it shows the mode, the counts for today and the last 7 days, the last 20 verdicts and recent errors. It never shows or serves a picture.",
+  "health_port": 8816,
+  "health_path": "/healthz",
+  "navigation": [
+    "Shows whether the add-on is in dry mode or live",
+    "Counts the pictures checked today and in the last 7 days",
+    "Lists the last 20 verdicts with the camera and the AI that answered",
+    "Lists recent errors, such as the AI layer being unreachable"
+  ],
+  "access": "Home Assistant authenticated ingress only"
+}

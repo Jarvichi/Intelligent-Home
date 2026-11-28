@@ -8,6 +8,11 @@ HUB = '/app/32c8114c_ih_orchestrator'
 
 
 class Files(unittest.TestCase):
+    def test_long_text_is_rendered_as_markdown(self):
+        js = (UI / 'ui.js').read_text()
+        for field in ('t.plan', 't.result', 'c.text', 'extra'):
+            self.assertIn('window.IHTasksMarkdown.render(%s)' % field, js)
+
     def test_nav_and_shared_copies(self):
         page = (UI / 'index.html').read_text()
         self.assertIn('<ih-nav data-home-href="%s"' % HUB, page)
@@ -33,6 +38,35 @@ class Files(unittest.TestCase):
         for bad in ('innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'confirm(', 'alert('):
             self.assertNotIn(bad, js)
         self.assertIn("rel: 'noopener noreferrer'", js)
+
+    def test_plan_markdown_is_loaded_before_the_page(self):
+        page = (UI / 'index.html').read_text()
+        self.assertLess(page.index('src="markdown.js"'), page.index('src="ui.js"'))
+        self.assertIn('IHTasksMarkdown.render(t.plan)', (UI / 'ui.js').read_text())
+
+    def test_task_detail_has_no_layout_switch(self):
+        page = (UI / 'index.html').read_text()
+        script = (UI / 'ui.js').read_text()
+        self.assertNotIn('id="view-new"', page)
+        self.assertNotIn('id="view-old"', page)
+        self.assertNotIn("$('view-new')", script)
+        self.assertNotIn("$('view-old')", script)
+        self.assertNotIn('renderOldDetail', script)
+
+    def test_board_has_one_creation_entry_and_no_comparison_switch(self):
+        page = (UI / 'index.html').read_text()
+        self.assertEqual(page.count('id="new-open"'), 1)
+        for removed in ('add-form', 'board-view-new', 'board-view-current'):
+            self.assertNotIn('id="%s"' % removed, page)
+        self.assertIn('id="columns-picker"', page)
+
+    def test_board_tools_are_grouped_beside_new_task(self):
+        page = (UI / 'index.html').read_text()
+        heading = page[page.index('class="t-board-heading"'):page.index('id="add-msg"')]
+        self.assertLess(heading.index('id="new-open"'), heading.index('id="tools-menu"'))
+        for control in ('columns-picker', 'merge-toggle', 'dup-toggle'):
+            self.assertIn('id="%s"' % control, heading)
+        self.assertNotIn('href="theme-preview.html"', heading)
 
     def test_merge_controls(self):
         page = (UI / 'index.html').read_text()

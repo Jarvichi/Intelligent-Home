@@ -25,7 +25,7 @@ import inbox_events as inboxmod
 import selfprompts as selfmod
 import random
 
-VERSION = '0.28.0'
+VERSION = '0.30.3'
 ATTACH_MAX_N = 10                 # files per message handed over (as the old dm_watch / host braininbox)
 ATTACH_MAX_BYTES = 25 * 1024 * 1024
 ATTACH_HOSTS = ('cdn.discordapp.com', 'media.discordapp.net')
@@ -108,6 +108,8 @@ AGREED_MAX = 20
 PLAN_RETRY_S = 60   # a plan made while HA was down is rebuilt this often until HA answers
 FACT_RE = re.compile(r'^[a-z0-9_.-]{1,64}/[a-z0-9_.-]{1,64}$')
 FACT_TIMEOUT_S = 5
+WEATHER_TIMEOUT_S = 5
+WEATHER_DEFAULT_URL = 'http://172.30.32.1:8799'   # ih_jobs_metoffice host port
 GIF_MAX_BYTES = 8 * 1024 * 1024
 GIF_CACHE_MAX = 300   # pictures kept for reuse; the oldest go first
 GIF_REUSE_CHANCE = 0.5
@@ -254,6 +256,7 @@ def load_options(path):
             'ingest_token': str(o.get('ingest_token') or '').strip(), 'giphy_api_key': str(o.get('giphy_api_key') or '').strip(), 'caldav_user': str(o.get('caldav_user') or '').strip(), 'caldav_password': str(o.get('caldav_password') or '').strip(), 'caldav_url': str(o.get('caldav_url') or 'https://caldav.icloud.com').strip(), 'gif_gap_minutes': o.get('gif_gap_minutes') if isinstance(o.get('gif_gap_minutes'), int) and 0 <= o.get('gif_gap_minutes') <= 1440 else 10,
             'discord_push': o.get('discord_push') is not False,
             'presence_entities': parse_presence_entities(o.get('presence_entities')),
+            'weather_url': str(o.get('weather_url') or WEATHER_DEFAULT_URL).strip().rstrip('/'), 'weather_token': str(o.get('weather_token') or '').strip(),
             'speaker_url': str(o.get('speaker_url') or '').strip().rstrip('/'), 'speaker_token': str(o.get('speaker_token') or '').strip(),
             'hearth': hearthmod.parse_options(o.get('hearth')),
             'inbox_live': o.get('inbox_events') == 'live', 'inbox_url': str(o.get('inbox_url') or 'http://172.30.32.1:8800').strip().rstrip('/'), 'inbox_token': str(o.get('inbox_token') or '').strip(),
@@ -274,6 +277,7 @@ class Assistant:
         self._caldav = None
         self.caldav_factory = caldav_factory
         self.gif_opener = gif_opener   # urlopen-like for GIPHY (tests inject a fake)
+        self.weather_opener = None   # urlopen-like for the weather lookup (tests inject a fake)
         self.facts_opener = facts_opener   # urlopen-like, for the orchestrator facts (tests inject a fake)
         self.ha = ha   # Home Assistant client (calendar_events, state); None = no HA
         self.tz = tz
@@ -2228,6 +2232,25 @@ class Assistant:
         out.sort(key=lambda x: x['kind'] != 'gps')   # GPS first, then home/away presence as the fallback
         return out
 
+    def weather_view(self, key):
+        """Today's weather from the Met Office add-on (GET <weather_url>/summary, read only, short timeout). Plain-sentence answers when it is off or fails; the token is never logged. -> (code, body)"""
+        token, url = self.opts.get('weather_token'), self.opts.get('weather_url')
+        if not (token and url):
+            return 200, {'ok': False, 'available': False, 'text': 'Weather lookup is not set up yet.'}
+        req = urllib.request.Request(url + '/summary?format=json', headers={'Authorization': 'Bearer ' + token})
+        try:
+            with (self.weather_opener or urllib.request.urlopen)(req, timeout=WEATHER_TIMEOUT_S) as r:
+                data = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            self.log('persona %s: weather lookup refused (HTTP %s)' % (key, e.code))
+            return 200, {'ok': False, 'available': False, 'text': 'The weather service refused the lookup, so I cannot check the weather right now.'}
+        except Exception as e:
+            self.log('persona %s: weather lookup failed (%s)' % (key, type(e).__name__))
+            return 200, {'ok': False, 'available': False, 'text': 'I could not reach the weather service just now.'}
+        if not isinstance(data, dict):
+            return 200, {'ok': False, 'available': False, 'text': 'The weather service gave an answer I could not read.'}
+        return 200, {'ok': True, 'available': True, 'summary': data}
+
     def where_view(self, key):
         """Where this person is (GPS if available, else home/away), who else is home, and what their calendar says about now. Read only.
         Others' details are limited to home/away. -> (code, body)"""
@@ -2677,6 +2700,8 @@ def make_handler(app):
             if method == 'GET' and act == 'calendar' and len(parts) == 3:
                 q = parse_qs(u.query)
                 return self._send(*app.calendar_view(key, (q.get('days') or ['14'])[0], (q.get('start') or [None])[0]))
+            if method == 'GET' and act == 'weather' and len(parts) == 3:
+                return self._send(*app.weather_view(key))
             if method == 'GET' and act == 'where' and len(parts) == 3:
                 return self._send(*app.where_view(key))
             if method == 'GET' and act == 'behaviour' and len(parts) == 3:
@@ -2777,7 +2802,7 @@ def worker(app, key):
 
 def main():
     opts, problems = load_options(os.environ.get('IHP_OPTIONS', '/data/options.json'))
-    secrets = [opts['api_token'], opts['speaker_token'], opts['facts_key'], opts.get('giphy_api_key', ''), opts.get('caldav_password', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
+    secrets = [opts['api_token'], opts['speaker_token'], opts['weather_token'], opts['facts_key'], opts.get('giphy_api_key', ''), opts.get('caldav_password', '')] + [p['bot_token'] for p in opts['personas']] + [p['user_id'] for p in opts['personas']]
     lg = logging.getLogger('ih_assistant'); lg.setLevel(logging.INFO)
     sh = logging.StreamHandler(sys.__stdout__); sh.setFormatter(logging.Formatter('%(asctime)s %(message)s', '%H:%M:%S')); lg.addHandler(sh)
     log = ihlog.Logger(lg.info, [s for s in secrets if len(s) >= 4])

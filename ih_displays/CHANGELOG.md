@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.5] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.12.4] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.12.3] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.12.2
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.12.1
 
 - The authenticated alert feed lists the smoke/CO alarms that are unavailable (`offline`), so displays can name the problem.

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.5.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.5.1] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 ## [0.5.0] - 2026-11-26
 ### Added
 - Read-only "IH · Groceries" page in the Home Assistant sidebar (ingress, port 8802, admin only): mode (test mode or live), counts (library items, receipts, price changes), latest receipts, price changes, due-again list and an item library search. GET only: no buttons that write, nothing can add to or tick the shopping list. Served by a threaded server that answers only the Supervisor ingress gateway. The API on 8801 is unchanged.

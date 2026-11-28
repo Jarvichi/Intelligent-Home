@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.4] - 2026-11-28
+- Restyle to the shared shadcn look: sync shared UI, trim local CSS overrides to the shared radius and border tokens.
+
+## [0.12.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.12.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.12.1] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 

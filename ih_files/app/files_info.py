@@ -9,7 +9,7 @@ import re
 import shutil
 import subprocess
 
-VERSION = '0.2.2'
+VERSION = '0.2.3'
 SMB_CONF = os.environ.get('IHF_SMB_CONF', '/etc/samba/smb.conf')
 DATA_ROOT = os.environ.get('IHF_DATA_ROOT', '/share/files')
 NAME = re.compile(r'^[A-Za-z0-9_.-]{1,32}$')

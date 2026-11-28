@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOW_NO_UI = {
-    'ih_room_insights', 'ih_parcel_check', 'ih_work_runner', 'ih_lifestyle_groceries',
+    'ih_room_insights', 'ih_work_runner', 'ih_lifestyle_groceries',
     'ih_kokoro', 'ih_files',
     'ih_ollama',   # found by this test; also needs a status page (no login on Ollama, so ingress only)
 }

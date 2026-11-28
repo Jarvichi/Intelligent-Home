@@ -31,6 +31,7 @@
     [['Low value', gbp(t.low)], ['High value', gbp(t.high)], ['Items', String(t.count)], ['Not priced', String(t.unpriced)]].forEach(function (x) {
       box.appendChild(el('div', { class: 'a-tile' }, [el('b', { text: x[1] }), el('span', { text: x[0] })]));
     });
+    if (t.unpriced) box.appendChild(el('p', { class: 'ih-metadata', text: t.unpriced + ' items have incomplete prices and are excluded from both totals (' + t.missing_low + ' missing low, ' + t.missing_high + ' missing high).' }));
   }
 
   function chart(h) {
@@ -93,7 +94,7 @@
         el('td', { text: i.category }),
         el('td', { class: 'a-n', text: String(i.qty) }),
         el('td', { class: 'a-n' + (i.low === null ? ' a-un' : ''), text: i.low === null ? 'Not priced' : gbp(i.low) }),
-        el('td', { class: 'a-n', text: gbp(i.high) }),
+        el('td', { class: 'a-n', text: i.high === null ? 'Not priced' : gbp(i.high) }),
         el('td', {}, [el('div', { class: 'a-actions' }, [
           el('button', { class: 'a-button', type: 'button', 'aria-label': 'Set price for ' + i.name, text: 'Set price', on: { click: function () { pricing = i.id; draw(); var f = $('p-lo'); if (f) f.focus(); } } }),
           el('button', { class: 'a-button', type: 'button', 'aria-label': (ask ? 'Confirm sold: ' : 'Mark sold: ') + i.name, text: ask ? 'Confirm sold' : 'Mark sold', on: { click: function () { sell(i); } } })])])]));
@@ -148,7 +149,7 @@
   });
   function barcode(add) {
     api('POST', '/barcode', { code: $('bc').value, add: add, category: $('bcat').value }).then(function (r) {
-      say(r.name ? (add ? 'Added: ' : 'Found: ') + r.name : 'No match for that barcode.');
+      say(r.name ? (add ? 'Added: ' : 'Found: ') + r.name : r.lookup_failed ? 'Barcode lookup unavailable. Try again or add the item manually below.' : 'No match for that barcode. You can add it manually below.');
       if (add && r.item) { $('bc').value = ''; return load(); }
     }).catch(fail);
   }

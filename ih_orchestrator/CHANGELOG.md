@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.16.1] - 2026-11-28
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.16.0] - 2026-11-27
+
+### Added
+- Add-on watchdog, folded into the orchestrator (task #236; replaces the separate ih_addon_watchdog add-on, which was never installed). It watches ONLY Intelligent Home add-ons that are installed and in the catalogue; other apps (Codex terminal, Mosquitto, ...) and the orchestrator itself are never watched.
+- Each add-on gets a healthlib result (Supervisor state + an HTTP request to its ingress port; any HTTP answer is alive). The result feeds the existing Health cards and counts, and a new Add-on watchdog card on the Health tab (streak, last action, restarts today, per-add-on pause, DRY/LIVE switch with tap-again confirm, incident list with a redacted log excerpt).
+- After watchdog_failed_probes (3) failed checks in a row: restart through the manager's own restart action, with a cool-down (10 min), a limit per hour (3), a never-restart list (comma-separated option) and DRY mode (default: only reports and files a [DRY] task, restarts nothing). Incidents and restart counts live in /data/watchdog.db (numbered migrations). A task is filed or commented in IH Tasks when tasks_url and tasks_token are set; a Discord notice is sent when discord_bot_token and discord_channel_id are set.
+- New options (all optional): watchdog_enabled, watchdog_mode, watchdog_interval_seconds, watchdog_failed_probes, watchdog_cooldown_minutes, watchdog_max_restarts_per_hour, watchdog_never_restart, tasks_url, tasks_token, discord_bot_token, discord_channel_id.
+- Silent-clip media probe (HomePod reload) ported as an optional module, OFF by default. It also needs the homeassistant_api permission, which is NOT added here (separate approval), so it cannot run yet.
+
+## [0.15.4] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.15.3] - 2026-11-27
+- Fix theme contrast in Orchestrator and use shared styling for setup fields.
+
+## [0.15.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.15.1] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 ## [0.15.0] - 2026-11-14
 
 ### Added

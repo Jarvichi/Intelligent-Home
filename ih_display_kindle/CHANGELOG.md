@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.15.14] - 2026-11-27
+- Now-playing box art fills the full height of its box (210 px) and is wider (190 px, was 140 x 190); the game name moves right and drops to 22 px to make room.
+
+## [0.15.13] - 2026-11-27
+- Main screen side margins cut from 48 px to 30 px on both sides (content now 30 to 1042 px, was 48 to 1024), as asked on 20 Nov. Every horizontal position and width on the main screen is scaled to the wider area (text sizes unchanged) and the touch zones move with them. The other screens (menu, dinner, cooking, birthdays) are unchanged.
+
+## [0.15.12] - 2026-11-27
+- To-do row detail text ('plug it in', 'in 3 days') is now the same size as the row title, medium weight and darker (white on the black row), as asked on 20 Nov. The sunrise/sunset text on the main screen moves down 15 px so it sits on the same line as the date (estimated from a photo of the Kindle; not rendered here).
+
+## [0.15.11] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.15.10] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.15.9] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.15.8
+- Update the shared Intelligent Home visual theme and components.
+
+## 0.15.7
+
+- The Kindle menu looks calmer: white rows with a thin outline and a small icon on the left, instead of big black buttons (a tapped row still draws pressed).
+- The Refresh tap area on the main screen is now about 120x100 px around the icon (was 39x40 px, easy to miss).
+
 ## 0.15.6
 
 - When the alert feed is incomplete because a smoke or CO alarm is offline, the picture now says which one ("Offline: Smoke alarm") instead of the generic "Alert sources unavailable".

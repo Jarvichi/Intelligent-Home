@@ -1,12 +1,12 @@
 /* Shared IH add-on status page: Games hierarchy on canonical tokens. Load after ih-ui.css and ih-patterns.css. */
-.status-app{width:min(1440px,100%);margin:0 auto;padding:20px clamp(16px,3vw,44px) 40px;background:radial-gradient(ellipse at 82% -12%,color-mix(in srgb,var(--ih-accent) 12%,transparent),transparent 35%),var(--ih-bg)}
+.status-app{width:min(1440px,100%);margin:0 auto;padding:20px clamp(16px,3vw,44px) 40px;background:var(--ih-bg)}
 .status-main{padding:0}
 .livepill{flex:0 0 auto;border:1px solid var(--ih-line);border-radius:999px;padding:8px 13px;background:var(--ih-surface);color:var(--ih-muted);font-size:12px;white-space:nowrap}
 .livepill:before{display:inline-block;width:8px;height:8px;margin-right:2px;border-radius:50%;background:var(--ih-muted);content:"";box-shadow:0 0 0 4px color-mix(in srgb,var(--ih-muted) 14%,transparent)}
 .livepill[status=ok]:before{background:var(--ih-ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ih-ok) 14%,transparent)}
 .livepill[status=error]:before{background:var(--ih-danger);box-shadow:0 0 0 4px color-mix(in srgb,var(--ih-danger) 14%,transparent)}
 .status-purpose{margin:0 0 16px;color:var(--ih-muted);font-size:14px;line-height:1.5}.status-purpose[hidden]{display:none}
-.status-card{margin-bottom:16px;padding:16px;border-radius:17px}.status-card[hidden]{display:none}
+.status-card{margin-bottom:16px;padding:16px;border-radius:calc(var(--radius) + 4px)}.status-card[hidden]{display:none}
 .status-card h2,.about-card h2{margin:0 0 12px;font-size:17px;letter-spacing:-.02em}
 .status-card .ih-metadata{margin:8px 0 0}.status-card .ih-metadata[hidden]{display:none}
 .status-line{display:flex;align-items:center;justify-content:space-between;gap:12px}.status-line-text{min-width:0}
@@ -26,14 +26,13 @@
 .today-tag{flex:0 0 auto;padding:1px 8px;border-radius:999px;background:var(--ih-surface-raised);color:var(--ih-muted);font-size:12px}
 .today-note{grid-column:1/-1;color:var(--ih-muted);font-size:12px}
 .status-card .ih-empty-inline[hidden]{display:none}
-.about-card{padding:16px;border-radius:17px}
+.about-card{padding:16px;border-radius:calc(var(--radius) + 4px)}
 .about-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.about-heading h2{margin:0}
 .about-card .ih-detail-stack{margin-top:12px;padding-top:12px;border-top:1px solid var(--ih-line)}.about-card .ih-detail-stack[hidden]{display:none}
 .status-description{margin:0;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
 .status-access{margin-top:16px}.status-access[hidden]{display:none}
-.ih-button{min-height:44px;padding:8px 12px;border:1px solid var(--ih-line);border-radius:10px;background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;font-size:12px;font-weight:650;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .15s ease}
-.ih-button:hover:not(:disabled){border-color:var(--ih-link);transform:translateY(-1px)}.ih-button:disabled{cursor:not-allowed;opacity:.65}
-.ih-button:focus-visible{outline:3px solid var(--ih-link);outline-offset:2px}
+.ih-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 16px;border:1px solid var(--input);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--foreground);font:inherit;font-size:14px;font-weight:500;cursor:pointer;box-shadow:var(--ih-shadow);transition:background-color .15s}
+.ih-button:hover:not(:disabled){background:var(--accent);color:var(--accent-foreground)}.ih-button:disabled{cursor:not-allowed;opacity:.5}
 .status-footer{display:flex;justify-content:space-between;gap:12px;margin-top:32px;padding:12px 0 0;border-top:1px solid var(--ih-line);color:var(--ih-muted);font-size:11px;font-weight:700;letter-spacing:.08em}
 .status-footer a{color:var(--ih-link);text-decoration:none}.status-footer a:hover{text-decoration:underline}
 @media(max-width:700px){.status-app{padding:14px 12px 32px}.ih-page-heading{margin-bottom:12px}.ih-page-heading h1{font-size:27px}.livepill{padding:6px 9px;font-size:11px;white-space:normal}}

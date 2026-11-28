@@ -8,7 +8,7 @@ import brainlib, mcp, extras, codex_todo, local_sort
 import ui_server
 import instructions_api
 
-VERSION = '0.6.0'
+VERSION = '0.6.3'
 MAX_BODY = 512 * 1024
 
 

@@ -18,6 +18,7 @@ MIGRATIONS = [
             occurrence TEXT NOT NULL, worked TEXT NOT NULL DEFAULT '', change TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, UNIQUE(slug, occurrence))'''),
     (5, 'CREATE TABLE log(id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT \'\')'),
     (6, 'CREATE TABLE installations(slug TEXT PRIMARY KEY REFERENCES events(slug) ON DELETE RESTRICT, status TEXT NOT NULL, journal TEXT NOT NULL)'),
+    (7, "CREATE TABLE backup_status(id INTEGER PRIMARY KEY CHECK(id=1), last_success TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '')"),
 ]
 DEFAULT_CHECKLIST = [{'text': 'Check helpers, scripts and automations are installed and the test run worked', 'days_before': 7},
                      {'text': 'Check the sounds are in the sounds folder', 'days_before': 7},
@@ -33,6 +34,25 @@ class Store:
 
     def close(self):
         self.db.close()
+
+    def backup_status(self):
+        row = self.db.con.execute('SELECT last_success, error FROM backup_status WHERE id=1').fetchone()
+        return {'last_success': row[0], 'error': row[1]} if row else {'last_success': '', 'error': ''}
+
+    def save_backup_status(self, status):
+        with self.db.tx() as con:
+            con.execute('INSERT OR REPLACE INTO backup_status(id,last_success,error) VALUES(1,?,?)', (status['last_success'], status['error']))
+
+    def close_thread_connection(self):
+        """Release the connection owned by a finished HTTP handler thread."""
+        con = getattr(self.db._local, 'con', None)
+        if con is None:
+            return
+        with self.db._all_lock:
+            if con in self.db._all:
+                self.db._all.remove(con)
+        del self.db._local.con
+        con.close()
 
     def now(self):
         return datetime.fromtimestamp(self.clock(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')

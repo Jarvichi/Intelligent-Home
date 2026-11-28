@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.2.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.2.1
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.2.0
 - Live countdown tile at the top of the page: "time until under pace" in days, hours, minutes and seconds, ticking every second in the browser from an absolute target time (no polling per second; it re-syncs from the server every minute). States: counting down, "Under pace now", "No data" (newest sample older than 15 minutes, or no pace number).
 - `GET /countdown` (API and page): `state`, `pace`, `hours_until_under`, `target_ts`/`target_iso`, `sample_ts`/`sample_iso`, `age_s`, `server_ts`. Same maths as the Home Assistant sensor `sensor.claude_hours_until_under_pace`: hours = max(pace, 0) / (100 / 168).

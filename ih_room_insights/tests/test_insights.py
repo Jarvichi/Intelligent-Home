@@ -1,11 +1,25 @@
 import os, sys, tempfile, unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'app'))
 import insights as I
 import engine as E
+import main as MAIN
 from ihlib import db as ihdb
 
 T0 = datetime(2026, 11, 10, 6, 0, tzinfo=timezone.utc)
+
+
+class Backup(unittest.TestCase):
+    def test_failed_analysis_does_not_block_backup_or_retry(self):
+        eng = mock.Mock()
+        eng.run_once.side_effect = OSError('offline')
+        snapshot = mock.Mock(side_effect=[OSError('full'), 'ok'])
+        day = MAIN.run_tick(eng, False, 0, snapshot, 100000, lambda *a: None)
+        self.assertEqual(day, 0)
+        day = MAIN.run_tick(eng, False, day, snapshot, 100001, lambda *a: None)
+        self.assertEqual(day, 100001)
+        self.assertEqual(snapshot.call_count, 2)
 
 
 def row(mins, cur, tgt=21.5, action='heating', state='heat'):

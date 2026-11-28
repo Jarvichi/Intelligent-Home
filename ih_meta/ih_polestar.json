@@ -1,0 +1,7 @@
+{
+ "requires": [],
+ "ui": {
+  "title": "Polestar",
+  "purpose": "Shows the Polestar 2 battery, range and charging state (read-only)."
+ }
+}

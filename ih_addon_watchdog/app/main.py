@@ -8,6 +8,7 @@ import core, clients
 
 DATA = os.environ.get('IHWD_DATA', '/data')
 UI = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui', 'index.html')
+UI_DIR = os.path.dirname(UI)
 PEER = '172.30.32.2'
 DEFAULTS = {'mode': 'dry', 'interval_seconds': 60, 'failed_probes': 3, 'cooldown_minutes': 10, 'max_restarts_per_hour': 3, 'http_timeout_seconds': 5,
             'never_restart': [], 'media_players': [], 'media_probe_enabled': True, 'media_probe_clip': '', 'tasks_url': '', 'tasks_token': '',
@@ -59,6 +60,9 @@ def handler(d, kv, wd, get_opts):
                 return self.send(200, snapshot(d, kv, wd, get_opts))
             if p in ('/', '/index.html'):
                 return self.send(200, open(UI, 'rb').read(), 'text/html; charset=utf-8')
+            if p in ('/ih-ui.css', '/ih-ui.js'):
+                with open(os.path.join(UI_DIR, p[1:]), 'rb') as f:
+                    return self.send(200, f.read(), 'text/css; charset=utf-8' if p.endswith('.css') else 'text/javascript; charset=utf-8')
             self.send_error(404)
 
         def do_POST(self):

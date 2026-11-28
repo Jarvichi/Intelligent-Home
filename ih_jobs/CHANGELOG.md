@@ -1,7 +1,28 @@
 # Changelog
 
+## [0.23.0] - 2026-11-27
+- Sensors published by plugins (speed_measure, brain_stats, car_log, bus_watch, photo_albums, legacy set_state) are saved and posted again after a Home Assistant restart: at add-on start, on homeassistant_started, and every 5 min for any that are missing/unavailable/unknown. Dry and kill-switched plugins post nothing.
+
+## [0.22.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.22.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.22.1] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
+
+## [0.22.0] - 2026-11-27
+
+### Added
+- `transport_page`: optional "Bus types" card on the Transport page (settings `type_code_entity`, `type_deck_entity`, `type_save_entity`, `type_admin_url`): a code dropdown, a single/double/unknown choice, a Save button and a link to the admin Bus types card as a fallback. The save itself is a Home Assistant script that calls `POST /plugin/bus_watch/overrides`, so the token never goes in a dashboard. The admin card is unchanged.
+- `bus_watch`: the promise entity now carries `unknown_codes` (ALL unclassified codes without an answer, newest first, at most 200) and `unknown_count`, to fill that dropdown.
+
+### Changed
+- `bus_watch`: the AI question now asks for make and model, deck (single or double) and the registration plate, not only the model. Only the first line (make and model) is used as before.
 
 ## [0.21.0] - 2026-11-20
 

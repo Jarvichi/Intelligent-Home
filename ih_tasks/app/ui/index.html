@@ -18,15 +18,21 @@
         <ih-status id="service-status" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
       </div>
       <p id="purpose" class="ih-metadata"></p>
+      <details class="ih-metadata"><summary>Backup and reminder delivery</summary><p id="backup-info">Loading backup status…</p><div id="reminder-info"></div></details>
 
       <section id="board-view" aria-label="Task board">
-        <form id="add-form" class="t-add" autocomplete="off">
-          <label class="t-visually-hidden" for="add-title">New task title</label>
-          <input id="add-title" type="text" maxlength="200" placeholder="New task">
-          <button id="add-go" class="t-button" type="submit">Add</button>
-        </form>
+        <div class="t-board-heading">
+          <div class="t-board-heading-actions"><button id="new-open" class="t-button" type="button" data-variant="primary" aria-haspopup="dialog">+ New task</button>
+            <details id="tools-menu" class="t-tools-menu"><summary class="t-button">Tools <span aria-hidden="true">▾</span></summary>
+              <div class="t-tools-panel">
+                <details id="columns-picker" class="t-columns-picker"><summary>Columns</summary><div id="column-options" class="t-column-options"></div><button id="columns-reset" class="t-button" type="button">Show all</button></details>
+                <button id="merge-toggle" class="t-button" type="button" aria-pressed="false">Merge</button>
+                <button id="dup-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="dup-view">Find duplicates</button>
+              </div>
+            </details>
+          </div>
+        </div>
         <p id="add-msg" class="ih-metadata" role="status" aria-live="polite"></p>
-        <p><button id="new-open" class="t-button" type="button" data-variant="primary" aria-haspopup="true">New task</button></p>
         <div id="new-modal" class="t-modal" role="dialog" aria-modal="true" aria-labelledby="new-heading" hidden>
           <form id="new-form" class="t-modal-card" autocomplete="off">
             <h2 id="new-heading">New task</h2>
@@ -41,7 +47,9 @@
             <label class="t-visually-hidden" for="f-search">Search tasks</label>
             <input id="f-search" type="search" placeholder="Search by title or number">
             <span id="f-count" class="ih-metadata" role="status" aria-live="polite"></span>
+            <button id="filters-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="filter-options">Filters</button>
           </div>
+          <div id="filter-options" hidden>
           <div class="t-filter-grid">
             <label for="f-stage">Stage</label>
             <label for="f-waiting">Waiting for</label>
@@ -62,12 +70,9 @@
             <label for="f-label">Label</label>
             <select id="f-label"><option value="">All</option></select>
           </div>
+          </div>
         </div>
 
-        <div class="t-tools">
-          <button id="merge-toggle" class="t-button" type="button" aria-pressed="false">Merge</button>
-          <button id="dup-toggle" class="t-button" type="button" aria-expanded="false" aria-controls="dup-view">Find duplicates</button>
-        </div>
         <p id="tools-msg" class="t-msg" role="status" aria-live="polite"></p>
         <section id="dup-view" class="t-dups" aria-label="Likely duplicates" hidden></section>
 
@@ -89,6 +94,7 @@
     </main>
   </ih-app>
   <script src="ih-ui.js"></script>
+  <script src="markdown.js"></script>
   <script src="ui.js"></script>
 </body>
 </html>

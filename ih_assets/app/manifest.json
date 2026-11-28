@@ -1,6 +1,6 @@
 {
  "name": "ih_assets",
- "version": "0.2.0",
+ "version": "0.2.4",
  "kind": "addon",
  "description": "Things you own (games, DVDs, toys, devices, books) with a low and high resale value each, totals and a value-over-time history. Own database, token-protected API, page. Publishes sensor.assets_low and sensor.assets_high only in live mode.",
  "owner": "local add-on ih_assets",

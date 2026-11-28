@@ -1,5 +1,5 @@
 name: "Intelligent Home - Assets"
-version: "0.2.0"
+version: "0.2.4"
 slug: ih_assets
 image: "ghcr.io/jarvichi/{arch}-ih_assets"
 description: "Things you own (games, DVDs, toys, devices, books) with a low and high resale value each, total tiles and a low/high value-over-time chart. Own database, token-protected local API and an admin page. Publishes sensor.assets_low and sensor.assets_high only when mode is live."

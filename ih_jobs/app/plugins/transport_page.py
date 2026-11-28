@@ -11,6 +11,10 @@ Every house value comes from settings (JSON in the add-on option plugins[].setti
   promise_intro     markdown shown above the promise summary (what was promised and when). Empty = none.
   type_entities     entities for an optional "Record a confirmed bus type" card (inputs and a save button). Empty = no card.
   type_title        title of that card ['Record a confirmed bus type']
+  type_code_entity  input_select holding the unknown bus code to answer (its options are filled from the promise entity's unknown_codes). Empty = no "Bus types" card.
+  type_deck_entity  input_select with single / double / unknown
+  type_save_entity  script (or button) that saves the answer through POST /plugin/bus_watch/overrides; shown as the Save button
+  type_admin_url    link to the add-on's admin Bus types card, shown as the fallback ['']
 The page is rebuilt when its content changes (the schedule, the settings), checked every 30 minutes, and saved only then. Live saves the dashboard through the
 Home Assistant websocket (create it if missing, then save its config); dry logs what it would do and writes nothing."""
 import hashlib
@@ -20,7 +24,8 @@ NAME = 'transport_page'
 SCHEDULE = {'kind': 'every', 'minutes': 30}
 DEFAULTS = {'url_path': 'transport', 'title': 'Transport', 'icon': 'mdi:bus', 'require_admin': False, 'theme': 'House',
             'morning_entity': '', 'home_entity': '', 'promise_entity': '', 'schedule_entity': '', 'route_label': 'bus', 'home_prefix': 'Bus home: ',
-            'promise_intro': '', 'type_entities': [], 'type_title': 'Record a confirmed bus type'}
+            'promise_intro': '', 'type_entities': [], 'type_title': 'Record a confirmed bus type',
+            'type_code_entity': '', 'type_deck_entity': '', 'type_save_entity': '', 'type_admin_url': ''}
 
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 VERDICT_COLORS = {'kept': 'success', 'broken': 'error', 'unknown': 'muted', 'no_bus': 'warning', 'no_info': 'warning'}
@@ -87,6 +92,27 @@ def _history_card(entity):
                         {'key': 'verdict', 'hidden': True}, {'key': 'journey', 'hidden': True}, {'key': 'id', 'hidden': True}]}
 
 
+def bus_types_card(s):
+    """The 'Bus types' card: every unknown code (from the promise entity), a code dropdown, the single/double/unknown choice and a visible Save button.
+    None when type_code_entity is not set. The save itself is a Home Assistant script that calls the add-on's endpoint (the token never goes in the dashboard)."""
+    if not s.get('type_code_entity'):
+        return None
+    pe = s['promise_entity']
+    md = ("{% set u = state_attr('" + pe + "','unknown_codes') or [] %}"
+          "{% if u %}**{{ state_attr('" + pe + "','unknown_count') or u|length }} bus code(s) with no confirmed type:** {{ u|join(', ') }}. "
+          "Pick one below, choose single, double or unknown, then press Save."
+          "{% else %}No unknown bus codes right now.{% endif %}")
+    rows = [{'entity': s['type_code_entity'], 'name': 'Bus code'}]
+    if s.get('type_deck_entity'):
+        rows.append({'entity': s['type_deck_entity'], 'name': 'Bus type'})
+    if s.get('type_save_entity'):
+        rows.append({'type': 'button', 'entity': s['type_save_entity'], 'name': 'Save', 'icon': 'mdi:content-save', 'action_name': 'Save'})
+    cards = [{'type': 'markdown', 'content': md}, {'type': 'entities', 'title': 'Bus types', 'entities': rows}]
+    if s.get('type_admin_url'):
+        cards.append({'type': 'markdown', 'content': '[Open the admin Bus types card](%s) if saving here does not work.' % s['type_admin_url']})
+    return cards
+
+
 def build_config(s, schedule_rows=None):
     """The whole dashboard config for settings `s` (pure: no network). schedule_rows = the schedule entity's rows attribute (or None)."""
     route = s['route_label']
@@ -107,6 +133,7 @@ def build_config(s, schedule_rows=None):
     cards.append({'type': 'markdown', 'content': 'The return buses (home to the first stop, about 15 minutes after a lesson) are shown for comparison and are not counted in the percentage above.'})
     if s['type_entities']:
         cards.append({'type': 'entities', 'title': s['type_title'], 'entities': list(s['type_entities'])})
+    cards.extend(bus_types_card(s) or [])
     out['views'].append({'title': 'Double-decker promise', 'path': 'double-decker', 'icon': 'mdi:bus-double-decker', 'type': 'sections', 'max_columns': 2,
                          'sections': [{'type': 'grid', 'heading': 'Double-decker promise', 'icon': 'mdi:bus-double-decker', 'column_span': 2, 'cards': cards}], 'theme': s['theme']})
     return out

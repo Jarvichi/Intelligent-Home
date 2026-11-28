@@ -1,7 +1,7 @@
 """Add-on manager page (v0.10.0: trace explorer; consumer outcome progress). Ingress only: the server on IH_MANAGER_PORT answers the Supervisor ingress gateway (172.30.32.2) and nobody else.
 Lists the add-ons of this repository (Supervisor store + each add-on's ih_meta file + registrations) merged with Supervisor data, runs install/start/stop/restart/update in background jobs, shows needs / needed by.
 Acts ONLY on catalogue slugs of our own repository (same scope rule as the provisioner). stdlib only. Never logs or returns option values."""
-import hashlib, json, os, re, threading, time, urllib.request, urllib.error
+import hashlib, json, os, re, tempfile, threading, time, urllib.request, urllib.error
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
@@ -251,7 +251,8 @@ class Jobs:
 
 class Manager:
     def __init__(self, catalogue, sup=sup_slow, text=sup_text, prov=lambda: None, seen=lambda: {}, log=print, ttl=60,
-                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}):
+                 health=lambda: None, http=None, usage_path=None, clock=time.time, traces=lambda: None, registered=lambda: {}, theme_path=None, wd=lambda: None):
+        self.wd = wd
         self.static, self.sup, self.text, self.prov, self.seen, self.log, self.ttl = catalogue, sup, text, prov, seen, log, ttl
         self.registered, self._cat = registered, (0, None)
         self._meta, self._meta_file = {}, os.environ.get("IH_META_CACHE", "/data/meta_cache.json")
@@ -266,6 +267,38 @@ class Manager:
         self.usage_path, self.clock, self.ulock = usage_path or os.environ.get("IH_USAGE", "/data/usage.json"), clock, threading.Lock()
         self.usage, self.usage_t, self.usage_err = self._usage_load(), 0, {}
         self.trace_src = traces
+        self.theme_path = theme_path or os.environ.get('IH_THEME_FILE', '/data/theme.json')
+        self.theme_lock = threading.Lock()
+
+    def theme(self):
+        try:
+            with open(self.theme_path, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict) and data.get('palette') in ('neutral', 'coastal', 'woodland', 'terracotta', 'slate', 'lavender', 'rose', 'midnight', 'sunshine') and data.get('mode') in ('system', 'light', 'dark'):
+                return 200, {'palette': data['palette'], 'mode': data['mode']}
+        except (OSError, ValueError):
+            pass
+        return 200, {'palette': 'neutral', 'mode': 'system'}
+
+    def set_theme(self, data):
+        if not isinstance(data, dict) or set(data) != {'palette', 'mode'} or data.get('palette') not in ('neutral', 'coastal', 'woodland', 'terracotta', 'slate', 'lavender', 'rose', 'midnight', 'sunshine') or data.get('mode') not in ('system', 'light', 'dark'):
+            return 400, {'error': 'Choose an available palette and appearance.'}
+        with self.theme_lock:
+            name = None
+            try:
+                folder = os.path.dirname(os.path.abspath(self.theme_path))
+                os.makedirs(folder, exist_ok=True)
+                fd, name = tempfile.mkstemp(prefix='.theme-', dir=folder)
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump({'palette': data['palette'], 'mode': data['mode']}, f)
+                    f.flush(); os.fsync(f.fileno())
+                os.replace(name, self.theme_path)
+            except OSError as e:
+                if name and os.path.exists(name):
+                    os.unlink(name)
+                self.log('theme save failed (%s)' % type(e).__name__)
+                return 500, {'error': 'Could not save the theme.'}
+        return 200, {'palette': data['palette'], 'mode': data['mode']}
 
     def metas(self, shorts, base):
         """{short: {requires, ui}} from each add-on's own ih_meta file in the repository (read at most once an hour, 8 at a time). A failed read keeps the last good copy
@@ -761,9 +794,41 @@ class Manager:
         svc = [{"name": r.get("name"), "state": r.get("state"), "kind": r.get("kind"), "version": r.get("version"),
                 "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or [] if isinstance(c, dict)]}
                for r in snap.get("services") or []]
-        return 200, {"services": svc, "counts": snap.get("counts"), "total": snap.get("total"), "stale": snap.get("stale"), "age_s": snap.get("age_s"),
+        counts = dict(snap.get("counts") or {})
+        total = snap.get("total")
+        wd = getattr(self, "wd", lambda: None)()
+        report = wd.report() if wd else None
+        if report and report["enabled"]:       # the watchdog's per-add-on result feeds the same cards (names already reported by a manifest win)
+            have = {s["name"] for s in svc}
+            for r in report["rows"]:
+                if r["slug"] in have:
+                    continue
+                svc.append({"name": r["slug"], "state": r["state"], "kind": "addon", "version": None,
+                            "checks": [str(c.get("detail") or "")[:200] for c in r.get("checks") or []] or [str(r.get("probe") or "")[:200]]})
+                counts[r["state"]] = counts.get(r["state"], 0) + 1
+                total = (total or 0) + 1
+        return 200, {"services": svc, "counts": counts, "total": total, "stale": snap.get("stale"), "age_s": snap.get("age_s"),
                      "consumer_progress": snap.get("consumer_progress") or [],
-                     "ui_contributions": snap.get("ui_contributions") or []}
+                     "ui_contributions": snap.get("ui_contributions") or [],
+                     "watchdog": report}
+
+    def watchdog_mode(self, mode):
+        wd = self.wd()
+        if not wd or mode not in ("dry", "live"):
+            return 400, {"error": "watchdog is off or the mode is unknown"}
+        wd.set_mode(mode)
+        self.log("watchdog: mode set to %s from the page" % mode)
+        return 200, {"mode": mode}
+
+    def watchdog_toggle(self, short, on):
+        wd = self.wd()
+        if not wd:
+            return 400, {"error": "watchdog is off"}
+        try:
+            wd.set_enabled(short, on)
+        except ValueError as e:
+            return 404, {"error": str(e)}
+        return 200, {"slug": short, "enabled": on}
 
 
 PAGE = (Path(__file__).parent / "ui" / "index.html").read_text(encoding="utf-8")
@@ -790,6 +855,12 @@ def make_handler(mgr):
             try:
                 if p == "/":
                     return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+                if p in ("/theme-preview.html", "/theme-preview.css", "/theme-preview.js"):
+                    name = p[1:]
+                    body = (Path(__file__).parent / "ui" / name).read_bytes()
+                    return self._send(200, body, "text/html; charset=utf-8" if name.endswith('.html') else "text/css; charset=utf-8" if name.endswith('.css') else "text/javascript; charset=utf-8")
+                if p == '/api/theme':
+                    return self._json(*mgr.theme())
                 if p in ("/ih-ui.css", "/ih-ui.js", "/ih-patterns.css", "/manager-logic.js", "/wizard-ui.js"):
                     name = p[1:]
                     body = (Path(__file__).parent / "ui" / name).read_bytes()
@@ -825,6 +896,15 @@ def make_handler(mgr):
                 return
             u = urlparse(self.path)
             parts = u.path.strip("/").split("/")
+            if parts == ['api', 'theme']:
+                try:
+                    n = int(self.headers.get('Content-Length') or 0)
+                    if not 0 < n <= 1024:
+                        raise ValueError('bad length')
+                    data = json.loads(self.rfile.read(n))
+                except (ValueError, UnicodeDecodeError):
+                    return self._json(400, {'error': 'Invalid theme selection.'})
+                return self._json(*mgr.set_theme(data))
             if len(parts) == 4 and parts[:2] == ["api", "action"]:
                 wr = parse_qs(u.query).get("with_requires", [""])[0] == "1"
                 return self._json(*mgr.act(parts[2], parts[3], wr))
@@ -837,6 +917,10 @@ def make_handler(mgr):
                 except (ValueError, UnicodeDecodeError):
                     return self._json(400, {"error": "bad json"})
                 return self._json(*mgr.wizard_save(parts[2], body))
+            if len(parts) == 4 and parts[:3] == ["api", "watchdog", "mode"]:
+                return self._json(*mgr.watchdog_mode(parts[3]))
+            if len(parts) == 5 and parts[:3] == ["api", "watchdog", "toggle"] and parts[4] in ("on", "off"):
+                return self._json(*mgr.watchdog_toggle(unquote(parts[3]), parts[4] == "on"))
             if parts == ["api", "provision"]:
                 return self._json(*mgr.fill_now())
             self._json(404, {"error": "not found"})

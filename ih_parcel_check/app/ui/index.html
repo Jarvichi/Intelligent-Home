@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Parcel check</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="ih-patterns.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <ih-nav data-home-href="/app/32c8114c_ih_orchestrator" data-title="Parcel check"></ih-nav>
+  <ih-app class="status-app">
+    <main class="status-main">
+      <div class="ih-page-heading">
+        <h1 id="page-title">Parcel check</h1>
+        <ih-status id="service-status" class="livepill" status="unknown" role="status" aria-live="polite">Loading…</ih-status>
+      </div>
+      <p class="status-purpose">Shows whether doorstep pictures were judged to hold a parcel. Verdicts only: no pictures are shown.</p>
+      <ih-card class="status-card">
+        <div class="status-line">
+          <div class="status-line-text">
+            <b id="mode" class="status-state">Loading…</b>
+            <span id="last" class="ih-freshness" data-state="unknown">Loading…</span>
+          </div>
+          <button id="refresh" class="ih-button" type="button">Refresh</button>
+        </div>
+        <p id="ai" class="ih-metadata"></p>
+      </ih-card>
+      <ih-card class="status-card">
+        <h2>Counts</h2>
+        <div class="pc-table-wrap">
+          <table class="pc-table" id="counts">
+            <thead><tr><th scope="col"></th><th scope="col">Checked</th><th scope="col">Parcel</th><th scope="col">No parcel</th><th scope="col">Unsure</th><th scope="col">Errors</th></tr></thead>
+            <tbody id="counts-body"></tbody>
+          </table>
+        </div>
+        <p class="ih-metadata">Counts cover every check. For a question other than the parcel one, “Parcel” means a yes answer.</p>
+      </ih-card>
+      <ih-card class="status-card">
+        <h2>Last 20 verdicts</h2>
+        <div class="pc-table-wrap">
+          <table class="pc-table">
+            <thead><tr><th scope="col">Time</th><th scope="col">Camera</th><th scope="col">Verdict</th><th scope="col">AI answered</th></tr></thead>
+            <tbody id="verdicts-body"></tbody>
+          </table>
+        </div>
+        <p id="verdicts-empty" class="ih-empty-inline" hidden>No verdicts yet.</p>
+      </ih-card>
+      <ih-card class="status-card">
+        <h2>Recent errors</h2>
+        <ul id="errors" class="status-bullets"></ul>
+        <p id="errors-empty" class="ih-empty-inline" hidden>No errors.</p>
+      </ih-card>
+      <footer class="status-footer"><span>INTELLIGENT HOME</span><a href="/app/32c8114c_ih_orchestrator" target="_top">Operations console</a></footer>
+    </main>
+  </ih-app>
+  <script src="ih-ui.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

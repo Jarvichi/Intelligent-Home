@@ -49,6 +49,8 @@ MIGRATIONS = [
     (19, "UPDATE tasks SET raised_by = created_by WHERE raised_by = ''"),
     # 'Work this now' (0.10.0): the owner asked a worker to take this task next; the worker clears it when the run starts
     (20, 'ALTER TABLE tasks ADD COLUMN run_now INTEGER NOT NULL DEFAULT 0'),
+    (21, '''CREATE TABLE reminder_outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)'''),
+    (22, "CREATE TABLE backup_status(id INTEGER PRIMARY KEY CHECK(id=1), last_success TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '')"),
 ]
 RELATION_KINDS = ('blocked_by', 'depends_on', 'relates_to')
 WAITS_ON = ('blocked_by', 'depends_on')      # both mean "src cannot finish before dst is done"
@@ -84,6 +86,18 @@ class TaskStore:
 
     def close(self):
         self.db.close()
+
+    def backup_status(self):
+        row = self.db.con.execute('SELECT last_success, error FROM backup_status WHERE id=1').fetchone()
+        return {'last_success': row[0], 'error': row[1]} if row else {'last_success': '', 'error': ''}
+
+    def save_backup_status(self, status):
+        with self.db.tx() as con:
+            con.execute('INSERT OR REPLACE INTO backup_status(id,last_success,error) VALUES(1,?,?)', (status['last_success'], status['error']))
+
+    def reminder_delivery_status(self):
+        rows = self.db.con.execute('SELECT payload FROM reminder_outbox ORDER BY id').fetchall()
+        return [{'id': r['id'], 'title': r['title'], 'date': r['remind_at']} for r in (json.loads(row[0]) for row in rows)]
 
     def today(self):
         """Today's date in the add-on's own time zone (a reminder date is a calendar day)."""
@@ -387,15 +401,27 @@ class TaskStore:
             out.append({'id': r[0], 'title': r[1], 'remind_at': r[2], 'note': data.get('note', ''), 'set_at': e[0] if e else ''})
         return out
 
-    def fire_reminder(self, task_id):
+    def fire_reminder(self, task_id, queue_notification=False):
         """The date has come: reopen the task in To do with high priority and say so in its history."""
         with self.db.tx() as con:
             t = self._row(con, task_id)
             if t['stage'] != 'closed' or t['closed_reason'] != 'reminder':
                 raise M.RuleError('conflict', 'task %d has no reminder waiting' % task_id)
+            if queue_notification:
+                e = con.execute("SELECT at, data FROM events WHERE task_id = ? AND kind = 'reminder_set' ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+                data = json.loads(e[1]) if e and e[1] else {}
+                payload = {'id': task_id, 'title': t['title'], 'remind_at': t['remind_at'], 'note': data.get('note', ''), 'set_at': e[0] if e else ''}
+                con.execute('INSERT INTO reminder_outbox(payload) VALUES (?)', (json.dumps(payload),))
             con.execute("UPDATE tasks SET stage = 'todo', closed_reason = '', closed_detail = '', duplicate_of = NULL, revise = 0, remind_at = '', priority = 'high' WHERE id = ?", (task_id,))
             self._event(con, task_id, 'system', 'reminder_fired', 'closed', 'todo', 'The reminder date (%s) came: the task is back in To do, high priority.' % t['remind_at'])
         return self.get(task_id)
+
+    def pending_reminder_notifications(self):
+        return [(row[0], json.loads(row[1])) for row in self.db.con.execute('SELECT id, payload FROM reminder_outbox ORDER BY id LIMIT 50')]
+
+    def remove_reminder_notification(self, notification_id):
+        with self.db.tx() as con:
+            con.execute('DELETE FROM reminder_outbox WHERE id = ?', (notification_id,))
 
     def reminders(self):
         """The waiting reminders: [{id, title, remind_at}] soonest first."""

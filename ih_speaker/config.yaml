@@ -1,5 +1,5 @@
 name: "Intelligent Home - Speaker"
-version: "0.4.0"
+version: "0.4.4"
 slug: ih_speaker
 image: "ghcr.io/jarvichi/{arch}-ih_speaker"
 description: "Text-to-speech tool for the house speakers with a clip cache and an admin page (can also send the clip as a Discord voice message). Other add-ons send it a message and it speaks it (voice, volume with restore, one message at a time, skip if the speaker is playing, quiet-hour and per-persona rules). It never writes a message. DRY-RUN by default."

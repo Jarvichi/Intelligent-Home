@@ -19,100 +19,100 @@ body{position:relative;font:28px Roboto,'DejaVu Sans',sans-serif;color:#000;line
 svg{display:block}
 
 /* ---------------------------------------------------------------- main screen: header */
-.day{left:48px;top:24px;font-size:96px;font-weight:700}
-.date{left:48px;top:150px;font-size:52px}
-.info{left:500px;top:38px;width:524px;font-size:25px;text-align:right}
-.info.mains{width:470px}
-.refresh{left:986px;top:36px}
-.festive{left:300px;top:calc(86px + var(--i) * 30px);width:724px;font-weight:700;text-align:right;font-size:25px}
-.sun{left:500px;top:144px;width:524px;font-size:34px;font-weight:700;text-align:right}
+.day{left:30px;top:24px;font-size:96px;font-weight:700}
+.date{left:30px;top:150px;font-size:52px}
+.info{left:498.7px;top:38px;width:543.3px;font-size:25px;text-align:right}
+.info.mains{width:487.3px}
+.refresh{left:1002.6px;top:36px}
+.festive{left:291.3px;top:calc(86px + var(--i) * 30px);width:750.7px;font-weight:700;text-align:right;font-size:25px}
+.sun{left:498.7px;top:159px;width:543.3px;font-size:34px;font-weight:700;text-align:right}
 .h-rule{top:213px}
 
 /* weather */
-.wx-icon{left:48px;top:248px}
-.wx-temp{left:200px;top:250px;font-size:110px;font-weight:700}
-.wx-cond{left:48px;top:362px;width:340px;font-size:37px;font-weight:700}
-.wx-range{left:48px;top:408px;width:340px}
-.fact-l{left:425px;top:calc(252px + var(--i) * 74px);width:200px}
-.fact-v{left:425px;top:calc(272px + var(--i) * 74px);width:200px;font-size:28px;font-weight:700}
-.arrow{left:560px;top:264px}
-.day-box{left:640px;top:calc(238px + var(--i) * 118px);width:384px;height:98px}
-.day-name{left:662px;top:calc(252px + var(--i) * 118px);width:250px;font-size:30px;font-weight:700}
-.day-text{left:662px;top:calc(294px + var(--i) * 118px);width:250px;font-size:23px}
-.day-icon{left:935px;top:calc(248px + var(--i) * 118px)}
-.game-box{left:640px;top:238px;width:384px;height:216px}
-.game-art{left:653px;top:251px;width:140px;height:190px;object-fit:contain}
-.game-label{left:806px;top:262px;width:200px;font-size:18px;font-weight:700}
-.game-line{left:806px;top:calc(292px + var(--i) * 32px);width:200px;font-size:24px;font-weight:700}
+.wx-icon{left:30px;top:248px}
+.wx-temp{left:187.6px;top:250px;font-size:110px;font-weight:700}
+.wx-cond{left:30px;top:362px;width:352.5px;font-size:37px;font-weight:700}
+.wx-range{left:30px;top:408px;width:352.5px}
+.fact-l{left:420.9px;top:calc(252px + var(--i) * 74px);width:207.4px}
+.fact-v{left:420.9px;top:calc(272px + var(--i) * 74px);width:207.4px;font-size:28px;font-weight:700}
+.arrow{left:560.9px;top:264px}
+.day-box{left:643.8px;top:calc(238px + var(--i) * 118px);width:398.2px;height:98px}
+.day-name{left:666.6px;top:calc(252px + var(--i) * 118px);width:259.2px;font-size:30px;font-weight:700}
+.day-text{left:666.6px;top:calc(294px + var(--i) * 118px);width:259.2px;font-size:23px}
+.day-icon{left:949.7px;top:calc(248px + var(--i) * 118px)}
+.game-box{left:643.8px;top:238px;width:398.2px;height:216px}
+.game-art{left:651px;top:241px;width:190px;height:210px;object-fit:contain}
+.game-label{left:854px;top:262px;width:182px;font-size:18px;font-weight:700}
+.game-line{left:854px;top:calc(292px + var(--i) * 32px);width:182px;font-size:22px;font-weight:700}
 
 /* the band under the weather: warning banner, now playing, or the hourly strip */
-.band{left:48px;top:478px;width:976px;height:190px}
-.band-dash{left:60px;top:490px;width:952px;height:166px;border:3px dashed #fff;border-radius:16px}
-.tri{top:515px}.tri-l{left:79px}.tri-r{left:881px}
+.band{left:30px;top:478px;width:1012px;height:190px}
+.band-dash{left:42.4px;top:490px;width:987.1px;height:166px;border:3px dashed #fff;border-radius:16px}
+.tri{top:515px}.tri-l{left:62.1px}.tri-r{left:893.7px}
 .warn{color:#fff;font-weight:700;text-align:center}
-.warn-1{left:211px;top:552px;width:650px;font-size:30px}
-.warn-2{left:211px;top:calc(538px + var(--i) * 48px);width:650px;font-size:30px}
-.warn-n{left:calc(195px + var(--c) * 372px);top:calc(534px + var(--r) * 48px);width:310px;font-size:23px}
-.warn-page{left:900px;top:632px;width:95px;font-size:18px;font-weight:700;text-align:right;color:#fff}
-.dismiss{left:872px;top:612px;width:142px;height:52px;border-radius:20px;background:#fff;color:#000;font:700 20px/52px Roboto,sans-serif;text-align:center}
-.media-art{left:62px;top:493px;width:160px;height:160px;object-fit:contain}
-.media-label{left:245px;top:504px;font-size:20px;font-weight:700}
-.media-title{left:245px;top:540px;width:755px;font-size:30px;font-weight:700}
-.media-sub{left:245px;top:595px;width:755px;font-size:23px}
-.hour-time{left:calc(60px + var(--i) * 163px);top:497px;width:140px;font-size:25px;font-weight:700;text-align:center}
-.hour-icon{left:calc(100px + var(--i) * 163px);top:532px}
-.hour-temp{left:calc(60px + var(--i) * 163px);top:598px;width:140px;font-size:36px;font-weight:700;text-align:center}
-.hour-rain{left:calc(60px + var(--i) * 163px);top:640px;width:140px;font-size:17px;text-align:center}
-.hour-sep{left:calc(50px + var(--i) * 163px);top:496px;width:2px;height:152px;background:#aaa}
+.warn-1{left:199px;top:552px;width:674px;font-size:30px}
+.warn-2{left:199px;top:calc(538px + var(--i) * 48px);width:674px;font-size:30px}
+.warn-n{left:calc(182.4px + var(--c) * 385.7px);top:calc(534px + var(--r) * 48px);width:321.4px;font-size:23px}
+.warn-page{left:913.4px;top:632px;width:98.5px;font-size:18px;font-weight:700;text-align:right;color:#fff}
+.dismiss{left:884.4px;top:612px;width:147.2px;height:52px;border-radius:20px;background:#fff;color:#000;font:700 20px/52px Roboto,sans-serif;text-align:center}
+.media-art{left:44.5px;top:493px;width:160px;height:160px;object-fit:contain}
+.media-label{left:234.3px;top:504px;font-size:20px;font-weight:700}
+.media-title{left:234.3px;top:540px;width:782.8px;font-size:30px;font-weight:700}
+.media-sub{left:234.3px;top:595px;width:782.8px;font-size:23px}
+.hour-time{left:calc(42.4px + var(--i) * 169px);top:497px;width:145.2px;font-size:25px;font-weight:700;text-align:center}
+.hour-icon{left:calc(83.9px + var(--i) * 169px);top:532px}
+.hour-temp{left:calc(42.4px + var(--i) * 169px);top:598px;width:145.2px;font-size:36px;font-weight:700;text-align:center}
+.hour-rain{left:calc(42.4px + var(--i) * 169px);top:640px;width:145.2px;font-size:17px;text-align:center}
+.hour-sep{left:calc(32.1px + var(--i) * 169px);top:496px;width:2px;height:152px;background:#aaa}
 
 /* house tiles */
-.house-label{left:48px;top:688px}
-.tile{left:calc(48px + var(--i) * 248px);top:726px;width:232px;height:140px}
-.tile-title{left:calc(68px + var(--i) * 248px);top:742px;width:192px;font-size:21px}
-.tile-value{left:calc(68px + var(--i) * 248px);top:787px;width:192px;font-size:23px;font-weight:700}
-.tile-sub{left:calc(68px + var(--i) * 248px);top:827px;width:192px;font-size:18px}
+.house-label{left:30px;top:688px}
+.tile{left:calc(30px + var(--i) * 257.1px);top:726px;width:240.6px;height:140px}
+.tile-title{left:calc(50.7px + var(--i) * 257.1px);top:742px;width:199.1px;font-size:21px}
+.tile-value{left:calc(50.7px + var(--i) * 257.1px);top:787px;width:199.1px;font-size:23px;font-weight:700}
+.tile-sub{left:calc(50.7px + var(--i) * 257.1px);top:827px;width:199.1px;font-size:18px}
 .on-ink{color:#fff}
-.person{left:calc(316px + var(--j) * 64px);top:788px}
-.cook-tile{left:48px;top:726px;width:232px;height:140px}
-.cook-title{left:68px;top:742px;width:192px;font-size:21px}
-.cook-value{left:68px;top:787px;width:192px;font-size:23px;font-weight:700}
+.person{left:calc(307.9px + var(--j) * 66.4px);top:788px}
+.cook-tile{left:30px;top:726px;width:240.6px;height:140px}
+.cook-title{left:50.7px;top:742px;width:199.1px;font-size:21px}
+.cook-value{left:50.7px;top:787px;width:199.1px;font-size:23px;font-weight:700}
 
 /* lights */
-.lights-label{left:48px;top:892px}
-.floor-l{left:calc(48px + var(--c) * 488px);top:calc(932px + var(--r) * 44px);width:138px;font-size:26px;font-weight:700}
-.floor-v{left:calc(188px + var(--c) * 488px);top:calc(932px + var(--r) * 44px);width:340px;font-size:26px}
-.lights-flat{left:48px;top:934px;width:950px;font-size:26px}
-.btn-alloff{left:270px;top:884px;width:140px}
-.btn-menu{left:880px;top:884px;width:144px}
+.lights-label{left:30px;top:892px}
+.floor-l{left:calc(30px + var(--c) * 506px);top:calc(932px + var(--r) * 44px);width:143.1px;font-size:26px;font-weight:700}
+.floor-v{left:calc(175.2px + var(--c) * 506px);top:calc(932px + var(--r) * 44px);width:352.5px;font-size:26px}
+.lights-flat{left:30px;top:934px;width:985px;font-size:26px}
+.btn-alloff{left:260.2px;top:884px;width:145.2px}
+.btn-menu{left:892.7px;top:884px;width:149.3px}
 
 /* energy */
 .e-rule{top:1030px}
-.en-left{left:48px;top:1042px;width:560px;font-size:25px;font-weight:700}
-.en-left.wide{width:976px}
-.en-cost{left:624px;top:1042px;width:400px;font-size:25px;font-weight:700;text-align:right}
-.saving{left:48px;top:1040px;width:976px;height:48px;padding:7px 17px;font-size:22px;font-weight:700}
-.cook-unavail{left:500px;top:1070px;width:524px;font-size:18px;font-weight:700;text-align:right}
+.en-left{left:30px;top:1042px;width:580.7px;font-size:25px;font-weight:700}
+.en-left.wide{width:1012px}
+.en-cost{left:627.2px;top:1042px;width:414.8px;font-size:25px;font-weight:700;text-align:right}
+.saving{left:30px;top:1040px;width:1012px;height:48px;padding:7px 17px;font-size:22px;font-weight:700}
+.cook-unavail{left:498.7px;top:1070px;width:543.3px;font-size:18px;font-weight:700;text-align:right}
 
 /* to do */
-.todo-label{left:48px;top:1117px}
-.todo-note{left:500px;top:1120px;width:524px;font-size:18px;text-align:right}
-.btn-prev{left:800px;top:1106px;width:108px}
-.btn-next{left:916px;top:1106px;width:108px}
-.todo-msg{left:48px;top:1158px;font-size:25px}
-.no-tasks{left:70px;top:1183px;font-size:23px;font-weight:700}
-.card2{left:calc(48px + var(--i) * 494px);top:1150px;width:482px;height:144px;padding:17px 21px;font-size:23px;font-weight:700;line-height:32px}
+.todo-label{left:30px;top:1117px}
+.todo-note{left:498.7px;top:1120px;width:543.3px;font-size:18px;text-align:right}
+.btn-prev{left:809.7px;top:1106px;width:112px}
+.btn-next{left:930px;top:1106px;width:112px}
+.todo-msg{left:30px;top:1158px;font-size:25px}
+.no-tasks{left:52.8px;top:1183px;font-size:23px;font-weight:700}
+.card2{left:calc(30px + var(--i) * 512.2px);top:1150px;width:499.8px;height:144px;padding:17px 21px;font-size:23px;font-weight:700;line-height:32px}
 .card2 .t{max-height:64px;overflow:hidden}
-.card2 .d{position:absolute;left:21px;top:104px;width:430px;font-size:19px}
-.rooms-label{left:48px;top:1315px}
-.room-l{left:calc(51px + var(--i) * 97px);top:1362px;width:92px;font-size:14px;text-align:center}
-.room-v{left:calc(51px + var(--i) * 97px);top:1403px;width:92px;font-size:20px;font-weight:700;text-align:center}
+.card2 .d{position:absolute;left:2px;top:104px;width:445.9px;font-size:19px}
+.rooms-label{left:30px;top:1315px}
+.room-l{left:calc(33.1px + var(--i) * 100.6px);top:1362px;width:95.4px;font-size:14px;text-align:center}
+.room-v{left:calc(33.1px + var(--i) * 100.6px);top:1403px;width:95.4px;font-size:20px;font-weight:700;text-align:center}
 .rows-3{--pitch:99px;--h:87px;--font:29px}
 .rows-4{--pitch:75px;--h:61px;--font:27px}
 .rows-5{--pitch:59px;--h:50px;--font:24px}
-.row{left:48px;top:calc(1150px + var(--i) * var(--pitch));width:976px;height:var(--h);font-size:var(--font);border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
+.row{left:30px;top:calc(1150px + var(--i) * var(--pitch));width:1012px;height:var(--h);font-size:var(--font);border:3px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-weight:700;gap:16px}
 .row.ink{background:#000;color:#fff}
 .row .t{flex:1 1 auto;min-width:0}
-.row .d{font-size:18px;flex:0 1 auto;max-width:300px;text-align:right}
+.row .d{font-size:var(--font);font-weight:500;color:#333;flex:0 1 auto;max-width:340px;text-align:right}.row.ink .d{color:#fff}
 .overlay{left:0;top:0}
 
 /* ---------------------------------------------------------------- the other screens */
@@ -141,7 +141,8 @@ svg{display:block}
 .home-status{left:306px;top:calc(520px + var(--i) * 180px);width:640px;font-size:32px}
 .home-done{left:140px;top:1010px;width:792px;height:104px;line-height:98px;font-size:40px}
 .menu-title{left:48px;top:36px;font-size:48px;font-weight:700}
-.menu-row{left:140px;top:calc(300px + var(--i) * 140px);width:792px;height:116px;border-radius:30px;font-size:30px;font-weight:700;line-height:116px;text-align:center}
+.menu-row{left:140px;top:calc(300px + var(--i) * 140px);width:792px;height:116px;box-sizing:border-box;border:3px solid #000;border-radius:30px;background:#fff;color:#000;font-size:30px;font-weight:700;display:flex;align-items:center;gap:28px;padding:0 36px}
+.menu-icon{flex:0 0 44px}
 
 /* cooking */
 .ck-title{left:48px;top:52px;width:560px;font-size:46px;font-weight:700}

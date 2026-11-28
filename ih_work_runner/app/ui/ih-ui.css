@@ -1,33 +1,51 @@
 /* Canonical Intelligent Home UI tokens. Keep all page CSS on these variables. */
+/* shadcn/ui neutral theme tokens (https://ui.shadcn.com/docs/theming, MIT licence). Plain CSS, no Tailwind or React. */
 :root {
   color-scheme: light dark;
-  --ih-bg: #f3f5ef;
-  --ih-surface: #ffffff;
-  --ih-surface-raised: #e9eee5;
-  --ih-text: #172019;
-  --ih-muted: #657267;
-  --ih-line: #d9e0d6;
-  --ih-accent: #a8f06b;
-  --ih-accent-ink: #17310b;
-  --ih-link: #326b4d;
-  --ih-ok: #26734b;
-  --ih-warn: #9a650e;
-  --ih-danger: #c34639;
-  --ih-info: #326b4d;
+  --background: #ffffff; --foreground: #0a0a0a;
+  --card: #ffffff; --card-foreground: #0a0a0a;
+  --popover: #ffffff; --popover-foreground: #0a0a0a;
+  --primary: #171717; --primary-foreground: #fafafa;
+  --secondary: #f5f5f5; --secondary-foreground: #171717;
+  --muted: #f5f5f5; --muted-foreground: #737373;
+  --accent: #f5f5f5; --accent-foreground: #171717;
+  --destructive: #e7000b; --destructive-foreground: #fafafa;
+  --border: #e5e5e5; --input: #e5e5e5; --ring: #a1a1a1;
+  --radius: 0.5rem;
+  /* Old IH names stay as aliases of the shadcn set so existing add-ons keep working. */
+  --ih-bg: var(--background);
+  --ih-surface: var(--card);
+  --ih-surface-raised: var(--muted);
+  --ih-text: var(--foreground);
+  --ih-muted: var(--muted-foreground);
+  --ih-line: var(--border);
+  --ih-accent: var(--primary);
+  --ih-accent-ink: var(--primary-foreground);
+  --ih-link: var(--foreground);
+  --ih-ok: #15803d;
+  --ih-warn: #a16207;
+  --ih-danger: var(--destructive);
+  --ih-info: var(--foreground);
   --ih-space-1: 4px; --ih-space-2: 8px; --ih-space-3: 12px; --ih-space-4: 16px;
   --ih-space-5: 20px; --ih-space-6: 24px; --ih-space-8: 32px; --ih-space-10: 40px;
-  --ih-radius-control: 8px; --ih-radius-nested: 12px; --ih-radius-panel: 16px;
-  --ih-shadow: 0 10px 28px rgb(22 36 24 / 8%);
+  --ih-radius-control: calc(var(--radius) - 2px); --ih-radius-nested: var(--radius); --ih-radius-panel: calc(var(--radius) + 4px);
+  --ih-shadow: 0 1px 2px rgb(0 0 0 / 5%);
   --ih-nav-h: 48px;
   --ih-font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ih-bg: #101511; --ih-surface: #171f19; --ih-surface-raised: #202a22;
-    --ih-text: #edf4ed; --ih-muted: #9eaea0; --ih-line: #303d32;
-    --ih-accent: #b4f77d; --ih-accent-ink: #17240f; --ih-link: #9ddc91;
-    --ih-ok: #93dfa5; --ih-warn: #ffd17e; --ih-danger: #ff978a; --ih-info: #9ddc91;
-    --ih-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+    --background: #0a0a0a; --foreground: #fafafa;
+    --card: #171717; --card-foreground: #fafafa;
+    --popover: #171717; --popover-foreground: #fafafa;
+    --primary: #e5e5e5; --primary-foreground: #171717;
+    --secondary: #262626; --secondary-foreground: #fafafa;
+    --muted: #262626; --muted-foreground: #a1a1a1;
+    --accent: #262626; --accent-foreground: #fafafa;
+    --destructive: #ff6467; --destructive-foreground: #0a0a0a;
+    --border: rgb(255 255 255 / 10%); --input: rgb(255 255 255 / 15%); --ring: #737373;
+    --ih-ok: #4ade80; --ih-warn: #facc15;
+    --ih-shadow: none;
   }
 }
 * { box-sizing: border-box; }
@@ -35,7 +53,7 @@ html { background: var(--ih-bg); color: var(--ih-text); font: 15px/1.5 var(--ih-
 body { margin: 0; min-width: 320px; background: var(--ih-bg); color: var(--ih-text); }
 button, input, select { color: inherit; font: inherit; }
 a { color: var(--ih-link); }
-:focus-visible { outline: 3px solid var(--ih-link); outline-offset: 3px; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--ring) 50%, transparent); outline-offset: 1px; }
 /* Sticky top bar (ih-nav): put it as the first child of <body>, before <ih-app>. Back is always one tap. */
 ih-nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--ih-space-2); min-width: 0; min-height: var(--ih-nav-h); padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); border-bottom: 1px solid var(--ih-line); background: var(--ih-bg); background: color-mix(in srgb, var(--ih-bg) 92%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 ih-nav[hidden] { display: none; }
@@ -50,22 +68,67 @@ ih-header { display: block; margin-bottom: var(--ih-space-6); }
 ih-header h1 { margin: 4px 0; font-size: clamp(26px, 4vw, 34px); line-height: 1.12; letter-spacing: -.035em; }
 ih-header p { margin: 0; color: var(--ih-muted); }
 .ih-kicker { color: var(--ih-muted); font-size: 12px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
-ih-tabs { display: flex; gap: var(--ih-space-2); overflow-x: auto; padding: 2px 2px 10px; margin: 0 0 var(--ih-space-4); }
-ih-tabs button, ih-button { min-height: 44px; border: 1px solid var(--ih-line); border-radius: var(--ih-radius-control); padding: 9px 14px; background: var(--ih-surface); cursor: pointer; }
-ih-tabs button[aria-selected="true"], ih-button[variant="primary"] { border-color: transparent; color: var(--ih-accent-ink); background: var(--ih-accent); font-weight: 750; }
-ih-card { display: block; min-width: 0; padding: var(--ih-space-5); border: 1px solid var(--ih-line); border-radius: var(--ih-radius-panel); background: var(--ih-surface); box-shadow: var(--ih-shadow); }
-ih-card h2 { margin: 0 0 var(--ih-space-3); font-size: 18px; }
-ih-status, ih-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; background: var(--ih-surface-raised); color: var(--ih-muted); font-size: 12px; font-weight: 700; }
+ih-tabs { display: inline-flex; max-width: 100%; gap: 2px; overflow-x: auto; padding: 3px; margin: 0 0 var(--ih-space-4); border-radius: var(--radius); background: var(--muted); color: var(--muted-foreground); }
+ih-tabs button { min-height: 44px; border: 0; border-radius: calc(var(--radius) - 2px); padding: 6px 14px; background: transparent; color: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+/* shadcn Button: .btn / ih-button, variants via class or variant attribute */
+.btn, ih-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 16px; border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); background: var(--primary); color: var(--primary-foreground); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; text-decoration: none; transition: background-color .15s, border-color .15s; }
+.btn:hover:not(:disabled), ih-button:hover { background: color-mix(in srgb, var(--primary) 90%, transparent); }
+.btn:disabled, ih-button[disabled] { opacity: .5; cursor: not-allowed; pointer-events: none; }
+.btn-secondary, ih-button[variant="secondary"] { background: var(--secondary); color: var(--secondary-foreground); }
+.btn-secondary:hover:not(:disabled), ih-button[variant="secondary"]:hover { background: color-mix(in srgb, var(--secondary) 80%, transparent); }
+.btn-outline, ih-button[variant="outline"] { border-color: var(--input); background: var(--background); color: var(--foreground); box-shadow: var(--ih-shadow); }
+.btn-outline:hover:not(:disabled), ih-button[variant="outline"]:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn-ghost, ih-button[variant="ghost"] { background: transparent; color: var(--foreground); }
+.btn-ghost:hover:not(:disabled), ih-button[variant="ghost"]:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn-destructive, ih-button[variant="destructive"] { background: var(--destructive); color: #fff; }
+.btn-destructive:hover:not(:disabled), ih-button[variant="destructive"]:hover { background: color-mix(in srgb, var(--destructive) 90%, transparent); }
+.btn-sm { min-height: 36px; padding: 4px 12px; }
+ih-tabs button[aria-selected="true"] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+/* shadcn Card: ih-card or .card; optional .card-header / .card-title / .card-description / .card-footer */
+ih-card, .card { display: block; min-width: 0; padding: var(--ih-space-5); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); background: var(--card); color: var(--card-foreground); box-shadow: var(--ih-shadow); }
+.card-header { display: grid; gap: 4px; margin-bottom: var(--ih-space-4); }
+.card-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1; letter-spacing: -.01em; }
+.card-description { margin: 0; color: var(--muted-foreground); font-size: 14px; }
+.card-footer { display: flex; align-items: center; gap: 8px; margin-top: var(--ih-space-4); }
+ih-card h2 { margin: 0 0 var(--ih-space-3); font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+/* shadcn Badge: ih-badge/ih-status or .badge (.badge-secondary, .badge-outline, .badge-destructive) */
+ih-status, ih-badge, .badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: 999px; padding: 2px 10px; background: var(--secondary); color: var(--secondary-foreground); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.badge { background: var(--primary); color: var(--primary-foreground); }
+.badge-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+.badge-outline { border-color: var(--border); background: transparent; color: var(--foreground); }
+.badge-destructive { background: var(--destructive); color: #fff; }
 ih-status[status="ok"], ih-badge[tone="ok"] { color: var(--ih-ok); }
 ih-status[status="warn"], ih-badge[tone="warn"] { color: var(--ih-warn); }
 ih-status[status="error"], ih-badge[tone="error"] { color: var(--ih-danger); }
 ih-metric { display: block; font-size: 28px; font-weight: 780; line-height: 1.2; }
 ih-metric small { display: block; color: var(--ih-muted); font-size: 12px; font-weight: 600; }
 ih-field { display: block; }
-ih-field label { display: block; margin-bottom: 5px; color: var(--ih-muted); font-size: 13px; font-weight: 700; }
-ih-field input { width: 100%; min-height: 44px; border: 1px solid var(--ih-line); border-radius: var(--ih-radius-control); padding: 9px 12px; background: var(--ih-bg); }
+ih-field label, .label { display: block; margin-bottom: 6px; color: var(--foreground); font-size: 14px; font-weight: 500; }
+ih-field input, ih-field select, ih-field textarea, .input { width: 100%; min-height: 44px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); padding: 8px 12px; background: transparent; color: var(--foreground); box-shadow: var(--ih-shadow); }
+ih-field input::placeholder, .input::placeholder { color: var(--muted-foreground); }
+ih-field input:disabled, .input:disabled { opacity: .5; cursor: not-allowed; }
 ih-empty, ih-loading, ih-error { display: block; padding: var(--ih-space-6); color: var(--ih-muted); text-align: center; }
 ih-error { color: var(--ih-danger); }
 ih-dialog { display: block; }
+dialog.ih-dialog, ih-dialog[open] { border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px); padding: var(--ih-space-6); background: var(--popover); color: var(--popover-foreground); box-shadow: 0 10px 30px rgb(0 0 0 / 20%); }
+dialog.ih-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+/* shadcn Alert, Table, Switch, Skeleton, Toast */
+.alert { display: grid; gap: 2px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--card-foreground); font-size: 14px; }
+.alert-title { font-weight: 500; }
+.alert-description { color: var(--muted-foreground); }
+.alert-destructive { border-color: color-mix(in srgb, var(--destructive) 50%, var(--border)); color: var(--destructive); }
+.alert-destructive .alert-description { color: inherit; opacity: .9; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th { padding: 10px 12px; color: var(--muted-foreground); font-weight: 500; text-align: left; border-bottom: 1px solid var(--border); }
+.table td { padding: 10px 12px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.table tbody tr:hover { background: color-mix(in srgb, var(--muted) 50%, transparent); }
+.switch { position: relative; flex: none; width: 36px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: var(--input); cursor: pointer; transition: background-color .15s; }
+.switch::after { content: ""; position: absolute; top: 1px; left: 1px; width: 16px; height: 16px; border-radius: 50%; background: var(--background); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform .15s; }
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"]::after { transform: translateX(16px); }
+.skeleton { display: block; min-height: 1em; border-radius: calc(var(--radius) - 2px); background: var(--muted); animation: ih-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+@keyframes ih-pulse { 50% { opacity: .5; } }
+.toast-region { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: grid; gap: 8px; max-width: min(360px, calc(100vw - 32px)); }
+.toast { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--popover); color: var(--popover-foreground); font-size: 14px; box-shadow: 0 10px 30px rgb(0 0 0 / 15%); overflow-wrap: anywhere; }
 @media (max-width: 760px) { ih-app { padding: 16px; } ih-card { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

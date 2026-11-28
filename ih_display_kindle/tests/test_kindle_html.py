@@ -61,9 +61,9 @@ class PageTests(unittest.TestCase):
         self.assertIn('23:00', kindle_html.page(data(), {'configured': True, 'complete': True, 'alerts': []}, now=0).split('</style>')[1])
 
     def test_button_positions_live_in_the_stylesheet_where_the_touch_zones_expect_them(self):
-        for rule in ('.btn-alloff{left:270px;top:884px;width:140px}', '.btn-menu{left:880px;top:884px;width:144px}', '.btn-prev{left:800px;top:1106px;width:108px}',
-                     '.btn-next{left:916px;top:1106px;width:108px}', '.refresh{left:986px;top:36px}', '.tile{left:calc(48px + var(--i) * 248px);top:726px;width:232px;height:140px}',
-                     '.rows-5{--pitch:59px;--h:50px;--font:24px}', '.dismiss{left:872px;top:612px;width:142px;height:52px'):
+        for rule in ('.btn-alloff{left:260.2px;top:884px;width:145.2px}', '.btn-menu{left:892.7px;top:884px;width:149.3px}', '.btn-prev{left:809.7px;top:1106px;width:112px}',
+                     '.btn-next{left:930px;top:1106px;width:112px}', '.refresh{left:1002.6px;top:36px}', '.tile{left:calc(30px + var(--i) * 257.1px);top:726px;width:240.6px;height:140px}',
+                     '.rows-5{--pitch:59px;--h:50px;--font:24px}', '.dismiss{left:884.4px;top:612px;width:147.2px;height:52px'):
             self.assertIn(rule, CSS)
         page = kindle_html.page(data(device={'charging': True, 'fresh': True, 'battery': 90}, tasks=[{'title': str(i), 'display_group': 'task'} for i in range(7)]), now=0)
         self.assertIn('btn-prev', page); self.assertIn('btn-next', page)
@@ -76,7 +76,7 @@ class PageTests(unittest.TestCase):
             page = kindle_html.page(data(), now=0)
             self.assertIn('MINE', page); self.assertIn('my css', page)
             self.assertIn('<meta charset', page)   # base.html still comes from the built-in set
-            self.assertIn('Menu', kindle_html.render('menu.html', rows=('A',)))   # other templates still the built-in ones
+            self.assertIn('Menu', kindle_html.render('menu.html', rows=({'label': 'A', 'icon': ''},)))   # other templates still the built-in ones
 
     def test_a_broken_template_falls_back_instead_of_failing(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.10.17] - 2026-11-28
+- Restyle to the shared shadcn look: sync shared UI, trim local CSS overrides to the shared radius and border tokens.
+
+## 0.10.16
+- Add five themes with shared colours and visual details.
+
+## 0.10.15
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.10.14
+- Add a theme preview in Tools with four palettes and light/dark examples. It does not change the active theme.
+
+## 0.10.13
+- Update the shared Intelligent Home visual theme and components.
+
+## 0.10.12
+- Remove the redundant task board headings.
+
+## 0.10.11
+- Group Columns, Merge and Find duplicates in a Tools menu beside New task.
+
+## 0.10.10
+- Show the result, comments and history text as formatted Markdown using the same safe renderer as plans. Sync the shared UI components and tokens.
+
+## 0.10.9
+- Make the streamlined task board the standard view and remove the old layout and comparison switch.
+
+## 0.10.8
+- Compare a simplified task board with the current layout. The new board uses one task creation entry point, expandable filters and browser-saved column visibility.
+
+## 0.10.7
+- Make the redesigned task detail page the standard view and remove the comparison switch.
+
+## 0.10.6
+- Place Actions after Details and present available actions as tabs, showing one at a time.
+
+## 0.10.5
+- Render task plans as Markdown, including lists, headings, tables and code, in both task detail views.
+
+## 0.10.4
+- Place Details above the plan, with advanced details and task actions grouped inside it.
+
+## 0.10.3
+- Compare the current task detail page with a redesigned view: readable summary and plan, comments with an inline composer, grouped related work and actions, and collapsible activity.
+
+## 0.10.2
+
+- Show pending reminder delivery and persistent backup status. Use the actual reminder date in delayed notifications.
+
+## 0.10.1
+- Keep overdue reminder notifications in a durable queue until the inbox accepts them, even after the task reopens. Retry failed daily backups and run them independently of mirror and reminder failures.
+
 ## 0.10.0
 - **Raised by** (schema 18-19). Every task has `raised_by`. The page fills it in from the signed-in Home Assistant user; the API uses the `raised_by` the caller sends, or the caller itself ("claude" for the worker and check token, "owner" for the owner token, "system" for the add-on). Existing tasks get their `created_by`. It is shown on the task page and on the board cards, and is read-only after creation. Nothing writes "Name/Date" lines into the description any more (old text stays as history).
 - **Links at creation.** `POST /tasks` accepts `blocked_by`, `depends_on` and `relates_to` (lists of task numbers). Every task must exist, otherwise the whole create is refused; each link gets the same history lines as `/relate`.

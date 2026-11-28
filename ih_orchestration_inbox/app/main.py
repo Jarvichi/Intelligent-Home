@@ -26,7 +26,7 @@ import bus_client, inboxdb
 import filequeue
 from filequeue import CONSUMER_RE
 
-VERSION = '0.3.0'
+VERSION = '0.3.4'
 DATA = os.environ.get('IHI_DATA', '/data')
 OPTIONS = os.path.join(DATA, 'options.json')
 PORT = int(os.environ.get('IHI_PORT', '8800'))

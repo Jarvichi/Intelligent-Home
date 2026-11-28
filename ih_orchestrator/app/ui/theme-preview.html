@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-ih-theme-editor>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>IH theme preview</title>
+  <link rel="stylesheet" href="ih-ui.css">
+  <link rel="stylesheet" href="theme-preview.css">
+</head>
+<body>
+  <ih-nav data-title="Appearance"></ih-nav>
+  <ih-app><main class="preview-page">
+    <header class="preview-header">
+      <div><p class="preview-kicker">INTELLIGENT HOME</p><h1>Choose your theme</h1><p>Compare colours on familiar controls and task cards.</p></div>
+      <a class="btn btn-outline" href="./">Back to Intelligent Home</a>
+    </header>
+
+    <section class="preview-picker" aria-labelledby="palette-title">
+      <div class="preview-picker-head"><div><h2 id="palette-title">Choose a palette</h2><p>Choose colours and details for your Intelligent Home add-ons.</p></div>
+        <div class="preview-mode" role="group" aria-label="Preview appearance"><button type="button" data-mode="system" aria-pressed="false">System</button><button type="button" data-mode="light" aria-pressed="true">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button></div>
+      </div>
+      <div id="palettes" class="preview-palettes" role="group" aria-label="Colour palette"></div>
+      <div class="preview-save"><button class="btn" type="button" id="save-theme" disabled>Save theme</button><p id="theme-status" class="preview-note" role="status" aria-live="polite">Loading your active theme…</p></div>
+    </section>
+
+    <section class="preview-example" aria-labelledby="example-title">
+      <div class="preview-example-head"><div><p class="preview-kicker">A SAMPLE SCREEN</p><h2 id="example-title">Tasks at a glance</h2><p>Example content to help you see the theme in use.</p></div>
+        <button class="btn" type="button" id="sample-add">+ New task</button>
+      </div>
+      <div class="preview-toolbar"><label class="preview-search"><span>Search</span><input class="input" type="search" placeholder="Search tasks"></label>
+        <label class="preview-filter"><span>Waiting for</span><select class="input"><option>Everyone</option><option>Me</option><option>Worker</option></select></label>
+        <button class="btn btn-outline" type="button" id="sample-clear">Clear</button>
+      </div>
+      <div class="preview-grid">
+        <section class="preview-column"><div class="preview-column-head"><h3>To do</h3><span>2</span></div>
+          <article class="card preview-task"><div class="preview-task-top"><span>#128</span><span class="badge badge-secondary">High priority</span></div><h4>Plan the garden lighting</h4><p>Compare a few ideas for the patio.</p><div class="preview-task-footer"><span>Due 12 Dec</span><span class="preview-dot">With the worker</span></div></article>
+          <article class="card preview-task"><div class="preview-task-top"><span>#132</span><span class="badge badge-outline">Home</span></div><h4>Organise the spare room</h4><p>Make a list of what to keep and move.</p><div class="preview-task-footer"><span>Added today</span></div></article>
+        </section>
+        <section class="preview-column"><div class="preview-column-head"><h3>Planning</h3><span>1</span></div>
+          <article class="card preview-task"><div class="preview-task-top"><span>#119</span><span class="badge badge-outline">Needs your input</span></div><h4>Choose the next family trip</h4><p>A plan is ready for you to review.</p><div class="preview-task-footer"><span>Waiting for you</span></div></article>
+          <div class="preview-empty">A little space for what’s next.</div>
+        </section>
+      </div>
+      <div class="preview-components"><article class="card"><h3>Everyday controls</h3><p>Buttons, fields and status indicators share the palette.</p><div class="preview-buttons"><button class="btn" type="button">Primary action</button><button class="btn btn-outline" type="button">Secondary</button><span class="badge badge-secondary">Ready</span></div></article>
+        <article class="card"><h3>Keep it clear</h3><p>These example controls are here to compare contrast and spacing.</p><label class="preview-check"><input type="checkbox" checked> Show completed items</label><details class="preview-disclosure"><summary>More information</summary><p>Disclosures and forms use the same shared theme.</p></details></article></div>
+      <p id="sample-message" class="preview-note" role="status" aria-live="polite"></p>
+    </section>
+  </main></ih-app>
+  <script src="ih-ui.js"></script><script src="theme-preview.js"></script>
+</body>
+</html>

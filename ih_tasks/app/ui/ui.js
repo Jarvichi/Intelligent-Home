@@ -3,7 +3,25 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { labels: [], flash: '', flashTone: '', draft: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var state = { labels: [], flash: '', board: null, meta: null, open: null, merging: false, picked: {}, keep: null, dups: null };
+  var hiddenColumns = [];
+  try { var savedColumns = JSON.parse(localStorage.getItem('ih-tasks-hidden-columns') || '[]'); if (Array.isArray(savedColumns)) hiddenColumns = savedColumns.filter(function (x) { return typeof x === 'string'; }); } catch (_) {}
+
+  function saveColumns() { try { localStorage.setItem('ih-tasks-hidden-columns', JSON.stringify(hiddenColumns)); } catch (_) {} }
+  function renderColumnOptions() {
+    var box = $('column-options'); clear(box);
+    if (!state.board) return;
+    state.board.columns.forEach(function (c) {
+      var check = el('input', { type: 'checkbox', 'data-stage': c.stage, checked: hiddenColumns.indexOf(c.stage) < 0 });
+      check.addEventListener('change', function () {
+        hiddenColumns = hiddenColumns.filter(function (stage) { return stage !== c.stage; });
+        if (!check.checked) hiddenColumns.push(c.stage);
+        saveColumns(); renderBoard();
+        Array.prototype.forEach.call(box.querySelectorAll('input'), function (next) { if (next.getAttribute('data-stage') === c.stage) next.focus(); });
+      });
+      box.appendChild(el('label', { 'class': 't-column-option' }, [check, el('span', { text: c.label })]));
+    });
+  }
   var REL_TEXT = { blocked_by: 'Blocked by', depends_on: 'Depends on', relates_to: 'Relates to', blocks: 'Blocks', needed_by: 'Needed by' };
   var WAIT_TEXT = { owner: 'Waiting for you', worker: 'With the worker', check: 'Being checked', children: 'Waiting for its child tasks' };
   var KIND_TEXT = { created: 'Created', moved: 'Moved', closed: 'Closed', comment: 'Comment', asked: 'Question asked', answered: 'Answered',
@@ -93,11 +111,17 @@
   }
   function renderBoard() {
     var b = state.board; if (!b) return;
-    var board = $('board'), shown = 0, total = 0, only = $('f-stage').value;
+    var board = $('board'), shown = 0, total = 0, only = $('f-stage').value, suppressed = 0, visibleColumns = 0, selectedHidden = false;
     clear(board);
     b.columns.forEach(function (c) {
       total += c.tasks.length;
       var tasks = c.tasks.filter(matches);
+      if (hiddenColumns.indexOf(c.stage) >= 0) {
+        suppressed += tasks.length;
+        if (only === c.stage) selectedHidden = true;
+        if (c.stage === 'closed') $('closed-box').hidden = true;
+        return;
+      }
       shown += tasks.length;
       if (c.stage === 'closed') {
         $('closed-title').textContent = 'Closed (' + tasks.length + ')';
@@ -108,14 +132,19 @@
         return;
       }
       if (only && only !== c.stage) return;
+      visibleColumns++;
       board.appendChild(el('section', { 'class': 't-col', 'aria-label': c.label }, [
         el('h2', {}, [c.label, el('span', { text: String(tasks.length) })]),
         el('div', { 'class': 't-col-list' }, tasks.length ? tasks.map(card) : [el('p', { 'class': 't-empty', text: 'Nothing here' })])
       ]));
     });
-    board.hidden = only === 'closed';
-    $('f-count').textContent = shown + ' of ' + total + ' tasks';
+    board.hidden = only === 'closed' || visibleColumns === 0;
+    $('f-count').textContent = shown + ' of ' + total + ' tasks' + (suppressed ? ' · ' + suppressed + ' in hidden columns' : '');
     $('board-empty').hidden = shown > 0;
+    $('board-empty').textContent = suppressed || selectedHidden ? 'Matching tasks may be in hidden columns. Use Tools → Columns to show them.' : 'No tasks match.';
+    var filterCount = ['f-stage', 'f-waiting', 'f-label'].filter(function (id) { return !!$(id).value; }).length;
+    $('filters-toggle').textContent = filterCount ? 'Filters (' + filterCount + ')' : 'Filters';
+    renderColumnOptions();
   }
   /* ---- merge ---- */
   function rank(t) { var ids = (state.meta ? state.meta.stages : []).map(function (x) { return x.id; }); return ids.indexOf(t.stage); }
@@ -215,6 +244,13 @@
   }
 
   function loadBoard() {
+    api('GET', '/status').then(function (info) {
+      var b = info.backup || {}, pending = (info.reminder_delivery || {}).pending || [];
+      $('backup-info').textContent = 'Last successful backup: ' + (b.last_success || 'None recorded') + (b.error ? ' · Last attempt failed (' + b.error + '); retrying.' : '');
+      var box = $('reminder-info'); clear(box);
+      box.appendChild(el('p', { text: pending.length ? pending.length + ' reminder notification(s) waiting: ' + (info.reminder_delivery.configured ? 'the inbox could not be reached; retrying.' : 'inbox is not configured.') : 'No reminder notifications waiting.' }));
+      pending.forEach(function (r) { box.appendChild(el('p', { text: '#' + r.id + ' · ' + r.title + ' · due ' + r.date })); });
+    }).catch(function () { $('backup-info').textContent = 'Backup and reminder status unavailable.'; });
     return api('GET', '/board').then(function (b) {
       state.board = b;
       var s = $('service-status');
@@ -392,68 +428,8 @@
     } } })]));
     return box;
   }
-  function renderDetail() {
-    var t = state.open, d = $('detail'); clear(d); if (!t) return;
-    var msg = msgLine();
-    var head = [el('h2', { text: '#' + t.id + ' ' + t.title }),
-      el('p', { 'class': 'ih-metadata', text: [t.stage_label, 'Priority ' + (t.priority || 'normal'), t.due ? 'Due ' + t.due : '', t.raised_by ? 'Raised by ' + t.raised_by : '', WAIT_TEXT[t.waiting_on] || '', t.run_now ? 'Work now requested' : '',
-        t.remind_at ? 'Reminder on ' + t.remind_at : '', t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') })];
-    var root = el('div', { 'class': 't-detail' }, [el('div', {}, head.concat([labelChips(t)]))]);
-    if (t.question) root.appendChild(questionForm(t, msg));
-
-    var actions = el('div', { 'class': 't-actions' });
-    var comment = el('textarea', { rows: '3' });
-    if (t.stage === 'planning' && !t.question) {
-      actions.appendChild(confirmButton('Approve', 'primary', function () { act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'approved' })); }));
-      actions.appendChild(el('button', { 'class': 't-button', type: 'button', text: 'Reject (send back with the comment)', on: { click: function () {
-        if (!comment.value.trim()) { msg.setAttribute('data-tone', 'error'); msg.textContent = 'Write in the comment box what should change.'; comment.focus(); return; }
-        act(msg, api('POST', '/tasks/' + t.id + '/reject', { comment: comment.value.trim() }));
-      } } }));
-    }
-    if (t.stage === 'approved' || t.stage === 'implementing' || t.stage === 'verifying') {
-      /* Replan: back to Planning, flagged for the worker, with the comment (if any) as the reason */
-      actions.appendChild(confirmButton('Replan (back to Planning)', '', function () {
-        var why = 'Replan requested by the owner: check the CURRENT state of the house and the code first (what is already built, merged, installed or changed since the plan was written), then write a new plan for what is still needed.' + (comment.value.trim() ? ' Owner note: ' + comment.value.trim() : '');
-        act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'planning', reason: why }));
-      }));
-    }
-    if (t.stage === 'verifying') {
-      actions.appendChild(confirmButton('I have checked it: done', 'primary', function () { act(msg, api('POST', '/tasks/' + t.id + '/move', { to: 'done' })); }));
-    }
-    /* ONE Save: sends only the fields that changed (one request) and the comment text (if any); disabled until something changes */
-    var editCtl = [], save = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Save', disabled: true });
-    var sync = function () { save.disabled = !(comment.value.trim() || editCtl.some(function (c) { return c.dirty(); })); };
-    comment.addEventListener('input', sync);
-    if (isOpen(t)) fieldsFor('edit').forEach(function (f) { editCtl.push(buildField(f, taskValue(t, f), 'd-', sync, t.id)); });
-    if (state.draft) { comment.value = state.draft; state.draft = ''; sync(); }
-    save.addEventListener('click', function () {
-      var body = {}, names = [], text = comment.value.trim();
-      editCtl.forEach(function (c) { if (c.dirty()) { body[c.id] = c.get(); names.push(c.f.label.replace(/ \(.*\)$/, '').toLowerCase()); } });
-      if (!names.length && !text) return;
-      if (body.title === '') { msg.setAttribute('data-tone', 'error'); msg.textContent = 'A title is needed.'; return; }
-      if (text) names.push('comment');
-      save.disabled = true; msg.removeAttribute('data-tone'); msg.textContent = 'Saving…';
-      var first = Object.keys(body).length ? api('POST', '/tasks/' + t.id + '/edit', body) : Promise.resolve(t);
-      first.then(function (nt) {
-        state.open = nt;
-        if (!text) return nt;
-        return api('POST', '/tasks/' + t.id + '/comment', { text: text }).then(function (n2) { state.open = n2; return n2; }).catch(function (e) {
-          var er = new Error('The other changes were saved, but the comment was not: ' + e.message); er.partial = true; throw er;
-        });
-      }).then(function () { state.flash = 'Saved: ' + names.join(', ') + '.'; renderDetail(); loadBoard(); })
-        .catch(function (e) {
-          if (e.partial) { state.flash = e.message; state.flashTone = 'error'; state.draft = text; renderDetail(); loadBoard(); return; }
-          msg.setAttribute('data-tone', 'error'); msg.textContent = e.message; sync();
-        });
-    });
-    actions.appendChild(save);
-    var details = editCtl.length ? el('ih-card', {}, [el('h3', { text: 'Details' })].concat(editCtl.map(function (c) { return c.node; }))) : null;
-    if (details) root.appendChild(details);
-    var card = el('ih-card', {}, [el('h3', { text: t.stage === 'planning' && !t.question ? 'Your decision' : 'Comment' }),
-      t.stage === 'planning' && t.question ? el('p', { 'class': 'ih-metadata', text: 'Approve and Reject appear when no questions are open.' }) : null,
-      field('Comment (a note on this task; it never makes a new task)', comment, 'd-comment'), actions, msg]);
-    root.appendChild(card);
-    if (state.flash) { msg.textContent = state.flash; if (state.flashTone) msg.setAttribute('data-tone', state.flashTone); state.flash = ''; state.flashTone = ''; }
+  function buildDetailSections(t) {
+    var root = el('div');
     if (isOpen(t) && (t.run_now || canRunNow(t))) {
       /* Work this now: asks a worker to take this task next, ignoring pace and caps (the worker side runs on the host); two taps, no dialog */
       var mw = msgLine();
@@ -470,9 +446,8 @@
       return el('li', {}, [el('button', { 'class': 't-card', type: 'button', 'aria-label': 'Open task ' + c.id + ': ' + c.title, on: { click: function () { openTask(c.id); } } }, [el('b', { text: '#' + c.id }), c.title, el('small', { text: c.stage_label })])]);
     }))]));
     root.appendChild(linksCard(t));
-    if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), el('p', { 'class': 't-text', text: t.plan })]));
-    if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), el('p', { 'class': 't-text', text: t.result })]));
-    if (t.description && !isOpen(t)) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Description' }), el('p', { 'class': 't-text', text: t.description })]));
+    if (t.plan) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Plan' + (t.revise ? ' (being revised)' : '') }), window.IHTasksMarkdown.render(t.plan)]));
+    if (t.result) root.appendChild(el('ih-card', {}, [el('h3', { text: 'Result' }), window.IHTasksMarkdown.render(t.result)]));
     if (t.links.length) {
       root.appendChild(el('ih-card', {}, [el('h3', { text: 'Results and links' }), el('ul', { 'class': 't-history' }, t.links.map(function (l) {
         var safe = /^https?:\/\//.test(l.url);
@@ -520,11 +495,123 @@
       var extra = h.text || '';
       if (h.kind === 'answered' && h.data && h.data.answers) extra = Object.keys(h.data.answers).map(function (k) { var v = h.data.answers[k]; return k + ': ' + (v === true ? 'Yes' : v === false ? 'No' : Array.isArray(v) ? v.join(', ') : v); }).join(' | ') + (extra ? ' | ' + extra : '');
       if (h.data && h.data.result) extra += (extra ? ' | ' : '') + 'Result: ' + h.data.result;
-      return el('li', {}, [el('time', { datetime: h.at, text: when(h.at) }), el('b', { text: line }), extra ? el('p', { 'class': 't-text', text: extra }) : null]);
+      return el('li', {}, [el('time', { datetime: h.at, text: when(h.at) }), el('b', { text: line }), extra ? window.IHTasksMarkdown.render(extra) : null]);
     }))]));
     if (t.legacy.length) root.appendChild(el('p', { 'class': 'ih-metadata', text: 'Old ids: ' + t.legacy.map(function (l) { return l.kind.replace('_', ' ') + ' ' + l.value; }).join(', ') }));
-    d.appendChild(root);
+    return root;
   }
+  function renderDetail() {
+    var t = state.open, container = $('detail');
+    clear(container);
+    if (!t) return;
+    var children = Array.prototype.slice.call(buildDetailSections(t).children), sections = {};
+    children.forEach(function (node) {
+      var heading = node.querySelector('h3');
+      if (heading) sections[heading.textContent] = node;
+    });
+    var root = el('div', { 'class': 't-detail t-detail-new' });
+    var summary = el('section', { 'class': 't-overview' }, [
+      el('div', { 'class': 't-overview-top' }, [el('span', { 'class': 't-eyebrow', text: 'TASK #' + t.id }), el('span', { 'class': 't-stage', text: t.stage_label })]),
+      el('h2', { text: t.title }),
+      el('p', { 'class': 't-overview-meta', text: [WAIT_TEXT[t.waiting_on] || '', (t.priority || 'normal') + ' priority', t.due ? 'Due ' + t.due : '', t.raised_by ? 'Raised by ' + t.raised_by : '', t.run_now ? 'Work now requested' : '', t.remind_at ? 'Reminder ' + t.remind_at : '', t.stage === 'closed' ? closeLabel(t.closed_reason) + (t.duplicate_of ? ' of #' + t.duplicate_of : '') + (t.closed_detail ? ': ' + t.closed_detail : '') : ''].filter(Boolean).join(' · ') }),
+      labelChips(t), t.description ? el('p', { 'class': 't-text t-overview-description', text: t.description }) : el('p', { 'class': 't-empty', text: 'No description yet.' })]);
+    root.appendChild(summary);
+    var message = msgLine();
+    if (t.question) {
+      var questionMsg = msgLine(), question = questionForm(t, questionMsg);
+      question.appendChild(questionMsg);
+      root.appendChild(question);
+    }
+    var details = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Details' })]);
+    root.appendChild(details);
+    if (sections['Plan'] || sections['Plan (being revised)'] || (t.stage === 'planning' && !t.question)) {
+      var plan = sections['Plan'] || sections['Plan (being revised)'] || el('ih-card', {}, [el('h3', { text: 'Plan' }), el('p', { 'class': 't-empty', text: 'No plan yet.' })]);
+      if (t.stage === 'planning' && !t.question) {
+        var decisionMsg = msgLine(), reason = el('textarea', { rows: '3', placeholder: 'What would you like changed?' });
+        var request = el('details', { 'class': 't-inline-action' }, [el('summary', { text: 'Request changes' }), field('What should change?', reason, 'new-reject-reason'),
+          el('button', { 'class': 't-button', type: 'button', text: 'Send back for changes', on: { click: function () {
+            if (!reason.value.trim()) { decisionMsg.setAttribute('data-tone', 'error'); decisionMsg.textContent = 'Describe what should change.'; reason.focus(); return; }
+            act(decisionMsg, api('POST', '/tasks/' + t.id + '/reject', { comment: reason.value.trim() }));
+          } } })]);
+        plan.appendChild(el('div', { 'class': 't-plan-actions' }, [confirmButton('Approve plan', 'primary', function () { act(decisionMsg, api('POST', '/tasks/' + t.id + '/move', { to: 'approved' })); }), request, decisionMsg]));
+      }
+      root.appendChild(plan);
+    }
+    if (sections['Result']) root.appendChild(sections['Result']);
+    if (t.stage === 'verifying') root.appendChild(el('ih-card', {}, [el('h3', { text: 'Ready to check' }), confirmButton('I have checked it: done', 'primary', function () { act(message, api('POST', '/tasks/' + t.id + '/move', { to: 'done' })); }), message]));
+
+    var comments = t.comments || [], commentBox = el('textarea', { rows: '3', placeholder: 'Write a comment…', maxlength: '4000' }), commentMsg = msgLine();
+    var commentButton = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Add comment' });
+    commentButton.addEventListener('click', function () {
+      var text = commentBox.value.trim();
+      if (!text) { commentMsg.setAttribute('data-tone', 'error'); commentMsg.textContent = 'Write a comment first.'; commentBox.focus(); return; }
+      commentButton.disabled = true; commentMsg.removeAttribute('data-tone'); commentMsg.textContent = 'Adding comment…';
+      api('POST', '/tasks/' + t.id + '/comment', { text: text }).then(function (updated) {
+        state.open = updated; state.flash = 'Comment added.'; renderDetail(); loadBoard();
+      }).catch(function (e) { commentButton.disabled = false; commentMsg.setAttribute('data-tone', 'error'); commentMsg.textContent = e.message; });
+    });
+    var commentList = comments.length ? el('ol', { 'class': 't-comments' }, comments.map(function (c) {
+      return el('li', {}, [el('div', { 'class': 't-comment-meta' }, [el('strong', { text: c.actor }), el('time', { datetime: c.at, text: when(c.at) })]), window.IHTasksMarkdown.render(c.text)]);
+    })) : el('p', { 'class': 't-empty', text: 'No comments yet.' });
+    root.appendChild(el('ih-card', { 'class': 't-comments-card' }, [el('div', { 'class': 't-section-heading' }, [el('h3', { text: 'Comments' }), el('span', { 'class': 't-count', text: String(comments.length) })]), commentList,
+      el('div', { 'class': 't-comment-compose' }, [field('Add a comment', commentBox, 'new-comment'), commentButton, commentMsg])]));
+
+    var related = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Advanced details' })]);
+    children.forEach(function (node) {
+      var h = node.querySelector('h3'), title = h ? h.textContent : '';
+      if (title === 'Part of' || title.indexOf('Child tasks (') === 0 || title.indexOf('Links to other tasks') === 0 || title === 'Results and links') related.appendChild(node);
+    });
+    if (isOpen(t)) {
+      var edit = el('div', { 'class': 't-edit-details' }, [el('h3', { text: 'Edit details' })]), controls = [], editMsg = msgLine();
+      var save = el('button', { 'class': 't-button', 'data-variant': 'primary', type: 'button', text: 'Save details', disabled: true });
+      var sync = function () { save.disabled = !controls.some(function (c) { return c.dirty(); }); };
+      fieldsFor('edit').forEach(function (f) { var c = buildField(f, taskValue(t, f), 'new-', sync, t.id); controls.push(c); edit.appendChild(c.node); });
+      save.addEventListener('click', function () {
+        var body = {}; controls.forEach(function (c) { if (c.dirty()) body[c.id] = c.get(); });
+        if (body.title === '') { editMsg.setAttribute('data-tone', 'error'); editMsg.textContent = 'A title is needed.'; return; }
+        save.disabled = true;
+        api('POST', '/tasks/' + t.id + '/edit', body).then(function (updated) { state.open = updated; state.flash = 'Details saved.'; renderDetail(); loadBoard(); })
+          .catch(function (e) { editMsg.setAttribute('data-tone', 'error'); editMsg.textContent = e.message; sync(); });
+      });
+      edit.appendChild(save); edit.appendChild(editMsg); details.appendChild(edit);
+    }
+    details.appendChild(related);
+    var actions = el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Actions' })]);
+    var actionItems = [];
+    [['Work this now', 'Work now'], ['Remind me later', 'Remind me'], ['Reopen', 'Reopen'], ['Close without doing it', 'Close task']].forEach(function (entry) {
+      if (sections[entry[0]]) actionItems.push({ label: entry[1], card: sections[entry[0]] });
+    });
+    if (t.stage === 'approved' || t.stage === 'implementing' || t.stage === 'verifying') {
+      var replanNote = el('textarea', { rows: '3', placeholder: 'Optional note for the worker' }), replanMsg = msgLine();
+      actionItems.push({ label: 'Replan', card: el('ih-card', {}, [el('h3', { text: 'Replan' }), field('What should the new plan consider?', replanNote, 'new-replan'),
+        confirmButton('Send back to planning', '', function () {
+          var why = 'Replan requested by the owner: check the CURRENT state of the house and the code first (what is already built, merged, installed or changed since the plan was written), then write a new plan for what is still needed.' + (replanNote.value.trim() ? ' Owner note: ' + replanNote.value.trim() : '');
+          act(replanMsg, api('POST', '/tasks/' + t.id + '/move', { to: 'planning', reason: why }));
+        }), replanMsg]) });
+    }
+    if (actionItems.length) {
+      var tabs = el('div', { 'class': 't-action-tabs', role: 'tablist', 'aria-label': 'Task actions' }), panels = [];
+      actionItems.forEach(function (item, i) {
+        var tabId = 'action-tab-' + i, panelId = 'action-panel-' + i;
+        item.tab = el('button', { 'class': 't-action-tab', id: tabId, type: 'button', role: 'tab', 'aria-controls': panelId, text: item.label });
+        tabs.appendChild(item.tab);
+        panels.push(el('div', { 'class': 't-action-panel', id: panelId, role: 'tabpanel', 'aria-labelledby': tabId }, [item.card]));
+      });
+      actions.appendChild(tabs);
+      panels.forEach(function (panel) { actions.appendChild(panel); });
+      window.IHUI.tabs(tabs, panels);
+      root.insertBefore(actions, details.nextSibling);
+    }
+    if (sections['History']) root.appendChild(el('details', { 'class': 't-disclosure' }, [el('summary', { text: 'Activity' }), sections['History']]));
+    var legacy = children[children.length - 1];
+    if (legacy && legacy.tagName === 'P') root.appendChild(legacy);
+    if (state.flash) {
+      root.appendChild(el('p', { 'class': 'ih-metadata', role: 'status', text: state.flash }));
+      state.flash = '';
+    }
+    clear(container); container.appendChild(root);
+  }
+
   function openTask(id) {
     api('GET', '/tasks/' + id).then(function (t) {
       state.open = t; $('board-view').hidden = true; $('detail-view').hidden = false; renderDetail(); renderMergeBar(); window.scrollTo(0, 0); $('back').focus();
@@ -535,22 +622,20 @@
   function trail(list, title) { var nav = document.querySelector('ih-nav'); if (nav && typeof nav.setTrail === 'function') nav.setTrail(list, title); }
 
   /* ---- start ---- */
+  var toolsMenu = $('tools-menu');
+  var toolsControl = window.IHUI.menu(toolsMenu, function () { $('columns-picker').open = false; });
+  function closeTools(focus) { toolsControl.close(focus); }
+  toolsMenu.addEventListener('toggle', function () { if (!toolsMenu.open) $('columns-picker').open = false; });
+  $('filters-toggle').addEventListener('click', function () {
+    var open = this.getAttribute('aria-expanded') !== 'true';
+    this.setAttribute('aria-expanded', open ? 'true' : 'false'); $('filter-options').hidden = !open;
+  });
+  $('columns-reset').addEventListener('click', function () { hiddenColumns = []; saveColumns(); renderBoard(); });
   $('back').addEventListener('click', closeTask);
-  $('merge-toggle').addEventListener('click', function () { setMerging(!state.merging); });
-  $('dup-toggle').addEventListener('click', function () { if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
+  $('merge-toggle').addEventListener('click', function () { closeTools(false); setMerging(!state.merging); });
+  $('dup-toggle').addEventListener('click', function () { closeTools(false); if (state.dups) { state.dups = null; renderDups(); } else { $('tools-msg').textContent = ''; loadDups(); } });
   ['f-search', 'f-stage', 'f-waiting', 'f-label'].forEach(function (id) { $(id).addEventListener('input', renderBoard); });
   $('f-clear').addEventListener('click', function () { $('f-search').value = ''; $('f-stage').value = ''; $('f-waiting').value = ''; $('f-label').value = ''; renderBoard(); });
-  $('add-form').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var title = $('add-title').value.trim(), m = $('add-msg');
-    if (!title) return;
-    m.textContent = 'Saving…';
-    api('POST', '/tasks', { title: title }).then(function (r) {
-      $('add-title').value = '';
-      m.textContent = r.duplicate_of ? 'Task ' + r.task.id + ' looked the same as task ' + r.duplicate_of + ', so it was closed as a duplicate. Open it and reopen it if that is wrong.' : 'Added task ' + r.task.id + '.';
-      loadBoard();
-    }).catch(function (e) { m.textContent = e.message; });
-  });
   /* New-task panel: a hidden element, not a browser dialog (dialogs can crash the phone app). Its fields come from the shared field list. */
   var newCtl = [];
   function newBuild() {

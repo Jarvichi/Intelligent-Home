@@ -1,5 +1,5 @@
 name: "Intelligent Home - Parcel check"
-version: "0.3.0"
+version: "0.4.3"
 slug: ih_parcel_check
 image: "ghcr.io/jarvichi/{arch}-ih_parcel_check"
 description: "Looks at saved doorstep pictures through the Intelligent Home AI layer (capability vision) and says whether a parcel was left. DRY by default: it only writes verdicts to its own log and posts nothing. The AI layer decides which provider sees the picture; if that is an outside one (Gemini), the picture leaves the house."
@@ -9,6 +9,11 @@ startup: application
 boot: manual
 init: false
 watchdog: "http://[HOST]:[PORT:8816]/healthz"
+ingress: true
+ingress_port: 8099
+panel_title: "IH · Parcel check"
+panel_icon: mdi:package-variant-closed
+panel_admin: true
 map:
   - type: media
     read_only: true

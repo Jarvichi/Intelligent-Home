@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.4] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.11.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.11.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## [0.11.1] - 2026-11-27
+- Update the shared Intelligent Home visual theme and components.
+
 All notable changes to this add-on are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the add-on uses semantic versioning.
 

@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import store as S
 
-VERSION = '0.2.0'
+VERSION = '0.2.3'
 DATA = os.environ.get('IHU_DATA', '/data')
 PORT = int(os.environ.get('IHU_PORT', '8848'))
 UI_PORT = int(os.environ.get('IHU_UI_PORT', '8849'))

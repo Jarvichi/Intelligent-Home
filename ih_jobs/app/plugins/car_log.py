@@ -142,5 +142,5 @@ def run(ctx):
     if s['publish_entity']:
         p = summary(d, t)
         p.update({'unit_of_measurement': 'GBP', 'icon': 'mdi:ev-station', 'friendly_name': 'MINI charging history'})   # the old command_line sensor had these
-        ctx.ha.post('states/' + s['publish_entity'], {'state': str(p['mtd']), 'attributes': p})
+        ctx.publish(s['publish_entity'], str(p['mtd']), p)
     return True

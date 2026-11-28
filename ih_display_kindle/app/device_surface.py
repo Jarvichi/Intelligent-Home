@@ -68,7 +68,7 @@ class DeviceSurface:
                 data['cooking_unavailable']=True
                 data['device']=dict(data.get('device') or {},charging=False)
                 image=self.main_picture(data,alerts,now)
-                add([872,612,1014,664],dismiss)
+                add([884,612,1032,664],dismiss)
                 return self.encode(image),zones
             image=self.main_picture(data,alerts,now)
             cook=data.get('cooking')
@@ -87,13 +87,13 @@ class DeviceSurface:
                 for i,row in enumerate(cook.get('prep',[])[:5]):
                     if isinstance(row,dict) and isinstance(row.get('id'),str):action([48,1046+i*75,1024,1107+i*75],'tick',row['id'])
             else:
-                add([872,612,1014,664],dismiss)
+                add([884,612,1032,664],dismiss)
                 if powered:
-                    nav([292,726,528,866],'home');nav([880,884,1024,924],'menu')
-                    if isinstance(cook,dict) and 16<=datetime.datetime.fromtimestamp(now).astimezone().hour<19:nav([48,726,280,866],'dinner')
-                    add([270,884,410,924],self.actions.describe('lights'))
-                    add([716,882,864,922],halloween)
-                    add([985,36,1024,76],self.actions.describe('refresh'))
+                    nav([283,726,528,866],'home');nav([893,884,1042,924],'menu')
+                    if isinstance(cook,dict) and 16<=datetime.datetime.fromtimestamp(now).astimezone().hour<19:nav([30,726,271,866],'dinner')
+                    add([260,884,405,924],self.actions.describe('lights'))
+                    add([723,882,876,922],halloween)
+                    add([918,16,1042,116],self.actions.describe('refresh'))   # 120x100 around the icon (was 39x40, easy to miss)
                 tasks=data.get('tasks');offset=data.get('device',{}).get('page_offset',0)
                 rows,_,pages,grouped=kindle_render.task_page(tasks,offset if type(offset) is int else 0,now)
                 if grouped and data.get('tasks_partial') is not True:
@@ -102,12 +102,12 @@ class DeviceSurface:
                         kind=row.get('action_kind');source=row.get('action_source');source_identity=row.get('action_identity')
                         if not isinstance(source,str):continue
                         descriptor=self.actions.message_for(row.get('title',''),row.get('detail',''),source=source,source_identity=source_identity) if kind=='message' else self.actions.describe(kind,source=source,source_identity=source_identity) if kind in ('dishwasher','wheel') else None
-                        if len(rows)<=2:box=[48+i*494,1150,530+i*494,1294]
+                        if len(rows)<=2:box=[30+i*512,1150,530+i*512,1294]
                         else:
-                            h,pitch={3:(87,99),4:(61,75),5:(50,59)}[len(rows)];box=[48,1150+i*pitch,1024,1150+i*pitch+h]
+                            h,pitch={3:(87,99),4:(61,75),5:(50,59)}[len(rows)];box=[30,1150+i*pitch,1042,1150+i*pitch+h]
                         add(box,descriptor)
                 if powered and grouped and pages>1 and data.get('tasks_partial') is not True:
-                    add([800,1106,908,1142],self.actions.describe('page',delta=-1));add([916,1106,1024,1142],self.actions.describe('page',delta=1))
+                    add([810,1106,922,1142],self.actions.describe('page',delta=-1));add([930,1106,1042,1142],self.actions.describe('page',delta=1))
         elif screen=='menu':
             image=self.screen_picture('menu',None)
             nav([140,300,932,416],'dinner');nav([140,440,932,556],'home')

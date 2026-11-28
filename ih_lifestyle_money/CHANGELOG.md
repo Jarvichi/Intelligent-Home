@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.8] - 2026-11-28
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.6.7] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.6.6] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.6.5
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.6.4
 
 - Group planner income, spending, savings and mortgage inputs by purpose, explain unfamiliar terms and allow new savings pots to be added.

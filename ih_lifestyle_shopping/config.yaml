@@ -1,5 +1,5 @@
 name: "Intelligent Home - Lifestyle - Shopping"
-version: "0.1.1"
+version: "0.1.5"
 slug: ih_lifestyle_shopping
 image: "ghcr.io/jarvichi/{arch}-ih_lifestyle_shopping"
 description: "Shopping list, store layouts, staples and spending."

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.4] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
+## [0.14.3] - 2026-11-27
+- Add five themes with shared colours and visual details.
+
+## [0.14.2] - 2026-11-27
+- Apply the active Intelligent Home appearance across add-ons.
+
+## 0.14.1
+- Update the shared Intelligent Home visual theme and components.
+
 ## 0.14.0
 
 - Add an opt-in compatibility proxy for legacy display clients with fallback to the existing image.

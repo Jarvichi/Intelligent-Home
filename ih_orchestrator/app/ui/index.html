@@ -2,59 +2,61 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Intelligent Home</title>
 <link rel="stylesheet" href="ih-ui.css?v=nav1">
 <style>
-:root{--bg:var(--ih-bg);--surface:var(--ih-surface);--raised:var(--ih-surface-raised);--text:var(--ih-text);--muted:var(--ih-muted);--line:var(--ih-line);--ok:var(--ih-ok);--warn:var(--ih-warn);--danger:var(--ih-danger);--accent:var(--ih-accent);--ink:var(--ih-accent-ink);--link:var(--ih-link);--shadow:var(--ih-shadow)}
+:root{--bg:var(--ih-bg);--surface:var(--ih-surface);--raised:var(--ih-surface-raised);--text:var(--ih-text);--orch-muted:color-mix(in srgb,var(--muted-foreground) 85%,var(--foreground));--line:var(--ih-line);--ok:color-mix(in srgb,var(--foreground) 70%,#15803d);--warn:color-mix(in srgb,var(--foreground) 70%,#a16207);--danger:color-mix(in srgb,var(--foreground) 70%,#dc2626);--orch-primary:var(--primary);--ink:var(--ih-accent-ink);--link:var(--ih-link);--shadow:var(--ih-shadow)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 Inter,system-ui,-apple-system,sans-serif;min-width:320px}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 var(--ih-font);min-width:320px}
 .page{max-width:1100px;margin:auto;padding:16px;display:grid;gap:12px}
 .head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 h1{font-size:28px;margin:0;letter-spacing:-.02em;line-height:1.1}
-.pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;min-height:32px;font-size:14px;font-weight:600;white-space:nowrap;color:var(--muted)}
+.pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;min-height:32px;font-size:14px;font-weight:600;white-space:nowrap;color:var(--orch-muted)}
 .pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--danger)}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.dot.off{background:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}.dot.warn{background:var(--warn)}.dot.bad{background:var(--danger)}.dot.off{background:var(--orch-muted)}
 .pill .dot{background:currentColor}
-.lede{margin:0;color:var(--muted)}
+.lede{margin:0;color:var(--orch-muted)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
-.card h2{font-size:16px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
-.meta{color:var(--muted);font-size:13px;margin:0}
+.card h2{font-size:16px;margin:0 0 4px}.sub{color:var(--orch-muted);font-size:13px;margin:0 0 12px}
+.meta{color:var(--orch-muted);font-size:13px;margin:0}
 .tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:var(--ih-nav-h,48px);z-index:5}
-.tab{min-height:44px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:0 2px;cursor:pointer;min-width:0}
-.tab[aria-selected=true]{background:var(--accent);color:var(--ink)}
+.tab{min-height:44px;border:0;background:transparent;color:var(--orch-muted);font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:0 2px;cursor:pointer;min-width:0}
+.tab[aria-selected=true]{background:var(--orch-primary);color:var(--ink)}
 .tab:focus-visible,.btn:focus-visible,.disc:focus-visible,select:focus-visible,input:focus-visible,.sel:focus-visible{outline:3px solid var(--link);outline-offset:2px}
 .btn{min-height:44px;border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:8px;padding:0 14px;font:inherit;font-size:14px;cursor:pointer}
-.btn.primary{background:var(--accent);color:var(--ink);border-color:transparent;font-weight:600}
-.btn.danger{color:var(--danger)}
-.btn.armed{border-color:var(--warn);color:var(--warn);font-weight:600}
+.btn:hover:not(:disabled){background:var(--accent);color:var(--accent-foreground)}
+.btn.primary{background:var(--orch-primary);color:var(--ink);border-color:transparent;font-weight:600}
+.btn.primary:hover:not(:disabled){background:var(--orch-primary);color:var(--ink)}
+.btn.danger,.btn.danger:hover:not(:disabled){color:var(--danger)}
+.btn.armed,.btn.armed:hover:not(:disabled){border-color:var(--warn);color:var(--warn);font-weight:600}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .tiles+.btn{margin-top:12px}
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 @media(min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
 .tile{background:var(--raised);border-radius:12px;padding:12px;min-width:0}
-.tile b{display:block;font-size:26px;letter-spacing:-.03em;line-height:1.1;overflow-wrap:anywhere}.tile span{font-size:12px;color:var(--muted)}
+.tile b{display:block;font-size:26px;letter-spacing:-.03em;line-height:1.1;overflow-wrap:anywhere}.tile span{font-size:12px;color:var(--orch-muted)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;max-width:100%;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:var(--link);font-weight:600;font-size:14px;text-decoration:none;overflow-wrap:anywhere}
-.chip:hover{border-color:var(--link)}.chip:focus-visible{outline:3px solid var(--link);outline-offset:2px}.chip.off{color:var(--muted);font-weight:500}
+.chip:hover{border-color:var(--link)}.chip:focus-visible{outline:3px solid var(--link);outline-offset:2px}.chip.off{color:var(--orch-muted);font-weight:500}
 .tile.warn b{color:var(--warn)}.tile.bad b{color:var(--danger)}.tile.ok b{color:var(--ok)}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:0 0 8px}
-.toolbar label{display:grid;gap:4px;font-size:12px;color:var(--muted);flex:1 1 150px;min-width:0}
+.toolbar label{display:grid;gap:4px;font-size:12px;color:var(--orch-muted);flex:1 1 150px;min-width:0}
 .toolbar input,.toolbar select{min-height:44px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:15px}
-.count{margin:0 0 4px;font-size:13px;color:var(--muted)}
+.count{margin:0 0 4px;font-size:13px;color:var(--orch-muted)}
 .list{display:grid;gap:8px}
 @media(min-width:900px){.list.two{grid-template-columns:1fr 1fr;align-items:start}}
 .item{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0}
 .disc{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center;width:100%;min-height:56px;background:transparent;color:var(--text);border:0;padding:10px 14px;font:inherit;text-align:left;cursor:pointer}
-.disc .t{font-weight:600;overflow-wrap:anywhere;min-width:0}.disc .s{grid-column:2;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.disc .t{font-weight:600;overflow-wrap:anywhere;min-width:0}.disc .s{grid-column:2;color:var(--orch-muted);font-size:13px;overflow-wrap:anywhere}
 .disc .chev{grid-row:1/3;grid-column:3;color:var(--link);font-size:22px;line-height:1}
 .disc .dot{grid-row:1/3}
 .item .body{padding:0 14px 14px;border-top:1px solid var(--line)}
 .item.open .chev{transform:rotate(180deg)}
-.tag{display:inline-block;font-size:12px;font-weight:500;border-radius:99px;padding:1px 8px;background:var(--raised);color:var(--muted);margin-right:4px}
+.tag{display:inline-block;font-size:12px;font-weight:500;border-radius:99px;padding:1px 8px;background:var(--raised);color:var(--orch-muted);margin-right:4px}
 .tag.warn{color:var(--warn)}.tag.bad{color:var(--danger)}.tag.ok{color:var(--ok)}
 dl.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:12px 0 0;font-size:14px}
-dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0}
+dl.kv dt{color:var(--orch-muted)}dl.kv dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0}
 dd.warn{color:var(--warn)}dd.bad{color:var(--danger)}dd.ok{color:var(--ok)}
 .row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);min-height:44px}
-.row:first-child{border-top:0}.row .grow{flex:1;min-width:0}.row b{display:block;overflow-wrap:anywhere}.row span.m{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.row:first-child{border-top:0}.row .grow{flex:1;min-width:0}.row b{display:block;overflow-wrap:anywhere}.row span.m{color:var(--orch-muted);font-size:13px;overflow-wrap:anywhere}
 .bar{height:6px;border-radius:3px;background:var(--raised);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--ok)}
 .days{display:inline-flex;align-items:flex-end;gap:2px;height:22px;margin-top:6px}.days i{display:inline-block;width:8px;background:var(--link);min-height:2px}.days i.z{background:var(--raised)}
 .scroll{max-height:340px;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;padding:6px;background:var(--bg)}
@@ -62,19 +64,19 @@ dd.warn{color:var(--warn)}dd.bad{color:var(--danger)}dd.ok{color:var(--ok)}
 .hidden,[hidden]{display:none!important}
 .sel{display:block;width:100%;text-align:left;min-height:56px;margin:0 0 6px;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:12px;font:inherit;cursor:pointer}
 .sel[aria-current=true]{border-color:var(--link);box-shadow:inset 3px 0 var(--link)}
-.sel small{display:block;color:var(--muted);overflow-wrap:anywhere}
-.mono{font:12px ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
+.sel small{display:block;color:var(--orch-muted);overflow-wrap:anywhere}
+.mono{font:12px ui-monospace,Menlo,monospace;color:var(--orch-muted);overflow-wrap:anywhere}
 .span{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;background:var(--bg);min-width:0}
 .span.err{border-color:var(--danger)}
 .span .hd{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.span .hd b{overflow-wrap:anywhere;min-width:0}
-.sect{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
+.sect{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--orch-muted);margin:8px 0 0}
 .cols{display:grid;gap:12px}
 @media(min-width:900px){.trace{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:12px;align-items:start}}
 .back{display:none}
 @media(max-width:899px){.trace.detail .tl{display:none}.trace:not(.detail) .td{display:none}.trace.detail .back{display:inline-flex;align-items:center;margin-bottom:8px}}
 .fix{padding:10px 12px;border-radius:12px;background:var(--raised);font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fix .txt{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
-.state{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:14px}
+.state{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--orch-muted);font-size:14px}
 .state.fail{border:1px solid var(--danger);color:var(--text)}
 .state.fail b{color:var(--danger)}
 .state p{margin:0 0 8px}.state p:last-child{margin:0}
@@ -88,7 +90,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding
 </style></head><body>
 <ih-nav data-title="Intelligent Home"></ih-nav>
 <div class="page">
- <div class="head"><h1>Intelligent Home</h1><span class="pill" id="pill" role="status"><span class="dot" aria-hidden="true"></span><span id="pilltext">Checking...</span></span></div>
+ <div class="head"><h1>Intelligent Home</h1><a class="btn btn-outline" href="theme-preview.html">Appearance</a><span class="pill" id="pill" role="status"><span class="dot" aria-hidden="true"></span><span id="pilltext">Checking...</span></span></div>
  <p class="lede" id="lede">Manager: your add-ons, jobs and health in one place.</p>
  <div class="tabs" role="tablist" aria-label="Manager sections" id="nav">
   <button type="button" class="tab" role="tab" id="tab-today" data-t="today">Today</button>
@@ -343,8 +345,17 @@ function tabHealth(m,rid){var holder=E('div',null,'cols');m.appendChild(holder);
    var c2=card('Consumers','Is anything waiting for an answer?');var p=j.consumer_progress||[];
    if(!p.length)c2.appendChild(stateBox('empty','No consumer outcome streams reported yet.'));
    p.forEach(function(x){var st=x.status||'unknown',tone=st=='idle'?'':st=='stalled'?'bad':st=='disabled'?'off':'warn';var d=[st.charAt(0).toUpperCase()+st.slice(1).replace(/_/g,' ')+'.',(x.pending==null?'Pending unknown':x.pending+' pending')+'.'];if(x.oldest_pending_age_s!=null)d.push('Oldest pending '+Math.floor(x.oldest_pending_age_s)+' s.');if(x.no_progress_s!=null)d.push('No progress '+Math.floor(x.no_progress_s)+' s.');if(x.reason)d.push('Reason: '+String(x.reason).replace(/_/g,' ')+'.');c2.appendChild(row(tone,x.consumer,d.join(' ')))});
-   holder.appendChild(c2)}
+   holder.appendChild(c2);if(j.watchdog)holder.appendChild(wdCard(j.watchdog))}
   holder.appendChild(usageItem())}
+ function wdCard(w){var live=w.mode=='live',c=card('Add-on watchdog',w.enabled?(live?'LIVE: a failing add-on is restarted after '+w.failed_probes+' failed checks in a row.':'DRY: failing add-ons are only reported, nothing is restarted.')+' Only Intelligent Home add-ons are watched.':'Switched off in the configuration (watchdog_enabled).');
+  if(!w.enabled)return c;
+  c.appendChild(btn(live?'Switch to DRY (report only)':'Switch to LIVE (restart failing add-ons)',function(){var me=this;ask(me,live?'Switch the watchdog to DRY (report only)?':'Switch the watchdog to LIVE? Failing add-ons will be restarted.',function(){say('saving ...');post('api/watchdog/mode/'+(live?'dry':'live')).then(function(y){say(y[0]==200?'Watchdog is now '+y[1].mode+'.':(y[1].error||'failed'));show(true)}).catch(function(e){say('error: '+e)})})},live?'':'danger'));
+  if(!w.rows.length)c.appendChild(stateBox('empty','No installed Intelligent Home add-ons to watch yet.'));
+  w.rows.forEach(function(r){var tone=r.state=='OK'?'':r.state=='FAIL'?'bad':'warn',sub=r.state+' · '+(r.fails?r.fails+' failed in a row · ':'')+r.restarts_today+' restarts today'+(r.enabled?'':' · watching paused');
+   c.appendChild(item('w:'+r.slug,tone,r.name,[],sub,function(b){b.appendChild(kvl([['Add-on state',r.addon_state],['Last result',r.probe],['Failed in a row',r.fails],['Last action',r.action||r.last_action||'none'],['Restarts today',r.restarts_today]]));
+    b.appendChild(btn(r.enabled?'Pause watching this add-on':'Resume watching',function(){post('api/watchdog/toggle/'+encodeURIComponent(r.slug)+'/'+(r.enabled?'off':'on')).then(function(){show(true)})}))})).style.marginTop='6px'});
+  if(w.incidents.length){var inc=item('w:incidents','warn','Incidents',[],w.incidents.length+' recent (30 days)',function(b){w.incidents.forEach(function(x){b.appendChild(E('p',new Date(x.at*1000).toLocaleString()+' · '+x.name+' · '+(x.dry?'[DRY] ':'')+x.action+' · '+x.probe+(x.task?' · task #'+x.task:''),'meta')).style.marginTop='8px';if(x.excerpt){var pre=E('pre',x.excerpt.slice(-1500));pre.style.maxHeight='140px';pre.style.overflow='auto';b.appendChild(pre)}})});inc.style.marginTop='6px';c.appendChild(inc)}
+  return c}
  function usageItem(){var u=S.usage,box=E('div');
   var it=item('usage',u&&u.state=='fail'?'bad':'off','Usage, last 7 days',[],u&&u.data?'Calls per add-on. '+u.data.addons.length+' add-ons, '+u.data.addons.filter(function(a){return a.total==0}).length+' not used.':u&&u.state=='fail'?'Could not read.':'Reading...',function(b){
    if(!u||u.state=='fail'){b.appendChild(stateBox('fail','Could not read the usage.',function(){show(true)},u&&u.err)).style.marginTop='10px';return}

@@ -213,9 +213,10 @@ class SharedFieldList(unittest.TestCase):
             if f['create']:
                 self.assertIn('`%s' % f['id'], docs, f['id'])
 
-    def test_one_save_button_on_the_task_page(self):
+    def test_details_and_comment_have_their_own_save_actions(self):
         js = (UI / 'ui.js').read_text()
-        self.assertEqual(len(re.findall(r"text: 'Save'", js)), 1)
+        self.assertEqual(len(re.findall(r"text: 'Save details'", js)), 1)
+        self.assertEqual(len(re.findall(r"text: 'Add comment'", js)), 1)
         self.assertIn("api('POST', '/tasks/' + t.id + '/edit', body)", js)
         self.assertIn('save.disabled', js)
         self.assertIn("api('POST', '/tasks/' + t.id + '/run_now'", js)
