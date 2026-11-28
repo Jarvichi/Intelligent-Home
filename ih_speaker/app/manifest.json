@@ -1,6 +1,6 @@
 {
  "name": "ih_speaker",
- "version": "0.4.3",
+ "version": "0.4.4",
  "kind": "addon",
  "description": "Text-to-speech tool for the house speakers: speaks a message other add-ons send (voice, volume with restore, queue, skip if playing, quiet-hour and per-persona rules). Never writes a message. Dry-run by default.",
  "owner": "local add-on ih_speaker",
