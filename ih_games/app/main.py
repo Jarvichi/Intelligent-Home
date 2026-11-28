@@ -11,7 +11,7 @@ import discord_presence as discord_presence_listener, schedule_client, orchestra
 from jobs import common
 from providers import psn_trophies, psn_trophy_names, psn_trophy_titles, psn_sessions, xbox_gamerscore, destiny, steam_presence, steam_achievements, steam_library, discord_presence
 
-VERSION = "0.17.1"
+VERSION = "0.17.3"
 DEFAULT_INGEST_URL = "http://172.30.32.1:8790"
 SOURCE = "ih_games"
 JOBS = ("providers", "orchestrate")
