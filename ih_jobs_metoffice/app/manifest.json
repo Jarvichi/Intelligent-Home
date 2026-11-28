@@ -1,6 +1,6 @@
 {
  "name": "ih_jobs_metoffice",
- "version": "0.2.0",
+ "version": "0.3.0",
  "kind": "addon",
  "description": "Child of Intelligent Home - Jobs: Met Office forecast sensors. Dry-run by default.",
  "owner": "local add-on ih_jobs_metoffice",
@@ -19,6 +19,7 @@
  "schedules": [],
  "declares_secrets": [
   "met_office_key",
+  "assistant_token",
   "register_key"
  ],
  "restore": "Stop the add-on. Uninstall to remove.",
