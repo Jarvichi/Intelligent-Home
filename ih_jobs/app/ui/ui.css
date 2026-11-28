@@ -12,9 +12,10 @@
 .jb-sub{margin:0 0 12px;color:var(--ih-muted);font-size:13px}
 .jb-note{margin-top:10px}
 .jb-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.jb-btn{min-height:44px;min-width:44px;padding:0 16px;border:1px solid var(--ih-line);border-radius:var(--ih-radius-control);background:var(--ih-surface-raised);color:var(--ih-text);font:inherit;font-size:14px;cursor:pointer}
-.jb-btn.primary{background:var(--ih-accent);color:var(--ih-accent-ink);border-color:transparent;font-weight:600}
-.jb-btn:disabled{opacity:.65;cursor:not-allowed}
+.jb-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:8px 16px;border:1px solid var(--input);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--foreground);font:inherit;font-size:14px;font-weight:500;cursor:pointer;box-shadow:var(--ih-shadow);transition:background-color .15s}
+.jb-btn:hover:not(:disabled){background:var(--accent);color:var(--accent-foreground)}
+.jb-btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent;box-shadow:none}.jb-btn.primary:hover:not(:disabled){background:color-mix(in srgb,var(--primary) 90%,transparent);color:var(--primary-foreground)}
+.jb-btn:disabled{opacity:.5;cursor:not-allowed}
 .jb-btn:focus-visible,.jb-disc:focus-visible,.jb-main select:focus-visible,.jb-main input:focus-visible{outline:3px solid var(--ih-link);outline-offset:2px}
 .jb-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .jb-tiles[hidden]{display:none}

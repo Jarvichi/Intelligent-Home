@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.23.1] - 2026-11-27
+- Move the page to the shadcn/ui look (shared ih_ui) and trim custom styles that fought it.
+
 ## [0.23.0] - 2026-11-27
 - Sensors published by plugins (speed_measure, brain_stats, car_log, bus_watch, photo_albums, legacy set_state) are saved and posted again after a Home Assistant restart: at add-on start, on homeassistant_started, and every 5 min for any that are missing/unavailable/unknown. Dry and kill-switched plugins post nothing.
 
