@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.14] - 2026-11-28
+- Restyle to the shared shadcn look: sync shared UI, trim local CSS overrides to the shared radius and border tokens.
+
 ## [0.1.13] - 2026-11-27
 - Add five themes with shared colours and visual details.
 
