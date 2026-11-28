@@ -3,9 +3,9 @@ Entry: id, title, platform, first_seen, last_seen, playtime_min (or None), sourc
 Generic code: player keys, display names and titles all come from options or the user."""
 import datetime, json, os, re, tempfile, threading
 
-PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": None, "psn_trophy_titles": "psn"}
+PLATFORM_BY_FEED = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "discord_presence": "pc", "steam_achievements": "steam", "steam_library": "steam", "destiny": None, "psn_trophy_titles": "psn"}
 DESTINY_PLATFORM = {1: "xbox", 2: "psn", 3: "steam", 5: "stadia"}
-FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "steam_achievements": "steam", "steam_library": "steam", "destiny": "bungie", "psn_trophy_titles": "psn_trophy_titles"}
+FEED_SOURCE = {"psn_trophies": "psn", "xbox_gamerscore": "xbox", "steam_presence": "steam", "discord_presence": "discord", "steam_achievements": "steam", "steam_library": "steam", "destiny": "bungie", "psn_trophy_titles": "psn_trophy_titles"}
 TITLES_FEED = "psn_trophy_titles"
 # Games added in bulk from the trophy list get no "research a tracker" to-do (145 at once would flood the list)
 NO_TODO_SOURCES = (TITLES_FEED,)
