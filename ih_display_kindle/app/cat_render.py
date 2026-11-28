@@ -93,17 +93,17 @@ def selection(timestamp, condition, halloween=False):
         if mode == 2 and weather_cat != 'tux': visitors['tux'] = spots[second]
     return scene, weather_cat, visitors
 
-def render(timestamp, condition=None, halloween=False):
+def render(timestamp, condition=None, halloween=False, header_cat=True):
     """Return standalone SVG fragments for the Kindle's 1072 x 1448 view."""
     scene, weather_cat, visitors = selection(timestamp, condition, halloween)
-    if not scene and not visitors: return ''
+    if not (scene and header_cat) and not visitors: return ''
     result = ['<g id="kindle-cats"><style>' + CSS_KINDLE +
               '.wc.foggy .wcat{opacity:.45}.wshaft{stroke-width:2.5;stroke-linecap:round}'
               '.wflake line{stroke-width:1.8;stroke-linecap:round}.wshadeb{stroke-width:1.5}'
               '.wray{stroke-width:2.5;stroke-linecap:round}.wscarfs{fill:none;stroke-width:5;stroke-linecap:round}'
               '.wgust{fill:none;stroke-width:2;stroke-linecap:round}.wfog{fill:none;stroke-width:5;stroke-linecap:round}'
               '</style>']
-    if scene:
+    if scene and header_cat:   # header_cat False while an event header is showing: no weather cat sitting on it (Andrew, 28 Nov 2026)
         scene_art = scenes()[scene][0 if weather_cat == 'calico' else 1]
         result.append(f'<g id="weather-cat" data-scene="{scene}" data-breed="{weather_cat}" transform="translate(610,209) scale(0.85)">{scene_art}</g>')
     for kind, spot in visitors.items():
